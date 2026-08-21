@@ -4,6 +4,10 @@ import { db, users, emailVerificationCodes } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 
+export async function GET() {
+  return NextResponse.json({ configured: Boolean(process.env.RESEND_API_KEY) });
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { email } = await req.json();

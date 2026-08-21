@@ -6,9 +6,10 @@ import { db, aiGenerations } from "@/lib/db";
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 
 async function callClaude(prompt: string, system: string): Promise<string> {
+  if (!process.env.ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY is not configured");
   const res = await fetch(ANTHROPIC_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "x-api-key":process.env.ANTHROPIC_API_KEY, "anthropic-version":"2023-06-01" },
     body: JSON.stringify({
       model: "claude-sonnet-4-20250514",
       max_tokens: 4000,
@@ -17,7 +18,25 @@ async function callClaude(prompt: string, system: string): Promise<string> {
     }),
   });
   const data = await res.json();
+  if (!res.ok) throw new Error(data?.error?.message || "Claude request failed");
   return data.content?.[0]?.text ?? "Unable to generate. Please try again.";
+}
+
+async function callGemini(prompt:string, system:string):Promise<string> {
+  if (!process.env.GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+  const model=process.env.GEMINI_MODEL || "gemini-2.0-flash";
+  const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`,{
+    method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({systemInstruction:{parts:[{text:system}]},contents:[{role:"user",parts:[{text:prompt}]}],generationConfig:{temperature:.65,maxOutputTokens:2400}}),
+  });
+  const data=await res.json();
+  if(!res.ok) throw new Error(data?.error?.message||"Gemini request failed");
+  return data?.candidates?.[0]?.content?.parts?.map((p:any)=>p.text).join("\n")||"Unable to generate. Please try again.";
+}
+
+async function generate(prompt:string,system:string){
+  if(process.env.GEMINI_API_KEY) return callGemini(prompt,system);
+  return callClaude(prompt,system);
 }
 
 // ── In-Memory Rate Limiter ───────────────────────────────────
@@ -65,28 +84,29 @@ Type: ${creativeType}
 Platform: ${platform ?? "Instagram, TikTok"}
 
 Include: Objective, Target Audience, Key Message, Tone of Voice, Visual Direction, Deliverables, Technical Specs, Do's & Don'ts.`;
-      result = await callClaude(prompt, system);
+      result = await generate(prompt, system);
       break;
     }
 
     case "caption": {
-      const { taskTitle, clientName, industry, tov, platform } = data;
+      const { taskTitle, postDesc, clientName, industry, tov, brandTone, platform } = data;
       const system = `You are a social media copywriter. Generate engaging captions with relevant emojis and hashtags. Be concise and platform-appropriate.`;
       prompt = `Write 3 caption options for:
-Post: ${taskTitle}
+Post: ${taskTitle ?? postDesc}
 Brand: ${clientName} (${industry})
-Tone: ${tov ?? "Professional and engaging"}
+Tone: ${tov ?? brandTone ?? "Professional and engaging"}
 Platform: ${platform ?? "Instagram"}
 
 Format: Option 1 (short), Option 2 (medium with CTAs), Option 3 (story format). Include relevant hashtags.`;
-      result = await callClaude(prompt, system);
+      result = await generate(prompt, system);
       break;
     }
 
-    case "budget_optimizer": {
+    case "budget_optimizer":
+    case "budget": {
       const { platforms } = data; // array of {platform, spend, leads, revenue, roas}
       const system = `You are a media buying expert. Analyze performance data and give specific, actionable budget reallocation advice. Be direct and data-driven.`;
-      prompt = `Analyze this ad performance data and recommend budget reallocation:
+      prompt = platforms ? `Analyze this ad performance data and recommend budget reallocation:
 
 ${platforms.map((p: any) => `${p.platform}: Spend $${p.spend}, Leads: ${p.leads}, Revenue: $${p.revenue}, ROAS: ${p.roas}x, CPL: $${p.cpl}`).join("\n")}
 
@@ -94,12 +114,13 @@ Provide:
 1. Which platform(s) to increase budget (with exact %)
 2. Which platform(s) to reduce (with exact %)
 3. Expected improvement in leads/ROAS
-4. One specific optimization tip per platform`;
-      result = await callClaude(prompt, system);
+4. One specific optimization tip per platform` : `Create a practical media budget allocation for a total budget of ${data.totalBudget}, goal ${data.objective}. Give percentage and amount per Meta, TikTok and Google, expected leads, risks and weekly optimization rules.`;
+      result = await generate(prompt, system);
       break;
     }
 
-    case "churn_prediction": {
+    case "churn_prediction":
+    case "churn": {
       const { clientName, paymentHistory, roasHistory, taskCompletion, npsScore, contractDaysLeft } = data;
       const system = `You are a customer success analyst. Predict churn risk based on signals and give specific retention recommendations.`;
       prompt = `Analyze churn risk for client: ${clientName}
@@ -117,11 +138,12 @@ Provide:
 3. Top 3 warning signals
 4. 3 specific retention actions to take THIS WEEK
 5. One relationship-building message to send`;
-      result = await callClaude(prompt, system);
+      result = await generate(prompt, system);
       break;
     }
 
-    case "performance_summary": {
+    case "performance_summary":
+    case "summary": {
       const { clientName, spend, leads, roas, tasksCompleted, nps, outstanding } = data;
       const system = `You are an account manager at a top marketing agency. Write professional, positive client summaries. Highlight wins, address concerns diplomatically.`;
       prompt = `Write a brief executive summary for ${clientName}:
@@ -129,7 +151,7 @@ Ad Spend: $${spend} | Leads: ${leads} | ROAS: ${roas}x
 Tasks Completed: ${tasksCompleted} | NPS: ${nps ?? "N/A"} | Outstanding: $${outstanding}
 
 Write 3 paragraphs: Performance highlights, areas for improvement, next month recommendations.`;
-      result = await callClaude(prompt, system);
+      result = await generate(prompt, system);
       break;
     }
 
@@ -147,5 +169,5 @@ Write 3 paragraphs: Performance highlights, areas for improvement, next month re
     tokensUsed:  Math.floor(result.length / 4),
   } as any);
 
-  return NextResponse.json({ result, type });
+  return NextResponse.json({ result, content:result, type, provider:process.env.GEMINI_API_KEY?"gemini":"anthropic" });
 }

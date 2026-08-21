@@ -177,7 +177,7 @@ export default async function RevenueAttributionPage() {
                 return(
                   <tr key={am.amId}>
                     <td className="font-semibold">{am.name ?? am.amName ?? "—"}</td>
-                    <td>{am.clients ?? am.clientCount ?? 0}</td>
+                    <td>{am.clientCount ?? 0}</td>
                     <td>${(am.totalRevenue ?? am.revenue ?? 0).toLocaleString()}</td>
                     <td className="text-green-400 font-bold">${(am.totalPaid ?? am.collected ?? 0).toLocaleString()}</td>
                     <td className="text-center">10%</td>

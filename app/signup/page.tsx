@@ -1,7 +1,7 @@
 "use client";
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const roles = [
   ["ACCOUNT_MANAGER","Account Manager","إدارة العملاء والمشروعات"], ["MEDIA_BUYER","Media Buyer","إدارة الحملات والميزانيات"],
@@ -12,6 +12,8 @@ const roles = [
 export default function SignupPage() {
   const [form,setForm]=useState({name:"",email:"",password:"",confirmPassword:"",requestedRole:"",approvalNote:"",otp:""});
   const [loading,setLoading]=useState(false), [error,setError]=useState(""), [sent,setSent]=useState(false), [otpSent,setOtpSent]=useState(false);
+  const [otpRequired,setOtpRequired]=useState(true), [otpStatusLoaded,setOtpStatusLoaded]=useState(false);
+  useEffect(()=>{fetch("/api/signup/otp").then(r=>r.json()).then(d=>setOtpRequired(Boolean(d.configured))).finally(()=>setOtpStatusLoaded(true))},[]);
   const update=(key:string,value:string)=>{setForm(v=>({...v,[key]:value}));setError("");};
   async function submit(e:React.FormEvent){
     e.preventDefault();
@@ -37,12 +39,13 @@ export default function SignupPage() {
       <><p style={{fontSize:13,fontWeight:800,letterSpacing:1.5,color:"#C52A31"}}>ACCESS REQUEST</p><h2 style={{fontSize:36,color:"#171717",margin:"8px 0",fontWeight:900}}>Create your account</h2><p style={{color:"#70685F",marginBottom:28}}>Fill in your details and select the access level you need.</p>
       <form onSubmit={submit} style={{display:"grid",gap:16}}>{error&&<div style={{padding:"12px 14px",borderRadius:10,background:"#FFF0F0",border:"1px solid #F0B8BB",color:"#A51F27"}}>{error}</div>}
         <label style={label}>FULL NAME<input className="vivit-input" required value={form.name} onChange={e=>update("name",e.target.value)} placeholder="Your full name"/></label>
-        <label style={label}>GMAIL ADDRESS<div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:10}}><input className="vivit-input" type="email" required value={form.email} onChange={e=>{update("email",e.target.value);setOtpSent(false)}} placeholder="yourname@gmail.com"/><button type="button" onClick={sendOtp} disabled={loading||!form.email} className="auth-secondary">{otpSent?"Resend code":"Send OTP"}</button></div></label>
-        {otpSent&&<label style={label}>6-DIGIT VERIFICATION CODE<input className="vivit-input otp-input" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} required value={form.otp} onChange={e=>update("otp",e.target.value.replace(/\D/g,""))} placeholder="000000"/><span style={{fontSize:11,color:"#7A7167"}}>The code expires in 10 minutes.</span></label>}
+        <label style={label}>GMAIL ADDRESS<div style={{display:"grid",gridTemplateColumns:otpRequired?"1fr auto":"1fr",gap:10}}><input className="vivit-input" type="email" required value={form.email} onChange={e=>{update("email",e.target.value);setOtpSent(false)}} placeholder="yourname@gmail.com"/>{otpRequired&&<button type="button" onClick={sendOtp} disabled={loading||!form.email} className="auth-secondary">{otpSent?"Resend code":"Send OTP"}</button>}</div></label>
+        {otpStatusLoaded&&!otpRequired&&<div style={{padding:"11px 13px",borderRadius:12,background:"#F8F1DF",color:"#75531B",fontSize:12,fontWeight:700}}>Email OTP is being activated. You can request access now; the Super Admin will verify and approve your Gmail account.</div>}
+        {otpRequired&&otpSent&&<label style={label}>6-DIGIT VERIFICATION CODE<input className="vivit-input otp-input" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} required value={form.otp} onChange={e=>update("otp",e.target.value.replace(/\D/g,""))} placeholder="000000"/><span style={{fontSize:11,color:"#7A7167"}}>The code expires in 10 minutes.</span></label>}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}><label style={label}>PASSWORD<input className="vivit-input" type="password" required value={form.password} onChange={e=>update("password",e.target.value)} placeholder="8+ characters"/></label><label style={label}>CONFIRM PASSWORD<input className="vivit-input" type="password" required value={form.confirmPassword} onChange={e=>update("confirmPassword",e.target.value)} placeholder="Repeat password"/></label></div>
         <div><p style={{fontSize:12,fontWeight:800,color:"#39342F",marginBottom:9}}>REQUESTED ROLE</p><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9}}>{roles.map(([id,title,desc])=><button type="button" key={id} onClick={()=>update("requestedRole",id)} style={{textAlign:"left",padding:"12px 14px",borderRadius:12,cursor:"pointer",background:form.requestedRole===id?"#FFF0F0":"white",border:form.requestedRole===id?"2px solid #C52A31":"1px solid #DDD4C6",color:"#252220"}}><strong style={{display:"block",fontSize:13}}>{title}</strong><span style={{fontSize:11,color:"#7A7167"}}>{desc}</span></button>)}</div>{!form.requestedRole&&<span style={{fontSize:11,color:"#8B8278"}}>Select one role to continue.</span>}</div>
         <label style={label}>WHY DO YOU NEED THIS ACCESS? (OPTIONAL)<textarea className="vivit-input" rows={3} value={form.approvalNote} onChange={e=>update("approvalNote",e.target.value)} placeholder="Team, department, or a short note for the admin" style={{resize:"vertical"}}/></label>
-        <button disabled={loading||!form.requestedRole||!otpSent||form.otp.length!==6} style={{padding:15,border:0,borderRadius:12,background:"linear-gradient(100deg,#A51F27,#C52A31 55%,#F4B223)",color:"white",fontSize:15,fontWeight:900,cursor:"pointer",opacity:(loading||!form.requestedRole||!otpSent||form.otp.length!==6) ? 0.65 : 1}}>{loading?"Verifying…":"Verify email & request access →"}</button>
+        <button disabled={loading||!form.requestedRole||(otpRequired&&(!otpSent||form.otp.length!==6))} style={{padding:15,border:0,borderRadius:12,background:"linear-gradient(100deg,#A51F27,#C52A31 55%,#F4B223)",color:"white",fontSize:15,fontWeight:900,cursor:"pointer",opacity:(loading||!form.requestedRole||(otpRequired&&(!otpSent||form.otp.length!==6))) ? 0.65 : 1}}>{loading?"Submitting…":otpRequired?"Verify email & request access →":"Request access →"}</button>
       </form><p style={{textAlign:"center",marginTop:20,color:"#746C63",fontSize:13}}>Already approved? <Link href="/login" style={{color:"#244D87",fontWeight:800}}>Sign in</Link></p></>}
     </div></section>
   </main>;

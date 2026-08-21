@@ -91,7 +91,6 @@ export default async function NewTaskPage() {
         <div className="flex flex-wrap gap-2">
           {TASK_TEMPLATES.map(t=>(
             <button key={t.id} type="button"
-              onClick={undefined}
               data-template={JSON.stringify(t)}
               className="template-btn text-xs px-3 py-2 rounded-xl border border-white/10 text-[#6B8FAF] hover:border-[#244D87] hover:text-[#00B4D8] hover:bg-[#244D87]/10 transition-all cursor-pointer">
               {t.name}

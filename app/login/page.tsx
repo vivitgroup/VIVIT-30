@@ -4,16 +4,6 @@ import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 
-const ROLES = [
-  { label:"👑 Super Admin",    email:"asem@vivitgroup.com",    color:"#9F1D25" },
-  { label:"💰 Accountant",     email:"mostafa@vivitgroup.com", color:"#059669" },
-  { label:"📣 Media Buyer",    email:"noha@vivitgroup.com",    color:"#D97706" },
-  { label:"🎨 Creator",        email:"samo@vivitgroup.com",    color:"#7C3AED" },
-  { label:"🤝 Account Manager",email:"sondos@vivitgroup.com",  color:"#0891B2" },
-  { label:"🎯 Sales",          email:"sales@vivitgroup.com",   color:"#DC2626" },
-  { label:"🏠 Client Portal",  email:"client@misfive.com",     color:"#374151" },
-];
-
 export default function LoginPage() {
   const [email,    setEmail]    = useState("");
   const [password, setPassword] = useState("");
@@ -29,11 +19,6 @@ export default function LoginPage() {
     const res = await signIn("credentials", { email:finalEmail, password:finalPassword, redirect:false });
     if (res?.error) { setError("Invalid credentials. Try again."); setLoading(false); }
     else { window.location.href = "/dashboard"; }
-  };
-
-  const quickLogin = (em: string) => {
-    setEmail(em); setPassword("password");
-    login(undefined, em, "password");
   };
 
   return (
@@ -80,25 +65,6 @@ export default function LoginPage() {
           <p style={{color:"#64748B",fontSize:"14px"}}>Welcome back to VIVIT ERP</p>
         </div>
 
-        {/* Quick login */}
-        <div style={{marginBottom:"24px"}}>
-          <p style={{fontSize:"11px",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.08em",color:"#94A3B8",marginBottom:"10px"}}>⚡ Quick Demo Login</p>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px"}}>
-            {ROLES.map(r=>(
-              <button key={r.email} onClick={()=>quickLogin(r.email)} disabled={loading}
-                style={{padding:"8px 10px",borderRadius:"8px",border:`1.5px solid ${r.color}22`,background:`${r.color}08`,cursor:"pointer",fontSize:"12px",fontWeight:600,color:r.color,transition:"all 0.15s",textAlign:"left",fontFamily:"inherit",display:"flex",alignItems:"center",gap:"4px"}}>
-                {r.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div style={{display:"flex",alignItems:"center",gap:"12px",marginBottom:"24px"}}>
-          <div style={{flex:1,height:"1px",background:"#E2E8F0"}}/>
-          <span style={{fontSize:"12px",color:"#94A3B8",fontWeight:600}}>OR SIGN IN MANUALLY</span>
-          <div style={{flex:1,height:"1px",background:"#E2E8F0"}}/>
-        </div>
-
         {/* Form */}
         <form onSubmit={login} style={{display:"flex",flexDirection:"column",gap:"16px"}}>
           {error && (
@@ -130,10 +96,6 @@ export default function LoginPage() {
             {loading ? "Signing in..." : "Sign in to VIVIT ERP →"}
           </button>
         </form>
-
-        <p style={{marginTop:"24px",textAlign:"center",fontSize:"11.5px",color:"#94A3B8"}}>
-          Demo password: <code style={{background:"#F1F5F9",padding:"2px 6px",borderRadius:"4px",color:"#9F1D25",fontWeight:700}}>password</code>
-        </p>
 
         <p style={{marginTop:"14px",textAlign:"center",fontSize:"13px",color:"#64748B"}}>
           Need an account? <Link href="/signup" style={{color:"#C52A31",fontWeight:800}}>Request access</Link>

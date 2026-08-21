@@ -63,9 +63,11 @@ export default async function DashboardPage() {
       .from(creativeTasks).where(notInArray(creativeTasks.status,["COMPLETED","REJECTED"]))
       .orderBy(desc(creativeTasks.createdAt)).limit(6),
     db.select().from(payrollLocks).where(eq(payrollLocks.period,period)).limit(1),
-  ]).catch(()=>[],[{total:0,paid:0,outstanding:0}],[{total:0,paid:0}],[{total:0,paid:0}],
-    [{spend:0,leads:0,revenue:0}],[{cnt:0}],[{cnt:0}],[{cnt:0}],[{cnt:0}],[{cnt:0}],
-    [{total:0}],[],[],[],[]) as any[];
+  ]).catch(() => [
+    [], [{total:0,paid:0,outstanding:0}], [{total:0,paid:0}], [{total:0,paid:0}],
+    [{spend:0,leads:0,revenue:0}], [{cnt:0}], [{cnt:0}], [{cnt:0}], [{cnt:0}], [{cnt:0}],
+    [{total:0}], [], [], [], [],
+  ]) as any[];
 
   const fmt = (n:number) => n>=1000000?`$${(n/1000000).toFixed(1)}M`:n>=1000?`$${(n/1000).toFixed(0)}k`:`$${n.toLocaleString()}`;
 

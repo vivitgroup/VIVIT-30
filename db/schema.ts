@@ -105,6 +105,7 @@ export const clients = pgTable("clients", {
   churnProbability: real("churn_probability").notNull().default(0),   // NEW: 0-1 ML prediction
   monthlyRetainer:  real("monthly_retainer").notNull().default(0),
   mediaBudget:      real("media_budget").notNull().default(0),
+  targetLeads:      integer("target_leads").notNull().default(0),
   contractValue:    real("contract_value").notNull().default(0),
   contractStart:    timestamp("contract_start"),
   contractEnd:      timestamp("contract_end"),

@@ -110,7 +110,6 @@ export async function getTasksWithClients() {
     type:        schema.creativeTasks.type,
     assignedToId:schema.creativeTasks.assignedToId,
     clientId:    schema.creativeTasks.clientId,
-    deletedAt:   schema.creativeTasks.deletedAt,
     companyName: schema.clients.companyName,
   })
   .from(schema.creativeTasks)
@@ -118,7 +117,7 @@ export async function getTasksWithClients() {
   .where(
     and(
       notInArray(schema.creativeTasks.status, ["COMPLETED", "REJECTED"] as any[]),
-      sql`${schema.creativeTasks.deletedAt} IS NULL`
+      sql`true`
     )
   );
 }

@@ -11,7 +11,8 @@ const SECTIONS = [
       { icon:"🏠", label:"Dashboard",     href:"/dashboard",              roles:["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","SALES","ACCOUNTANT"] },
       { icon:"🏢", label:"Clients",       href:"/dashboard/clients",      roles:["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"] },
       { icon:"🎯", label:"Sales CRM",     href:"/dashboard/sales",        roles:["SUPER_ADMIN","SALES","ACCOUNT_MANAGER"] },
-      { icon:"📣", label:"Media Buying",  href:"/dashboard/media",        roles:["SUPER_ADMIN","MEDIA_BUYER","ACCOUNT_MANAGER"] },
+      { icon:"📣", label:"Media Control", href:"/dashboard/media/control-center",roles:["SUPER_ADMIN","MEDIA_BUYER","ACCOUNT_MANAGER"] },
+      { icon:"🔄", label:"Platform Sync", href:"/dashboard/media/sync",roles:["SUPER_ADMIN","MEDIA_BUYER"] },
       { icon:"🎨", label:"Creative",      href:"/dashboard/creative",     roles:["SUPER_ADMIN","ACCOUNT_MANAGER","CREATOR"] },
       { icon:"📥", label:"Tasks Inbox",   href:"/dashboard/tasks-inbox",  roles:["SUPER_ADMIN","ACCOUNT_MANAGER"] },
       { icon:"📅", label:"Calendar",      href:"/dashboard/calendar",     roles:["SUPER_ADMIN","ACCOUNT_MANAGER","CREATOR"] },
@@ -40,6 +41,7 @@ const SECTIONS = [
     items: [
       { icon:"✨", label:"AI Studio",     href:"/dashboard/ai-studio",    roles:["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"] },
       { icon:"📦", label:"Workspace",     href:"/dashboard/workspace",    roles:["SUPER_ADMIN"] },
+      { icon:"📁", label:"Files",         href:"/dashboard/files",        roles:["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CREATOR","SALES","ACCOUNTANT","CLIENT"] },
       { icon:"🔔", label:"Notifications", href:"/dashboard/notifications",roles:["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CREATOR","SALES","ACCOUNTANT"] },
       { icon:"⚙️", label:"Settings",      href:"/dashboard/settings",     roles:["SUPER_ADMIN"] },
     ]
@@ -93,8 +95,8 @@ export function Sidebar({ role, userName }: { role:string; userName:string }) {
     <aside className={`app-sidebar${collapsed?" collapsed":""}`}>
       {/* Logo */}
       <div className="sidebar-logo" style={{justifyContent: collapsed?"center":"flex-start"}}>
-        <Image src="/vivit-logo.png" alt="VIVIT" width={collapsed?32:120} height={32}
-          style={{objectFit:"contain",maxWidth:collapsed?"32px":"120px",transition:"all 0.2s ease"}}
+        <Image src="/vivit-mark.png" alt="VIVIT" width={collapsed?34:52} height={42}
+          style={{objectFit:"contain",maxWidth:collapsed?"34px":"52px",transition:"all 0.2s ease"}}
           priority/>
       </div>
 

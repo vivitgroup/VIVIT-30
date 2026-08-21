@@ -1,6 +1,6 @@
 {
   "name": "vivit-erp",
-  "version": "24.0.0",
+  "version": "34.0.0",
   "description": "VIVIT ERP — Enterprise Marketing Agency Platform",
   "private": true,
   "engines": {
@@ -33,6 +33,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "drizzle-kit": "^0.30.4",
+    "tailwindcss": "^3.4.17",
     "tsx": "^4.19.2",
     "typescript": "^5"
   }

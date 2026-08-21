@@ -1,0 +1,27 @@
+"use client";
+import {useEffect,useState} from "react";
+
+const platforms=["META","TIKTOK","GOOGLE","SNAPCHAT","LINKEDIN"];
+const labels:any={META:"Meta — Facebook & Instagram",TIKTOK:"TikTok Ads",GOOGLE:"Google & YouTube Ads",SNAPCHAT:"Snapchat Ads",LINKEDIN:"LinkedIn Ads"};
+
+export default function PlatformSync(){
+ const[data,setData]=useState<any>({clients:[],campaigns:[],connections:[]}),[busy,setBusy]=useState(""),[message,setMessage]=useState("");
+ async function load(){const r=await fetch("/api/media-control");setData(await r.json())}
+ useEffect(()=>{load();const q=new URLSearchParams(window.location.search),status=q.get("oauth");if(status==="success")setMessage(`${q.get("platform")} connected securely.`);if(status==="missing")setMessage(`${q.get("platform")} developer app keys are not configured in Vercel yet.`);if(status==="error")setMessage(q.get("message")||"Connection failed.");window.history.replaceState({},"",window.location.pathname)},[]);
+ async function sync(campaignId:string){setBusy(campaignId);const r=await fetch("/api/media-control",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({op:"sync",campaignId})}),d=await r.json();setMessage(r.ok?`Synced ${d.days} days. ${d.alerts?.length||0} alerts created.`:d.error);if(r.ok)await load();setBusy("")}
+ return <div style={{display:"grid",gap:18,maxWidth:1000}}>
+  <div><h1 className="page-title">Ad Platform Connections</h1><p className="page-subtitle">Connect each client account once. Tokens are encrypted and refreshed automatically.</p></div>
+  {message&&<div className={message.includes("connected")||message.includes("Synced")?"media-success":"media-error"}>{message}</div>}
+  <div className="card"><div className="card-header"><p className="card-title">Secure OAuth connection</p><span className="badge badge-blue">No passwords stored</span></div><div className="card-body">
+   <form className="media-form" onSubmit={e=>{e.preventDefault();const values:any=Object.fromEntries(new FormData(e.currentTarget).entries()),params=new URLSearchParams({clientId:values.clientId,adAccountId:values.adAccountId,accountName:values.accountName||""});window.location.assign(`/api/ad-oauth/${String(values.platform).toLowerCase()}/start?${params}`)}}>
+    <label className="form-label">CLIENT<select required name="clientId" className="form-select"><option value="">Select client</option>{data.clients?.map((c:any)=><option value={c.id} key={c.id}>{c.name}</option>)}</select></label>
+    <label className="form-label">PLATFORM<select name="platform" className="form-select">{platforms.map(p=><option key={p} value={p}>{labels[p]}</option>)}</select></label>
+    <label className="form-label">AD ACCOUNT ID<input required name="adAccountId" className="form-input" placeholder="Found in the platform Ads Manager"/></label>
+    <label className="form-label">ACCOUNT NAME<input name="accountName" className="form-input" placeholder="Example: Client Main Account"/></label>
+    <button className="btn btn-primary">Connect securely →</button>
+   </form><p style={{fontSize:11,color:"var(--text-muted)",marginTop:12}}>You will be redirected to the selected platform to approve access, then returned here automatically.</p>
+  </div></div>
+  <div className="card"><div className="card-header"><p className="card-title">Connected accounts</p><span className="badge badge-green">Encrypted</span></div><div className="card-body" style={{display:"grid",gap:9}}>{data.connections?.map((x:any)=><div className="media-decision" key={x.id}><div><strong>{labels[x.platform]||x.platform}</strong><small>{x.accountName||"Ad Account"} · {x.adAccountId}<br/>Last sync: {x.lastSyncAt?new Date(x.lastSyncAt).toLocaleString():"Not synced yet"}</small></div><span className={`badge ${x.status==="CONNECTED"?"badge-green":"badge-gray"}`}>{x.status}</span></div>)}{!data.connections?.length&&<p className="text-muted">No accounts connected yet.</p>}</div></div>
+  <div className="card"><div className="card-header"><p className="card-title">Campaign sync</p><span className="badge badge-blue">Last 30 days</span></div><div className="card-body" style={{display:"grid",gap:9}}>{data.campaigns?.map((c:any)=><div className="media-decision" key={c.id}><div><strong>{c.name}</strong><small>{c.platform} · ID {c.externalId}<br/>Last sync: {c.lastSyncAt?new Date(c.lastSyncAt).toLocaleString():"Never"}</small></div><span className="badge badge-gray">{c.status}</span><button className="btn btn-primary btn-sm" disabled={busy===c.id} onClick={()=>sync(c.id)}>{busy===c.id?"Syncing…":"Sync now ↻"}</button></div>)}{!data.campaigns?.length&&<div className="empty-state"><p className="empty-state-icon">🔗</p><p className="empty-state-desc">Link a campaign from the Media Control Center first.</p></div>}</div></div>
+ </div>
+}

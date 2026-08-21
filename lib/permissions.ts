@@ -115,7 +115,7 @@ export function homeFor(role: Role): string {
     case Role.CLIENT:         return "/dashboard/portal";
     case Role.CREATOR:        return "/dashboard/creative";
     case Role.ACCOUNTANT:     return "/dashboard/finance";
-    case Role.MEDIA_BUYER:    return "/dashboard/media";
+    case Role.MEDIA_BUYER:    return "/dashboard/media/control-center";
     case Role.SALES:          return "/dashboard/sales";
     default:                  return "/dashboard";
   }

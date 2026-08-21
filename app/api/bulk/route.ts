@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
       if (!["SUPER_ADMIN","ACCOUNT_MANAGER"].includes(role))
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       await db.update(creativeTasks)
-        .set({ status: data.status, updatedAt: new Date() })
+        .set({ status: data.status, updatedAt: new Date() } as any)
         .where(inArray(creativeTasks.id, ids));
       updated.push(...ids);
       break;
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
       if (!["SUPER_ADMIN","ACCOUNT_MANAGER"].includes(role))
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       await db.update(creativeTasks)
-        .set({ assignedToId: data.assignedToId, updatedAt: new Date() })
+        .set({ assignedToId: data.assignedToId, updatedAt: new Date() } as any)
         .where(inArray(creativeTasks.id, ids));
       updated.push(...ids);
       break;
@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
           title:`📬 Reminder: ${t.title}`,
           message:"Your task needs attention — please check the latest status.",
           link:`/dashboard/creative/${t.id}`,
-        }).onConflictDoNothing();
+        } as any).onConflictDoNothing();
       }
       return NextResponse.json({ success: true, notified: tasks.length });
     }

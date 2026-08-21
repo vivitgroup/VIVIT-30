@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
   workloads.sort((a,b) => a.activeCount - b.activeCount);
   const best = workloads[0];
 
-  await db.update(creativeTasks).set({ assignedToId: best.creator.id, updatedAt: new Date() })
+  await db.update(creativeTasks).set({ assignedToId: best.creator.id, updatedAt: new Date() } as any)
     .where(eq(creativeTasks.id, taskId));
 
   return NextResponse.json({ success:true, assignedTo:best.creator.name, creatorId:best.creator.id, workload:best.activeCount });

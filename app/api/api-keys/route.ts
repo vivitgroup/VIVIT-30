@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
   const rawKey = `vvt_${crypto.randomBytes(32).toString("hex")}`;
   const keyHash = crypto.createHash("sha256").update(rawKey).digest("hex");
   const keyPrefix = rawKey.slice(0, 12);
-  const [key] = await db.insert(apiKeys).values({ workspaceId:"default", userId:session.user.id!, name, keyHash, keyPrefix, permissions }).returning({ id:apiKeys.id, name:apiKeys.name });
+  const [key] = await db.insert(apiKeys).values({ workspaceId:"default", userId:session.user.id!, name, keyHash, keyPrefix, permissions } as any).returning({ id:apiKeys.id, name:apiKeys.name });
   return NextResponse.json({ id:key.id, name:key.name, key: rawKey, message:"Store this key securely. It will NOT be shown again." });
 }
 
@@ -28,6 +28,6 @@ export async function DELETE(req: NextRequest) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await req.json();
-  await db.update(apiKeys).set({ isActive: false }).where(and(eq(apiKeys.id, id), eq(apiKeys.workspaceId, "default")));
+  await db.update(apiKeys).set({ isActive: false } as any).where(and(eq(apiKeys.id, id), eq(apiKeys.workspaceId, "default")));
   return NextResponse.json({ success: true });
 }

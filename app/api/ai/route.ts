@@ -145,7 +145,7 @@ Write 3 paragraphs: Performance highlights, areas for improvement, next month re
     prompt:      prompt.slice(0, 500),
     result:      result.slice(0, 2000),
     tokensUsed:  Math.floor(result.length / 4),
-  });
+  } as any);
 
   return NextResponse.json({ result, type });
 }

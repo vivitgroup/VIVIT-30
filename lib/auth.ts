@@ -17,10 +17,10 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
+import authConfig from "@/auth.config";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  session: { strategy: "jwt" },
-  pages: { signIn: "/login" },
+  ...authConfig,
   providers: [
     Credentials({
       credentials: {
@@ -53,23 +53,4 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
     }),
   ],
-  // Fix 49: Validate NEXTAUTH_URL is set
-  // Fix 50: Clear warning if missing
-  ...(process.env.NODE_ENV === "production" && !process.env.NEXTAUTH_URL
-    ? (() => { console.error("⚠️ NEXTAUTH_URL not set! Auth callbacks will fail."); return {}; })()
-    : {}),
-
-  callbacks: {
-    jwt({ token, user }) {
-      if (user) token.role = (user as any).role;
-      return token;
-    },
-    session({ session, token }) {
-      if (session.user) {
-        session.user.id = token.sub!;
-        (session.user as any).role = token.role;
-      }
-      return session;
-    },
-  },
 });

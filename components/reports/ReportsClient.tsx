@@ -80,7 +80,7 @@ export function ReportsClient() {
         <div className="grid grid-cols-3 md:grid-cols-6 gap-2 mb-4">
           {ENTITIES.map(e => (
             <button key={e.value} onClick={() => { setEntity(e.value); setFields([]); setData(null); }}
-              className={`p-2 rounded-xl border text-center transition-all ${entity===e.value ? "border-[#0077B6] bg-[#0077B6]/15" : "border-white/8 bg-white/[0.02] hover:border-white/20"}`}>
+              className={`p-2 rounded-xl border text-center transition-all ${entity===e.value ? "border-[#244D87] bg-[#244D87]/15" : "border-white/8 bg-white/[0.02] hover:border-white/20"}`}>
               <div className="text-xl mb-0.5">{e.icon}</div>
               <p className="text-[11px] font-semibold">{e.label}</p>
             </button>
@@ -92,7 +92,7 @@ export function ReportsClient() {
           <div className="flex items-center justify-between mb-2">
             <p className="text-xs font-semibold text-muted uppercase tracking-wider">Select Fields</p>
             <div className="flex gap-2">
-              <button onClick={selectAll} className="text-[10px] text-[#0077B6] hover:text-[#00B4D8]">Select All</button>
+              <button onClick={selectAll} className="text-[10px] text-[#244D87] hover:text-[#00B4D8]">Select All</button>
               <span className="text-dim">·</span>
               <button onClick={clearAll} className="text-[10px] text-muted hover:text-[#D4E4F0]">Clear</button>
             </div>
@@ -100,7 +100,7 @@ export function ReportsClient() {
           <div className="flex flex-wrap gap-2">
             {selectedEntity.fields.map(f => (
               <button key={f} onClick={() => toggleField(f)}
-                className={`text-xs px-2.5 py-1 rounded-lg border transition-all ${selFields.includes(f) ? "border-[#0077B6] bg-[#0077B6]/15 text-[#00B4D8]" : "border-white/10 text-muted hover:border-white/20"}`}>
+                className={`text-xs px-2.5 py-1 rounded-lg border transition-all ${selFields.includes(f) ? "border-[#244D87] bg-[#244D87]/15 text-[#00B4D8]" : "border-white/10 text-muted hover:border-white/20"}`}>
                 {selFields.includes(f) ? "✓ " : ""}{f}
               </button>
             ))}
@@ -112,7 +112,7 @@ export function ReportsClient() {
           <div className="flex rounded-xl border border-white/10 overflow-hidden">
             {(["table","json"] as const).map(f => (
               <button key={f} onClick={() => setFormat(f)}
-                className={`text-xs px-3 py-1.5 transition-all ${format===f ? "bg-[#0077B6]/20 text-[#00B4D8]" : "text-muted hover:bg-white/5"}`}>
+                className={`text-xs px-3 py-1.5 transition-all ${format===f ? "bg-[#244D87]/20 text-[#00B4D8]" : "text-muted hover:bg-white/5"}`}>
                 {f === "table" ? "📋 Table" : "{ } JSON"}
               </button>
             ))}
@@ -175,7 +175,7 @@ export function ReportsClient() {
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           {ENTITIES.map(e => (
             <a key={e.value} href={`/api/export?entity=${e.value}`} target="_blank"
-              className="flex items-center gap-2 p-3 rounded-xl border border-white/8 bg-white/[0.02] hover:border-[#0077B6]/30 transition-all"
+              className="flex items-center gap-2 p-3 rounded-xl border border-white/8 bg-white/[0.02] hover:border-[#244D87]/30 transition-all"
               style={{textDecoration:"none"}}>
               <span className="text-xl">{e.icon}</span>
               <div>

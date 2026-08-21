@@ -53,12 +53,41 @@ export const users = pgTable("users", {
   avatar:       text("avatar"),
   phone:        text("phone"),
   isActive:     boolean("is_active").notNull().default(true),
+  approvalStatus: text("approval_status").notNull().default("APPROVED"),
+  requestedRole:  roleEnum("requested_role"),
+  approvalNote:   text("approval_note"),
+  approvedBy:     text("approved_by"),
+  approvedAt:     timestamp("approved_at"),
+  rejectedAt:     timestamp("rejected_at"),
   lastLoginAt:  timestamp("last_login_at"),
   // SaaS
   isWorkspaceOwner: boolean("is_workspace_owner").notNull().default(false),
   apiKey:       text("api_key"),                              // personal API key
   createdAt:    timestamp("created_at").notNull().defaultNow(),
   updatedAt:    timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const passwordResetTokens = pgTable("password_reset_tokens", {
+  id:        text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  userId:    text("user_id").notNull().references(()=>users.id, {onDelete:"cascade"}),
+  tokenHash: text("token_hash").notNull().unique(),
+  expiresAt: timestamp("expires_at").notNull(),
+  usedAt:    timestamp("used_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const fileDocuments = pgTable("file_documents", {
+  id:          text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  workspaceId: text("workspace_id").notNull().default("default"),
+  uploadedBy:  text("uploaded_by").notNull(),
+  clientId:    text("client_id"),
+  taskId:      text("task_id"),
+  name:        text("name").notNull(),
+  storagePath: text("storage_path").notNull().unique(),
+  mimeType:    text("mime_type"),
+  sizeBytes:   integer("size_bytes").notNull().default(0),
+  category:    text("category").notNull().default("GENERAL"),
+  createdAt:   timestamp("created_at").notNull().defaultNow(),
 });
 
 // ── Clients ────────────────────────────────────────────────────────────────
@@ -135,6 +164,31 @@ export const mediaMetrics = pgTable("media_metrics", {
   targetLeads:     integer("target_leads"),
   createdAt:       timestamp("created_at").notNull().defaultNow(),
 });
+
+// ── Media Buying Control Center ───────────────────────────────
+export const adPlatformConnections = pgTable("ad_platform_connections", {
+  id:text("id").primaryKey().$defaultFn(()=>crypto.randomUUID()), workspaceId:text("workspace_id").notNull().default("default"),
+  clientId:text("client_id"), platform:text("platform").notNull(), adAccountId:text("ad_account_id").notNull(), accountName:text("account_name"),
+  accessTokenEncrypted:text("access_token_encrypted"), refreshTokenEncrypted:text("refresh_token_encrypted"), tokenExpiresAt:timestamp("token_expires_at"),
+  status:text("status").notNull().default("PENDING"), lastSyncAt:timestamp("last_sync_at"), syncError:text("sync_error"), createdBy:text("created_by").notNull(), createdAt:timestamp("created_at").notNull().defaultNow(), updatedAt:timestamp("updated_at").notNull().defaultNow(),
+},t=>[unique("uq_platform_account").on(t.platform,t.adAccountId)]);
+
+export const adCampaigns = pgTable("ad_campaigns", {
+  id:text("id").primaryKey().$defaultFn(()=>crypto.randomUUID()), workspaceId:text("workspace_id").notNull().default("default"),clientId:text("client_id").notNull(),connectionId:text("connection_id"),
+  platform:text("platform").notNull(),externalId:text("external_id").notNull(),name:text("name").notNull(),objective:text("objective").notNull().default("LEADS"),status:text("status").notNull().default("UNKNOWN"),
+  campaignUrl:text("campaign_url"),dailyBudget:real("daily_budget").notNull().default(0),lifetimeBudget:real("lifetime_budget").notNull().default(0),currency:text("currency").notNull().default("EGP"),
+  targetResult:real("target_result").notNull().default(0),targetCpl:real("target_cpl").notNull().default(0),targetCpa:real("target_cpa").notNull().default(0),targetRoas:real("target_roas").notNull().default(0),
+  startDate:timestamp("start_date"),endDate:timestamp("end_date"),lastSyncAt:timestamp("last_sync_at"),createdBy:text("created_by").notNull(),createdAt:timestamp("created_at").notNull().defaultNow(),updatedAt:timestamp("updated_at").notNull().defaultNow(),
+},t=>[unique("uq_campaign_platform_external").on(t.platform,t.externalId),index("idx_campaign_client").on(t.clientId,t.status)]);
+
+export const adSets = pgTable("ad_sets", {id:text("id").primaryKey().$defaultFn(()=>crypto.randomUUID()),campaignId:text("campaign_id").notNull(),externalId:text("external_id").notNull(),name:text("name").notNull(),status:text("status").notNull().default("UNKNOWN"),budget:real("budget").notNull().default(0),optimizationGoal:text("optimization_goal"),audience:text("audience"),placements:text("placements"),createdAt:timestamp("created_at").notNull().defaultNow(),updatedAt:timestamp("updated_at").notNull().defaultNow()},t=>[unique("uq_adset_external").on(t.campaignId,t.externalId)]);
+export const ads = pgTable("ads", {id:text("id").primaryKey().$defaultFn(()=>crypto.randomUUID()),campaignId:text("campaign_id").notNull(),adSetId:text("ad_set_id"),externalId:text("external_id").notNull(),name:text("name").notNull(),status:text("status").notNull().default("UNKNOWN"),creativeTaskId:text("creative_task_id"),creativeUrl:text("creative_url"),headline:text("headline"),copy:text("copy"),createdAt:timestamp("created_at").notNull().defaultNow(),updatedAt:timestamp("updated_at").notNull().defaultNow()},t=>[unique("uq_ad_external").on(t.campaignId,t.externalId)]);
+
+export const adPerformanceDaily = pgTable("ad_performance_daily", {id:text("id").primaryKey().$defaultFn(()=>crypto.randomUUID()),campaignId:text("campaign_id").notNull(),adSetId:text("ad_set_id"),adId:text("ad_id"),date:timestamp("date").notNull(),breakdownType:text("breakdown_type").notNull().default("TOTAL"),breakdownValue:text("breakdown_value").notNull().default("ALL"),spend:real("spend").notNull().default(0),impressions:integer("impressions").notNull().default(0),reach:integer("reach").notNull().default(0),clicks:integer("clicks").notNull().default(0),results:integer("results").notNull().default(0),qualifiedLeads:integer("qualified_leads").notNull().default(0),purchases:integer("purchases").notNull().default(0),revenue:real("revenue").notNull().default(0),frequency:real("frequency").notNull().default(0),ctr:real("ctr").notNull().default(0),cpc:real("cpc").notNull().default(0),cpm:real("cpm").notNull().default(0),cpl:real("cpl").notNull().default(0),cpa:real("cpa").notNull().default(0),roas:real("roas").notNull().default(0),createdAt:timestamp("created_at").notNull().defaultNow()},t=>[unique("uq_perf_daily_breakdown").on(t.campaignId,t.adId,t.date,t.breakdownType,t.breakdownValue),index("idx_perf_campaign_date").on(t.campaignId,t.date)]);
+
+export const mediaActions = pgTable("media_actions", {id:text("id").primaryKey().$defaultFn(()=>crypto.randomUUID()),campaignId:text("campaign_id").notNull(),userId:text("user_id").notNull(),action:text("action").notNull(),oldValue:text("old_value"),newValue:text("new_value"),reason:text("reason"),resultAfter:text("result_after"),createdAt:timestamp("created_at").notNull().defaultNow(),reviewedAt:timestamp("reviewed_at")});
+export const mediaPlans = pgTable("media_plans", {id:text("id").primaryKey().$defaultFn(()=>crypto.randomUUID()),workspaceId:text("workspace_id").notNull().default("default"),clientId:text("client_id").notNull(),name:text("name").notNull(),periodStart:timestamp("period_start").notNull(),periodEnd:timestamp("period_end").notNull(),totalBudget:real("total_budget").notNull().default(0),allocation:text("allocation").notNull().default("[]"),forecast:text("forecast").notNull().default("{}"),status:text("status").notNull().default("DRAFT"),submittedBy:text("submitted_by").notNull(),approvedBy:text("approved_by"),approvedAt:timestamp("approved_at"),clientNote:text("client_note"),createdAt:timestamp("created_at").notNull().defaultNow(),updatedAt:timestamp("updated_at").notNull().defaultNow()});
+export const trackingHealth = pgTable("tracking_health", {id:text("id").primaryKey().$defaultFn(()=>crypto.randomUUID()),clientId:text("client_id").notNull(),platform:text("platform").notNull(),pixelStatus:text("pixel_status").notNull().default("UNKNOWN"),capiStatus:text("capi_status").notNull().default("UNKNOWN"),utmStatus:text("utm_status").notNull().default("UNKNOWN"),landingPageStatus:text("landing_page_status").notNull().default("UNKNOWN"),events:text("events").notNull().default("[]"),issues:text("issues").notNull().default("[]"),checkedAt:timestamp("checked_at").notNull().defaultNow()},t=>[unique("uq_tracking_client_platform").on(t.clientId,t.platform)]);
 
 // ── Creative Tasks ─────────────────────────────────────────────────────────
 export const creativeTasks = pgTable("creative_tasks", {

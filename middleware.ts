@@ -1,4 +1,5 @@
-import { auth } from "@/lib/auth";
+import NextAuth from "next-auth";
+import authConfig from "@/auth.config";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
@@ -55,6 +56,8 @@ function corsHeaders(res:NextResponse, origin:string|null):NextResponse{
   return res;
 }
 
+const { auth } = NextAuth(authConfig);
+
 export default auth((req) => {
   const { pathname } = req.nextUrl;
   const session      = req.auth;
@@ -89,7 +92,8 @@ export default auth((req) => {
 
   // Fix 10: Cron protection — must have secret
   if (pathname.startsWith("/api/cron")) {
-    const secret = req.headers.get("x-cron-secret")??
+    const bearer = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+    const secret = req.headers.get("x-cron-secret") ?? bearer ??
                    req.nextUrl.searchParams.get("secret");
     const expected = process.env.CRON_SECRET;
     if (!expected || secret !== expected)
@@ -98,7 +102,8 @@ export default auth((req) => {
 
   // Public routes
   const publicPaths = ["/","/login","/signup","/api/auth","/api/health",
-    "/api/signup","/approve","/api/v1","/robots.txt","/sitemap.xml"];
+    "/api/signup","/forgot-password","/reset-password","/api/password",
+    "/approve","/api/v1","/robots.txt","/sitemap.xml"];
   if (publicPaths.some(p=>pathname.startsWith(p))) {
     const res = NextResponse.next();
     secHeaders(res);
@@ -117,8 +122,8 @@ export default auth((req) => {
 
   // Fix 12,19: CLIENT portal isolation — strict redirect
   if (role==="CLIENT") {
-    const clientAllowed = ["/dashboard/portal","/dashboard/notifications",
-      "/api/notifications","/api/onboarding","/api/search"];
+    const clientAllowed = ["/dashboard/portal","/dashboard/notifications","/dashboard/files",
+      "/api/notifications","/api/onboarding","/api/search","/api/files"];
     if (pathname.startsWith("/dashboard") &&
         !clientAllowed.some(p=>pathname.startsWith(p))) {
       return NextResponse.redirect(new URL("/dashboard/portal",req.url));

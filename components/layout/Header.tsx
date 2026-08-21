@@ -19,6 +19,9 @@ const PAGE_TITLES: Record<string,string> = {
   "/dashboard/ai-studio":"AI Studio","/dashboard/settings":"Settings",
   "/dashboard/kpis":"KPIs & BI","/dashboard/forecast":"Revenue Forecast",
   "/dashboard/reports":"Reports","/dashboard/notifications":"Notifications",
+  "/dashboard/files":"Files & Documents",
+  "/dashboard/media/control-center":"Media Buying Control Center",
+  "/dashboard/media/sync":"Ad Platform Connections",
 };
 
 export function Header({ role, unreadCount }: { role:string; unreadCount:number }) {
@@ -30,13 +33,16 @@ export function Header({ role, unreadCount }: { role:string; unreadCount:number 
   const [loading,setLoading]  = useState(false);
   const [history,setHistory]  = useState<string[]>([]);
   const [selected,setSelected]= useState(0);
+  const [lang,setLang]=useState<"en"|"ar">("en");
   const inputRef = useRef<HTMLInputElement>(null);
   const timer    = useRef<NodeJS.Timeout|null>(null);
   const pageTitle = PAGE_TITLES[pathname] || pathname.split("/").pop()?.replace(/-/g," ") || "Dashboard";
 
   useEffect(()=>{
-    try { setHistory(JSON.parse(localStorage.getItem("vivit-search-history")??"[]")); } catch {}
+    try { setHistory(JSON.parse(localStorage.getItem("vivit-search-history")??"[]")); const saved=(localStorage.getItem("vivit-lang") as "en"|"ar")||"en";setLang(saved);document.documentElement.lang=saved;document.documentElement.dir=saved==="ar"?"rtl":"ltr"; } catch {}
   },[]);
+
+  const toggleLanguage=()=>{const next=lang==="en"?"ar":"en";setLang(next);localStorage.setItem("vivit-lang",next);document.documentElement.lang=next;document.documentElement.dir=next==="ar"?"rtl":"ltr";};
 
   useEffect(()=>{
     const h=(e:KeyboardEvent)=>{
@@ -90,6 +96,7 @@ export function Header({ role, unreadCount }: { role:string; unreadCount:number 
 
         {/* Actions */}
         <div className="flex items-center gap-2">
+          <button onClick={toggleLanguage} className="btn btn-ghost btn-sm" title="Switch language">{lang==="en"?"عربي":"English"}</button>
           {/* Export CSV */}
           <button onClick={exportCSV} className="btn btn-ghost btn-sm btn-icon" title="Export CSV">
             📥

@@ -13,8 +13,8 @@ const config: Config = {
       // Fix 84: Proper color tokens matching globals.css
       colors: {
         vivit: {
-          primary:   "#0077B6",
-          dark:      "#023E8A",
+          primary:   "#244D87",
+          dark:      "#17345F",
           cyan:      "#00B4D8",
           bg:        "#0B1220",
           card:      "#0D1A2E",

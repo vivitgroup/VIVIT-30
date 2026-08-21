@@ -62,7 +62,7 @@ export default async function TeamPage() {
       .from(users).where(eq(users.approvalStatus,"PENDING")).orderBy(desc(users.createdAt)),
     db.select({ id:leaveRequests.id,userId:leaveRequests.userId,type:leaveRequests.type,
       fromDate:leaveRequests.fromDate,toDate:leaveRequests.toDate,
-      days:leaveRequests.days,status:leaveRequests.status,notes:leaveRequests.notes })
+      days:leaveRequests.days,status:leaveRequests.status,notes:leaveRequests.reason })
       .from(leaveRequests).where(eq(leaveRequests.status,"PENDING")).orderBy(desc(leaveRequests.createdAt)),
     db.select({ userId:payroll.userId,baseSalary:payroll.baseSalary,bonus:payroll.bonus,
       deductions:payroll.deductions,netPay:payroll.netPay,status:payroll.status,month:payroll.month,year:payroll.year })

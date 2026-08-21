@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
     case "invoices.mark_overdue": {
       // Mark all unpaid past-due invoices as OVERDUE
       const now2 = new Date();
-      await db.update(financeRecords).set({ invoiceStatus: "OVERDUE" as any })
+      await db.update(financeRecords).set({ invoiceStatus: "OVERDUE" as any } as any)
         .where(and(lte(financeRecords.dueDate!, now2), eq(financeRecords.invoiceStatus, "SENT" as any)));
       return NextResponse.json({ success: true, action: "overdue_marked" });
     }

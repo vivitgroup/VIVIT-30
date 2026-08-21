@@ -76,6 +76,15 @@ export const passwordResetTokens = pgTable("password_reset_tokens", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const emailVerificationCodes = pgTable("email_verification_codes", {
+  id:        text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  email:     text("email").notNull().unique(),
+  codeHash:  text("code_hash").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  attempts:  integer("attempts").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const fileDocuments = pgTable("file_documents", {
   id:          text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   workspaceId: text("workspace_id").notNull().default("default"),

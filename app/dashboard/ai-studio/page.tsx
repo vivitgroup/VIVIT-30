@@ -79,7 +79,7 @@ export default async function AIStudioPage() {
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:"12px"}}>
         <div>
           <h1 className="page-title">AI Studio</h1>
-          <p className="page-subtitle">5 Claude-powered tools · {Number(genCount[0]?.cnt??0)} total generations</p>
+          <p className="page-subtitle">5 AI-powered tools · {Number(genCount[0]?.cnt??0)} total generations</p>
         </div>
         <div style={{
           padding:"8px 16px",borderRadius:"var(--radius-sm)",
@@ -88,7 +88,7 @@ export default async function AIStudioPage() {
           display:"flex",alignItems:"center",gap:"8px"
         }}>
           <span style={{fontSize:"16px"}}>⚡</span>
-          <span style={{fontSize:"12px",fontWeight:700,color:"var(--purple)"}}>Powered by Claude claude-sonnet-4</span>
+          <span style={{fontSize:"12px",fontWeight:700,color:"var(--purple)"}}>Smart provider routing · Gemini Free / Claude</span>
         </div>
       </div>
 
@@ -150,7 +150,6 @@ export default async function AIStudioPage() {
               </div>
 
               <button
-                onClick={undefined}
                 style={{
                   marginTop:"12px",width:"100%",padding:"10px",
                   background:`linear-gradient(135deg,${tool.color},${tool.color}CC)`,
@@ -228,7 +227,7 @@ export default async function AIStudioPage() {
                 output.style.color = 'var(--text-primary)';
               }
             } catch(e) {
-              output.textContent = 'Error: ' + e.message + '. Make sure ANTHROPIC_API_KEY is set in Vercel.';
+              output.textContent = 'Error: ' + e.message + '. Ask the Super Admin to configure GEMINI_API_KEY or ANTHROPIC_API_KEY.';
               output.style.display = 'block';
               placeholder.style.display = 'none';
               output.style.color = 'var(--red)';

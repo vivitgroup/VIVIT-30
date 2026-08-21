@@ -150,7 +150,7 @@ export default async function ReferralsPage() {
               {["14-day Free Trial","20% First Month Off","Demo Request"].map(link=>(
                 <div key={link} className="flex items-center justify-between">
                   <span className="text-xs text-muted">{link}</span>
-                  <button className="text-[10px] badge-info px-2 py-0.5 rounded cursor-pointer" onClick={()=>navigator.clipboard?.writeText(`https://viviterp.com?ref=PARTNER&promo=${link.replace(/ /g,"-").toLowerCase()}`)}>Copy Link</button>
+                  <span className="text-[10px] badge-info px-2 py-0.5 rounded">Available after partner activation</span>
                 </div>
               ))}
             </div>

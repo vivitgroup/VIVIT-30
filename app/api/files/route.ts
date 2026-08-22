@@ -2,7 +2,7 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { db,fileDocuments,auditLogs,clients,creativeTasks } from "@/lib/db";
+import { db,fileDocuments,auditLogs,clients,creativeTasks,sql } from "@/lib/db";
 import { eq,and,desc,inArray,or } from "drizzle-orm";
 
 const BUCKET="vivit-files",MAX_SIZE=100*1024*1024;
@@ -14,6 +14,12 @@ async function ensureBucket(){
   const payload={id:BUCKET,name:BUCKET,public:false,file_size_limit:MAX_SIZE,allowed_mime_types:null};
   const create=await fetch(`${base()}/storage/v1/bucket`,{method:"POST",headers:{...headers(),"Content-Type":"application/json"},body:JSON.stringify(payload)});
   if(create.ok||create.status===409){await fetch(`${base()}/storage/v1/bucket/${BUCKET}`,{method:"PUT",headers:{...headers(),"Content-Type":"application/json"},body:JSON.stringify({public:false,file_size_limit:MAX_SIZE,allowed_mime_types:null})}).catch(()=>null);return;}
+  try{
+    await db.execute(sql`insert into storage.buckets (id,name,public,file_size_limit)
+      values (${BUCKET},${BUCKET},false,${MAX_SIZE})
+      on conflict (id) do update set public=false,file_size_limit=${MAX_SIZE}`);
+    return;
+  }catch(e){console.error("Storage bucket provisioning failed",e);}
   throw new Error("Storage bucket is unavailable");
 }
 async function scopeFor(role:string,userId:string){

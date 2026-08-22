@@ -10,7 +10,7 @@ const date=(v:any)=>v&&!Number.isNaN(new Date(v).getTime())?new Date(v):null;
 export async function POST(req:NextRequest){
   const session=await auth();if(!session?.user)return NextResponse.json({error:"Unauthorized"},{status:401});
   const role=String((session.user as any).role),userId=String((session.user as any).id);
-  if(!["SUPER_ADMIN","ACCOUNT_MANAGER"].includes(role))return NextResponse.json({error:"You do not have permission to add clients."},{status:403});
+  if(!["SUPER_ADMIN","ACCOUNT_MANAGER","ACCOUNTANT"].includes(role))return NextResponse.json({error:"You do not have permission to add clients."},{status:403});
   const b=await req.json().catch(()=>null);if(!b)return NextResponse.json({error:"Invalid form data."},{status:400});
   const companyName=str(b.companyName,160);if(companyName.length<2)return NextResponse.json({error:"Company name is required."},{status:400});
   const duplicate=await db.select({id:clients.id}).from(clients).where(and(eq(clients.workspaceId,"default"),ilike(clients.companyName,companyName))).limit(1);

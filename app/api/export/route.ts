@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db, clients, creativeTasks, salesLeads, financeRecords, mediaMetrics , companyExpenses } from "@/lib/db";
-import { eq, gte } from "drizzle-orm";
+import { eq, gte, and } from "drizzle-orm";
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -10,6 +10,7 @@ export async function GET(req: NextRequest) {
 
   const entity = req.nextUrl.searchParams.get("entity") ?? "clients";
   const role=(session.user as any).role as string;
+  const userId=(session.user as any).id as string;
   const allowed:Record<string,string[]>={SUPER_ADMIN:["clients","tasks","sales","finance","media","expenses"],ACCOUNT_MANAGER:["clients","tasks","sales","media"],MEDIA_BUYER:["clients","media"],ACCOUNTANT:["clients","finance","expenses"],SALES:["clients","sales"],CREATOR:["tasks"],CLIENT:[]};
   if(!(allowed[role]??[]).includes(entity))return NextResponse.json({error:"Forbidden"},{status:403});
 
@@ -18,12 +19,18 @@ export async function GET(req: NextRequest) {
 
   switch (entity) {
     case "clients":
-      data = await db.select().from(clients).where(eq(clients.isActive, true));
+      data = await db.select().from(clients).where(and(
+        eq(clients.isActive, true),
+        role==="ACCOUNT_MANAGER" ? eq(clients.accountManagerId,userId) :
+        role==="MEDIA_BUYER" ? eq(clients.mediaBuyerId,userId) : eq(clients.workspaceId,"default")
+      ));
       headers = ["Company","Industry","Health Score","Churn Risk","Monthly Retainer","Media Budget","Contract Value","Performance Score"];
       data = data.map(c => [c.companyName,c.industry,c.healthScore,c.churnRisk,c.monthlyRetainer,c.mediaBudget,c.contractValue,c.performanceScore]);
       break;
     case "tasks":
-      data = await db.select().from(creativeTasks);
+      data = await db.select().from(creativeTasks).where(
+        role==="CREATOR" ? eq(creativeTasks.assignedToId,userId) : eq(creativeTasks.workspaceId,"default")
+      );
       headers = ["Title","Type","Status","Priority","Client ID","Assigned To","Deadline","Revisions","Posted"];
       data = data.map(t => [t.title,t.type,t.status,t.priority,t.clientId,t.assignedToId,t.deadline,t.revisionCount,t.isPosted]);
       break;

@@ -14,7 +14,7 @@ async function logActivity(clientId: string, fd: FormData) {
   const {db,salesActivities,salesLeads}=await import("@/lib/db");
   const {eq}=await import("drizzle-orm");
   const session=await getAuth();
-  if(!session?.user) return;
+  if(!session?.user||![Role.SUPER_ADMIN,Role.ACCOUNT_MANAGER].includes((session.user as any).role)) throw new Error("Unauthorized");
   // Find or create a lead for this client
   const [lead]=await db.select().from(salesLeads).where(eq(salesLeads.clientId,clientId)).limit(1);
   const leadId=lead?.id||clientId;
@@ -31,6 +31,8 @@ async function logActivity(clientId: string, fd: FormData) {
 
 async function updateClient(id: string, fd: FormData) {
   "use server";
+  const session=await auth();
+  if(!session?.user||![Role.SUPER_ADMIN,Role.ACCOUNT_MANAGER].includes((session.user as any).role)) throw new Error("Unauthorized");
   const {db,clients}=await import("@/lib/db");
   const {eq}=await import("drizzle-orm");
   await db.update(clients).set({

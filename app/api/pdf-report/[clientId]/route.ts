@@ -3,12 +3,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db, clients, financeRecords, mediaMetrics, contacts } from "@/lib/db";
 import { eq, and, gte, sum } from "drizzle-orm";
+import { canAccessClient } from "@/lib/client-access";
 
 export async function GET(req: NextRequest, context: { params: Promise<{ clientId: string }> }) {
   const session = await auth();
   if (!session?.user) return new NextResponse("Unauthorized", { status: 401 });
 
   const { clientId } = await context.params;
+  if(!(await canAccessClient(session,clientId)))return new NextResponse("Forbidden",{status:403});
   const month = parseInt(req.nextUrl.searchParams.get("month") ?? String(new Date().getMonth() + 1));
   const year  = parseInt(req.nextUrl.searchParams.get("year")  ?? String(new Date().getFullYear()));
 

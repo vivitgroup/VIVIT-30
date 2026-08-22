@@ -29,12 +29,30 @@ function requireFields(data: Record<string, any>, fields: string[]): string | nu
   }
   return null;
 }
+function roleOf(session:any):string { return String((session?.user as any)?.role||""); }
+function requireRole(session:any, allowed:string[]) {
+  if (!session?.user) throw new Error("Unauthorized");
+  if (!allowed.includes(roleOf(session))) throw new Error("Forbidden");
+}
+async function requireClientAccess(session:any, clientId:string, write=false) {
+  requireRole(session, write?["SUPER_ADMIN","ACCOUNT_MANAGER"]:["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"]);
+  if (roleOf(session)==="SUPER_ADMIN") return;
+  const [row]=await db.select({accountManagerId:clients.accountManagerId,mediaBuyerId:clients.mediaBuyerId}).from(clients).where(eq(clients.id,clientId)).limit(1);
+  const uid=session.user.id;
+  if (!row || (roleOf(session)==="ACCOUNT_MANAGER"?row.accountManagerId!==uid:row.mediaBuyerId!==uid)) throw new Error("Client access denied");
+}
+async function taskForAccess(taskId:string){
+  const [task]=await db.select().from(creativeTasks).where(eq(creativeTasks.id,taskId)).limit(1);
+  if(!task) throw new Error("Task not found");
+  return task;
+}
 
 // ── CLIENT ACTIONS ────────────────────────────────────────────
 
 export async function createClient(formData: FormData) {
   const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  requireRole(session,["SUPER_ADMIN","ACCOUNT_MANAGER"]);
+  const creatorRole=roleOf(session);
 
   const [client] = await db.insert(clients).values({
     companyName:      formData.get("companyName") as string,
@@ -43,7 +61,7 @@ export async function createClient(formData: FormData) {
     monthlyRetainer:  parseFloat(formData.get("monthlyRetainer") as string) || 0,
     mediaBudget:      parseFloat(formData.get("mediaBudget") as string) || 0,
     contractValue:    parseFloat(formData.get("contractValue") as string) || 0,
-    accountManagerId: formData.get("accountManagerId") as string || null,
+    accountManagerId: creatorRole==="ACCOUNT_MANAGER" ? session!.user!.id! : (formData.get("accountManagerId") as string || null),
     mediaBuyerId:     formData.get("mediaBuyerId") as string || null,
     metaAdsLink:      formData.get("metaAdsLink") as string || null,
     tiktokAdsLink:    formData.get("tiktokAdsLink") as string || null,
@@ -77,7 +95,7 @@ export async function createClient(formData: FormData) {
 
 export async function updateClient(clientId: string, formData: FormData) {
   const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  await requireClientAccess(session,clientId,true);
 
   await db.update(clients).set({
     companyName:      formData.get("companyName") as string,
@@ -106,7 +124,7 @@ export async function updateClient(clientId: string, formData: FormData) {
 export async function markNotificationRead(id: string) {
   const session = await auth();
   if (!session?.user) return;
-  await db.update(notifications).set({ isRead: true }).where(eq(notifications.id, id));
+  await db.update(notifications).set({ isRead: true }).where(and(eq(notifications.id, id),eq(notifications.userId,session.user.id!)));
   revalidatePath("/dashboard/notifications");
 }
 
@@ -122,15 +140,16 @@ export async function markAllNotificationsRead() {
 export async function deleteNotification(id: string) {
   const session = await auth();
   if (!session?.user) return;
-  await db.delete(notifications).where(eq(notifications.id, id));
+  await db.delete(notifications).where(and(eq(notifications.id, id),eq(notifications.userId,session.user.id!)));
   revalidatePath("/dashboard/notifications");
 }
 
 export async function createCalendarEvent(formData: FormData) {
   const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const clientId=formData.get("clientId") as string;
+  await requireClientAccess(session,clientId,true);
   await db.insert(calendarEvents).values({
-    clientId: formData.get("clientId") as string,
+    clientId,
     title:    formData.get("title")    as string,
     date:     new Date(formData.get("date") as string),
     platform: formData.get("platform") as string || null,
@@ -143,7 +162,10 @@ export async function createCalendarEvent(formData: FormData) {
 
 export async function markEventPosted(eventId: string) {
   const session = await auth();
-  if (!session?.user) return;
+  requireRole(session,["SUPER_ADMIN","ACCOUNT_MANAGER"]);
+  const [event]=await db.select({clientId:calendarEvents.clientId}).from(calendarEvents).where(eq(calendarEvents.id,eventId)).limit(1);
+  if(!event) throw new Error("Event not found");
+  await requireClientAccess(session,event.clientId,true);
   await db.update(calendarEvents).set({ status: "posted", updatedAt: new Date() }).where(eq(calendarEvents.id, eventId));
   revalidatePath("/dashboard/calendar");
 }
@@ -152,10 +174,11 @@ export async function markEventPosted(eventId: string) {
 
 export async function createTask(formData: FormData) {
   const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  requireRole(session,["SUPER_ADMIN","ACCOUNT_MANAGER"]);
 
   const title        = formData.get("title") as string;
   const clientId     = formData.get("clientId") as string;
+  await requireClientAccess(session,clientId,true);
   const type         = formData.get("type") as string;
   const brief        = formData.get("brief") as string;
   const tov          = formData.get("tov") as string;
@@ -195,6 +218,17 @@ export async function createTask(formData: FormData) {
 export async function updateTaskStatus(taskId: string, status: string, revisionNotes?: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+
+  const taskBefore=await taskForAccess(taskId);
+  const role=roleOf(session),uid=session.user.id!;
+  const creatorTransitions:Record<string,string[]>={PENDING:["IN_PROGRESS"],IN_PROGRESS:["REVIEW"],REVISION:["IN_PROGRESS"]};
+  const managerTransitions:Record<string,string[]>={REVIEW:["APPROVED","REVISION","REJECTED"],APPROVED:["COMPLETED"]};
+  if(role==="CREATOR"){
+    if(taskBefore.assignedToId!==uid||!(creatorTransitions[taskBefore.status]||[]).includes(status))throw new Error("Forbidden transition");
+  }else if(["SUPER_ADMIN","ACCOUNT_MANAGER"].includes(role)){
+    await requireClientAccess(session,taskBefore.clientId,true);
+    if(!(managerTransitions[taskBefore.status]||[]).includes(status))throw new Error("Forbidden transition");
+  }else throw new Error("Forbidden");
 
   // Get current task to increment revision count
   const [currentTask] = await db.select({ revisionCount: creativeTasks.revisionCount }).from(creativeTasks).where(eq(creativeTasks.id, taskId));
@@ -238,7 +272,9 @@ export async function updateTaskStatus(taskId: string, status: string, revisionN
 
 export async function submitTaskFile(taskId: string, fileName: string, fileUrl: string, notes: string) {
   const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  requireRole(session,["CREATOR"]);
+  const taskBefore=await taskForAccess(taskId);
+  if(taskBefore.assignedToId!==session!.user!.id||!["IN_PROGRESS","REVISION"].includes(taskBefore.status))throw new Error("Forbidden");
 
   const [task] = await db.update(creativeTasks)
     .set({ status: "REVIEW", fileUrl: fileUrl || null, updatedAt: new Date() } as any)
@@ -269,14 +305,19 @@ export async function submitTaskFile(taskId: string, fileName: string, fileUrl: 
 
 export async function updateTaskCaption(taskId: string, caption: string) {
   const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  if(!session?.user)throw new Error("Unauthorized");
+  const task=await taskForAccess(taskId);
+  if(roleOf(session)==="CREATOR"){if(task.assignedToId!==session.user.id)throw new Error("Forbidden");}
+  else await requireClientAccess(session,task.clientId,true);
   await db.update(creativeTasks).set({ caption, updatedAt: new Date() } as any).where(eq(creativeTasks.id, taskId));
   revalidatePath(`/dashboard/creative/${taskId}`);
 }
 
 export async function markTaskPosted(taskId: string) {
   const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const task=await taskForAccess(taskId);
+  await requireClientAccess(session,task.clientId,true);
+  if(task.status!=="APPROVED")throw new Error("Only approved tasks can be marked posted");
   await db.update(creativeTasks)
     .set({ isPosted: true, postedAt: new Date(), status: "COMPLETED", updatedAt: new Date() } as any)
     .where(eq(creativeTasks.id, taskId));

@@ -103,7 +103,7 @@ export default async function MonthlyReportsPage() {
       </div>
 
       {/* Report output */}
-      <div id="rep-output" style={{display:"none"}} style={{display:"flex",flexDirection:"column",gap:"20px"}}>
+      <div id="rep-output" style={{display:"none",flexDirection:"column",gap:"20px"}}>
         {/* KPIs */}
         <div id="rep-kpis" className="grid grid-cols-2 md:grid-cols-4 gap-4" />
 

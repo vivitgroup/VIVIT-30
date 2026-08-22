@@ -9,6 +9,8 @@ import Link from "next/link";
 
 async function bulkAction(fd: FormData) {
   "use server";
+  const session=await auth();
+  if(!session?.user||![Role.SUPER_ADMIN,Role.ACCOUNT_MANAGER].includes((session.user as any).role)) throw new Error("Unauthorized");
   const { db, creativeTasks } = await import("@/lib/db");
   const { inArray } = await import("drizzle-orm");
   const action = fd.get("action") as string;
@@ -114,7 +116,7 @@ export default async function TasksInboxPage() {
               <div className="card-body-flush">
                 <table className="data-table">
                   <thead><tr>
-                    <th style={{width:36}}><input type="checkbox" style={{accentColor:"var(--vivit-blue)"}}/></th>
+                    <th style={{width:36}} aria-label="Select tasks">✓</th>
                     <th>Task</th><th>Client</th><th>Creator</th><th>Priority</th><th>Deadline</th><th>Revisions</th><th>Actions</th>
                   </tr></thead>
                   <tbody>

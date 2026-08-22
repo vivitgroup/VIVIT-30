@@ -129,7 +129,7 @@ export default auth((req) => {
   }
 
   const pageAccess:[string,string[]][]=[
-    ["/dashboard/settings",["SUPER_ADMIN"]],["/dashboard/team",["SUPER_ADMIN"]],
+    ["/dashboard/settings",["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CREATOR","ACCOUNTANT","SALES","CLIENT"]],["/dashboard/team",["SUPER_ADMIN"]],
     ["/dashboard/workspace",["SUPER_ADMIN"]],["/dashboard/activity",["SUPER_ADMIN"]],
     ["/dashboard/kpis",["SUPER_ADMIN"]],["/dashboard/billing",["SUPER_ADMIN"]],
     ["/dashboard/referrals",["SUPER_ADMIN"]],["/dashboard/saas-analytics",["SUPER_ADMIN"]],
@@ -139,7 +139,7 @@ export default auth((req) => {
     ["/dashboard/media",["SUPER_ADMIN","MEDIA_BUYER","ACCOUNT_MANAGER"]],
     ["/dashboard/analytics",["SUPER_ADMIN"]],
     ["/dashboard/ai-studio",["SUPER_ADMIN","MEDIA_BUYER","ACCOUNT_MANAGER"]],
-    ["/dashboard/clients",["SUPER_ADMIN","MEDIA_BUYER","ACCOUNT_MANAGER"]],
+    ["/dashboard/clients",["SUPER_ADMIN","MEDIA_BUYER","ACCOUNT_MANAGER","ACCOUNTANT"]],
     ["/dashboard/creative",["SUPER_ADMIN","ACCOUNT_MANAGER","CREATOR"]],
     ["/dashboard/tasks-inbox",["SUPER_ADMIN","ACCOUNT_MANAGER"]],
     ["/dashboard/calendar",["SUPER_ADMIN","ACCOUNT_MANAGER","CREATOR"]],
@@ -153,7 +153,7 @@ export default auth((req) => {
 
   // Fix 12,19: CLIENT portal isolation — strict redirect
   if (role==="CLIENT") {
-    const clientAllowed = ["/dashboard/portal","/dashboard/notifications","/dashboard/files",
+    const clientAllowed = ["/dashboard/portal","/dashboard/notifications","/dashboard/files","/dashboard/settings",
       "/api/notifications","/api/onboarding","/api/search","/api/files"];
     if (pathname.startsWith("/dashboard") &&
         !clientAllowed.some(p=>pathname.startsWith(p))) {

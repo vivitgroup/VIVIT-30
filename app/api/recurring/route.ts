@@ -9,6 +9,7 @@ import { eq, and } from "drizzle-orm";
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if(!["SUPER_ADMIN","ACCOUNTANT"].includes(String((session.user as any).role)))return NextResponse.json({error:"Forbidden"},{status:403});
 
   const now   = new Date();
   const month = now.getMonth() + 1;
@@ -67,6 +68,7 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if(!["SUPER_ADMIN","ACCOUNTANT"].includes(String((session.user as any).role)))return NextResponse.json({error:"Forbidden"},{status:403});
 
   const now   = new Date();
   const month = now.getMonth() + 1;

@@ -8,6 +8,7 @@ import { MobileNav } from "@/components/layout/MobileNav";
 import { RealtimeNotifications } from "@/components/realtime-notifications";
 import { KeyboardShortcutsModal } from "@/components/keyboard-shortcuts";
 import { Suspense } from "react";
+import { DashboardLanguage } from "@/components/i18n/DashboardLanguage";
 
 function PageSkeleton() {
   return (
@@ -54,6 +55,7 @@ export default async function DashboardLayout({ children }: { children:React.Rea
       <RealtimeNotifications/>
       <KeyboardShortcutsModal/>
       <MobileNav role={role}/>
+      <DashboardLanguage/>
 
       {/* JS to sync sidebar collapse with main content margin */}
       <script dangerouslySetInnerHTML={{__html:`

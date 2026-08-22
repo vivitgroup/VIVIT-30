@@ -10,6 +10,6 @@ export async function canAccessClient(session:any, clientId:string, options:{fin
   if(role==="CLIENT")return !options.write&&client.userId===userId;
   if(role==="ACCOUNT_MANAGER")return client.accountManagerId===userId;
   if(role==="MEDIA_BUYER")return !options.finance&&!options.write&&client.mediaBuyerId===userId;
-  if(role==="ACCOUNTANT")return Boolean(options.finance)&&!options.write;
+  if(role==="ACCOUNTANT")return !options.write;
   return false;
 }

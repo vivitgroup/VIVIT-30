@@ -72,7 +72,7 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
   ACCOUNTANT: [
     "view_finance","create_invoices","edit_invoices","approve_invoices",
     "view_payroll","manage_payroll","view_reports","export_data",
-    "view_clients","view_team","view_salaries",
+    "view_clients","create_clients","view_team","view_salaries",
     "view_salary_recommendations","approve_salary_finance","view_payroll_lock",
     "view_commissions","view_kpi_scores","view_agency_health","view_cfo_dashboard",
     "view_resource_planning",

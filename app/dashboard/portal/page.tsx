@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { db, clients, mediaMetrics, financeRecords, creativeTasks, clientFeedback, calendarEvents, mediaPlans, notifications, auditLogs, adCampaigns, fileDocuments } from "@/lib/db";
-import { eq, and, gte, desc, sum } from "drizzle-orm";
+import { eq, and, gte, desc, sum, inArray } from "drizzle-orm";
 import Link from "next/link";
 
 function safeObject(value:string|null|undefined):Record<string,any>{
@@ -37,15 +37,15 @@ export default async function PortalPage() {
   const yr      = now.getFullYear();
   const moStart = new Date(yr, now.getMonth(), 1);
 
-  const [metrics, finance, pendingTasks, upcoming, recentNPS, pendingPlans, latestInvoices, campaigns, assets] = await Promise.all([
+  const [metrics, finance, recentCreatives, upcoming, recentNPS, pendingPlans, latestInvoices, campaigns, assets] = await Promise.all([
     db.select({ spend:sum(mediaMetrics.adSpend), leads:sum(mediaMetrics.leads),
       revenue:sum(mediaMetrics.revenue) }).from(mediaMetrics)
       .where(and(eq(mediaMetrics.clientId,clientRow.id), gte(mediaMetrics.date,moStart))),
     db.select({ total:sum(financeRecords.totalRevenue), paid:sum(financeRecords.paid),
       outstanding:sum(financeRecords.outstanding) }).from(financeRecords)
       .where(and(eq(financeRecords.clientId,clientRow.id), eq(financeRecords.month,mo), eq(financeRecords.year,yr))),
-    db.select({ id:creativeTasks.id,title:creativeTasks.title,type:creativeTasks.type,fileUrl:creativeTasks.fileUrl,assignedToId:creativeTasks.assignedToId,revisionCount:creativeTasks.revisionCount })
-      .from(creativeTasks).where(and(eq(creativeTasks.clientId,clientRow.id),eq(creativeTasks.status,"REVIEW"))).limit(5),
+    db.select({ id:creativeTasks.id,title:creativeTasks.title,type:creativeTasks.type,status:creativeTasks.status,fileUrl:creativeTasks.fileUrl,assignedToId:creativeTasks.assignedToId,revisionCount:creativeTasks.revisionCount })
+      .from(creativeTasks).where(and(eq(creativeTasks.clientId,clientRow.id),inArray(creativeTasks.status,["PENDING","IN_PROGRESS","REVIEW","REVISION","APPROVED","COMPLETED"]))).orderBy(desc(creativeTasks.updatedAt)).limit(8),
     db.select({ id:calendarEvents.id,title:calendarEvents.title,date:calendarEvents.date,platform:calendarEvents.platform })
       .from(calendarEvents).where(and(eq(calendarEvents.clientId,clientRow.id),gte(calendarEvents.date,now)))
       .orderBy(calendarEvents.date).limit(5),
@@ -64,6 +64,7 @@ export default async function PortalPage() {
   const roas     = spend>0?(revenue/spend).toFixed(1):"—";
   const cpl      = leads>0?(spend/leads).toFixed(0):"—";
   const outstanding = Number(finance[0]?.outstanding??0);
+  const pendingTasks = recentCreatives.filter(t=>t.status==="REVIEW");
   const fmt = (n:number) => n>=1000?`$${(n/1000).toFixed(0)}k`:`$${n.toLocaleString()}`;
 
   const TYPE_ICONS: Record<string,string> = {REEL:"🎬",GRAPHIC:"🎨",CAROUSEL:"📱",STORY:"📸",UGC:"🎤"};
@@ -100,10 +101,11 @@ export default async function PortalPage() {
       <div className="card" style={{borderTop:"3px solid var(--vivit-blue)"}}>
         <div className="card-header"><div><p className="card-title">🔗 Your Connected Workspace</p><p style={{fontSize:12,color:"var(--text-muted)",marginTop:3}}>Campaigns, calendar posts, creatives and files linked to {clientRow.companyName}</p></div></div>
         <div className="card-body" style={{display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gap:10}}>
-          {[{label:"Campaigns",value:campaigns.length,icon:"📣"},{label:"Upcoming posts",value:upcoming.length,icon:"📅"},{label:"Creative approvals",value:pendingTasks.length,icon:"🎨"},{label:"Recent files",value:assets.length,icon:"📁"}].map(item=><div key={item.label} style={{padding:14,border:"1px solid var(--card-border)",borderRadius:10,background:"var(--bg-tertiary)"}}><div style={{fontSize:20}}>{item.icon}</div><strong style={{fontSize:22,color:"var(--text-primary)"}}>{item.value}</strong><p style={{fontSize:11,color:"var(--text-muted)"}}>{item.label}</p></div>)}
+          {[{label:"Campaigns",value:campaigns.length,icon:"📣"},{label:"Upcoming posts",value:upcoming.length,icon:"📅"},{label:"Creatives",value:recentCreatives.length,icon:"🎨"},{label:"Recent files",value:assets.length,icon:"📁"}].map(item=><div key={item.label} style={{padding:14,border:"1px solid var(--card-border)",borderRadius:10,background:"var(--bg-tertiary)"}}><div style={{fontSize:20}}>{item.icon}</div><strong style={{fontSize:22,color:"var(--text-primary)"}}>{item.value}</strong><p style={{fontSize:11,color:"var(--text-muted)"}}>{item.label}</p></div>)}
         </div>
-        {(campaigns.length>0||assets.length>0)&&<div className="card-body" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,paddingTop:0}}>
+        {(campaigns.length>0||assets.length>0||recentCreatives.length>0)&&<div className="card-body" style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:14,paddingTop:0}}>
           <div><p style={{fontSize:12,fontWeight:800,marginBottom:8}}>Campaigns</p>{campaigns.map(c=><div key={c.id} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--card-border)",fontSize:12}}><span>{c.platform} · {c.name}</span><span className="badge badge-blue">{c.status}</span></div>)}</div>
+          <div><p style={{fontSize:12,fontWeight:800,marginBottom:8}}>Creatives</p>{recentCreatives.map(c=><div key={c.id} style={{padding:"8px 0",borderBottom:"1px solid var(--card-border)",fontSize:12}}>{c.fileUrl&&<img src={c.fileUrl} alt={c.title} style={{width:"100%",height:110,objectFit:"cover",borderRadius:8,marginBottom:6}}/>}<div style={{display:"flex",justifyContent:"space-between",gap:8}}><span>{c.title}</span><span className="badge badge-blue">{c.status}</span></div></div>)}</div>
           <div><p style={{fontSize:12,fontWeight:800,marginBottom:8}}>Files & designs</p>{assets.map(f=><div key={f.id} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--card-border)",fontSize:12}}><span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>📎 {f.name}</span><span style={{color:"var(--text-muted)"}}>{f.category}</span></div>)}</div>
         </div>}
       </div>

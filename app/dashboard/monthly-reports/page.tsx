@@ -70,7 +70,7 @@ export default async function MonthlyReportsPage() {
       </div>
 
       {/* Generator */}
-      <div className="card-vivit space-y-4">
+      <div id="report-builder" className="card-vivit space-y-4">
         <h2 className="font-semibold text-[#244D87] text-sm uppercase tracking-wider">Generate Report</h2>
         <div className="grid grid-cols-3 gap-4">
           <div>
@@ -150,6 +150,7 @@ export default async function MonthlyReportsPage() {
 
           const res = await fetch('/api/monthly-summary/'+clientId+'?month='+month+'&year='+year);
           const data = await res.json();
+          if(!res.ok){document.getElementById('rep-loading').style.display='none';pdfLink.style.display='none';return alert(data.error||'Report could not be generated');}
 
           document.getElementById('rep-loading').style.display='none';
           document.getElementById('rep-output').style.display='block';
@@ -266,10 +267,7 @@ export default async function MonthlyReportsPage() {
             </div>
           ))}
         </div>
-        <div className="flex gap-3">
-          <a href="/api/pdf-report" target="_blank" className="btn-grad text-xs" style={{textDecoration:"none"}}>Generate QBR PDF</a>
-          <span className="text-xs text-muted self-center">Auto-populates from your DB — takes ~5 seconds</span>
-        </div>
+        <div className="flex gap-3"><a href="#report-builder" className="btn-grad text-xs" style={{textDecoration:"none"}}>Choose client & generate report ↑</a><span className="text-xs text-muted self-center">Uses the selected client and reporting period.</span></div>
       </div>
 
     </div>

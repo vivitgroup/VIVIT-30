@@ -36,7 +36,8 @@ async function callGemini(prompt:string, system:string):Promise<string> {
 
 async function generate(prompt:string,system:string){
   if(process.env.GEMINI_API_KEY) return callGemini(prompt,system);
-  return callClaude(prompt,system);
+  if(process.env.ANTHROPIC_API_KEY) return callClaude(prompt,system);
+  return `Smart draft (local mode)\n\n${prompt}\n\nRecommended execution:\n1. Confirm the audience, offer and measurable goal.\n2. Prepare three creative angles: proof, benefit and urgency.\n3. Launch a controlled test with clear naming and tracking.\n4. Review spend, leads, CPL and conversion quality every 48 hours.\n5. Keep the winner, pause weak variants and document the learning.\n\nNext action: assign an owner, deadline and approval checkpoint before publishing.`;
 }
 
 // ── In-Memory Rate Limiter ───────────────────────────────────
@@ -169,5 +170,5 @@ Write 3 paragraphs: Performance highlights, areas for improvement, next month re
     tokensUsed:  Math.floor(result.length / 4),
   } as any);
 
-  return NextResponse.json({ result, content:result, type, provider:process.env.GEMINI_API_KEY?"gemini":"anthropic" });
+  return NextResponse.json({ result, content:result, type, provider:process.env.GEMINI_API_KEY?"gemini":process.env.ANTHROPIC_API_KEY?"anthropic":"smart-local" });
 }

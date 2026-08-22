@@ -90,7 +90,7 @@ export default async function ForecastPage() {
           {l:"Weighted Pipeline",  v:formatCurrency(weightedPipeline),c:"#10b981",icon:"⚖️"},
           {l:"Avg Monthly Base",   v:formatCurrency(avg),           c:"#f59e0b", icon:"📈"},
         ].map(k=>(
-          <div key={k.l} className="card" style={{background:"rgba(10,20,40,0.95)"}}>
+          <div key={k.l} className="card">
             <div className="text-2xl mb-2">{k.icon}</div>
             <p className="card-title" style={{color:k.c}}>{k.v}</p>
             <p className="text-xs text-[#6B8FAF] mt-0.5">{k.l}</p>

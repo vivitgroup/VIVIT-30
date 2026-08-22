@@ -18,6 +18,7 @@ async function portalAction(fd:FormData){"use server";const session=await auth()
 export default async function PortalPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
+  if ((session.user as any).role !== "CLIENT") redirect("/dashboard");
   const userId = (session.user as any).id as string;
 
   const [clientRow] = await db.select().from(clients).where(eq(clients.userId, userId)).limit(1);
@@ -36,7 +37,7 @@ export default async function PortalPage() {
   const yr      = now.getFullYear();
   const moStart = new Date(yr, now.getMonth(), 1);
 
-  const [metrics, finance, pendingTasks, upcoming, recentNPS, pendingPlans] = await Promise.all([
+  const [metrics, finance, pendingTasks, upcoming, recentNPS, pendingPlans, latestInvoices] = await Promise.all([
     db.select({ spend:sum(mediaMetrics.adSpend), leads:sum(mediaMetrics.leads),
       revenue:sum(mediaMetrics.revenue) }).from(mediaMetrics)
       .where(and(eq(mediaMetrics.clientId,clientRow.id), gte(mediaMetrics.date,moStart))),
@@ -52,6 +53,7 @@ export default async function PortalPage() {
       .from(clientFeedback).where(eq(clientFeedback.clientId,clientRow.id))
       .orderBy(desc(clientFeedback.createdAt)).limit(1),
     db.select().from(mediaPlans).where(and(eq(mediaPlans.clientId,clientRow.id),eq(mediaPlans.status,"PENDING_APPROVAL"))).orderBy(desc(mediaPlans.createdAt)),
+    db.select({id:financeRecords.id,invoiceNumber:financeRecords.invoiceNumber,total:financeRecords.totalRevenue,paid:financeRecords.paid,outstanding:financeRecords.outstanding,status:financeRecords.invoiceStatus,dueDate:financeRecords.dueDate}).from(financeRecords).where(eq(financeRecords.clientId,clientRow.id)).orderBy(desc(financeRecords.year),desc(financeRecords.month)).limit(1),
   ]);
 
   const spend    = Number(metrics[0]?.spend??0);
@@ -81,8 +83,8 @@ export default async function PortalPage() {
         </div>
         <div style={{display:"flex",gap:"16px",flexWrap:"wrap"}}>
           <div style={{textAlign:"center",background:"rgba(255,255,255,0.12)",borderRadius:"10px",padding:"12px 20px"}}>
-            <p style={{fontSize:"22px",fontWeight:800,color:"#fff",fontFamily:"Sora,sans-serif"}}>{Math.round(clientRow.healthScore)}%</p>
-            <p style={{fontSize:"11px",opacity:0.75}}>Health Score</p>
+            <p style={{fontSize:"22px",fontWeight:800,color:"#fff",fontFamily:"Sora,sans-serif"}}>{pendingTasks.length+pendingPlans.length}</p>
+            <p style={{fontSize:"11px",opacity:0.75}}>Pending approvals</p>
           </div>
           <div style={{textAlign:"center",background:"rgba(255,255,255,0.12)",borderRadius:"10px",padding:"12px 20px"}}>
             <p style={{fontSize:"22px",fontWeight:800,color:"#fff",fontFamily:"Sora,sans-serif"}}>{roas}×</p>
@@ -90,6 +92,8 @@ export default async function PortalPage() {
           </div>
         </div>
       </div>
+
+      {latestInvoices[0]&&<div className="card" style={{borderTop:"3px solid var(--green)"}}><div className="card-body" style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:14,flexWrap:"wrap"}}><div><p style={{fontSize:11,fontWeight:800,color:"var(--text-muted)",textTransform:"uppercase"}}>Latest invoice</p><p style={{fontWeight:800,color:"var(--text-primary)",marginTop:4}}>{latestInvoices[0].invoiceNumber||"Current invoice"} · {fmt(Number(latestInvoices[0].total||0))}</p><p style={{fontSize:12,color:"var(--text-muted)",marginTop:3}}>{latestInvoices[0].status} · Outstanding {fmt(Number(latestInvoices[0].outstanding||0))}{latestInvoices[0].dueDate?` · Due ${new Date(latestInvoices[0].dueDate).toLocaleDateString()}`:""}</p></div><a href={`/api/invoice/${latestInvoices[0].id}`} target="_blank" rel="noreferrer" className="btn btn-primary" style={{textDecoration:"none"}}>View / print invoice ↗</a></div></div>}
 
       {pendingPlans.length>0&&<div className="card" style={{borderTop:"3px solid #244D87"}}><div className="card-header"><p className="card-title">📣 Media Plans Awaiting Approval</p><span className="badge badge-blue">{pendingPlans.length}</span></div><div className="card-body" style={{display:"grid",gap:"10px"}}>{pendingPlans.map(p=>{const forecast=safeObject(p.forecast);return <div key={p.id} style={{padding:14,border:"1px solid var(--card-border)",borderRadius:10}}><div style={{display:"flex",justifyContent:"space-between",gap:10}}><div><strong>{p.name}</strong><p style={{fontSize:11,color:"var(--text-muted)",marginTop:4}}>{new Date(p.periodStart).toLocaleDateString()} → {new Date(p.periodEnd).toLocaleDateString()} · Budget {fmt(p.totalBudget)} · Expected leads {forecast.expectedLeads||0}</p></div><span className="badge badge-amber">Review</span></div><div style={{display:"flex",gap:6,marginTop:10}}><form action={reviewMediaPlan}><input type="hidden" name="planId" value={p.id}/><input type="hidden" name="decision" value="APPROVED"/><button className="btn btn-success btn-sm">Approve ✓</button></form><form action={reviewMediaPlan} style={{display:"flex",gap:6,flex:1}}><input type="hidden" name="planId" value={p.id}/><input type="hidden" name="decision" value="REJECTED"/><input name="note" className="form-input" placeholder="Revision note"/><button className="btn btn-danger btn-sm">Request changes</button></form></div></div>})}</div></div>}
 

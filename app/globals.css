@@ -1078,3 +1078,35 @@ html[dir="rtl"] body{font-family:'Plus Jakarta Sans',Tahoma,Arial,sans-serif}htm
   .kpi-grid { grid-template-columns: 1fr 1fr; }
   .btn { padding: 7px 12px; font-size: 12px; }
 }
+
+/* VIVIT Joyful Luxury — warm agency energy without sacrificing clarity */
+#app-main {
+  position: relative;
+  isolation: isolate;
+  background:
+    radial-gradient(circle at 8% 2%, rgba(244,183,56,.13), transparent 27rem),
+    radial-gradient(circle at 92% 8%, rgba(36,77,135,.13), transparent 30rem),
+    radial-gradient(circle at 72% 88%, rgba(197,42,49,.08), transparent 26rem),
+    var(--bg-primary);
+}
+#app-main::before {
+  content:""; position:fixed; inset:0; pointer-events:none; z-index:-1; opacity:.28;
+  background-image:linear-gradient(rgba(36,77,135,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(36,77,135,.035) 1px,transparent 1px);
+  background-size:32px 32px;
+  mask-image:linear-gradient(to bottom,#000,transparent 74%);
+}
+.page-title { letter-spacing:-.04em; text-wrap:balance; }
+.page-title::after { content:""; display:block; width:42px; height:4px; margin-top:8px; border-radius:999px; background:linear-gradient(90deg,#C52A31,#F4B738,#244D87); }
+.card,.card-vivit,.kpi-card,.platform-card {
+  backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
+  box-shadow:0 18px 50px rgba(18,39,70,.08),inset 0 1px 0 rgba(255,255,255,.55);
+}
+.card,.card-vivit,.platform-card { transition:transform .22s var(--ease-out),box-shadow .22s var(--ease-out),border-color .22s var(--ease-out); }
+.card:hover,.card-vivit:hover,.platform-card:hover { transform:translateY(-3px); box-shadow:0 24px 64px rgba(18,39,70,.13),inset 0 1px 0 rgba(255,255,255,.7); border-color:rgba(36,77,135,.2); }
+.btn-primary,.btn-grad { background:linear-gradient(110deg,#A71924 0%,#D93A33 38%,#F4B738 100%)!important; box-shadow:0 10px 24px rgba(197,42,49,.2); }
+.btn-primary:hover,.btn-grad:hover { box-shadow:0 14px 32px rgba(197,42,49,.28); filter:saturate(1.08); }
+.platform-card { overflow:hidden; min-height:104px; }
+.platform-card>span { width:42px!important; height:42px!important; display:grid!important; place-items:center; border-radius:14px!important; box-shadow:0 8px 20px rgba(18,39,70,.16); }
+.media-tabs { padding:6px; border:1px solid var(--card-border); border-radius:16px; background:rgba(255,255,255,.48); box-shadow:0 8px 28px rgba(18,39,70,.06); }
+.media-tabs button.active { background:linear-gradient(135deg,#244D87,#3575B9); color:white; box-shadow:0 8px 18px rgba(36,77,135,.2); }
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}.card:hover,.card-vivit:hover,.platform-card:hover{transform:none}}

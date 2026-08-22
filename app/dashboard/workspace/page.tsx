@@ -8,6 +8,8 @@ import { Role } from "@/lib/types";
 
 async function addService(fd: FormData) {
   "use server";
+  const session=await auth();
+  if(!session?.user||(session.user as any).role!==Role.SUPER_ADMIN) throw new Error("Unauthorized");
   const { db, serviceCatalog } = await import("@/lib/db");
   await db.insert(serviceCatalog).values({
     name: fd.get("name") as string,
@@ -32,6 +34,7 @@ export default async function WorkspacePage() {
     db.select({ id:webhooks.id, url:webhooks.url, events:webhooks.events, isActive:webhooks.isActive }).from(webhooks).limit(5),
     db.select().from(serviceCatalog).where(eq(serviceCatalog.isActive, true)).orderBy(serviceCatalog.category),
   ]);
+  const parseList=(value:string|null)=>{try{const parsed=JSON.parse(value||"[]");return Array.isArray(parsed)?parsed:[]}catch{return []}};
 
   const PLATFORMS = [
     { name:"Meta (Facebook & Instagram)", icon:"📘", color:"#1877F2", connected:!!process.env.META_ACCESS_TOKEN,    env:"META_ACCESS_TOKEN",    features:["Publish posts","Pull ad metrics","Page insights","Audience data"] },
@@ -111,7 +114,7 @@ export default async function WorkspacePage() {
               {s.description && <p className="text-xs text-muted mt-1 line-clamp-2">{s.description}</p>}
               {s.deliverables && (
                 <div className="mt-2 space-y-0.5">
-                  {(JSON.parse(s.deliverables) as string[]).slice(0, 3).map((d,i) => (
+                  {parseList(s.deliverables).slice(0, 3).map((d:string,i:number) => (
                     <p key={i} className="text-[10px] text-muted">✓ {d}</p>
                   ))}
                 </div>

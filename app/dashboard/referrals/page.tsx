@@ -7,6 +7,8 @@ import { Role } from "@/lib/types";
 
 async function sendReferral(fd: FormData) {
   "use server";
+  const session=await auth();
+  if(!session?.user||(session.user as any).role!==Role.SUPER_ADMIN) throw new Error("Unauthorized");
   const email = fd.get("email") as string;
   if (!email) return;
   const base = process.env.NEXTAUTH_URL ?? "http://localhost:3000";

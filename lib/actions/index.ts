@@ -273,9 +273,11 @@ export async function updateTaskStatus(taskId: string, status: string, revisionN
 
 export async function submitTaskFile(taskId: string, fileName: string, fileUrl: string, notes: string) {
   const session = await auth();
-  requireRole(session,["CREATOR"]);
+  requireRole(session,["CREATOR","SUPER_ADMIN","ACCOUNT_MANAGER"]);
   const taskBefore=await taskForAccess(taskId);
-  if(taskBefore.assignedToId!==session!.user!.id||!["IN_PROGRESS","REVISION"].includes(taskBefore.status))throw new Error("Forbidden");
+  const role=String((session!.user as any).role);
+  const isManager=["SUPER_ADMIN","ACCOUNT_MANAGER"].includes(role);
+  if((!isManager&&taskBefore.assignedToId!==session!.user!.id)||!["PENDING","IN_PROGRESS","REVISION"].includes(taskBefore.status))throw new Error("Forbidden");
 
   const [task] = await db.update(creativeTasks)
     .set({ status: "REVIEW", fileUrl: fileUrl || null, updatedAt: new Date() } as any)

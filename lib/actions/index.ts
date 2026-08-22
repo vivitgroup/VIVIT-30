@@ -277,7 +277,8 @@ export async function submitTaskFile(taskId: string, fileName: string, fileUrl: 
   const taskBefore=await taskForAccess(taskId);
   const role=String((session!.user as any).role);
   const isManager=["SUPER_ADMIN","ACCOUNT_MANAGER"].includes(role);
-  if((!isManager&&taskBefore.assignedToId!==session!.user!.id)||!["PENDING","IN_PROGRESS","REVISION"].includes(taskBefore.status))throw new Error("Forbidden");
+  const allowedStatuses=isManager?["PENDING","IN_PROGRESS","REVISION","APPROVED","COMPLETED"]:["IN_PROGRESS","REVISION"];
+  if((!isManager&&taskBefore.assignedToId!==session!.user!.id)||!allowedStatuses.includes(taskBefore.status))throw new Error("Forbidden");
 
   const [task] = await db.update(creativeTasks)
     .set({ status: "REVIEW", fileUrl: fileUrl || null, updatedAt: new Date() } as any)

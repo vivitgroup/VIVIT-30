@@ -8,6 +8,11 @@ import { Role } from "@/lib/types";
 import { PERMISSION_GROUPS, ROLE_PERMISSIONS } from "@/lib/permissions";
 import Link from "next/link";
 
+function safeStringArray(value:string|null|undefined):string[]{
+  try{const parsed=JSON.parse(value||"[]");return Array.isArray(parsed)?parsed.filter(v=>typeof v==="string"):[];}
+  catch{return [];}
+}
+
 // ── Server Actions ────────────────────────────────────────────
 async function requireSuperAdmin(){"use server";const session=await auth();if(!session?.user||(session.user as any).role!==Role.SUPER_ADMIN)throw new Error("Unauthorized");return session;}
 
@@ -291,7 +296,7 @@ export default async function SettingsPage() {
         {/* System Roles Grid */}
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:"12px",marginBottom:"24px"}}>
           {allRoles.filter(r=>r.isSystem).map(r=>{
-            const perms: string[] = JSON.parse(r.permissions||"[]");
+            const perms = safeStringArray(r.permissions);
             return (
               <div key={r.id} className="card" style={{borderTop:`3px solid ${r.color}`}}>
                 <div className="card-body" style={{padding:"16px"}}>
@@ -392,7 +397,7 @@ export default async function SettingsPage() {
                 <thead><tr><th>Role</th><th>Permissions</th><th>Created</th><th>Actions</th></tr></thead>
                 <tbody>
                   {customRoles.map(r=>{
-                    const perms: string[] = JSON.parse(r.permissions||"[]");
+                    const perms = safeStringArray(r.permissions);
                     return (
                       <tr key={r.id}>
                         <td>

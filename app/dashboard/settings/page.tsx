@@ -47,7 +47,10 @@ async function updateUserRole(fd: FormData) {
   const { eq } = await import("drizzle-orm");
   const userId = fd.get("userId") as string;
   const role   = fd.get("role") as string;
-  if (!userId || !role) return;
+  const allowed=["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CREATOR","ACCOUNTANT","SALES","CLIENT"];
+  if (!userId || !allowed.includes(role)) throw new Error("Invalid role");
+  const session=await auth();
+  if(userId===(session!.user as any).id && role!=="SUPER_ADMIN")throw new Error("You cannot remove your own Super Admin access");
   await db.update(users).set({ role: role as any, updatedAt: new Date() }).where(eq(users.id, userId));
   const { revalidatePath } = await import("next/cache");
   revalidatePath("/dashboard/settings");
@@ -177,31 +180,10 @@ export default async function SettingsPage() {
             <p className="card-title">✉️ Invite New User</p>
           </div>
           <div className="card-body">
-            <form action={inviteUser}>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr auto",gap:"12px",alignItems:"end"}}>
-                <div>
-                  <label className="form-label">Full Name</label>
-                  <input name="name" required placeholder="Ahmed Mohamed" className="form-input"/>
-                </div>
-                <div>
-                  <label className="form-label">Email Address</label>
-                  <input name="email" type="email" required placeholder="ahmed@company.com" className="form-input"/>
-                </div>
-                <div>
-                  <label className="form-label">Role</label>
-                  <select name="role" required className="form-select">
-                    <option value="">Select role...</option>
-                    {["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CREATOR","ACCOUNTANT","SALES"].map(r=>(
-                      <option key={r} value={r}>{ROLE_ICONS[r]} {r.replace(/_/g," ")}</option>
-                    ))}
-                  </select>
-                </div>
-                <button type="submit" className="btn btn-primary">Send Invite →</button>
-              </div>
-              <p style={{fontSize:"12px",color:"var(--text-muted)",marginTop:"8px"}}>
-                Default password: <code style={{background:"var(--bg-tertiary)",padding:"1px 6px",borderRadius:"4px"}}>Welcome@2025!</code> — user should change on first login
-              </p>
-            </form>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:16,flexWrap:"wrap"}}>
+              <div><p style={{fontWeight:700,color:"var(--text-primary)"}}>Secure self-service registration</p><p style={{fontSize:12,color:"var(--text-muted)",marginTop:4}}>Ask the user to verify their Gmail, request a role, then approve the request from HR & Team. No shared default passwords.</p></div>
+              <Link href="/signup" className="btn btn-primary" style={{textDecoration:"none"}}>Open signup page →</Link>
+            </div>
           </div>
         </div>
 
@@ -236,17 +218,17 @@ export default async function SettingsPage() {
                       </div>
                     </td>
                     <td>
-                      <form action={updateUserRole} style={{display:"inline"}}>
+                      <form action={updateUserRole} style={{display:"flex",gap:6,alignItems:"center"}}>
                         <input type="hidden" name="userId" value={u.id}/>
                         <select name="role" defaultValue={u.role}
                           className={`badge badge-${ROLE_COLORS[u.role]??"gray"}`}
                           style={{border:"none",cursor:"pointer",fontFamily:"inherit",fontSize:"11.5px",fontWeight:600,padding:"3px 8px",borderRadius:"20px"}}
-                          onChange={undefined}>
+                          >
                           {["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CREATOR","ACCOUNTANT","SALES","CLIENT"].map(r=>(
                             <option key={r} value={r}>{ROLE_ICONS[r]} {r.replace(/_/g," ")}</option>
                           ))}
                         </select>
-                        <noscript><button type="submit" className="btn btn-ghost btn-sm">Save</button></noscript>
+                        <button type="submit" className="btn btn-ghost btn-sm">Save</button>
                       </form>
                     </td>
                     <td>
@@ -259,12 +241,6 @@ export default async function SettingsPage() {
                     </td>
                     <td>
                       <div style={{display:"flex",gap:"6px"}}>
-                        {/* Change role button */}
-                        <form action={updateUserRole}>
-                          <input type="hidden" name="userId" value={u.id}/>
-                          <input type="hidden" name="role" value={u.role}/>
-                          <button type="submit" className="btn btn-ghost btn-sm">Save Role</button>
-                        </form>
                         {/* Suspend/Activate */}
                         <form action={toggleUserStatus}>
                           <input type="hidden" name="userId" value={u.id}/>

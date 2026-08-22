@@ -2,7 +2,7 @@
 export const dynamic = "force-dynamic";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { db, clients, mediaMetrics, financeRecords, creativeTasks, clientFeedback, calendarEvents, mediaPlans, notifications, auditLogs } from "@/lib/db";
+import { db, clients, mediaMetrics, financeRecords, creativeTasks, clientFeedback, calendarEvents, mediaPlans, notifications, auditLogs, adCampaigns, fileDocuments } from "@/lib/db";
 import { eq, and, gte, desc, sum } from "drizzle-orm";
 import Link from "next/link";
 
@@ -37,7 +37,7 @@ export default async function PortalPage() {
   const yr      = now.getFullYear();
   const moStart = new Date(yr, now.getMonth(), 1);
 
-  const [metrics, finance, pendingTasks, upcoming, recentNPS, pendingPlans, latestInvoices] = await Promise.all([
+  const [metrics, finance, pendingTasks, upcoming, recentNPS, pendingPlans, latestInvoices, campaigns, assets] = await Promise.all([
     db.select({ spend:sum(mediaMetrics.adSpend), leads:sum(mediaMetrics.leads),
       revenue:sum(mediaMetrics.revenue) }).from(mediaMetrics)
       .where(and(eq(mediaMetrics.clientId,clientRow.id), gte(mediaMetrics.date,moStart))),
@@ -54,6 +54,8 @@ export default async function PortalPage() {
       .orderBy(desc(clientFeedback.createdAt)).limit(1),
     db.select().from(mediaPlans).where(and(eq(mediaPlans.clientId,clientRow.id),eq(mediaPlans.status,"PENDING_APPROVAL"))).orderBy(desc(mediaPlans.createdAt)),
     db.select({id:financeRecords.id,invoiceNumber:financeRecords.invoiceNumber,total:financeRecords.totalRevenue,paid:financeRecords.paid,outstanding:financeRecords.outstanding,status:financeRecords.invoiceStatus,dueDate:financeRecords.dueDate}).from(financeRecords).where(eq(financeRecords.clientId,clientRow.id)).orderBy(desc(financeRecords.year),desc(financeRecords.month)).limit(1),
+    db.select({id:adCampaigns.id,name:adCampaigns.name,platform:adCampaigns.platform,status:adCampaigns.status,dailyBudget:adCampaigns.dailyBudget,lastSyncAt:adCampaigns.lastSyncAt}).from(adCampaigns).where(eq(adCampaigns.clientId,clientRow.id)).orderBy(desc(adCampaigns.updatedAt)).limit(6),
+    db.select({id:fileDocuments.id,name:fileDocuments.name,category:fileDocuments.category,createdAt:fileDocuments.createdAt}).from(fileDocuments).where(eq(fileDocuments.clientId,clientRow.id)).orderBy(desc(fileDocuments.createdAt)).limit(6),
   ]);
 
   const spend    = Number(metrics[0]?.spend??0);
@@ -94,6 +96,17 @@ export default async function PortalPage() {
       </div>
 
       {latestInvoices[0]&&<div className="card" style={{borderTop:"3px solid var(--green)"}}><div className="card-body" style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:14,flexWrap:"wrap"}}><div><p style={{fontSize:11,fontWeight:800,color:"var(--text-muted)",textTransform:"uppercase"}}>Latest invoice</p><p style={{fontWeight:800,color:"var(--text-primary)",marginTop:4}}>{latestInvoices[0].invoiceNumber||"Current invoice"} · {fmt(Number(latestInvoices[0].total||0))}</p><p style={{fontSize:12,color:"var(--text-muted)",marginTop:3}}>{latestInvoices[0].status} · Outstanding {fmt(Number(latestInvoices[0].outstanding||0))}{latestInvoices[0].dueDate?` · Due ${new Date(latestInvoices[0].dueDate).toLocaleDateString()}`:""}</p></div><a href={`/api/invoice/${latestInvoices[0].id}`} target="_blank" rel="noreferrer" className="btn btn-primary" style={{textDecoration:"none"}}>View / print invoice ↗</a></div></div>}
+
+      <div className="card" style={{borderTop:"3px solid var(--vivit-blue)"}}>
+        <div className="card-header"><div><p className="card-title">🔗 Your Connected Workspace</p><p style={{fontSize:12,color:"var(--text-muted)",marginTop:3}}>Campaigns, calendar posts, creatives and files linked to {clientRow.companyName}</p></div></div>
+        <div className="card-body" style={{display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gap:10}}>
+          {[{label:"Campaigns",value:campaigns.length,icon:"📣"},{label:"Upcoming posts",value:upcoming.length,icon:"📅"},{label:"Creative approvals",value:pendingTasks.length,icon:"🎨"},{label:"Recent files",value:assets.length,icon:"📁"}].map(item=><div key={item.label} style={{padding:14,border:"1px solid var(--card-border)",borderRadius:10,background:"var(--bg-tertiary)"}}><div style={{fontSize:20}}>{item.icon}</div><strong style={{fontSize:22,color:"var(--text-primary)"}}>{item.value}</strong><p style={{fontSize:11,color:"var(--text-muted)"}}>{item.label}</p></div>)}
+        </div>
+        {(campaigns.length>0||assets.length>0)&&<div className="card-body" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,paddingTop:0}}>
+          <div><p style={{fontSize:12,fontWeight:800,marginBottom:8}}>Campaigns</p>{campaigns.map(c=><div key={c.id} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--card-border)",fontSize:12}}><span>{c.platform} · {c.name}</span><span className="badge badge-blue">{c.status}</span></div>)}</div>
+          <div><p style={{fontSize:12,fontWeight:800,marginBottom:8}}>Files & designs</p>{assets.map(f=><div key={f.id} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--card-border)",fontSize:12}}><span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>📎 {f.name}</span><span style={{color:"var(--text-muted)"}}>{f.category}</span></div>)}</div>
+        </div>}
+      </div>
 
       {pendingPlans.length>0&&<div className="card" style={{borderTop:"3px solid #244D87"}}><div className="card-header"><p className="card-title">📣 Media Plans Awaiting Approval</p><span className="badge badge-blue">{pendingPlans.length}</span></div><div className="card-body" style={{display:"grid",gap:"10px"}}>{pendingPlans.map(p=>{const forecast=safeObject(p.forecast);return <div key={p.id} style={{padding:14,border:"1px solid var(--card-border)",borderRadius:10}}><div style={{display:"flex",justifyContent:"space-between",gap:10}}><div><strong>{p.name}</strong><p style={{fontSize:11,color:"var(--text-muted)",marginTop:4}}>{new Date(p.periodStart).toLocaleDateString()} → {new Date(p.periodEnd).toLocaleDateString()} · Budget {fmt(p.totalBudget)} · Expected leads {forecast.expectedLeads||0}</p></div><span className="badge badge-amber">Review</span></div><div style={{display:"flex",gap:6,marginTop:10}}><form action={reviewMediaPlan}><input type="hidden" name="planId" value={p.id}/><input type="hidden" name="decision" value="APPROVED"/><button className="btn btn-success btn-sm">Approve ✓</button></form><form action={reviewMediaPlan} style={{display:"flex",gap:6,flex:1}}><input type="hidden" name="planId" value={p.id}/><input type="hidden" name="decision" value="REJECTED"/><input name="note" className="form-input" placeholder="Revision note"/><button className="btn btn-danger btn-sm">Request changes</button></form></div></div>})}</div></div>}
 
@@ -138,10 +151,13 @@ export default async function PortalPage() {
                   <p style={{fontWeight:700,fontSize:"13px",color:"var(--text-primary)",flex:1}}>{t.title}</p>
                 </div>
                 {t.fileUrl&&(
-                  <a href={t.fileUrl} target="_blank" rel="noopener"
-                    className="btn btn-ghost btn-sm" style={{textDecoration:"none",fontSize:"12px",marginBottom:"8px",display:"inline-flex"}}>
-                    📎 View File
-                  </a>
+                  <div style={{marginBottom:"10px"}}>
+                    <img src={t.fileUrl} alt={t.title} style={{width:"100%",maxHeight:"260px",objectFit:"cover",borderRadius:"10px",border:"1px solid var(--border)"}}/>
+                    <a href={t.fileUrl} target="_blank" rel="noopener"
+                      className="btn btn-ghost btn-sm" style={{textDecoration:"none",fontSize:"12px",marginTop:"8px",display:"inline-flex"}}>
+                      📎 View original
+                    </a>
+                  </div>
                 )}
                 <div style={{display:"flex",gap:"6px"}}>
                   <form action={portalAction} style={{flex:1}}><input type="hidden" name="action" value="task_review"/><input type="hidden" name="taskId" value={t.id}/><input type="hidden" name="decision" value="APPROVED"/><button style={{

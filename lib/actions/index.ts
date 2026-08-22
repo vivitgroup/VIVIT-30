@@ -155,6 +155,7 @@ export async function createCalendarEvent(formData: FormData) {
     platform: formData.get("platform") as string || null,
     caption:  formData.get("caption")  as string || null,
     taskId:   formData.get("taskId")   as string || null,
+    hashtags: `asset:${String(formData.get("assetFileId") || "")}`,
     status:   "scheduled",
   } as any);
   revalidatePath("/dashboard/calendar");

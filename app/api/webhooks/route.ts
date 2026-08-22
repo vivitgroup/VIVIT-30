@@ -16,7 +16,8 @@ async function dispatchWebhook(
     .where(eq(webhooks.isActive, true));
 
   for (const hook of hooks) {
-    const events = JSON.parse(hook.events ?? "[]");
+    let events:string[]=[];
+    try{const parsed=JSON.parse(hook.events??"[]");events=Array.isArray(parsed)?parsed.filter(v=>typeof v==="string"):[];}catch{events=[];}
     if (!events.includes(event) && !events.includes("*")) continue;
 
     const body = JSON.stringify({

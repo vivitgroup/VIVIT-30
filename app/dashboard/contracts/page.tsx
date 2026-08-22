@@ -13,7 +13,7 @@ async function createContract(fd: FormData) {
   const { auth: getAuth } = await import("@/lib/auth");
   const { db, contracts } = await import("@/lib/db");
   const session = await getAuth();
-  if (!session?.user) return;
+  if (!session?.user||(session.user as any).role!==Role.SUPER_ADMIN) throw new Error("Unauthorized");
   await db.insert(contracts).values({
     clientId:   fd.get("clientId") as string,
     title:      fd.get("title") as string,

@@ -10,6 +10,8 @@ import Link from "next/link";
 // ── Server Actions ────────────────────────────────────────────
 async function moveLead(fd: FormData) {
   "use server";
+  const session=await auth();
+  if(!session?.user||![Role.SUPER_ADMIN,Role.SALES,Role.ACCOUNT_MANAGER].includes((session.user as any).role)) throw new Error("Unauthorized");
   const { db, salesLeads } = await import("@/lib/db");
   const { eq } = await import("drizzle-orm");
   const id    = fd.get("id") as string;

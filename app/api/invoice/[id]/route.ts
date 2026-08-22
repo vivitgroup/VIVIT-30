@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db, financeRecords, clients, contacts } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
+import { canAccessClient } from "@/lib/client-access";
 
 export async function GET(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -11,6 +12,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
   const { id } = await context.params;
   const [record] = await db.select().from(financeRecords).where(eq(financeRecords.id, id));
   if (!record) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if(!(await canAccessClient(session,record.clientId,{finance:true})))return NextResponse.json({error:"Forbidden"},{status:403});
 
   const [client] = await db.select().from(clients).where(eq(clients.id, record.clientId));
   const [contact] = await db.select().from(contacts).where(and(eq(contacts.clientId, record.clientId), eq(contacts.isPrimary, true)));

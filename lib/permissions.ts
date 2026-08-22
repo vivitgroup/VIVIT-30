@@ -54,24 +54,23 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     "manage_api_keys","view_audit_logs","manage_integrations",
   ],
   ACCOUNT_MANAGER: [
-    "view_dashboard","view_analytics","view_reports","export_data",
+    "view_reports","export_data",
     "view_clients","create_clients","edit_clients",
     "view_tasks","create_tasks","edit_tasks","approve_tasks","assign_tasks",
-    "view_finance","create_invoices",
     "view_media","edit_media",
     "view_sales","create_leads","edit_leads","view_proposals","create_proposals",
     "use_ai_studio","view_ai_history",
   ],
   MEDIA_BUYER: [
-    "view_dashboard","view_analytics","view_reports","export_data",
-    "view_clients","view_tasks",
+    "view_reports","export_data",
+    "view_clients",
     "view_media","edit_media","manage_budgets",
   ],
   CREATOR: [
-    "view_dashboard","view_tasks",
+    "view_tasks",
   ],
   ACCOUNTANT: [
-    "view_dashboard","view_finance","create_invoices","edit_invoices","approve_invoices",
+    "view_finance","create_invoices","edit_invoices","approve_invoices",
     "view_payroll","manage_payroll","view_reports","export_data",
     "view_clients","view_team","view_salaries",
     "view_salary_recommendations","approve_salary_finance","view_payroll_lock",
@@ -79,8 +78,8 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     "view_resource_planning",
   ],
   SALES: [
-    "view_dashboard","view_sales","create_leads","edit_leads","delete_leads",
-    "view_proposals","create_proposals","view_clients","view_reports",
+    "view_sales","create_leads","edit_leads","delete_leads",
+    "view_proposals","create_proposals","view_reports",
   ],
   CLIENT: [
     "view_portal","approve_creatives","pay_invoices",
@@ -117,6 +116,7 @@ export function homeFor(role: Role): string {
     case Role.ACCOUNTANT:     return "/dashboard/finance";
     case Role.MEDIA_BUYER:    return "/dashboard/media/control-center";
     case Role.SALES:          return "/dashboard/sales";
+    case Role.ACCOUNT_MANAGER:return "/dashboard/clients";
     default:                  return "/dashboard";
   }
 }

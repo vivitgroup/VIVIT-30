@@ -103,7 +103,14 @@ export default async function SettingsPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
   const role = (session.user as any).role as Role;
-  if (role !== Role.SUPER_ADMIN) redirect("/dashboard");
+  if (role !== Role.SUPER_ADMIN) return <div className="settings-personal">
+    <div className="settings-hero"><span>⚙️</span><div><h1 className="page-title">Account Settings</h1><p className="page-subtitle">Your preferences and account access</p></div></div>
+    <div className="settings-grid">
+      <section className="card"><div className="card-body"><h2 className="card-title">Profile</h2><div className="settings-row"><span>Name</span><strong>{session.user.name||"—"}</strong></div><div className="settings-row"><span>Email</span><strong>{session.user.email||"—"}</strong></div><div className="settings-row"><span>Role</span><span className="badge badge-blue">{String(role).replace(/_/g," ")}</span></div></div></section>
+      <section className="card"><div className="card-body"><h2 className="card-title">Preferences</h2><p className="page-subtitle">Use the عربي / English button in the top bar to change language. Your choice is saved on this device.</p><p className="page-subtitle" style={{marginTop:12}}>Theme and navigation controls are available at the bottom of the sidebar.</p></div></section>
+      <section className="card"><div className="card-body"><h2 className="card-title">Permissions</h2><p className="page-subtitle">Your access is managed by the Super Admin. Contact them if your responsibilities change.</p></div></section>
+    </div>
+  </div>;
 
   const [allUsers, allRoles] = await Promise.all([
     db.select({

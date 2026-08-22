@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { db, notifications } from "@/lib/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, count } from "drizzle-orm";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
 import { MobileNav } from "@/components/layout/MobileNav";
@@ -32,10 +32,10 @@ export default async function DashboardLayout({ children }: { children:React.Rea
   const userName = session.user.name ?? session.user.email ?? "User";
   const userId   = (session.user as any).id ?? "";
 
-  const unreadRows = await db.select({ id: notifications.id }).from(notifications)
+  const unreadRows = await db.select({ value: count() }).from(notifications)
     .where(and(eq(notifications.userId, userId), eq(notifications.isRead, false)))
     .catch(() => []);
-  const unreadCount = unreadRows.length;
+  const unreadCount = Number(unreadRows[0]?.value ?? 0);
 
   return (
     <div style={{display:"flex",minHeight:"100vh",background:"var(--bg-primary)"}}>
@@ -60,10 +60,15 @@ export default async function DashboardLayout({ children }: { children:React.Rea
         (function(){
           var main = document.getElementById('app-main');
           function sync(){
+            if(window.matchMedia('(max-width: 768px)').matches){
+              if(main){ main.style.marginLeft='0'; main.style.marginRight='0'; }
+              return;
+            }
             var collapsed = localStorage.getItem('vivit-sidebar-collapsed')==='true';
             if(main) main.style.marginLeft = collapsed ? '64px' : '240px';
           }
           sync();
+          window.addEventListener('resize', sync, {passive:true});
           window.addEventListener('storage', sync);
           // Also listen for sidebar toggle clicks
           document.addEventListener('click', function(e){

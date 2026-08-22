@@ -32,7 +32,7 @@ async function createLead(fd: FormData) {
   const { db, salesLeads } = await import("@/lib/db");
   const { auth } = await import("@/lib/auth");
   const session = await auth();
-  if (!session?.user) return;
+  if (!session?.user || ![Role.SUPER_ADMIN,Role.SALES,Role.ACCOUNT_MANAGER].includes((session.user as any).role)) throw new Error("Unauthorized");
   await db.insert(salesLeads).values({
     companyName:    fd.get("companyName") as string,
     contactPerson:  fd.get("contactPerson") as string,

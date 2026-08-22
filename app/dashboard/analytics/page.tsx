@@ -10,7 +10,7 @@ export default async function AnalyticsPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
   const role = (session.user as any).role as Role;
-  if (![Role.SUPER_ADMIN,Role.ACCOUNT_MANAGER,Role.MEDIA_BUYER].includes(role)) redirect("/dashboard");
+  if (role!==Role.SUPER_ADMIN) redirect("/dashboard");
 
   const now   = new Date();
   const mo1   = new Date(now.getFullYear(), now.getMonth()-1, 1);

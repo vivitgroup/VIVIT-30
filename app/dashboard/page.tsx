@@ -101,7 +101,7 @@ export default async function DashboardPage() {
   const mrr           = Number(health?.mrr??0);
   const arr           = Number(health?.arr??0);
   const utilization   = Math.round(health?.employeeUtilization??0);
-  const healthRecs    = JSON.parse(health?.recommendations??"[]") as string[];
+  let healthRecs:string[]=[];try{const parsed=JSON.parse(health?.recommendations??"[]");healthRecs=Array.isArray(parsed)?parsed:[]}catch{}
 
   const payLock = (payrollLock as any[])?.[0];
   const isPayrollLocked = payLock?.status === "LOCKED";

@@ -10,7 +10,7 @@ import Link from "next/link";
 export default async function NewClientPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
-  if ((session.user as any).role !== Role.SUPER_ADMIN) redirect("/dashboard/clients");
+  if (![Role.SUPER_ADMIN,Role.ACCOUNT_MANAGER].includes((session.user as any).role)) redirect("/dashboard/clients");
 
   const allUsers = await db.select({ id: users.id, name: users.name, role: users.role }).from(users).where(eq(users.isActive, true));
   const managers = allUsers.filter(u => u.role === "ACCOUNT_MANAGER");

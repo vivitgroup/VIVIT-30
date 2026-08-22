@@ -38,13 +38,15 @@ export function Header({ role, unreadCount }: { role:string; unreadCount:number 
   const [lang,setLang]=useState<"en"|"ar">("en");
   const inputRef = useRef<HTMLInputElement>(null);
   const timer    = useRef<NodeJS.Timeout|null>(null);
-  const pageTitle = PAGE_TITLES[pathname] || pathname.split("/").pop()?.replace(/-/g," ") || "Dashboard";
+  const rawTitle = PAGE_TITLES[pathname] || pathname.split("/").pop()?.replace(/-/g," ") || "Dashboard";
+  const AR_TITLES:Record<string,string>={Dashboard:"لوحة التحكم",Clients:"العملاء","Sales CRM":"المبيعات","Media Buying":"إدارة الإعلانات","Creative Tasks":"المهام الإبداعية","Tasks Inbox":"صندوق المهام",Finance:"المالية",Analytics:"التحليلات","HR & Team":"الفريق","AI Studio":"استوديو الذكاء الاصطناعي",Settings:"الإعدادات","KPIs & BI":"مؤشرات الأداء","Revenue Forecast":"التوقعات المالية",Reports:"التقارير",Notifications:"الإشعارات","Files & Documents":"الملفات والمستندات"};
+  const pageTitle = lang==="ar"?(AR_TITLES[rawTitle]||rawTitle):rawTitle;
 
   useEffect(()=>{
     try { setHistory(JSON.parse(localStorage.getItem("vivit-search-history")??"[]")); const saved=(localStorage.getItem("vivit-lang") as "en"|"ar")||"en";setLang(saved);document.documentElement.lang=saved;document.documentElement.dir=saved==="ar"?"rtl":"ltr"; } catch {}
   },[]);
 
-  const toggleLanguage=()=>{const next=lang==="en"?"ar":"en";setLang(next);localStorage.setItem("vivit-lang",next);document.documentElement.lang=next;document.documentElement.dir=next==="ar"?"rtl":"ltr";};
+  const toggleLanguage=()=>{const next=lang==="en"?"ar":"en";setLang(next);localStorage.setItem("vivit-lang",next);document.documentElement.lang=next;document.documentElement.dir=next==="ar"?"rtl":"ltr";window.dispatchEvent(new CustomEvent("vivit-language",{detail:next}));};
 
   useEffect(()=>{
     const h=(e:KeyboardEvent)=>{
@@ -92,7 +94,7 @@ export function Header({ role, unreadCount }: { role:string; unreadCount:number 
         <button onClick={()=>setSearchOpen(true)}
           style={{display:"flex",alignItems:"center",gap:"10px",padding:"8px 14px",background:"var(--bg-tertiary)",border:"1.5px solid var(--card-border)",borderRadius:"var(--radius-sm)",cursor:"text",color:"var(--text-muted)",fontSize:"13px",minWidth:"220px",transition:"var(--transition)"}}>
           <span>🔍</span>
-          <span style={{flex:1,textAlign:"left"}}>Search...</span>
+          <span style={{flex:1,textAlign:lang==="ar"?"right":"left"}}>{lang==="ar"?"بحث...":"Search..."}</span>
           <kbd style={{fontSize:"10px",background:"var(--card-bg)",border:"1px solid var(--card-border)",borderRadius:"4px",padding:"1px 5px",color:"var(--text-muted)"}}>⌘K</kbd>
         </button>
 
@@ -121,8 +123,8 @@ export function Header({ role, unreadCount }: { role:string; unreadCount:number 
           </span>
 
           {/* Sign out */}
-          <a href="/api/auth/signout" className="btn btn-ghost btn-sm" style={{textDecoration:"none"}}>
-            Sign Out
+          <a href="/signout" className="btn btn-ghost btn-sm" style={{textDecoration:"none"}}>
+            {lang==="ar"?"تسجيل الخروج":"Sign Out"}
           </a>
         </div>
       </header>

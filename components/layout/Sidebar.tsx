@@ -9,7 +9,7 @@ const SECTIONS = [
     label: "MAIN",
     items: [
       { icon:"🏠", label:"Dashboard",     href:"/dashboard",              roles:["SUPER_ADMIN"] },
-      { icon:"🏢", label:"Clients",       href:"/dashboard/clients",      roles:["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"] },
+      { icon:"🏢", label:"Clients",       href:"/dashboard/clients",      roles:["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","ACCOUNTANT"] },
       { icon:"🎯", label:"Sales CRM",     href:"/dashboard/sales",        roles:["SUPER_ADMIN","SALES","ACCOUNT_MANAGER"] },
       { icon:"📣", label:"Media Control", href:"/dashboard/media/control-center",roles:["SUPER_ADMIN","MEDIA_BUYER","ACCOUNT_MANAGER"] },
       { icon:"🔄", label:"Platform Sync", href:"/dashboard/media/sync",roles:["SUPER_ADMIN","MEDIA_BUYER"] },
@@ -40,10 +40,9 @@ const SECTIONS = [
     label: "AI & TOOLS",
     items: [
       { icon:"✨", label:"AI Studio",     href:"/dashboard/ai-studio",    roles:["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"] },
-      { icon:"📦", label:"Workspace",     href:"/dashboard/workspace",    roles:["SUPER_ADMIN"] },
       { icon:"📁", label:"Files",         href:"/dashboard/files",        roles:["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CREATOR","SALES","ACCOUNTANT","CLIENT"] },
       { icon:"🔔", label:"Notifications", href:"/dashboard/notifications",roles:["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CREATOR","SALES","ACCOUNTANT"] },
-      { icon:"⚙️", label:"Settings",      href:"/dashboard/settings",     roles:["SUPER_ADMIN"] },
+      { icon:"⚙️", label:"Settings",      href:"/dashboard/settings",     roles:["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CREATOR","ACCOUNTANT","SALES","CLIENT"] },
     ]
   },
   {
@@ -59,6 +58,7 @@ export function Sidebar({ role, userName }: { role:string; userName:string }) {
   const pathname  = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [theme, setTheme] = useState<"light"|"dark">("light");
+  const [lang,setLang]=useState<"en"|"ar">("en");
 
   useEffect(() => {
     const savedCollapsed = localStorage.getItem("vivit-sidebar-collapsed") === "true";
@@ -66,7 +66,14 @@ export function Sidebar({ role, userName }: { role:string; userName:string }) {
     setCollapsed(savedCollapsed);
     setTheme(savedTheme);
     document.documentElement.classList.toggle("dark", savedTheme === "dark");
+    setLang((localStorage.getItem("vivit-lang") as "en"|"ar")||"en");
+    const onLang=(e:Event)=>setLang((e as CustomEvent).detail);
+    window.addEventListener("vivit-language",onLang);
+    return()=>window.removeEventListener("vivit-language",onLang);
   }, []);
+
+  const ar:Record<string,string>={MAIN:"الرئيسية","FINANCE & HR":"المالية والموارد البشرية",ANALYTICS:"التحليلات","AI & TOOLS":"الذكاء الاصطناعي والأدوات","CLIENT PORTAL":"بوابة العميل",Dashboard:"لوحة التحكم",Clients:"العملاء","Sales CRM":"المبيعات","Media Control":"إدارة الإعلانات","Platform Sync":"ربط المنصات",Creative:"الإبداع","Tasks Inbox":"صندوق المهام",Calendar:"التقويم",Finance:"المالية",Contracts:"العقود","HR & Team":"الفريق","LTV & Revenue":"القيمة والإيرادات",Analytics:"التحليلات",Forecast:"التوقعات","KPIs & BI":"مؤشرات الأداء",Reports:"التقارير","AI Studio":"استوديو الذكاء الاصطناعي",Files:"الملفات",Notifications:"الإشعارات",Settings:"الإعدادات","My Portal":"بوابتي"};
+  const t=(v:string)=>lang==="ar"?(ar[v]||v):v;
 
   const toggleCollapse = () => {
     const next = !collapsed;
@@ -120,17 +127,17 @@ export function Sidebar({ role, userName }: { role:string; userName:string }) {
         {visibleSections.map(section => (
           <div key={section.label}>
             {!collapsed && (
-              <div className="sidebar-section-label">{section.label}</div>
+              <div className="sidebar-section-label">{t(section.label)}</div>
             )}
             {section.items.map(item => {
               const active = isActive(item.href);
               return (
                 <Link key={item.href} href={item.href}
-                  title={collapsed ? item.label : undefined}
+                  title={collapsed ? t(item.label) : undefined}
                   className={`nav-item${active?" active":""}`}
                   style={{justifyContent:collapsed?"center":"flex-start",paddingLeft:collapsed?"0":"14px"}}>
                   <span className="nav-icon">{item.icon}</span>
-                  {!collapsed && <span className="nav-label">{item.label}</span>}
+                  {!collapsed && <span className="nav-label">{t(item.label)}</span>}
                 </Link>
               );
             })}

@@ -19,6 +19,8 @@ function createClient() {
     max:             3,           // Fix 104: 3 per function instance
     idle_timeout:    20,          // Return connection after 20s idle
     connect_timeout: 10,          // Fail fast if DB unreachable
+    max_lifetime:    60,
+    connection:      { application_name: "vivit-erp", statement_timeout: "8000" } as any,
     prepare:         false,       // Required for PgBouncer/Supabase pooler
     onnotice:        () => {},    // Suppress PostgreSQL notices
   });

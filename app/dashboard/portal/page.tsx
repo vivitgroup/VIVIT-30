@@ -8,6 +8,8 @@ import Link from "next/link";
 
 async function reviewMediaPlan(fd:FormData){"use server";const session=await auth();if(!session?.user)throw new Error("Unauthorized");const userId=(session.user as any).id;const [client]=await db.select({id:clients.id}).from(clients).where(eq(clients.userId,userId)).limit(1);if(!client)throw new Error("Forbidden");const planId=String(fd.get("planId")),decision=String(fd.get("decision")),note=String(fd.get("note")||"").slice(0,500);const [plan]=await db.select().from(mediaPlans).where(and(eq(mediaPlans.id,planId),eq(mediaPlans.clientId,client.id))).limit(1);if(!plan||!["APPROVED","REJECTED"].includes(decision))throw new Error("Invalid request");await db.update(mediaPlans).set({status:decision,clientNote:note||null,approvedBy:userId,approvedAt:decision==="APPROVED"?new Date():null,updatedAt:new Date()}).where(eq(mediaPlans.id,planId));await db.insert(notifications).values({userId:plan.submittedBy,type:"MEDIA_PLAN_REVIEW",title:`Media plan ${decision.toLowerCase()}`,message:`The client ${decision.toLowerCase()} ${plan.name}.${note?` Note: ${note}`:""}`,link:"/dashboard/media/control-center",priority:decision==="APPROVED"?"normal":"high"});await db.insert(auditLogs).values({userId,action:`media_plan_${decision.toLowerCase()}`,entity:"media_plans",entityId:planId,newValues:JSON.stringify({note})});const {revalidatePath}=await import("next/cache");revalidatePath("/dashboard/portal");}
 
+async function portalAction(fd:FormData){"use server";const session=await auth();if(!session?.user)throw new Error("Unauthorized");const userId=(session.user as any).id;const [client]=await db.select().from(clients).where(eq(clients.userId,userId)).limit(1);if(!client)throw new Error("Forbidden");const action=String(fd.get("action")||"");const now=new Date();if(action==="nps"){const score=Number(fd.get("score")),comment=String(fd.get("comment")||"").trim().slice(0,500);if(!Number.isInteger(score)||score<0||score>10)throw new Error("Choose a score from 0 to 10");await db.insert(clientFeedback).values({clientId:client.id,score,comment:comment||null,month:now.getMonth()+1,year:now.getFullYear()});await db.insert(auditLogs).values({userId,action:"client_nps_submitted",entity:"clients",entityId:client.id,newValues:JSON.stringify({score,comment})});}else if(action==="message"){const message=String(fd.get("message")||"").trim().slice(0,1000);if(!message)throw new Error("Message is required");const recipient=client.accountManagerId;if(!recipient)throw new Error("No account manager is assigned yet");await db.insert(notifications).values({userId:recipient,type:"CLIENT_MESSAGE",title:`Message from ${client.companyName}`,message,link:"/dashboard/clients",priority:"high"});await db.insert(auditLogs).values({userId,action:"client_message_sent",entity:"clients",entityId:client.id,newValues:JSON.stringify({message})});}else if(action==="task_review"){const taskId=String(fd.get("taskId")||""),decision=String(fd.get("decision")||"");if(!["APPROVED","REVISION"].includes(decision))throw new Error("Invalid decision");const [task]=await db.select().from(creativeTasks).where(and(eq(creativeTasks.id,taskId),eq(creativeTasks.clientId,client.id))).limit(1);if(!task)throw new Error("Task not found");await db.update(creativeTasks).set({status:decision,updatedAt:now,revisionCount:decision==="REVISION"?(task.revisionCount||0)+1:task.revisionCount}).where(eq(creativeTasks.id,taskId));if(task.assignedToId)await db.insert(notifications).values({userId:task.assignedToId,type:"CLIENT_REVIEW",title:`Client ${decision.toLowerCase()}: ${task.title}`,message:decision==="APPROVED"?"The client approved this creative.":"The client requested a revision.",link:`/dashboard/creative/${task.id}`,priority:decision==="REVISION"?"high":"normal"});await db.insert(auditLogs).values({userId,action:`creative_${decision.toLowerCase()}`,entity:"creative_tasks",entityId:task.id});}else throw new Error("Invalid action");const {revalidatePath}=await import("next/cache");revalidatePath("/dashboard/portal");}
+
 export default async function PortalPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
@@ -36,7 +38,7 @@ export default async function PortalPage() {
     db.select({ total:sum(financeRecords.totalRevenue), paid:sum(financeRecords.paid),
       outstanding:sum(financeRecords.outstanding) }).from(financeRecords)
       .where(and(eq(financeRecords.clientId,clientRow.id), eq(financeRecords.month,mo), eq(financeRecords.year,yr))),
-    db.select({ id:creativeTasks.id,title:creativeTasks.title,type:creativeTasks.type,fileUrl:creativeTasks.fileUrl })
+    db.select({ id:creativeTasks.id,title:creativeTasks.title,type:creativeTasks.type,fileUrl:creativeTasks.fileUrl,assignedToId:creativeTasks.assignedToId,revisionCount:creativeTasks.revisionCount })
       .from(creativeTasks).where(and(eq(creativeTasks.clientId,clientRow.id),eq(creativeTasks.status,"REVIEW"))).limit(5),
     db.select({ id:calendarEvents.id,title:calendarEvents.title,date:calendarEvents.date,platform:calendarEvents.platform })
       .from(calendarEvents).where(and(eq(calendarEvents.clientId,clientRow.id),gte(calendarEvents.date,now)))
@@ -133,18 +135,20 @@ export default async function PortalPage() {
                   </a>
                 )}
                 <div style={{display:"flex",gap:"6px"}}>
-                  <a href={`/dashboard/portal?approve=${t.id}`} style={{
+                  <form action={portalAction} style={{flex:1}}><input type="hidden" name="action" value="task_review"/><input type="hidden" name="taskId" value={t.id}/><input type="hidden" name="decision" value="APPROVED"/><button style={{
                     flex:1,padding:"8px",borderRadius:"7px",
                     background:"var(--green)",color:"#fff",border:"none",
                     fontSize:"12px",fontWeight:700,cursor:"pointer",
-                    textDecoration:"none",display:"flex",alignItems:"center",justifyContent:"center",gap:"4px"
-                  }}>✓ Approve</a>
-                  <a href={`/dashboard/portal?revise=${t.id}`} style={{
+                    textDecoration:"none",display:"flex",alignItems:"center",justifyContent:"center",gap:"4px",
+                    width:"100%"
+                  }}>✓ Approve</button></form>
+                  <form action={portalAction} style={{flex:1}}><input type="hidden" name="action" value="task_review"/><input type="hidden" name="taskId" value={t.id}/><input type="hidden" name="decision" value="REVISION"/><button style={{
                     flex:1,padding:"8px",borderRadius:"7px",
                     background:"var(--red-bg)",color:"var(--red)",border:"1px solid rgba(239,68,68,0.2)",
                     fontSize:"12px",fontWeight:700,cursor:"pointer",
-                    textDecoration:"none",display:"flex",alignItems:"center",justifyContent:"center",gap:"4px"
-                  }}>↩ Revise</a>
+                    textDecoration:"none",display:"flex",alignItems:"center",justifyContent:"center",gap:"4px",
+                    width:"100%"
+                  }}>↩ Revise</button></form>
                 </div>
               </div>
             ))}
@@ -195,9 +199,9 @@ export default async function PortalPage() {
           <div className="card-header"><p className="card-title">⭐ Rate Your Experience</p></div>
           <div className="card-body">
             <p style={{fontSize:"13px",color:"var(--text-secondary)",marginBottom:"16px"}}>How likely are you to recommend us? (0=Not at all, 10=Definitely)</p>
-            <div style={{display:"flex",gap:"6px",flexWrap:"wrap",marginBottom:"16px"}}>
+            <form action={portalAction}><input type="hidden" name="action" value="nps"/><div style={{display:"flex",gap:"6px",flexWrap:"wrap",marginBottom:"12px"}}>
               {Array.from({length:11},(_,i)=>(
-                <button key={i} style={{
+                <button key={i} type="submit" name="score" value={i} aria-label={`Rate ${i} out of 10`} style={{
                   width:"36px",height:"36px",borderRadius:"8px",
                   border:"1.5px solid var(--card-border)",background:"var(--bg-tertiary)",
                   fontSize:"13px",fontWeight:700,cursor:"pointer",fontFamily:"inherit",
@@ -205,7 +209,7 @@ export default async function PortalPage() {
                   transition:"all 0.15s"
                 }}>{i}</button>
               ))}
-            </div>
+            </div><input name="comment" className="form-input" placeholder="Optional comment" maxLength={500}/></form>
             {recentNPS[0]&&<p style={{fontSize:"12px",color:"var(--text-muted)"}}>Last rating: {recentNPS[0].score}/10 — {recentNPS[0].comment}</p>}
           </div>
         </div>
@@ -213,17 +217,17 @@ export default async function PortalPage() {
         <div className="card">
           <div className="card-header"><p className="card-title">💬 Message Your AM</p></div>
           <div className="card-body" style={{display:"flex",flexDirection:"column",gap:"12px"}}>
-            <textarea rows={3} placeholder="Hi! I wanted to ask about..." className="form-input" style={{resize:"none",fontFamily:"inherit"}}/>
-            <button className="btn btn-primary w-full">Send Message →</button>
+            <form action={portalAction} style={{display:"grid",gap:12}}><input type="hidden" name="action" value="message"/><textarea name="message" required rows={3} placeholder="Hi! I wanted to ask about..." className="form-input" style={{resize:"none",fontFamily:"inherit"}}/><button className="btn btn-primary w-full">Send Message →</button></form>
             <div style={{display:"flex",flexDirection:"column",gap:"6px"}}>
               <p style={{fontSize:"11px",fontWeight:700,color:"var(--text-muted)",textTransform:"uppercase",letterSpacing:"0.06em"}}>Quick WhatsApp Templates</p>
               {["📊 Request monthly report","✅ Approve all pending","💰 Invoice inquiry","🎯 Campaign update"].map(t=>(
-                <button key={t} style={{
+                <form action={portalAction} key={t}><input type="hidden" name="action" value="message"/><input type="hidden" name="message" value={t}/><button style={{
                   padding:"8px 12px",borderRadius:"7px",
                   border:"1px solid var(--card-border)",background:"var(--bg-tertiary)",
                   fontSize:"12px",fontWeight:600,color:"var(--text-secondary)",
-                  cursor:"pointer",fontFamily:"inherit",textAlign:"left",transition:"all 0.15s"
-                }}>{t}</button>
+                  cursor:"pointer",fontFamily:"inherit",textAlign:"left",transition:"all 0.15s",
+                  width:"100%"
+                }}>{t}</button></form>
               ))}
             </div>
           </div>

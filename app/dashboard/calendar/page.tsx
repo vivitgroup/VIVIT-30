@@ -24,7 +24,7 @@ export default async function CalendarPage() {
   ]);
 
   // Add client names to events
-  const clientIds = [...new Set(events.map(e=>e.clientId))];
+  const clientIds = [...new Set([...events.map(e=>e.clientId), ...approvedTasks.map(t=>t.clientId)])];
   const clientRows = clientIds.length>0 ? await db.select({ id: clients.id, companyName: clients.companyName }).from(clients).where(inArray(clients.id, clientIds)) : [];
   const clientMap = Object.fromEntries(clientRows.map(c=>[c.id,c.companyName]));
 

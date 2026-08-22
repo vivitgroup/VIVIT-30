@@ -9,6 +9,8 @@ import Link from "next/link";
 
 async function createInvoice(fd: FormData) {
   "use server";
+  const session=await auth();
+  if(!session?.user||![Role.SUPER_ADMIN,Role.ACCOUNTANT].includes((session.user as any).role)) throw new Error("Unauthorized");
   const { db, financeRecords } = await import("@/lib/db");
   const clientId  = fd.get("clientId") as string;
   const month     = parseInt(fd.get("month") as string) || new Date().getMonth()+1;
@@ -32,13 +34,15 @@ async function createInvoice(fd: FormData) {
 
 async function logExpense(fd: FormData) {
   "use server";
+  const session=await auth();
+  if(!session?.user||![Role.SUPER_ADMIN,Role.ACCOUNTANT].includes((session.user as any).role)) throw new Error("Unauthorized");
   const { db, companyExpenses } = await import("@/lib/db");
   await db.insert(companyExpenses).values({
     category:    fd.get("category") as string,
     description: fd.get("description") as string,
     amount:      parseFloat(fd.get("amount") as string) || 0,
     date:        new Date(),
-    approvedBy:  "Quick-log",
+    approvedBy:  (session.user as any).id,
   });
   const { revalidatePath } = await import("next/cache");
   revalidatePath("/dashboard/finance");
@@ -46,6 +50,8 @@ async function logExpense(fd: FormData) {
 
 async function markPaid(fd: FormData) {
   "use server";
+  const session=await auth();
+  if(!session?.user||![Role.SUPER_ADMIN,Role.ACCOUNTANT].includes((session.user as any).role)) throw new Error("Unauthorized");
   const { db, financeRecords } = await import("@/lib/db");
   const { eq } = await import("drizzle-orm");
   const id = fd.get("id") as string;

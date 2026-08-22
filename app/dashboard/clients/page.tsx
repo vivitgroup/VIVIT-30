@@ -11,7 +11,7 @@ export default async function ClientsPage() {
   if (!session?.user) redirect("/login");
   const role = (session.user as any).role as Role;
   const userId = (session.user as any).id as string;
-  if (![Role.SUPER_ADMIN,Role.ACCOUNT_MANAGER,Role.MEDIA_BUYER].includes(role)) redirect("/dashboard");
+  if (![Role.SUPER_ADMIN,Role.ACCOUNT_MANAGER,Role.MEDIA_BUYER,Role.ACCOUNTANT].includes(role)) redirect("/dashboard");
 
   const allClients = await db.select({
     id:clients.id, companyName:clients.companyName, industry:clients.industry,

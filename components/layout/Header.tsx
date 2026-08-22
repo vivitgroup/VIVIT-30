@@ -6,9 +6,11 @@ function exportCSV() {
   const table = document.querySelector<HTMLTableElement>("table");
   if (!table) { alert("No table on this page"); return; }
   const rows = Array.from(table.querySelectorAll("tr"));
-  const csv  = rows.map(r => Array.from(r.querySelectorAll("th,td")).map(c=>`"${c.textContent?.trim()??""}`).join(",")).join("\n");
-  const a = Object.assign(document.createElement("a"),{href:URL.createObjectURL(new Blob([csv],{type:"text/csv"})),download:"vivit-export.csv"});
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  const quote = (value:string) => `"${value.replace(/"/g,'""')}"`;
+  const csv  = rows.map(r => Array.from(r.querySelectorAll("th,td")).map(c=>quote(c.textContent?.trim()??"")).join(",")).join("\n");
+  const url = URL.createObjectURL(new Blob(["\uFEFF",csv],{type:"text/csv;charset=utf-8"}));
+  const a = Object.assign(document.createElement("a"),{href:url,download:`vivit-${new Date().toISOString().slice(0,10)}.csv`});
+  document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
 }
 
 const PAGE_TITLES: Record<string,string> = {

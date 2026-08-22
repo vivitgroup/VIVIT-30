@@ -166,7 +166,7 @@ export default async function TaskDetailPage({ params }: { params: Promise<{id:s
           )}
 
           {/* Final delivery can be submitted by the assigned creator or a manager. */}
-          {(isCreator || isManager) && ["PENDING","IN_PROGRESS","REVISION"].includes(task.status) && (
+          {(isCreator || isManager) && ["PENDING","IN_PROGRESS","REVISION",...(isManager?["APPROVED","COMPLETED"]:[])].includes(task.status) && (
             <div className="card-vivit space-y-3">
               <h2 className="font-semibold text-[#244D87] text-xs uppercase tracking-wider">📤 Submit Final File</h2>
               <form action={async(fd:FormData)=>{"use server"; await submitTaskFile(task.id, fd.get("fileName") as string||"file", fd.get("fileUrl") as string||"", fd.get("notes") as string||"");}} className="space-y-3">

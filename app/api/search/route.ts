@@ -68,11 +68,15 @@ export async function GET(req: NextRequest) {
     }
 
     // Contacts
-    if (isAdmin) {
+    if (["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"].includes(role)) {
       const contactResults = await db.select({
         id:contacts.id, name:contacts.name,
         email:contacts.email, clientId:contacts.clientId,
-      }).from(contacts).where(ilike(contacts.name,term)).limit(3);
+      }).from(contacts).innerJoin(clients,eq(contacts.clientId,clients.id)).where(and(
+        ilike(contacts.name,term),
+        role==="ACCOUNT_MANAGER" ? eq(clients.accountManagerId,userId) :
+        role==="MEDIA_BUYER" ? eq(clients.mediaBuyerId,userId) : eq(clients.workspaceId,"default")
+      )).limit(3);
       results.push(...contactResults.map(c=>({
         type:"contact", title:c.name,
         subtitle:c.email??"",

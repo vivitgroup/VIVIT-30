@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db, clients, mediaMetrics, creativeTasks, financeRecords, calendarEvents, contacts } from "@/lib/db";
 import { eq, and, gte, lte } from "drizzle-orm";
+import { canAccessClient } from "@/lib/client-access";
 
 const MONTH_NAMES = ["","January","February","March","April","May","June","July","August","September","October","November","December"];
 
@@ -11,6 +12,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ clientI
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { clientId } = await context.params;
+  if(!(await canAccessClient(session,clientId)))return NextResponse.json({error:"Forbidden"},{status:403});
   const { searchParams } = new URL(req.url);
   const month = parseInt(searchParams.get("month") ?? String(new Date().getMonth() + 1));
   const year  = parseInt(searchParams.get("year")  ?? String(new Date().getFullYear()));

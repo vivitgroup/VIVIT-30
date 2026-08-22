@@ -117,19 +117,18 @@ export function RealtimeNotifications() {
       if (notifs.length > 0) {
         lastSeen.current = new Date().toISOString();
         notifs.slice(0, 3).forEach(n => showToast(n));
-        router.refresh();
       }
     } catch {}
   }, [showToast, router]);
 
   useEffect(() => {
-    let interval = 15000;
+    let interval = 30000;
     const startPolling = () => {
       pollRef.current = setInterval(() => { if (!document.hidden) fetchNew(); }, interval);
     };
     const handleVis = () => {
       if (pollRef.current) clearInterval(pollRef.current);
-      interval = document.hidden ? 60000 : 15000;
+      interval = document.hidden ? 120000 : 30000;
       startPolling();
       if (!document.hidden) fetchNew();
     };

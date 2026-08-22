@@ -164,7 +164,7 @@ export default async function SettingsPage() {
             {label:"Total Users",    value:allUsers.length,    icon:"👥", color:"blue"},
             {label:"Active",         value:activeUsers.length, icon:"✅", color:"green"},
             {label:"Suspended",      value:suspendedUsers.length,icon:"🚫",color:suspendedUsers.length>0?"red":"gray"},
-            {label:"Custom Roles",   value:customRoles.length, icon:"🎭", color:"purple"},
+            {label:"Approved Roles", value:7, icon:"🛡️", color:"purple"},
           ].map(k=>(
             <div key={k.label} className={`kpi-card ${k.color}`} style={{padding:"16px 20px"}}>
               <div className="kpi-icon" style={{fontSize:"20px"}}>{k.icon}</div>
@@ -265,7 +265,7 @@ export default async function SettingsPage() {
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"16px",flexWrap:"wrap",gap:"12px"}}>
           <div>
             <h2 style={{fontSize:"1.1rem",fontWeight:700,color:"var(--text-primary)",fontFamily:"Sora,sans-serif"}}>Roles & Permissions</h2>
-            <p style={{fontSize:"12.5px",color:"var(--text-muted)"}}>System roles + custom roles for your workspace</p>
+            <p style={{fontSize:"12.5px",color:"var(--text-muted)"}}>Approved system roles. Users request a role at signup; Super Admin selects the final role before activation.</p>
           </div>
         </div>
 
@@ -302,7 +302,7 @@ export default async function SettingsPage() {
         </div>
 
         {/* Create Custom Role */}
-        <div className="card" style={{marginBottom:"20px"}}>
+        <div className="card" style={{marginBottom:"20px",display:"none"}} aria-hidden="true">
           <div className="card-header">
             <p className="card-title">🎭 Create Custom Role</p>
           </div>
@@ -364,7 +364,7 @@ export default async function SettingsPage() {
 
         {/* Custom roles list */}
         {customRoles.length > 0 && (
-          <div className="card">
+          <div className="card" style={{display:"none"}} aria-hidden="true">
             <div className="card-header">
               <p className="card-title">Custom Roles ({customRoles.length})</p>
             </div>

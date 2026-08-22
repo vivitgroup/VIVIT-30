@@ -19,11 +19,19 @@ async function addComment(taskId: string, fd: FormData) {
   const { auth: getAuth } = await import("@/lib/auth");
   const { db, taskComments } = await import("@/lib/db");
   const session = await getAuth();
-  if (!session?.user) return;
+  if (!session?.user) throw new Error("Unauthorized");
+  const [task]=await db.select().from(creativeTasks).where(eq(creativeTasks.id,taskId)).limit(1);
+  if(!task)throw new Error("Task not found");
+  const role=(session.user as any).role as Role,userId=session.user.id!;
+  const [client]=await db.select({userId:clients.userId,accountManagerId:clients.accountManagerId}).from(clients).where(eq(clients.id,task.clientId)).limit(1);
+  const allowed=role===Role.SUPER_ADMIN||(role===Role.ACCOUNT_MANAGER&&client?.accountManagerId===userId)||(role===Role.CREATOR&&task.assignedToId===userId)||(role===Role.CLIENT&&client?.userId===userId);
+  if(!allowed)throw new Error("Forbidden");
+  const comment=String(fd.get("comment")||"").trim().slice(0,1000);
+  if(!comment)throw new Error("Comment is required");
   await db.insert(taskComments).values({
     taskId, userId: session.user.id!,
-    comment: fd.get("comment") as string,
-    isInternal: fd.get("isInternal") === "true",
+    comment,
+    isInternal: role!==Role.CLIENT && fd.get("isInternal") === "true",
   });
   const { revalidatePath } = await import("next/cache");
   revalidatePath(`/dashboard/creative/${taskId}`);
@@ -37,6 +45,14 @@ export default async function TaskDetailPage({ params }: { params: Promise<{id:s
 
   const [task] = await db.select().from(creativeTasks).where(eq(creativeTasks.id, id));
   if (!task) notFound();
+
+  const [accessClient]=await db.select({userId:clients.userId,accountManagerId:clients.accountManagerId}).from(clients).where(eq(clients.id,task.clientId)).limit(1);
+  const userId=session.user.id!;
+  const canOpen = role===Role.SUPER_ADMIN
+    || (role===Role.ACCOUNT_MANAGER && accessClient?.accountManagerId===userId)
+    || (role===Role.CREATOR && task.assignedToId===userId)
+    || (role===Role.CLIENT && accessClient?.userId===userId);
+  if(!canOpen) redirect("/dashboard");
 
   // Past approved briefs for reference + engagement data
   const [pastBriefs, calEvent] = await Promise.all([
@@ -54,7 +70,7 @@ export default async function TaskDetailPage({ params }: { params: Promise<{id:s
       .from(auditLogs).where(eq(auditLogs.entityId, id)).orderBy(desc(auditLogs.createdAt)).limit(10),
     // Task comments
     db.select({ id: taskComments.id, comment: taskComments.comment, isInternal: taskComments.isInternal, createdAt: taskComments.createdAt, userId: taskComments.userId })
-      .from(taskComments).where(eq(taskComments.taskId, id)).orderBy(taskComments.createdAt).limit(20),
+      .from(taskComments).where(role===Role.CLIENT?and(eq(taskComments.taskId,id),eq(taskComments.isInternal,false)):eq(taskComments.taskId, id)).orderBy(taskComments.createdAt).limit(20),
   ]);
   const brandColors=(()=>{try{const parsed=JSON.parse(client?.colorPalette||"[]");return Array.isArray(parsed)?parsed.filter((x):x is string=>typeof x==="string"):[]}catch{return []}})();
 

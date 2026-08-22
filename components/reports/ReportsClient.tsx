@@ -78,6 +78,27 @@ export function ReportsClient() {
     a.click();
   };
 
+  const quickExport = async (target: Entity) => {
+    setError("");
+    try {
+      const response = await fetch(`/api/export?entity=${target}`);
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "The export could not be generated.");
+      const records = payload.rows.map((row: unknown[]) =>
+        Object.fromEntries(payload.headers.map((header: string, index: number) => [header, row[index]]))
+      );
+      const blob = new Blob([JSON.stringify(records, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `vivit-${target}-${new Date().toISOString().slice(0, 10)}.json`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (exportError: any) {
+      setError(exportError.message || "The export could not be generated.");
+    }
+  };
+
   return (
     <div className="space-y-5">
       {/* Report Builder */}
@@ -184,15 +205,15 @@ export function ReportsClient() {
         <h2 className="font-semibold mb-3">⚡ Quick Export</h2>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           {ENTITIES.map(e => (
-            <a key={e.value} href={`/api/export?entity=${e.value}`} target="_blank"
+            <button key={e.value} type="button" onClick={() => quickExport(e.value)}
               className="flex items-center gap-2 p-3 rounded-xl border border-white/8 bg-white/[0.02] hover:border-[#244D87]/30 transition-all"
-              style={{textDecoration:"none"}}>
+              style={{textDecoration:"none", textAlign:"left"}}>
               <span className="text-xl">{e.icon}</span>
               <div>
                 <p className="text-sm font-semibold">{e.label}</p>
                 <p className="text-[10px] text-muted">JSON export</p>
               </div>
-            </a>
+            </button>
           ))}
         </div>
       </div>

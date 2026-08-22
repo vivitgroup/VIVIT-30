@@ -5,16 +5,20 @@ import { db, apiKeys } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
 import crypto from "crypto";
 
+function canManageKeys(session: any) {
+  return session?.user && (session.user as any).role === "SUPER_ADMIN";
+}
+
 export async function GET(req: NextRequest) {
   const session = await auth();
-  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!canManageKeys(session)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const keys = await db.select({ id:apiKeys.id, name:apiKeys.name, keyPrefix:apiKeys.keyPrefix, permissions:apiKeys.permissions, lastUsedAt:apiKeys.lastUsedAt, isActive:apiKeys.isActive, createdAt:apiKeys.createdAt }).from(apiKeys).where(eq(apiKeys.workspaceId, "default"));
   return NextResponse.json({ keys });
 }
 
 export async function POST(req: NextRequest) {
   const session = await auth();
-  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!canManageKeys(session)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { name, permissions = "read" } = await req.json();
   if (!name) return NextResponse.json({ error: "name required" }, { status: 400 });
   const rawKey = `vvt_${crypto.randomBytes(32).toString("hex")}`;
@@ -26,7 +30,7 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   const session = await auth();
-  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!canManageKeys(session)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { id } = await req.json();
   await db.update(apiKeys).set({ isActive: false } as any).where(and(eq(apiKeys.id, id), eq(apiKeys.workspaceId, "default")));
   return NextResponse.json({ success: true });

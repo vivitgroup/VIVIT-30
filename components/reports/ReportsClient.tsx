@@ -4,11 +4,11 @@ import { useState } from "react";
 type Entity = "clients" | "tasks" | "sales" | "finance" | "media" | "expenses";
 
 const ENTITIES: { value: Entity; label: string; icon: string; fields: string[] }[] = [
-  { value:"clients",  label:"Clients",    icon:"🏢", fields:["Company Name","Industry","Health Score","Churn Risk","LTV","Monthly Retainer","Contract End"] },
-  { value:"tasks",    label:"Tasks",      icon:"🎨", fields:["Title","Type","Status","Priority","Deadline","Creator","Client","Revision Count"] },
-  { value:"sales",    label:"Sales",      icon:"🎯", fields:["Company","Stage","Est. Value","Probability","Source","Sales Rep","Won At","Lost Reason"] },
-  { value:"finance",  label:"Finance",    icon:"💰", fields:["Client","Month","Year","Retainer","Paid","Outstanding","Invoice Status","Collection Rate"] },
-  { value:"media",    label:"Media",      icon:"📣", fields:["Client","Platform","Date","Ad Spend","Leads","ROAS","CAC","CPL","Agency Fee"] },
+  { value:"clients",  label:"Clients",    icon:"🏢", fields:["Company","Industry","Health Score","Churn Risk","Monthly Retainer","Media Budget","Contract Value","Performance Score"] },
+  { value:"tasks",    label:"Tasks",      icon:"🎨", fields:["Title","Type","Status","Priority","Client ID","Assigned To","Deadline","Revisions","Posted"] },
+  { value:"sales",    label:"Sales",      icon:"🎯", fields:["Company","Contact","Stage","Source","Value","Probability","Industry","Expected Close"] },
+  { value:"finance",  label:"Finance",    icon:"💰", fields:["Client ID","Month","Year","Retainer","Media Fee","Extra","Total","Paid","Outstanding","Status"] },
+  { value:"media",    label:"Media",      icon:"📣", fields:["Client ID","Platform","Date","Ad Spend","Leads","Purchases","Revenue","ROAS","CPL","Agency Fee"] },
   { value:"expenses", label:"Expenses",   icon:"🧾", fields:["Category","Description","Amount","Date"] },
 ];
 
@@ -21,8 +21,13 @@ export function ReportsClient() {
   const [sortCol, setSortCol]   = useState<number | null>(null);
   const [sortDir, setSortDir]   = useState<"asc"|"desc">("asc");
   const [visibleRows, setRows]  = useState(50);
+  const [error,setError]        = useState("");
 
-  const sortedRows = data ? [...data.rows].sort((a:any[], b:any[]) => {
+  const activeFields = data ? (selFields.length ? data.headers.filter((h:string)=>selFields.includes(h)) : data.headers) : [];
+  const activeIndexes = data ? activeFields.map((h:string)=>data.headers.indexOf(h)) : [];
+  const projectedRows = data ? data.rows.map((row:any[])=>activeIndexes.map((i:number)=>row[i])) : [];
+
+  const sortedRows = data ? [...projectedRows].sort((a:any[], b:any[]) => {
     if (sortCol === null) return 0;
     const va = String(a[sortCol] ?? ""), vb = String(b[sortCol] ?? "");
     return sortDir === "asc" ? va.localeCompare(vb) : vb.localeCompare(va);
@@ -42,17 +47,19 @@ export function ReportsClient() {
   const clearAll  = () => setFields([]);
 
   const runReport = async () => {
-    setLoading(true);
+    setLoading(true);setError("");setRows(50);
     try {
       const r = await fetch(`/api/export?entity=${entity}`);
       const d = await r.json();
+      if(!r.ok)throw new Error(d.error||"The report could not be generated.");
       setData(d);
-    } finally { setLoading(false); }
+    } catch(e:any){setData(null);setError(e.message||"The report could not be generated.");}
+    finally { setLoading(false); }
   };
 
   const exportCSV = () => {
     if (!data) return;
-    const rows = [data.headers, ...data.rows];
+    const rows = [activeFields, ...projectedRows];
     const csv  = rows.map((r: any[]) => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type:"text/csv" });
     const a    = document.createElement("a");
@@ -63,7 +70,8 @@ export function ReportsClient() {
 
   const exportJSON = () => {
     if (!data) return;
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type:"application/json" });
+    const records=projectedRows.map((row:any[])=>Object.fromEntries(activeFields.map((h:string,i:number)=>[h,row[i]])));
+    const blob = new Blob([JSON.stringify(records, null, 2)], { type:"application/json" });
     const a    = document.createElement("a");
     a.href     = URL.createObjectURL(blob);
     a.download = `vivit-${entity}-${new Date().toISOString().slice(0,10)}.json`;
@@ -125,9 +133,11 @@ export function ReportsClient() {
             <>
               <button onClick={exportCSV}  className="btn-outline text-xs">📥 Export CSV</button>
               <button onClick={exportJSON} className="btn-outline text-xs">📥 Export JSON</button>
+              <button onClick={()=>window.print()} className="btn-outline text-xs">🖨️ Print / PDF</button>
             </>
           )}
         </div>
+        {error&&<p className="form-error" role="alert">{error}</p>}
       </div>
 
       {/* Results */}
@@ -140,7 +150,7 @@ export function ReportsClient() {
           {format === "table" ? (
             <div className="overflow-x-auto">
               <table className="erp-table">
-                <thead><tr>{data.headers.map((h:string, i:number) => (
+                <thead><tr>{activeFields.map((h:string, i:number) => (
                 <th key={h} className={`sortable-th ${sortCol===i?sortDir:""}`}
                   onClick={()=>handleSort(i)}>{h}</th>
               ))}</tr></thead>
@@ -152,7 +162,7 @@ export function ReportsClient() {
                   ))}
                 </tbody>
               </table>
-              {data.rows.length > 50 && (
+              {sortedRows.length > 50 && (
                 <div className="text-center py-3">
                   <p className="text-xs text-muted">Showing {Math.min(visibleRows, sortedRows.length)} of {sortedRows.length} rows</p>
                   {visibleRows < sortedRows.length && (
@@ -163,7 +173,7 @@ export function ReportsClient() {
             </div>
           ) : (
             <pre className="p-4 text-[11px] text-[#00B4D8] overflow-x-auto max-h-96 font-mono">
-              {JSON.stringify(data.rows.slice(0, 20), null, 2)}
+              {JSON.stringify(projectedRows.slice(0, 20).map((row:any[])=>Object.fromEntries(activeFields.map((h:string,i:number)=>[h,row[i]]))), null, 2)}
             </pre>
           )}
         </div>

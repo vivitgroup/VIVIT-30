@@ -8,8 +8,14 @@ import Link from "next/link";
 
 async function updateStatus(fd: FormData) {
   "use server";
+  const { auth: getAuth } = await import("@/lib/auth");
   const { db, creativeTasks } = await import("@/lib/db");
   const { eq } = await import("drizzle-orm");
+  const session = await getAuth();
+  const role = (session?.user as any)?.role as Role | undefined;
+  if (!session?.user || ![Role.SUPER_ADMIN, Role.ACCOUNT_MANAGER].includes(role!)) {
+    throw new Error("Unauthorized");
+  }
   const id = fd.get("id") as string;
   const status = fd.get("status") as string;
   const priority = fd.get("priority") as string | null;

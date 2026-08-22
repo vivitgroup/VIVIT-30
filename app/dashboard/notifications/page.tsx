@@ -21,10 +21,12 @@ async function markAllRead(fd: FormData) {
 
 async function markOneRead(fd: FormData) {
   "use server";
+  const session=await auth();
+  if(!session?.user) throw new Error("Unauthorized");
   const { db, notifications } = await import("@/lib/db");
   const { eq } = await import("drizzle-orm");
   const id = fd.get("id") as string;
-  await db.update(notifications).set({ isRead:true }).where(eq(notifications.id, id));
+  await db.update(notifications).set({ isRead:true }).where(and(eq(notifications.id, id),eq(notifications.userId,(session.user as any).id)));
   const { revalidatePath } = await import("next/cache");
   revalidatePath("/dashboard/notifications");
 }

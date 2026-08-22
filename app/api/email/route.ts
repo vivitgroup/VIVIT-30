@@ -70,6 +70,7 @@ function emailRateOk(key:string):boolean{
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if(!["SUPER_ADMIN","ACCOUNT_MANAGER","ACCOUNTANT"].includes(String((session.user as any).role)))return NextResponse.json({error:"Forbidden"},{status:403});
   if(!emailRateOk(`email:${session.user.id}`)) return NextResponse.json({error:"Max 20 emails/hour exceeded"},{status:429});
 
   const { type, to, data } = await req.json();

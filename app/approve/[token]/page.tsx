@@ -43,8 +43,17 @@ export default async function ApproveTokenPage({ params }: { params: Promise<{ t
   async function processApproval(action: "APPROVED" | "REVISION") {
     "use server";
     const { db, approvalTokens, creativeTasks } = await import("@/lib/db");
-    const { eq } = await import("drizzle-orm");
-    const req = await import("next/headers");
+    const { eq, and, gte, isNull } = await import("drizzle-orm");
+    const [freshToken] = await db.select().from(approvalTokens).where(and(
+      eq(approvalTokens.token, token),
+      gte(approvalTokens.expiresAt, new Date()),
+      isNull(approvalTokens.usedAt),
+    )).limit(1);
+    if (!freshToken || freshToken.taskId !== tokenRow.taskId || freshToken.clientId !== tokenRow.clientId) {
+      throw new Error("This approval link is invalid, expired, or already used");
+    }
+    const [freshTask] = await db.select().from(creativeTasks).where(eq(creativeTasks.id, freshToken.taskId)).limit(1);
+    if (!freshTask || freshTask.clientId !== freshToken.clientId) throw new Error("Creative not found");
 
     await db.update(creativeTasks).set({
       status: action,
@@ -53,13 +62,13 @@ export default async function ApproveTokenPage({ params }: { params: Promise<{ t
         clientApprovalAt: new Date(),
         clientApprovalName: "Client via email",
       } : {
-        revisionCount: (task?.revisionCount ?? 0) + 1,
+        revisionCount: (freshTask.revisionCount ?? 0) + 1,
         revisionNotes: "Revision requested via email approval link",
       }),
       updatedAt: new Date(),
-    }).where(eq(creativeTasks.id, tokenRow.taskId));
+    }).where(eq(creativeTasks.id, freshToken.taskId));
 
-    await db.update(approvalTokens).set({ usedAt: new Date() }).where(eq(approvalTokens.token, token));
+    await db.update(approvalTokens).set({ usedAt: new Date(), action }).where(and(eq(approvalTokens.token, token), isNull(approvalTokens.usedAt)));
     const { revalidatePath } = await import("next/cache");
     revalidatePath(`/approve/${token}`);
   }

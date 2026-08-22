@@ -1,11 +1,13 @@
 export const dynamic = "force-dynamic";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { db, clients, users, workspaces } from "@/lib/db";
+import { db, clients, users, workspaces, auditLogs, notifications } from "@/lib/db";
 import { eq, count } from "drizzle-orm";
 import { Role } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
 import Link from "next/link";
+
+async function requestPlan(fd:FormData){"use server";const session=await auth();if(!session?.user||(session.user as any).role!==Role.SUPER_ADMIN)throw new Error("Unauthorized");const userId=(session.user as any).id,requestedPlan=String(fd.get("plan")||"");if(!["FREE","STARTER","PROFESSIONAL","ENTERPRISE"].includes(requestedPlan))throw new Error("Invalid plan");await db.insert(auditLogs).values({userId,action:"billing_plan_requested",entity:"workspaces",entityId:"default",newValues:JSON.stringify({requestedPlan})} as any);await db.insert(notifications).values({userId,type:"BILLING_REQUEST",title:`Plan request: ${requestedPlan}`,message:"Your plan request was recorded. Billing setup is required before charging or changing limits.",link:"/dashboard/billing",priority:"normal"} as any);const {revalidatePath}=await import("next/cache");revalidatePath("/dashboard/billing");}
 
 export default async function BillingPage() {
   const session = await auth();
@@ -51,7 +53,7 @@ export default async function BillingPage() {
             <p className="font-bold text-[#00B4D8]">🎉 Free Trial Active — {daysLeft} days remaining</p>
             <p className="text-sm text-[#6B8FAF] mt-0.5">Enjoying all {currentPlan.name} features. No credit card required yet.</p>
           </div>
-          <button className="btn-grad text-sm">Upgrade Now →</button>
+          <form action={requestPlan}><input type="hidden" name="plan" value="PROFESSIONAL"/><button className="btn-grad text-sm">Request Upgrade →</button></form>
         </div>
       )}
 
@@ -117,10 +119,10 @@ export default async function BillingPage() {
                 {p.features.map(f => <p key={f} className="text-xs text-[#6B8FAF]">✓ {f}</p>)}
               </div>
               {p.id !== plan && (
-                <button className="mt-4 w-full text-xs py-2 px-3 rounded-xl border transition-all"
+                <form action={requestPlan}><input type="hidden" name="plan" value={p.id}/><button className="mt-4 w-full text-xs py-2 px-3 rounded-xl border transition-all"
                   style={{border:`1px solid ${PLAN_COLOR[p.id]}30`,color:PLAN_COLOR[p.id],background:"transparent"}}>
-                  {PLANS.indexOf(p) > PLANS.indexOf(currentPlan) ? "Upgrade →" : "Downgrade"}
-                </button>
+                  {PLANS.indexOf(p) > PLANS.indexOf(currentPlan) ? "Request upgrade →" : "Request downgrade"}
+                </button></form>
               )}
             </div>
           ))}
@@ -130,9 +132,9 @@ export default async function BillingPage() {
       {/* Billing Actions */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {[
-          { icon:"📧", title:"Update Billing Email", desc:workspace?.billingEmail ?? "Not set", action:"Update" },
-          { icon:"💳", title:"Payment Method", desc:"Add a card to continue after trial", action:"Add Card" },
-          { icon:"📋", title:"Invoice History", desc:"Download past invoices as PDF", action:"View Invoices" },
+          { icon:"📧", title:"Update Billing Email", desc:workspace?.billingEmail ?? "Not set", action:"Update",href:"/dashboard/settings#workspace" },
+          { icon:"💳", title:"Payment Method", desc:"Contact billing to add or replace a card", action:"Contact Billing",href:"mailto:billing@vivitgroup.com?subject=VIVIT%20ERP%20payment%20method" },
+          { icon:"📋", title:"Invoice History", desc:"View and download recorded invoices", action:"View Invoices",href:"/dashboard/finance" },
         ].map(item => (
           <div key={item.title} className="card-vivit flex items-center gap-4">
             <span className="text-2xl">{item.icon}</span>
@@ -140,9 +142,9 @@ export default async function BillingPage() {
               <p className="font-semibold text-sm">{item.title}</p>
               <p className="text-xs text-[#6B8FAF] truncate">{item.desc}</p>
             </div>
-            <button className="text-xs px-3 py-1.5 rounded-xl border border-[#244D87]/20 text-[#244D87] hover:bg-[#244D87]/10 transition-colors flex-shrink-0">
+            <Link href={item.href} className="text-xs px-3 py-1.5 rounded-xl border border-[#244D87]/20 text-[#244D87] hover:bg-[#244D87]/10 transition-colors flex-shrink-0 no-underline">
               {item.action}
-            </button>
+            </Link>
           </div>
         ))}
       </div>

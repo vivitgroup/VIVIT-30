@@ -101,10 +101,9 @@ export default auth((req) => {
   }
 
   // Public routes
-  const publicPaths = ["/","/login","/signup","/api/auth","/api/health",
-    "/api/signup","/forgot-password","/reset-password","/api/password",
-    "/approve","/api/v1","/robots.txt","/sitemap.xml"];
-  if (publicPaths.some(p=>pathname.startsWith(p))) {
+  const publicExact = ["/","/login","/signup","/forgot-password","/reset-password","/robots.txt","/sitemap.xml"];
+  const publicPrefixes = ["/api/auth","/api/health","/api/signup","/api/password","/approve/","/api/v1/"];
+  if (publicExact.includes(pathname)||publicPrefixes.some(p=>pathname.startsWith(p))) {
     const res = NextResponse.next();
     secHeaders(res);
     if (pathname.startsWith("/api/v1")) corsHeaders(res,origin);
@@ -119,6 +118,33 @@ export default auth((req) => {
   }
 
   const role = (session.user as any)?.role;
+  if(pathname==="/dashboard"){
+    const homes:Record<string,string>={CLIENT:"/dashboard/portal",CREATOR:"/dashboard/creative",ACCOUNTANT:"/dashboard/finance",MEDIA_BUYER:"/dashboard/media/control-center",SALES:"/dashboard/sales",ACCOUNT_MANAGER:"/dashboard/clients"};
+    if(homes[role])return NextResponse.redirect(new URL(homes[role],req.url));
+  }
+
+  const pageAccess:[string,string[]][]=[
+    ["/dashboard/settings",["SUPER_ADMIN"]],["/dashboard/team",["SUPER_ADMIN"]],
+    ["/dashboard/workspace",["SUPER_ADMIN"]],["/dashboard/activity",["SUPER_ADMIN"]],
+    ["/dashboard/kpis",["SUPER_ADMIN"]],["/dashboard/billing",["SUPER_ADMIN"]],
+    ["/dashboard/referrals",["SUPER_ADMIN"]],["/dashboard/saas-analytics",["SUPER_ADMIN"]],
+    ["/dashboard/contracts",["SUPER_ADMIN","ACCOUNTANT"]],["/dashboard/finance",["SUPER_ADMIN","ACCOUNTANT"]],
+    ["/dashboard/forecast",["SUPER_ADMIN","ACCOUNTANT"]],["/dashboard/ltv",["SUPER_ADMIN","ACCOUNTANT"]],
+    ["/dashboard/sales",["SUPER_ADMIN","SALES","ACCOUNT_MANAGER"]],
+    ["/dashboard/media",["SUPER_ADMIN","MEDIA_BUYER","ACCOUNT_MANAGER"]],
+    ["/dashboard/analytics",["SUPER_ADMIN"]],
+    ["/dashboard/ai-studio",["SUPER_ADMIN","MEDIA_BUYER","ACCOUNT_MANAGER"]],
+    ["/dashboard/clients",["SUPER_ADMIN","MEDIA_BUYER","ACCOUNT_MANAGER"]],
+    ["/dashboard/creative",["SUPER_ADMIN","ACCOUNT_MANAGER","CREATOR"]],
+    ["/dashboard/tasks-inbox",["SUPER_ADMIN","ACCOUNT_MANAGER"]],
+    ["/dashboard/calendar",["SUPER_ADMIN","ACCOUNT_MANAGER","CREATOR"]],
+    ["/dashboard/reports",["SUPER_ADMIN","ACCOUNTANT","ACCOUNT_MANAGER"]],
+    ["/dashboard/portal",["CLIENT"]],
+  ];
+  if(pathname.startsWith("/dashboard")){
+    const rule=pageAccess.find(([prefix])=>pathname.startsWith(prefix));
+    if(rule&&!rule[1].includes(role))return NextResponse.redirect(new URL(role==="CLIENT"?"/dashboard/portal":"/dashboard",req.url));
+  }
 
   // Fix 12,19: CLIENT portal isolation — strict redirect
   if (role==="CLIENT") {

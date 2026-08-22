@@ -112,6 +112,11 @@ export default auth((req) => {
 
   // Auth guard
   if (!session) {
+    if(pathname.startsWith("/api/")){
+      const res=NextResponse.json({error:"Unauthorized"},{status:401});
+      secHeaders(res);
+      return res;
+    }
     const loginUrl = new URL("/login",req.url);
     loginUrl.searchParams.set("callbackUrl",pathname);
     return NextResponse.redirect(loginUrl);

@@ -14,7 +14,8 @@ export default async function DashboardPage() {
   if (!session?.user) redirect("/login");
   const role   = (session.user as any).role as Role;
   const userId = (session.user as any).id as string;
-  if (role === Role.CLIENT) redirect("/dashboard/portal");
+  const roleHomes:Record<string,string>={CLIENT:"/dashboard/portal",CREATOR:"/dashboard/creative",ACCOUNTANT:"/dashboard/finance",MEDIA_BUYER:"/dashboard/media/control-center",SALES:"/dashboard/sales",ACCOUNT_MANAGER:"/dashboard/clients"};
+  if(roleHomes[role])redirect(roleHomes[role]);
 
   const now      = new Date();
   const month    = now.getMonth() + 1;

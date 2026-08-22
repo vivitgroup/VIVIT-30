@@ -23,9 +23,13 @@ export default async function MonthlyReportsPage() {
 
   async function sendAllReports() {
     "use server";
+    const {auth:getAuth}=await import("@/lib/auth");
     const {db,clients,contacts,financeRecords,mediaMetrics}=await import("@/lib/db");
     const {eq,and,gte,sum}=await import("drizzle-orm");
     const MONTHS=["","January","February","March","April","May","June","July","August","September","October","November","December"];
+    const current=await getAuth();
+    const currentRole=(current?.user as any)?.role as Role|undefined;
+    if(!current?.user||![Role.SUPER_ADMIN,Role.ACCOUNT_MANAGER].includes(currentRole!))throw new Error("Unauthorized");
     const now2=new Date();
     const pMonth=now2.getMonth()===0?12:now2.getMonth();
     const pYear=now2.getMonth()===0?now2.getFullYear()-1:now2.getFullYear();
@@ -213,7 +217,11 @@ export default async function MonthlyReportsPage() {
           <summary className="text-xs text-[#00B4D8] cursor-pointer font-semibold">+ Create New Campaign</summary>
           <form action={async(fd:FormData)=>{
             "use server";
+            const {auth:getAuth}=await import("@/lib/auth");
             const {db,emailCampaigns}=await import("@/lib/db");
+            const current=await getAuth();
+            const currentRole=(current?.user as any)?.role as Role|undefined;
+            if(!current?.user||![Role.SUPER_ADMIN,Role.ACCOUNT_MANAGER].includes(currentRole!))throw new Error("Unauthorized");
             await db.insert(emailCampaigns).values({
               name:fd.get("name") as string,
               subject:fd.get("subject") as string,

@@ -56,6 +56,7 @@ export default async function TaskDetailPage({ params }: { params: Promise<{id:s
     db.select({ id: taskComments.id, comment: taskComments.comment, isInternal: taskComments.isInternal, createdAt: taskComments.createdAt, userId: taskComments.userId })
       .from(taskComments).where(eq(taskComments.taskId, id)).orderBy(taskComments.createdAt).limit(20),
   ]);
+  const brandColors=(()=>{try{const parsed=JSON.parse(client?.colorPalette||"[]");return Array.isArray(parsed)?parsed.filter((x):x is string=>typeof x==="string"):[]}catch{return []}})();
 
   // Get commenter names
   const commenterIds = [...new Set(comments.map(c=>c.userId))];
@@ -334,11 +335,11 @@ export default async function TaskDetailPage({ params }: { params: Promise<{id:s
           </div>
 
           {/* Brand Colors */}
-          {client?.colorPalette && (
+          {brandColors.length>0 && (
             <div className="card">
               <h2 className="font-semibold text-[#244D87] text-xs uppercase tracking-wider mb-3">Brand Colors</h2>
               <div className="flex flex-wrap gap-2">
-                {(JSON.parse(client.colorPalette) as string[]).map((hex:string)=>(
+                {brandColors.map((hex:string)=>(
                   <div key={hex} className="group relative w-9 h-9 rounded-lg border border-white/10 cursor-pointer" style={{background:hex}} title={hex}>
                     <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[9px] bg-black/80 text-white px-1 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap">{hex}</span>
                   </div>

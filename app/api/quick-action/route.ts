@@ -43,6 +43,7 @@ export async function POST(req: NextRequest) {
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { action } = await req.json();
+  if(["recalculate_health","recalculate_health_old","generate_recurring"].includes(action)&&(session.user as any).role!=="SUPER_ADMIN")return NextResponse.json({error:"Forbidden"},{status:403});
 
   switch (action) {
     case "mark_all_read": {

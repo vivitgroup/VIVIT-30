@@ -6,6 +6,11 @@ on:
       - main
     paths:
       - .github/workflows/vercel-production-prebuilt.yml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/vercel-prebuilt-production-trigger
   workflow_dispatch:
 
 permissions:
@@ -26,6 +31,8 @@ jobs:
     steps:
       - name: Checkout production commit
         uses: actions/checkout@v4
+        with:
+          ref: main
 
       - name: Use Node 22
         uses: actions/setup-node@v4

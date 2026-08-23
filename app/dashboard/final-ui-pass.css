@@ -8,6 +8,16 @@
 .app-content .card-vivit,
 .app-content .kpi-card { min-width: 0; }
 
+/* Normalize legacy dark-theme utility colors that remain in older modules. */
+.app-content [class*="text-[#6B8FAF]"] { color: var(--text-muted) !important; }
+.app-content [class*="text-[#3D5577]"] { color: var(--text-secondary) !important; }
+.app-content [class*="text-[#E8F4FD]"] { color: var(--text-primary) !important; }
+.app-content [style*="color: #E8F4FD"],
+.app-content [style*="color:#E8F4FD"] { color: var(--text-primary) !important; }
+.app-content [class*="border-white"] { border-color: var(--card-border) !important; }
+.app-content [class*="bg-white/[0.0"] { background: var(--bg-tertiary) !important; }
+.app-content [class*="bg-white/10"] { background: var(--bg-tertiary) !important; }
+
 /* Inputs and actions */
 .app-content input,
 .app-content select,
@@ -26,6 +36,16 @@
 .app-content .card-body-flush:has(table),
 .app-content .overflow-x-auto,
 .app-content .responsive-table { overflow-x: auto; overscroll-behavior-inline: contain; }
+
+/* Fix old activity date headers that used display:sticky instead of position:sticky. */
+.app-content [style*="display: sticky"],
+.app-content [style*="display:sticky"] {
+  display:block !important;
+  position:sticky !important;
+  top:0;
+  z-index:3;
+  backdrop-filter:blur(10px);
+}
 
 /* Files */
 .files-page { display:flex; flex-direction:column; gap:18px; min-width:0; }
@@ -76,6 +96,12 @@
   .app-content [style*="grid-template-columns: 1fr 2fr"],
   .app-content [style*="grid-template-columns: 1.5fr 1fr"] { grid-template-columns: 1fr !important; }
 
+  /* Tailwind legacy grids used by forecast/KPI/contracts/LTV. */
+  .app-content [class*="grid-cols-4"],
+  .app-content [class*="grid-cols-3"] { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
+  .app-content [class*="lg:grid-cols-2"] { grid-template-columns:1fr !important; }
+  .app-content form[class*="grid-cols-2"] { grid-template-columns:1fr !important; }
+
   /* Headers/action rows */
   .app-content > div > [style*="justify-content: space-between"],
   .app-content [style*="justify-content:space-between"] { row-gap: 10px; }
@@ -115,6 +141,9 @@
   /* Notification row: allow priority/time to wrap under title */
   .app-content [style*="padding: 14px 20px"] { padding:12px 13px !important; gap:10px !important; }
   .app-content [style*="flex-shrink: 0"][style*="gap: 6px"] { flex-wrap:wrap; justify-content:flex-end; }
+
+  /* HR approval controls */
+  .app-content [style*="min-width: 260px"] { min-width:0 !important; width:100% !important; }
 }
 
 @media (max-width: 560px) {
@@ -123,6 +152,9 @@
   .app-content [style*="grid-template-columns: repeat(4"],
   .app-content [style*="grid-template-columns: repeat(3"],
   .app-content [style*="grid-template-columns: repeat(2"] { grid-template-columns: 1fr !important; }
+
+  .app-content [class*="grid-cols-4"],
+  .app-content [class*="grid-cols-3"] { grid-template-columns:1fr !important; }
 
   .kpi-grid { grid-template-columns: repeat(2,minmax(0,1fr)) !important; gap: 10px !important; }
   .kpi-card { padding: 13px !important; }

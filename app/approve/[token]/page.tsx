@@ -40,10 +40,12 @@ export default async function ApproveTokenPage({ params }: { params: Promise<{ t
 
   const TYPE_ICON: Record<string,string> = {REEL:"🎬",GRAPHIC:"🎨",CAROUSEL:"📊",MOTION_GRAPHIC:"✨",VIDEO_EDIT:"🎥",STORY:"📱",UGC:"👤"};
 
-  async function processApproval(action: "APPROVED" | "REVISION") {
+  async function processApproval(action: "APPROVED" | "REVISION", comment = "") {
     "use server";
     const { db, approvalTokens, creativeTasks } = await import("@/lib/db");
     const { eq, and, gte, isNull } = await import("drizzle-orm");
+    comment=comment.trim().slice(0,1000);
+    if(action==="REVISION"&&!comment)throw new Error("Please write a comment explaining the requested changes.");
     const [freshToken] = await db.select().from(approvalTokens).where(and(
       eq(approvalTokens.token, token),
       gte(approvalTokens.expiresAt, new Date()),
@@ -63,7 +65,7 @@ export default async function ApproveTokenPage({ params }: { params: Promise<{ t
         clientApprovalName: "Client via email",
       } : {
         revisionCount: (freshTask.revisionCount ?? 0) + 1,
-        revisionNotes: "Revision requested via email approval link",
+        revisionNotes: comment,
       }),
       updatedAt: new Date(),
     }).where(eq(creativeTasks.id, freshToken.taskId));
@@ -108,16 +110,15 @@ export default async function ApproveTokenPage({ params }: { params: Promise<{ t
             )}
           </div>
 
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"12px"}}>
-            <form action={async()=>{"use server"; await processApproval("APPROVED");}}>
-              <button type="submit" style={{width:"100%",padding:"14px",borderRadius:"12px",border:"none",background:"linear-gradient(135deg,#10b981,#059669)",color:"white",fontSize:"15px",fontWeight:"700",cursor:"pointer"}}>
-                ✅ Approve
-              </button>
+          <div className="approval-grid">
+            <form action={async()=>{"use server"; await processApproval("APPROVED");}} className="approval-box approval-box--accept">
+              <div><strong>Approve design</strong><p>Confirm that the creative is ready to move forward.</p></div>
+              <button type="submit" className="btn btn-success">✅ Approve</button>
             </form>
-            <form action={async()=>{"use server"; await processApproval("REVISION");}}>
-              <button type="submit" style={{width:"100%",padding:"14px",borderRadius:"12px",border:"1px solid rgba(245,158,11,0.3)",background:"rgba(245,158,11,0.08)",color:"#fbbf24",fontSize:"15px",fontWeight:"700",cursor:"pointer"}}>
-                ↩ Request Changes
-              </button>
+            <form action={async(fd:FormData)=>{"use server"; await processApproval("REVISION",String(fd.get("comment")||""));}} className="approval-box approval-box--reject">
+              <div><strong>Reject & request changes</strong><p>Your comment is required and will be sent to the creative team.</p></div>
+              <textarea name="comment" required minLength={3} maxLength={1000} className="form-textarea" rows={3} placeholder="What should be changed?"/>
+              <button type="submit" className="btn btn-danger">✕ Reject with comment</button>
             </form>
           </div>
 

@@ -10,7 +10,7 @@
     "dev": "next dev --turbopack",
     "build": "npm audit --audit-level=high && npm run qa:static && npm run type-check && next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "seed": "npx tsx scripts/seed.ts",
     "seed:test": "npx tsx scripts/seed.ts --test",
     "db:push": "npx drizzle-kit push",
@@ -22,12 +22,12 @@
   "dependencies": {
     "@auth/drizzle-adapter": "^1.7.4",
     "bcryptjs": "^2.4.3",
-    "drizzle-orm": "^0.38.4",
-    "next": "15.5.21",
+    "drizzle-orm": "0.45.2",
+    "next": "16.3.2",
     "next-auth": "5.0.0-beta.32",
     "postgres": "^3.4.5",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
@@ -35,6 +35,8 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "drizzle-kit": "^0.30.4",
+    "eslint": "^9.0.0",
+    "eslint-config-next": "16.3.2",
     "tailwindcss": "^3.4.17",
     "tsx": "^4.19.2",
     "typescript": "^5"

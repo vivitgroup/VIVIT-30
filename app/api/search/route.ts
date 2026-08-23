@@ -53,12 +53,12 @@ export async function GET(req: NextRequest) {
     }
 
     // Leads — sales + admins only
-    if (["SUPER_ADMIN","SALES","ACCOUNT_MANAGER"].includes(role)) {
+    if (["SUPER_ADMIN","SALES"].includes(role)) {
       const leadResults = await db.select({
         id:salesLeads.id, companyName:salesLeads.companyName,
         stage:salesLeads.stage, estimatedValue:salesLeads.estimatedValue,
       }).from(salesLeads)
-        .where(or(ilike(salesLeads.companyName,term),ilike(salesLeads.contactPerson,term)))
+        .where(and(or(ilike(salesLeads.companyName,term),ilike(salesLeads.contactPerson,term)),role==="SALES"?eq(salesLeads.salesRepId,userId):eq(salesLeads.workspaceId,"default")))
         .limit(3);
       results.push(...leadResults.map(l=>({
         type:"lead", title:l.companyName,

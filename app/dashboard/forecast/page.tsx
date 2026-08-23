@@ -9,7 +9,7 @@ import { formatCurrency } from "@/lib/utils";
 export default async function ForecastPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
-  if (!([Role.SUPER_ADMIN] as string[]).includes((session.user as any).role)) redirect("/dashboard");
+  if (!([Role.SUPER_ADMIN,Role.ACCOUNTANT] as string[]).includes((session.user as any).role)) redirect("/dashboard");
 
   const now = new Date();
   const y = now.getFullYear();
@@ -90,7 +90,7 @@ export default async function ForecastPage() {
           {l:"Weighted Pipeline",  v:formatCurrency(weightedPipeline),c:"#10b981",icon:"⚖️"},
           {l:"Avg Monthly Base",   v:formatCurrency(avg),           c:"#f59e0b", icon:"📈"},
         ].map(k=>(
-          <div key={k.l} className="card" style={{background:"rgba(10,20,40,0.95)"}}>
+          <div key={k.l} className="card">
             <div className="text-2xl mb-2">{k.icon}</div>
             <p className="card-title" style={{color:k.c}}>{k.v}</p>
             <p className="text-xs text-[#6B8FAF] mt-0.5">{k.l}</p>
@@ -235,8 +235,8 @@ export default async function ForecastPage() {
             {scenario:"Base Case",   label:"Most Likely",winRate:50, color:"#244D87", multiplier:1.00},
             {scenario:"Optimistic",  label:"Bull Case",  winRate:70, color:"#10b981", multiplier:1.18},
           ].map(s=>{
-            const baseMonthly   = 42000; // avg monthly retainer base
-            const pipelineVal   = 180000; // active pipeline
+            const baseMonthly   = avg;
+            const pipelineVal   = totalPipeline;
             const pipelineAdd   = (pipelineVal * s.winRate / 100) / 6; // spread over 6mo
             const projected6mo  = Math.round((baseMonthly * s.multiplier + pipelineAdd) * 6);
             return (
@@ -265,10 +265,10 @@ export default async function ForecastPage() {
         <h2 className="font-semibold text-sm mb-3">💧 Weekly Cash Flow Forecast</h2>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
           {[
-            {period:"Next 7 days",  v:12000, label:"Expected collections",   c:"#10b981"},
-            {period:"Next 30 days", v:45000, label:"Receivables due",        c:"#244D87"},
-            {period:"60d+ overdue", v:8000,  label:"At risk (60d+)",         c:"#ef4444"},
-            {period:"Monthly burn", v:22000, label:"Expected expenses",      c:"#f59e0b"},
+            {period:"Next 7 days",  v:Math.round(avg/4), label:"Expected collections", c:"#10b981"},
+            {period:"Next 30 days", v:Math.round(avg), label:"Expected revenue", c:"#244D87"},
+            {period:"Weighted risk",v:Math.max(0,Math.round(totalPipeline-weightedPipeline)),label:"Unweighted pipeline",c:"#ef4444"},
+            {period:"Pipeline",     v:Math.round(weightedPipeline), label:"Probability adjusted",c:"#f59e0b"},
           ].map(k=>(
             <div key={k.period} className="p-4 rounded-xl border border-white/8 bg-white/[0.02] text-center">
               <p className="text-[10px] text-muted uppercase tracking-wider mb-1">{k.period}</p>

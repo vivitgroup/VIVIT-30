@@ -23,9 +23,13 @@ export default async function MonthlyReportsPage() {
 
   async function sendAllReports() {
     "use server";
+    const {auth:getAuth}=await import("@/lib/auth");
     const {db,clients,contacts,financeRecords,mediaMetrics}=await import("@/lib/db");
     const {eq,and,gte,sum}=await import("drizzle-orm");
     const MONTHS=["","January","February","March","April","May","June","July","August","September","October","November","December"];
+    const current=await getAuth();
+    const currentRole=(current?.user as any)?.role as Role|undefined;
+    if(!current?.user||![Role.SUPER_ADMIN,Role.ACCOUNT_MANAGER].includes(currentRole!))throw new Error("Unauthorized");
     const now2=new Date();
     const pMonth=now2.getMonth()===0?12:now2.getMonth();
     const pYear=now2.getMonth()===0?now2.getFullYear()-1:now2.getFullYear();
@@ -66,7 +70,7 @@ export default async function MonthlyReportsPage() {
       </div>
 
       {/* Generator */}
-      <div className="card-vivit space-y-4">
+      <div id="report-builder" className="card-vivit space-y-4">
         <h2 className="font-semibold text-[#244D87] text-sm uppercase tracking-wider">Generate Report</h2>
         <div className="grid grid-cols-3 gap-4">
           <div>
@@ -103,7 +107,7 @@ export default async function MonthlyReportsPage() {
       </div>
 
       {/* Report output */}
-      <div id="rep-output" style={{display:"none"}} style={{display:"flex",flexDirection:"column",gap:"20px"}}>
+      <div id="rep-output" style={{display:"none",flexDirection:"column",gap:"20px"}}>
         {/* KPIs */}
         <div id="rep-kpis" className="grid grid-cols-2 md:grid-cols-4 gap-4" />
 
@@ -146,6 +150,7 @@ export default async function MonthlyReportsPage() {
 
           const res = await fetch('/api/monthly-summary/'+clientId+'?month='+month+'&year='+year);
           const data = await res.json();
+          if(!res.ok){document.getElementById('rep-loading').style.display='none';pdfLink.style.display='none';return alert(data.error||'Report could not be generated');}
 
           document.getElementById('rep-loading').style.display='none';
           document.getElementById('rep-output').style.display='block';
@@ -213,7 +218,11 @@ export default async function MonthlyReportsPage() {
           <summary className="text-xs text-[#00B4D8] cursor-pointer font-semibold">+ Create New Campaign</summary>
           <form action={async(fd:FormData)=>{
             "use server";
+            const {auth:getAuth}=await import("@/lib/auth");
             const {db,emailCampaigns}=await import("@/lib/db");
+            const current=await getAuth();
+            const currentRole=(current?.user as any)?.role as Role|undefined;
+            if(!current?.user||![Role.SUPER_ADMIN,Role.ACCOUNT_MANAGER].includes(currentRole!))throw new Error("Unauthorized");
             await db.insert(emailCampaigns).values({
               name:fd.get("name") as string,
               subject:fd.get("subject") as string,
@@ -258,10 +267,7 @@ export default async function MonthlyReportsPage() {
             </div>
           ))}
         </div>
-        <div className="flex gap-3">
-          <a href="/api/pdf-report" target="_blank" className="btn-grad text-xs" style={{textDecoration:"none"}}>Generate QBR PDF</a>
-          <span className="text-xs text-muted self-center">Auto-populates from your DB — takes ~5 seconds</span>
-        </div>
+        <div className="flex gap-3"><a href="#report-builder" className="btn-grad text-xs" style={{textDecoration:"none"}}>Choose client & generate report ↑</a><span className="text-xs text-muted self-center">Uses the selected client and reporting period.</span></div>
       </div>
 
     </div>

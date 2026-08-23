@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { db, approvalTokens, creativeTasks, clients, contacts } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import crypto from "crypto";
+import { canAccessClient } from "@/lib/client-access";
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -14,6 +15,8 @@ export async function POST(req: NextRequest) {
 
   const [task] = await db.select().from(creativeTasks).where(eq(creativeTasks.id, taskId));
   if (!task) return NextResponse.json({ error: "Task not found" }, { status: 404 });
+  if(!(await canAccessClient(session,task.clientId,{write:true})))return NextResponse.json({error:"Forbidden"},{status:403});
+  if(task.status!=="REVIEW")return NextResponse.json({error:"Task is not awaiting review"},{status:409});
 
   const [client] = await db.select().from(clients).where(eq(clients.id, task.clientId));
   const [contact] = await db.select().from(contacts).where(eq(contacts.clientId, task.clientId));

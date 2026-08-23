@@ -1,31 +1,33 @@
 {
   "name": "vivit-erp",
-  "version": "34.0.0",
+  "version": "39.0.0",
   "description": "VIVIT ERP — Enterprise Marketing Agency Platform",
   "private": true,
   "engines": {
-    "node": ">=18.17.0"
+    "node": "22.x"
   },
   "scripts": {
-    "dev":   "next dev --turbopack",
-    "build": "next build",
+    "dev": "next dev --turbopack",
+    "build": "npm audit --audit-level=high && npm run qa:static && npm run type-check && next build",
     "start": "next start",
-    "lint":  "next lint",
-    "seed":  "npx tsx scripts/seed.ts",
+    "lint": "eslint .",
+    "seed": "npx tsx scripts/seed.ts",
     "seed:test": "npx tsx scripts/seed.ts --test",
-    "db:push":   "npx drizzle-kit push",
+    "db:push": "npx drizzle-kit push",
     "db:studio": "npx drizzle-kit studio",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "qa:static": "node scripts/qa-static.mjs",
+    "qa": "npm run build"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.7.4",
     "bcryptjs": "^2.4.3",
-    "drizzle-orm": "^0.38.4",
-    "next": "15.5.18",
-    "next-auth": "5.0.0-beta.25",
+    "drizzle-orm": "0.45.2",
+    "next": "16.3.2",
+    "next-auth": "5.0.0-beta.32",
     "postgres": "^3.4.5",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
@@ -33,6 +35,8 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "drizzle-kit": "^0.30.4",
+    "eslint": "^9.0.0",
+    "eslint-config-next": "16.3.2",
     "tailwindcss": "^3.4.17",
     "tsx": "^4.19.2",
     "typescript": "^5"

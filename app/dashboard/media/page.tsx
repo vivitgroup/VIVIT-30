@@ -9,6 +9,8 @@ import Link from "next/link";
 
 async function addMetrics(fd: FormData) {
   "use server";
+  const session=await auth();
+  if(!session?.user||![Role.SUPER_ADMIN,Role.MEDIA_BUYER,Role.ACCOUNT_MANAGER].includes((session.user as any).role)) throw new Error("Unauthorized");
   const { db, mediaMetrics } = await import("@/lib/db");
   const clientId = fd.get("clientId") as string;
   const platform = fd.get("platform") as string;

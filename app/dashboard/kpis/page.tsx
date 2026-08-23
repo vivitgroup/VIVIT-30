@@ -5,6 +5,7 @@ import { db, clients, creativeTasks, salesLeads, mediaMetrics, financeRecords, u
 import { eq, and, gte, lte, count, sum, inArray, notInArray, ne } from "drizzle-orm";
 import { Role } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
+import { withTimeout } from "@/lib/async";
 
 export default async function KPIPage() {
   const session = await auth();
@@ -19,15 +20,7 @@ export default async function KPIPage() {
   const prevEnd    = new Date(y, m, 0);
   const yearStart  = new Date(y, 0, 1);
 
-  const [
-    activeClients, totalClients,
-    taskStats, prevTaskStats,
-    metricsNow, metricsPrev,
-    financeYear,
-    salesStats,
-    creatorStats,
-    teamCount,
-  ] = await Promise.all([
+  const primaryQuery = Promise.all([
     db.select({count:count()}).from(clients).where(eq(clients.isActive, true)),
     db.select({count:count()}).from(clients),
     db.select({status:creativeTasks.status,count:count()}).from(creativeTasks).where(gte(creativeTasks.createdAt, monthStart)).groupBy(creativeTasks.status),
@@ -39,6 +32,16 @@ export default async function KPIPage() {
     db.select({id:users.id,name:users.name}).from(users).where(and(eq(users.role,"CREATOR"),eq(users.isActive,true))),
     db.select({count:count()}).from(users).where(and(ne(users.role,"CLIENT"),eq(users.isActive,true))),
   ]);
+  const primaryFallback = [[],[],[],[],[],[],[],[],[],[]] as Awaited<typeof primaryQuery>;
+  const [
+    activeClients, totalClients,
+    taskStats, prevTaskStats,
+    metricsNow, metricsPrev,
+    financeYear,
+    salesStats,
+    creatorStats,
+    teamCount,
+  ] = await withTimeout(primaryQuery, primaryFallback);
 
   // Creative task aggregates
   const taskByStatus = Object.fromEntries(taskStats.map(t=>[t.status,Number(t.count)]));
@@ -98,12 +101,14 @@ export default async function KPIPage() {
   };
 
   // ERP BI data
-  const [erpClients, erpFinance, erpLeads, erpExpenses] = await Promise.all([
+  const erpQuery = Promise.all([
     db.select({ id:clients.id, companyName:clients.companyName, churnRisk:clients.churnRisk, monthlyRetainer:clients.monthlyRetainer, healthScore:clients.healthScore }).from(clients).where(eq(clients.isActive,true)),
     db.select({ paid:sum(financeRecords.paid), total:sum(financeRecords.totalRevenue), outstanding:sum(financeRecords.outstanding) }).from(financeRecords).where(eq(financeRecords.year,new Date().getFullYear())),
     db.select({ stage:salesLeads.stage, estimatedValue:salesLeads.estimatedValue }).from(salesLeads).where(notInArray(salesLeads.stage,["WON","LOST"])),
     db.select({ total:sum(companyExpenses.amount) }).from(companyExpenses).where(gte(companyExpenses.date,new Date(new Date().getFullYear(),0,1))),
   ]);
+  const erpFallback = [[],[],[],[]] as Awaited<typeof erpQuery>;
+  const [erpClients, erpFinance, erpLeads, erpExpenses] = await withTimeout(erpQuery, erpFallback);
 
   const ytdPaid       = Number(erpFinance[0]?.paid??0);
   const ytdTotal      = Number(erpFinance[0]?.total??0);
@@ -115,10 +120,12 @@ export default async function KPIPage() {
   const highRiskRevenue = erpClients.filter(c=>c.churnRisk==="HIGH").reduce((s,c)=>s+c.monthlyRetainer*12,0);
   const churnRevenueRisk= highRiskRevenue;
   const pipelineVal   = erpLeads.reduce((s,l)=>s+l.estimatedValue,0);
-  const erpWinRate       = 40; // use actual from sales analytics
+  const erpWinRate       = winRate;
   const pipelineEstimate = pipelineVal * (erpWinRate/100);
   const avgMonthlyRevenue = ytdPaid/Math.max(new Date().getMonth()+1,1);
-  const projectedRevenue  = avgMonthlyRevenue * 1.05; // 5% growth projection
+  const projectedRevenue  = avgMonthlyRevenue + pipelineEstimate/Math.max(12-new Date().getMonth(),1);
+  const openTasks=tasksTotal-tasksCompleted;
+  const creatorCapacity=creatorStats.length>0?Math.max(0,Math.min(100,Math.round(100-openTasks/(creatorStats.length*8)*100))):0;
   
   const erpMetrics = [
     {label:"YTD Revenue",      value:formatCurrency(ytdTotal),       color:"#244D87",  sub:"Invoiced",       trend:0},
@@ -131,7 +138,7 @@ export default async function KPIPage() {
   const erpHealthFactors = [
     {name:"💰 Financial Health",    score:Math.min(100,erpCollectionRate),   note:`${collectionRate}% collection rate`},
     {name:"😊 Client Satisfaction", score:avgHealth,                      note:`Avg health score across ${erpClients.length} clients`},
-    {name:"⚡ Team Capacity",       score:80,                             note:"Estimated from active task load"},
+    {name:"⚡ Team Capacity",       score:creatorCapacity,                note:`Calculated from ${openTasks} open tasks across ${creatorStats.length} creators`},
     {name:"📈 Revenue Growth",      score:Math.min(100,Math.max(0,50+profitMargin)), note:`${profitMargin}% profit margin`},
     {name:"🎯 Sales Pipeline",      score:Math.min(100,Math.round((pipelineVal/100000)*100)), note:`${formatCurrency(pipelineVal)} in active pipeline`},
   ];

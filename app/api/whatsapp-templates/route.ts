@@ -38,6 +38,7 @@ async function sendWhatsAppMessage(to: string, template: string, body: string, c
 export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if(!["SUPER_ADMIN","ACCOUNT_MANAGER"].includes(String((session.user as any).role)))return NextResponse.json({error:"Forbidden"},{status:403});
 
   // Return templates + recent messages
   const recent = await db.select().from(whatsappMessages).orderBy(desc(whatsappMessages.createdAt)).limit(20);
@@ -59,6 +60,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if(!["SUPER_ADMIN","ACCOUNT_MANAGER"].includes(String((session.user as any).role)))return NextResponse.json({error:"Forbidden"},{status:403});
 
   const { to, template, body, clientId } = await req.json();
   if (!to || !body) return NextResponse.json({ error: "Missing required fields" }, { status: 400 });

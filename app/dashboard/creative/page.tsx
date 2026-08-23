@@ -2,16 +2,30 @@ export const dynamic = "force-dynamic";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { db, creativeTasks, clients, users } from "@/lib/db";
-import { eq, and, notInArray, desc, count } from "drizzle-orm";
+import { eq, and, inArray, notInArray, desc, count } from "drizzle-orm";
 import { Role } from "@/lib/types";
 import Link from "next/link";
 
 async function updateStatus(fd: FormData) {
   "use server";
-  const { db, creativeTasks } = await import("@/lib/db");
-  const { eq } = await import("drizzle-orm");
+  const { auth: getAuth } = await import("@/lib/auth");
+  const { db, creativeTasks, clients } = await import("@/lib/db");
+  const { eq, and } = await import("drizzle-orm");
+  const session = await getAuth();
+  const role = (session?.user as any)?.role as Role | undefined;
+  if (!session?.user || ![Role.SUPER_ADMIN, Role.ACCOUNT_MANAGER].includes(role!)) {
+    throw new Error("Unauthorized");
+  }
   const id = fd.get("id") as string;
   const status = fd.get("status") as string;
+  const [task] = await db.select({clientId:creativeTasks.clientId,status:creativeTasks.status}).from(creativeTasks).where(eq(creativeTasks.id,id)).limit(1);
+  if(!task) throw new Error("Task not found");
+  if(role===Role.ACCOUNT_MANAGER){
+    const [owned]=await db.select({id:clients.id}).from(clients).where(and(eq(clients.id,task.clientId),eq(clients.accountManagerId,session.user.id!))).limit(1);
+    if(!owned) throw new Error("Task access denied");
+  }
+  const transitions:Record<string,string[]>={PENDING:["IN_PROGRESS"],IN_PROGRESS:["REVIEW"],REVISION:["IN_PROGRESS"],REVIEW:["APPROVED","REVISION","REJECTED"],APPROVED:["COMPLETED"]};
+  if(!(transitions[task.status]||[]).includes(status)) throw new Error("Invalid workflow transition");
   const priority = fd.get("priority") as string | null;
   const updateData: Record<string,any> = { status: status as any, updatedAt: new Date() };
   if (priority) updateData.priority = priority as any;
@@ -30,7 +44,15 @@ export default async function CreativePage() {
 
   const isCreator = role === Role.CREATOR;
 
-  const [allTasks, allClients, allCreators] = await Promise.all([
+  const allClients = await db.select({id:clients.id,companyName:clients.companyName}).from(clients)
+    .where(and(eq(clients.isActive,true),role===Role.ACCOUNT_MANAGER?eq(clients.accountManagerId,userId):eq(clients.workspaceId,"default")));
+  const allowedClientIds=allClients.map(c=>c.id);
+  const taskScope = isCreator
+    ? eq(creativeTasks.assignedToId,userId)
+    : role===Role.ACCOUNT_MANAGER
+      ? (allowedClientIds.length?inArray(creativeTasks.clientId,allowedClientIds):eq(creativeTasks.clientId,"__none__"))
+      : eq(creativeTasks.workspaceId,"default");
+  const [allTasks, allCreators] = await Promise.all([
     db.select({
       id:creativeTasks.id, title:creativeTasks.title, type:creativeTasks.type,
       status:creativeTasks.status, priority:creativeTasks.priority,
@@ -39,11 +61,8 @@ export default async function CreativePage() {
       fileUrl:creativeTasks.fileUrl, brief:creativeTasks.brief, isPosted:creativeTasks.isPosted,
       createdAt:creativeTasks.createdAt,
     }).from(creativeTasks)
-      .where(isCreator
-        ? and(eq(creativeTasks.assignedToId,userId), notInArray(creativeTasks.status,["COMPLETED","REJECTED"]))
-        : notInArray(creativeTasks.status,["COMPLETED","REJECTED"]))
+      .where(and(taskScope,notInArray(creativeTasks.status,["COMPLETED","REJECTED"])))
       .orderBy(desc(creativeTasks.createdAt)).limit(100),
-    db.select({id:clients.id,companyName:clients.companyName}).from(clients).where(eq(clients.isActive,true)),
     db.select({id:users.id,name:users.name}).from(users).where(eq(users.role,"CREATOR")),
   ]);
 

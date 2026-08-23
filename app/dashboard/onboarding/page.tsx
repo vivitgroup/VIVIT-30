@@ -24,10 +24,16 @@ const CATEGORY_COLOR: Record<string,string> = {
   Strategy:"#f59e0b", Management:"#10b981", Reporting:"#00B4D8",
 };
 
-async function toggleStep(clientId: string, stepId: string, completed: boolean, userId: string) {
+async function toggleStep(clientId: string, stepId: string, completed: boolean) {
   "use server";
+  const { auth: getAuth } = await import("@/lib/auth");
   const { db, onboardingProgress } = await import("@/lib/db");
   const { eq, and } = await import("drizzle-orm");
+  const session = await getAuth();
+  const role = (session?.user as any)?.role as Role | undefined;
+  if (!session?.user || ![Role.SUPER_ADMIN, Role.ACCOUNT_MANAGER].includes(role!)) throw new Error("Unauthorized");
+  if (!STEPS.some(step => step.id === stepId)) throw new Error("Invalid onboarding step");
+  const userId = (session.user as any).id as string;
   const existing = await db.select().from(onboardingProgress)
     .where(and(eq(onboardingProgress.clientId, clientId), eq(onboardingProgress.stepId, stepId)));
   if (existing.length > 0) {
@@ -128,7 +134,7 @@ export default async function OnboardingPage() {
               {STEPS.map(step=>{
                 const isDone = prg[step.id] === true;
                 return (
-                  <form key={step.id} action={async()=>{"use server"; await toggleStep(client.id, step.id, !isDone, session.user.id!);}}>
+                  <form key={step.id} action={async()=>{"use server"; await toggleStep(client.id, step.id, !isDone);}}>
                     <button type="submit" className="w-full p-2.5 rounded-xl border transition-all text-left"
                       style={{
                         background: isDone ? `${CATEGORY_COLOR[step.category]}12` : "rgba(255,255,255,0.02)",

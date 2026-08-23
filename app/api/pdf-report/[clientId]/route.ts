@@ -3,12 +3,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db, clients, financeRecords, mediaMetrics, contacts } from "@/lib/db";
 import { eq, and, gte, sum } from "drizzle-orm";
+import { canAccessClient } from "@/lib/client-access";
 
 export async function GET(req: NextRequest, context: { params: Promise<{ clientId: string }> }) {
   const session = await auth();
   if (!session?.user) return new NextResponse("Unauthorized", { status: 401 });
 
   const { clientId } = await context.params;
+  if(!(await canAccessClient(session,clientId)))return new NextResponse("Forbidden",{status:403});
   const month = parseInt(req.nextUrl.searchParams.get("month") ?? String(new Date().getMonth() + 1));
   const year  = parseInt(req.nextUrl.searchParams.get("year")  ?? String(new Date().getFullYear()));
 
@@ -131,13 +133,13 @@ export async function GET(req: NextRequest, context: { params: Promise<{ clientI
         <tr><th>Metric</th><th>This Month</th><th>Target</th><th>Status</th></tr>
         <tr><td>ROAS</td><td>${roas}×</td><td>3.0×</td><td><span class="badge ${parseFloat(roas)>=3?"badge-green":"badge-amber"}">${parseFloat(roas)>=3?"On Target":"Below Target"}</span></td></tr>
         <tr><td>CPL</td><td>${spend>0&&leads>0?`$${(spend/leads).toFixed(0)}`:"—"}</td><td>—</td><td>—</td></tr>
-        <tr><td>Total Leads</td><td>${leads}</td><td>"—"</td><td><span class="badge "badge-blue">In Progress</span></td></tr>
+        <tr><td>Total Leads</td><td>${leads}</td><td>—</td><td><span class="badge badge-blue">In Progress</span></td></tr>
       </table>
     </div>
 
     <div style="margin-top:28px;padding:16px;background:#F0F8FF;border-left:4px solid #244D87;border-radius:4px;">
       <p style="font-weight:600;color:#17345F;margin-bottom:6px;">📌 Account Manager Notes</p>
-      <p style="color:#4A6A8A;line-height:1.6;">"Campaign performing well. Continue current strategy and monitor ROAS weekly. Next review scheduled end of month."</p>
+      <p style="color:#4A6A8A;line-height:1.6;">Campaign performance is calculated from the connected media data for this reporting period.</p>
     </div>
   </div>
 

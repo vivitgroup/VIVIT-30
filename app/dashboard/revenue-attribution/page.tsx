@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { db, clients, financeRecords, users, creativeTasks, salesLeads } from "@/lib/db";
-import { eq, sum, count, and, desc } from "drizzle-orm";
+import { eq, sum, count, and, inArray } from "drizzle-orm";
 import { Role } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
 import Link from "next/link";
@@ -26,10 +26,10 @@ export default async function RevenueAttributionPage() {
     const clientIds = amClients.map(c => c.id);
     const [revenueAgg] = clientIds.length > 0
       ? await db.select({ total: sum(financeRecords.totalRevenue), paid: sum(financeRecords.paid) })
-          .from(financeRecords).where(and(eq(financeRecords.year, year)))
+          .from(financeRecords).where(and(eq(financeRecords.year, year),inArray(financeRecords.clientId,clientIds)))
       : [{ total: 0, paid: 0 }];
 
-    const [taskAgg] = await db.select({ total: count(), completed: count() }).from(creativeTasks)
+    const [taskAgg] = await db.select({ total: count() }).from(creativeTasks)
       .where(eq(creativeTasks.assignedToId, am.id));
 
     const wonLeads = await db.select({ val: sum(salesLeads.estimatedValue) }).from(salesLeads)
@@ -175,8 +175,8 @@ export default async function RevenueAttributionPage() {
                 const commission = Math.round((am.totalPaid ?? am.collected ?? 0) * 0.10);
                 const isPaid = true; // Commission paid with payroll
                 return(
-                  <tr key={am.amId}>
-                    <td className="font-semibold">{am.name ?? am.amName ?? "—"}</td>
+                  <tr key={am.am.id}>
+                    <td className="font-semibold">{am.am.name}</td>
                     <td>{am.clientCount ?? 0}</td>
                     <td>${(am.totalRevenue ?? am.revenue ?? 0).toLocaleString()}</td>
                     <td className="text-green-400 font-bold">${(am.totalPaid ?? am.collected ?? 0).toLocaleString()}</td>

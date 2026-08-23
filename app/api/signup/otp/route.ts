@@ -22,8 +22,8 @@ export async function POST(req: NextRequest) {
     const code = String(Math.floor(100000 + Math.random() * 900000));
     const codeHash = await bcrypt.hash(code, 10);
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
-    await db.insert(emailVerificationCodes).values({email:normalizedEmail,codeHash,expiresAt,attempts:0})
-      .onConflictDoUpdate({target:emailVerificationCodes.email,set:{codeHash,expiresAt,attempts:0,createdAt:new Date()}});
+    await db.insert(emailVerificationCodes).values({email:normalizedEmail,codeHash,expiresAt,attempts:0} as any)
+      .onConflictDoUpdate({target:emailVerificationCodes.email,set:{codeHash,expiresAt,attempts:0,createdAt:new Date()} as any});
 
     const response = await fetch("https://api.resend.com/emails", {
       method:"POST",

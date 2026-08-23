@@ -53,12 +53,12 @@ export async function GET(req: NextRequest) {
     }
 
     // Leads — sales + admins only
-    if (["SUPER_ADMIN","SALES","ACCOUNT_MANAGER"].includes(role)) {
+    if (["SUPER_ADMIN","SALES"].includes(role)) {
       const leadResults = await db.select({
         id:salesLeads.id, companyName:salesLeads.companyName,
         stage:salesLeads.stage, estimatedValue:salesLeads.estimatedValue,
       }).from(salesLeads)
-        .where(or(ilike(salesLeads.companyName,term),ilike(salesLeads.contactPerson,term)))
+        .where(and(or(ilike(salesLeads.companyName,term),ilike(salesLeads.contactPerson,term)),role==="SALES"?eq(salesLeads.salesRepId,userId):eq(salesLeads.workspaceId,"default")))
         .limit(3);
       results.push(...leadResults.map(l=>({
         type:"lead", title:l.companyName,
@@ -68,11 +68,15 @@ export async function GET(req: NextRequest) {
     }
 
     // Contacts
-    if (isAdmin) {
+    if (["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"].includes(role)) {
       const contactResults = await db.select({
         id:contacts.id, name:contacts.name,
         email:contacts.email, clientId:contacts.clientId,
-      }).from(contacts).where(ilike(contacts.name,term)).limit(3);
+      }).from(contacts).innerJoin(clients,eq(contacts.clientId,clients.id)).where(and(
+        ilike(contacts.name,term),
+        role==="ACCOUNT_MANAGER" ? eq(clients.accountManagerId,userId) :
+        role==="MEDIA_BUYER" ? eq(clients.mediaBuyerId,userId) : eq(clients.workspaceId,"default")
+      )).limit(3);
       results.push(...contactResults.map(c=>({
         type:"contact", title:c.name,
         subtitle:c.email??"",

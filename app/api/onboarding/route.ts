@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import { db, onboardingProgress, clients, mediaMetrics, creativeTasks,
   financeRecords, contacts, calendarEvents } from "@/lib/db";
 import { eq, and, count, gte } from "drizzle-orm";
+import { canAccessClient } from "@/lib/client-access";
 
 // ── 17. Auto-sync onboarding from real data ───────────────────
 async function computeProgress(clientId: string): Promise<Record<string,boolean>> {
@@ -39,6 +40,7 @@ export async function GET(req: NextRequest) {
 
   const clientId = req.nextUrl.searchParams.get("clientId");
   if (!clientId) return NextResponse.json({ error:"clientId required" }, { status:400 });
+  if(!(await canAccessClient(session,clientId,{write:true})))return NextResponse.json({error:"Forbidden"},{status:403});
 
   // Auto-sync from real data
   const computed = await computeProgress(clientId);
@@ -48,13 +50,11 @@ export async function GET(req: NextRequest) {
 
   // Upsert each step individually (schema has one row per step)
   const adminId = (await db.select({id:clients.id}).from(clients).where(eq(clients.id, clientId)).limit(1))[0]?.id ?? clientId;
+  const existingRows=await db.select().from(onboardingProgress).where(eq(onboardingProgress.clientId,clientId));
   for (const [stepId, isDone] of Object.entries(computed)) {
-    await db.insert(onboardingProgress).values({
-      clientId, stepId,
-      completed: isDone as boolean,
-      completedAt: isDone ? new Date() : null,
-      completedBy: adminId,
-    }).onConflictDoNothing();
+    const existing=existingRows.find(r=>r.stepId===stepId);
+    if(existing)await db.update(onboardingProgress).set({completed:isDone as boolean,completedAt:isDone?new Date():null,completedBy:adminId}).where(eq(onboardingProgress.id,existing.id));
+    else await db.insert(onboardingProgress).values({clientId,stepId,completed:isDone as boolean,completedAt:isDone?new Date():null,completedBy:adminId});
   }
 
   const STEP_LABELS: Record<string, string> = {
@@ -89,13 +89,12 @@ export async function POST(req: NextRequest) {
 
   const { clientId, step, value } = await req.json();
   if (!clientId || !step) return NextResponse.json({ error:"clientId and step required" }, { status:400 });
+  if(!(await canAccessClient(session,clientId,{write:true})))return NextResponse.json({error:"Forbidden"},{status:403});
 
-  await db.insert(onboardingProgress).values({
-    clientId, stepId: step,
-    completed: value ?? true,
-    completedAt: (value ?? true) ? new Date() : null,
-    completedBy: (session.user as any).id,
-  }).onConflictDoNothing();
+  const [existing]=await db.select().from(onboardingProgress).where(and(eq(onboardingProgress.clientId,clientId),eq(onboardingProgress.stepId,step))).limit(1);
+  const update={completed:value??true,completedAt:(value??true)?new Date():null,completedBy:(session.user as any).id};
+  if(existing)await db.update(onboardingProgress).set(update).where(eq(onboardingProgress.id,existing.id));
+  else await db.insert(onboardingProgress).values({clientId,stepId:step,...update});
   const rows = await db.select().from(onboardingProgress).where(eq(onboardingProgress.clientId, clientId));
   const done = rows.filter(r=>r.completed).length;
 

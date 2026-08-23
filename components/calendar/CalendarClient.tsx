@@ -38,7 +38,7 @@ const MONTHS = ["January","February","March","April","May","June",
 const DAYS_SHORT = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
 // ── Post Card Component ───────────────────────────────────────
-function PostCard({ event, onPosted }: { event: CalEvent; onPosted: (id:string)=>void }) {
+function PostCard({ event, onPosted, canManage }: { event: CalEvent; onPosted: (id:string)=>void; canManage:boolean }) {
   const [expanded, setExpanded] = useState(false);
   const pl  = event.platform ?? "instagram";
   const cfg = PLATFORMS[pl] ?? PLATFORMS.instagram;
@@ -138,7 +138,7 @@ function PostCard({ event, onPosted }: { event: CalEvent; onPosted: (id:string)=
             }}>
               {isPosted ? "✅ Posted" : "⏰ Scheduled"}
             </span>
-            {!isPosted && (
+            {!isPosted && canManage && (
               <button
                 onClick={() => onPosted(event.id)}
                 style={{
@@ -166,6 +166,12 @@ export function CalendarClient({ events, clients, approvedTasks, canManage }: Pr
   const [filterPlatform, setFilterPlatform] = useState("all");
   const [filterClient,   setFilterClient]   = useState("all");
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+  const [actionError,setActionError]=useState("");
+  const [assetFileId, setAssetFileId] = useState("");
+  const [assetName, setAssetName] = useState("");
+  const [selectedClientId, setSelectedClientId] = useState("");
   const [view, setView]    = useState<"month"|"week">("month");
 
   const firstDay    = new Date(year, month, 1).getDay();
@@ -196,6 +202,10 @@ export function CalendarClient({ events, clients, approvedTasks, canManage }: Pr
   }
 
   async function handleAdd(fd: FormData) {
+    if (!assetFileId) {
+      setUploadError("Upload the post image or video before scheduling.");
+      return;
+    }
     setSaving(true);
     await createCalendarEvent(fd);
     setSaving(false);
@@ -203,8 +213,46 @@ export function CalendarClient({ events, clients, approvedTasks, canManage }: Pr
     window.location.reload();
   }
 
+  async function uploadPostAsset(file: File) {
+    setUploadError("");
+    setAssetFileId("");
+    if (!selectedClientId) {
+      setUploadError("Select the client first, then upload the post asset.");
+      return;
+    }
+    if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) {
+      setUploadError("Only image and video files are accepted for scheduled posts.");
+      return;
+    }
+    setUploading(true);
+    try {
+      const signResponse = await fetch("/api/files", {
+        method: "POST", headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({op:"sign", name:file.name, size:file.size, mimeType:file.type})
+      });
+      const sign = await signResponse.json();
+      if (!signResponse.ok) throw new Error(sign.error || "Could not prepare the upload.");
+      const uploadResponse = await fetch(sign.uploadUrl, {method:"PUT", headers:{"Content-Type":file.type || "application/octet-stream"}, body:file});
+      if (!uploadResponse.ok) throw new Error("The media upload did not complete.");
+      const completeResponse = await fetch("/api/files", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({op:"complete", path:sign.path, name:file.name, size:file.size, mimeType:file.type, category:"SOCIAL_POST", clientId:selectedClientId})
+      });
+      const complete = await completeResponse.json();
+      if (!completeResponse.ok) throw new Error(complete.error || "Could not save the uploaded media.");
+      setAssetFileId(complete.file?.id || complete.fileId);
+      setAssetName(file.name);
+    } catch (error: any) {
+      setUploadError(error.message || "The media upload failed.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
   async function handlePosted(id: string) {
-    await fetch(`/api/calendar/${id}/posted`, { method:"POST" });
+    setActionError("");
+    const response=await fetch(`/api/calendar/${id}/posted`, { method:"POST" });
+    if(!response.ok){const body=await response.json().catch(()=>({}));setActionError(body.error||"The post status could not be updated.");return;}
     window.location.reload();
   }
 
@@ -279,12 +327,12 @@ export function CalendarClient({ events, clients, approvedTasks, canManage }: Pr
       </div>
 
       {/* ── Main Layout: Calendar + Sidebar ── */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 320px",gap:"16px",alignItems:"start"}}>
+      <div className="calendar-layout" style={{display:"grid",gridTemplateColumns:"1fr 320px",gap:"16px",alignItems:"start"}}>
 
         {/* ── Calendar Grid ── */}
-        <div className="card">
+        <div className="card calendar-board">
           {/* Day headers */}
-          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",borderBottom:"1px solid var(--card-border)"}}>
+          <div className="calendar-days-header" style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",borderBottom:"1px solid var(--card-border)"}}>
             {DAYS_SHORT.map(d=>(
               <div key={d} style={{padding:"10px 4px",textAlign:"center",fontSize:"11px",fontWeight:700,
                 color:d==="Sun"||d==="Sat"?"var(--vivit-blue)":"var(--text-muted)",
@@ -295,7 +343,7 @@ export function CalendarClient({ events, clients, approvedTasks, canManage }: Pr
           </div>
 
           {/* Calendar cells */}
-          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)"}}>
+          <div className="calendar-days-grid" style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)"}}>
             {/* Previous month filler days */}
             {Array.from({length:firstDay},(_,i)=>(
               <div key={`prev-${i}`} style={{
@@ -436,8 +484,9 @@ export function CalendarClient({ events, clients, approvedTasks, canManage }: Pr
                   )}
                 </div>
               ) : selectedEvents.map(ev=>(
-                <PostCard key={ev.id} event={ev} onPosted={handlePosted}/>
+                <PostCard key={ev.id} event={ev} onPosted={handlePosted} canManage={canManage}/>
               ))}
+              {actionError&&<p className="form-error" role="alert">{actionError}</p>}
             </div>
           </div>
 
@@ -575,10 +624,22 @@ export function CalendarClient({ events, clients, approvedTasks, canManage }: Pr
                 {/* Client */}
                 <div>
                   <label className="form-label">Client</label>
-                  <select name="clientId" required className="form-select">
+                  <select name="clientId" required className="form-select" value={selectedClientId} onChange={e=>{setSelectedClientId(e.target.value);setAssetFileId("");setAssetName("");}}>
                     <option value="">Select client...</option>
                     {clients.map(c=><option key={c.id} value={c.id}>{c.companyName}</option>)}
                   </select>
+                </div>
+
+                <div>
+                  <label className="form-label">Post image / video <span style={{color:"var(--red)"}}>*</span></label>
+                  <label style={{display:"flex",alignItems:"center",gap:"12px",padding:"14px",border:"1px dashed var(--vivit-blue)",borderRadius:"12px",cursor:uploading?"wait":"pointer",background:"rgba(36,77,135,.05)"}}>
+                    <span style={{fontSize:"24px"}}>{assetFileId?"✅":"🖼️"}</span>
+                    <span style={{flex:1,fontSize:"12px",color:"var(--text-secondary)"}}>{uploading?"Uploading securely…":assetName||"Choose the final image or video for this post"}</span>
+                    <input type="file" accept="image/*,video/*" required={!assetFileId} disabled={uploading} style={{display:"none"}} onChange={e=>{const file=e.target.files?.[0];if(file)uploadPostAsset(file);}}/>
+                  </label>
+                  <input type="hidden" name="assetFileId" value={assetFileId}/>
+                  {uploadError&&<p className="form-error" role="alert">{uploadError}</p>}
+                  {assetFileId&&<p style={{fontSize:"11px",color:"var(--green)",marginTop:"6px"}}>Media uploaded and linked to this client.</p>}
                 </div>
 
                 {/* Title */}
@@ -625,7 +686,7 @@ export function CalendarClient({ events, clients, approvedTasks, canManage }: Pr
                 <button type="button" onClick={()=>setShowAdd(false)} className="btn btn-ghost">
                   Cancel
                 </button>
-                <button type="submit" disabled={saving} className="btn btn-primary"
+                <button type="submit" disabled={saving||uploading||!assetFileId} className="btn btn-primary"
                   style={{opacity:saving?0.7:1,minWidth:"140px"}}>
                   {saving ? "Scheduling..." : "📅 Schedule Post"}
                 </button>

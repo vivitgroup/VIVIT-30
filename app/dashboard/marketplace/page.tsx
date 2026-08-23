@@ -11,7 +11,7 @@ async function saveProfile(fd: FormData) {
   const { db, creatorProfiles } = await import("@/lib/db");
   const { eq } = await import("drizzle-orm");
   const session = await getAuth();
-  if (!session?.user) return;
+  if (!session?.user || (session.user as any).role !== Role.CREATOR) throw new Error("Unauthorized");
   const existing = await db.select().from(creatorProfiles).where(eq(creatorProfiles.userId, session.user.id!));
   const data = {
     userId: session.user.id!, bio: fd.get("bio") as string,

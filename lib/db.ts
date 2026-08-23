@@ -5,10 +5,9 @@ import { unstable_cache, revalidateTag } from "next/cache";
 import { eq, and, gte, lte, inArray, notInArray,
   desc, asc, count, sum, sql, ne, avg, ilike, or } from "drizzle-orm";
 
-// ── Connection Pool (Fix 47,104) ──────────────────────────────
+// ── Connection Pool ────────────────────────────────────────────
 // prepare:false required for Supabase Transaction Pooler (port 6543)
-// max:3 is safe for serverless — each function gets its own pool
-// Fix 47: Use globalThis to reuse across hot-reload in dev only
+// Keep the per-function pool small in serverless environments.
 const globalForDb = globalThis as unknown as {
   _pgClient: ReturnType<typeof postgres> | undefined;
 };
@@ -16,11 +15,13 @@ const globalForDb = globalThis as unknown as {
 function createClient() {
   return postgres(process.env.DATABASE_URL!, {
     ssl:             { rejectUnauthorized: false },
-    max:             3,           // Fix 104: 3 per function instance
-    idle_timeout:    20,          // Return connection after 20s idle
-    connect_timeout: 10,          // Fail fast if DB unreachable
-    prepare:         false,       // Required for PgBouncer/Supabase pooler
-    onnotice:        () => {},    // Suppress PostgreSQL notices
+    max:             3,
+    idle_timeout:    20,
+    connect_timeout: 10,
+    max_lifetime:    60,
+    connection:      { application_name: "vivit-erp", statement_timeout: "8000" } as any,
+    prepare:         false,
+    onnotice:        () => {},
   });
 }
 
@@ -30,24 +31,21 @@ const _pgClient = process.env.NODE_ENV === "production"
 
 export const db = drizzle(_pgClient, { schema });
 
-// ── Re-export Drizzle operators ───────────────────────────────
 export { eq, and, gte, lte, inArray, notInArray,
   desc, asc, count, sum, sql, ne, avg, ilike, or };
 
-// ── Re-export schema ──────────────────────────────────────────
 export * from "@/db/schema";
 export { workspaceRoles, userRoles, workspaceMembers, invitations,
   kpiDefinitions, kpiScores, salaryRecommendations, payrollLocks,
   approvalWorkflows, commissions, agencyHealthScores, resourcePlanning,
   knowledgeBase, followUpReminders } from "@/db/schema";
 
-// ── Cache Invalidation Helpers (Fix 36) ──────────────────────
-export function invalidateClients()  { revalidateTag("clients"); }
-export function invalidateTasks()    { revalidateTag("tasks"); }
-export function invalidateFinance()  { revalidateTag("finance"); }
-export function invalidateTeam()     { revalidateTag("team"); }
+// Next.js 16 requires an explicit cache-life profile for revalidateTag.
+export function invalidateClients()  { revalidateTag("clients", "max"); }
+export function invalidateTasks()    { revalidateTag("tasks", "max"); }
+export function invalidateFinance()  { revalidateTag("finance", "max"); }
+export function invalidateTeam()     { revalidateTag("team", "max"); }
 
-// ── Cached Queries (Fix 36: proper cache invalidation) ────────
 export const getCachedClients = unstable_cache(
   async () => {
     return db.select({
@@ -79,7 +77,6 @@ export const getCachedTeam = unstable_cache(
   { revalidate: 300, tags: ["team"] }
 );
 
-// ── N+1 Prevention (Fix 28,86) ────────────────────────────────
 export async function getClientsWithAMs() {
   return db.select({
     id:               schema.clients.id,

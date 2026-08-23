@@ -5,6 +5,7 @@ import { db, clients, aiGenerations } from "@/lib/db";
 import { eq, desc, count } from "drizzle-orm";
 import { Role } from "@/lib/types";
 import Link from "next/link";
+import {AIStudioRuntime} from "@/components/ai/AIStudioRuntime";
 
 export default async function AIStudioPage() {
   const session = await auth();
@@ -193,8 +194,9 @@ export default async function AIStudioPage() {
         </div>
       )}
 
-      {/* AI Client-side script for API calls */}
-      <script dangerouslySetInnerHTML={{__html:`
+      <AIStudioRuntime/>
+      {/* Legacy inline runtime removed: React navigation does not execute injected scripts reliably. */}
+      {/* <script dangerouslySetInnerHTML={{__html:`
         document.querySelectorAll('[id$="-btn"]').forEach(function(btn) {
           btn.addEventListener('click', async function() {
             var toolId = this.id.replace('-btn','');
@@ -236,7 +238,7 @@ export default async function AIStudioPage() {
             this.disabled = false;
           });
         });
-      `}}/>
+      `}}/> */}
 
     </div>
   );

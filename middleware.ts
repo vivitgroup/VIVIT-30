@@ -101,10 +101,9 @@ export default auth((req) => {
   }
 
   // Public routes
-  const publicPaths = ["/","/login","/signup","/api/auth","/api/health",
-    "/api/signup","/forgot-password","/reset-password","/api/password",
-    "/approve","/api/v1","/robots.txt","/sitemap.xml"];
-  if (publicPaths.some(p=>pathname.startsWith(p))) {
+  const publicExact = ["/","/login","/signup","/forgot-password","/reset-password","/robots.txt","/sitemap.xml"];
+  const publicPrefixes = ["/api/auth","/api/health","/api/signup","/api/password","/approve/","/api/v1/"];
+  if (publicExact.includes(pathname)||publicPrefixes.some(p=>pathname.startsWith(p))) {
     const res = NextResponse.next();
     secHeaders(res);
     if (pathname.startsWith("/api/v1")) corsHeaders(res,origin);
@@ -113,16 +112,58 @@ export default auth((req) => {
 
   // Auth guard
   if (!session) {
+    if(pathname.startsWith("/api/")){
+      const res=NextResponse.json({error:"Unauthorized"},{status:401});
+      secHeaders(res);
+      return res;
+    }
     const loginUrl = new URL("/login",req.url);
     loginUrl.searchParams.set("callbackUrl",pathname);
     return NextResponse.redirect(loginUrl);
   }
 
   const role = (session.user as any)?.role;
+  // Platform authorization is operational media access, never an AM approval action.
+  if(pathname.startsWith("/api/ad-oauth") && !["SUPER_ADMIN","MEDIA_BUYER"].includes(role)) {
+    return NextResponse.json({error:"Forbidden"},{status:403});
+  }
+  if(pathname==="/dashboard"){
+    const homes:Record<string,string>={CLIENT:"/dashboard/portal",CREATOR:"/dashboard/creative",ACCOUNTANT:"/dashboard/finance",MEDIA_BUYER:"/dashboard/media/control-center",SALES:"/dashboard/sales",ACCOUNT_MANAGER:"/dashboard/clients"};
+    if(homes[role])return NextResponse.redirect(new URL(homes[role],req.url));
+  }
+
+  const pageAccess:[string,string[]][]=[
+    ["/dashboard/settings",["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CREATOR","ACCOUNTANT","SALES","CLIENT"]],["/dashboard/team",["SUPER_ADMIN"]],
+    ["/dashboard/workspace",["SUPER_ADMIN"]],["/dashboard/activity",["SUPER_ADMIN"]],
+    ["/dashboard/kpis",["SUPER_ADMIN"]],["/dashboard/billing",["SUPER_ADMIN"]],
+    ["/dashboard/referrals",["SUPER_ADMIN"]],["/dashboard/saas-analytics",["SUPER_ADMIN"]],
+    ["/dashboard/revenue-attribution",["SUPER_ADMIN"]],["/dashboard/nps",["SUPER_ADMIN"]],
+    ["/dashboard/onboarding",["SUPER_ADMIN","ACCOUNT_MANAGER"]],
+    ["/dashboard/monthly-reports",["SUPER_ADMIN","ACCOUNT_MANAGER"]],
+    ["/dashboard/marketplace",["SUPER_ADMIN","ACCOUNT_MANAGER","CREATOR"]],
+    ["/dashboard/budget",["SUPER_ADMIN","MEDIA_BUYER","ACCOUNT_MANAGER"]],
+    ["/dashboard/contracts",["SUPER_ADMIN","ACCOUNTANT"]],["/dashboard/finance",["SUPER_ADMIN","ACCOUNTANT"]],
+    ["/dashboard/forecast",["SUPER_ADMIN","ACCOUNTANT"]],["/dashboard/ltv",["SUPER_ADMIN","ACCOUNTANT"]],
+    ["/dashboard/sales",["SUPER_ADMIN","SALES"]],
+    ["/dashboard/media/sync",["SUPER_ADMIN","MEDIA_BUYER"]],
+    ["/dashboard/media",["SUPER_ADMIN","MEDIA_BUYER","ACCOUNT_MANAGER"]],
+    ["/dashboard/analytics",["SUPER_ADMIN"]],
+    ["/dashboard/ai-studio",["SUPER_ADMIN","MEDIA_BUYER","ACCOUNT_MANAGER"]],
+    ["/dashboard/clients",["SUPER_ADMIN","MEDIA_BUYER","ACCOUNT_MANAGER","ACCOUNTANT"]],
+    ["/dashboard/creative",["SUPER_ADMIN","ACCOUNT_MANAGER","CREATOR"]],
+    ["/dashboard/tasks-inbox",["SUPER_ADMIN","ACCOUNT_MANAGER"]],
+    ["/dashboard/calendar",["SUPER_ADMIN","ACCOUNT_MANAGER","CREATOR"]],
+    ["/dashboard/reports",["SUPER_ADMIN","ACCOUNTANT","ACCOUNT_MANAGER","MEDIA_BUYER","SALES"]],
+    ["/dashboard/portal",["CLIENT"]],
+  ];
+  if(pathname.startsWith("/dashboard")){
+    const rule=pageAccess.find(([prefix])=>pathname.startsWith(prefix));
+    if(rule&&!rule[1].includes(role))return NextResponse.redirect(new URL(role==="CLIENT"?"/dashboard/portal":"/dashboard",req.url));
+  }
 
   // Fix 12,19: CLIENT portal isolation — strict redirect
   if (role==="CLIENT") {
-    const clientAllowed = ["/dashboard/portal","/dashboard/notifications","/dashboard/files",
+    const clientAllowed = ["/dashboard/portal","/dashboard/notifications","/dashboard/files","/dashboard/settings",
       "/api/notifications","/api/onboarding","/api/search","/api/files"];
     if (pathname.startsWith("/dashboard") &&
         !clientAllowed.some(p=>pathname.startsWith(p))) {

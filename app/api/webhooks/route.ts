@@ -16,7 +16,8 @@ async function dispatchWebhook(
     .where(eq(webhooks.isActive, true));
 
   for (const hook of hooks) {
-    const events = JSON.parse(hook.events ?? "[]");
+    let events:string[]=[];
+    try{const parsed=JSON.parse(hook.events??"[]");events=Array.isArray(parsed)?parsed.filter(v=>typeof v==="string"):[];}catch{events=[];}
     if (!events.includes(event) && !events.includes("*")) continue;
 
     const body = JSON.stringify({
@@ -78,6 +79,7 @@ async function dispatchWebhook(
 export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if((session.user as any).role!=="SUPER_ADMIN")return NextResponse.json({error:"Forbidden"},{status:403});
 
   const hooks = await db.select().from(webhooks).orderBy(desc(webhooks.createdAt));
 
@@ -93,6 +95,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if((session.user as any).role!=="SUPER_ADMIN")return NextResponse.json({error:"Forbidden"},{status:403});
 
   const { url, events, name } = await req.json();
   if (!url || !events?.length) return NextResponse.json({ error: "url and events required" }, { status: 400 });
@@ -116,6 +119,7 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if((session.user as any).role!=="SUPER_ADMIN")return NextResponse.json({error:"Forbidden"},{status:403});
 
   const { id } = await req.json();
   await db.delete(webhooks).where(eq(webhooks.id, id));

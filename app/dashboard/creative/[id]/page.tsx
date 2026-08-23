@@ -19,11 +19,19 @@ async function addComment(taskId: string, fd: FormData) {
   const { auth: getAuth } = await import("@/lib/auth");
   const { db, taskComments } = await import("@/lib/db");
   const session = await getAuth();
-  if (!session?.user) return;
+  if (!session?.user) throw new Error("Unauthorized");
+  const [task]=await db.select().from(creativeTasks).where(eq(creativeTasks.id,taskId)).limit(1);
+  if(!task)throw new Error("Task not found");
+  const role=(session.user as any).role as Role,userId=session.user.id!;
+  const [client]=await db.select({userId:clients.userId,accountManagerId:clients.accountManagerId}).from(clients).where(eq(clients.id,task.clientId)).limit(1);
+  const allowed=role===Role.SUPER_ADMIN||(role===Role.ACCOUNT_MANAGER&&client?.accountManagerId===userId)||(role===Role.CREATOR&&task.assignedToId===userId)||(role===Role.CLIENT&&client?.userId===userId);
+  if(!allowed)throw new Error("Forbidden");
+  const comment=String(fd.get("comment")||"").trim().slice(0,1000);
+  if(!comment)throw new Error("Comment is required");
   await db.insert(taskComments).values({
     taskId, userId: session.user.id!,
-    comment: fd.get("comment") as string,
-    isInternal: fd.get("isInternal") === "true",
+    comment,
+    isInternal: role!==Role.CLIENT && fd.get("isInternal") === "true",
   });
   const { revalidatePath } = await import("next/cache");
   revalidatePath(`/dashboard/creative/${taskId}`);
@@ -37,6 +45,14 @@ export default async function TaskDetailPage({ params }: { params: Promise<{id:s
 
   const [task] = await db.select().from(creativeTasks).where(eq(creativeTasks.id, id));
   if (!task) notFound();
+
+  const [accessClient]=await db.select({userId:clients.userId,accountManagerId:clients.accountManagerId}).from(clients).where(eq(clients.id,task.clientId)).limit(1);
+  const userId=session.user.id!;
+  const canOpen = role===Role.SUPER_ADMIN
+    || (role===Role.ACCOUNT_MANAGER && accessClient?.accountManagerId===userId)
+    || (role===Role.CREATOR && task.assignedToId===userId)
+    || (role===Role.CLIENT && accessClient?.userId===userId);
+  if(!canOpen) redirect("/dashboard");
 
   // Past approved briefs for reference + engagement data
   const [pastBriefs, calEvent] = await Promise.all([
@@ -54,8 +70,9 @@ export default async function TaskDetailPage({ params }: { params: Promise<{id:s
       .from(auditLogs).where(eq(auditLogs.entityId, id)).orderBy(desc(auditLogs.createdAt)).limit(10),
     // Task comments
     db.select({ id: taskComments.id, comment: taskComments.comment, isInternal: taskComments.isInternal, createdAt: taskComments.createdAt, userId: taskComments.userId })
-      .from(taskComments).where(eq(taskComments.taskId, id)).orderBy(taskComments.createdAt).limit(20),
+      .from(taskComments).where(role===Role.CLIENT?and(eq(taskComments.taskId,id),eq(taskComments.isInternal,false)):eq(taskComments.taskId, id)).orderBy(taskComments.createdAt).limit(20),
   ]);
+  const brandColors=(()=>{try{const parsed=JSON.parse(client?.colorPalette||"[]");return Array.isArray(parsed)?parsed.filter((x):x is string=>typeof x==="string"):[]}catch{return []}})();
 
   // Get commenter names
   const commenterIds = [...new Set(comments.map(c=>c.userId))];
@@ -64,14 +81,13 @@ export default async function TaskDetailPage({ params }: { params: Promise<{id:s
 
   const isCreator   = task.assignedToId === session.user.id;
   const isManager   = [Role.SUPER_ADMIN, Role.ACCOUNT_MANAGER].includes(role);
-  const isClient    = role === Role.CLIENT;
-  const canApprove  = isManager || isClient;
+  const canApprove  = isManager;
 
   const statusFlow: Record<string,string[]> = {
-    PENDING:     isCreator ? ["IN_PROGRESS"] : [],
-    IN_PROGRESS: isCreator ? ["REVIEW"] : [],
+    PENDING:     (isCreator||isManager) ? ["IN_PROGRESS"] : [],
+    IN_PROGRESS: (isCreator||isManager) ? ["REVIEW"] : [],
     REVIEW:      canApprove ? ["APPROVED","REVISION","REJECTED"] : [],
-    REVISION:    isCreator ? ["IN_PROGRESS"] : [],
+    REVISION:    (isCreator||isManager) ? ["IN_PROGRESS"] : [],
     APPROVED:    isManager ? ["COMPLETED"] : [],
   };
   const nextStatuses = statusFlow[task.status] ?? [];
@@ -148,8 +164,8 @@ export default async function TaskDetailPage({ params }: { params: Promise<{id:s
             </div>
           )}
 
-          {/* Submit File (Creator only) */}
-          {isCreator && ["IN_PROGRESS","REVISION"].includes(task.status) && (
+          {/* Final delivery can be submitted by the assigned creator or a manager. */}
+          {(isCreator || isManager) && ["PENDING","IN_PROGRESS","REVISION",...(isManager?["APPROVED","COMPLETED"]:[])].includes(task.status) && (
             <div className="card-vivit space-y-3">
               <h2 className="font-semibold text-[#244D87] text-xs uppercase tracking-wider">📤 Submit Final File</h2>
               <form action={async(fd:FormData)=>{"use server"; await submitTaskFile(task.id, fd.get("fileName") as string||"file", fd.get("fileUrl") as string||"", fd.get("notes") as string||"");}} className="space-y-3">
@@ -171,7 +187,7 @@ export default async function TaskDetailPage({ params }: { params: Promise<{id:s
             <div className="card-vivit space-y-3">
               <h2 className="font-semibold text-[#244D87] text-xs uppercase tracking-wider">Actions</h2>
               <div className="flex flex-wrap gap-2">
-                {nextStatuses.map(s=>(
+                {nextStatuses.filter(s=>s!=="REVISION").map(s=>(
                   <form key={s} action={async()=>{"use server"; await updateTaskStatus(task.id, s);}}>
                     <button type="submit" className={`px-4 py-2.5 rounded-xl text-sm font-semibold border transition-colors ${STATUS_BTN[s]??""}`}>
                       {STATUS_LABEL[s]??s}
@@ -179,11 +195,14 @@ export default async function TaskDetailPage({ params }: { params: Promise<{id:s
                   </form>
                 ))}
               </div>
-              {task.status==="REVIEW" && isManager && (
-                <div>
+              {task.status==="REVIEW" && isManager && nextStatuses.includes("REVISION") && (
+                <form action={async(fd:FormData)=>{"use server";await updateTaskStatus(task.id,"REVISION",String(fd.get("revisionNotes")||""));}} className="approval-box approval-box--reject">
+                  <strong>↩ Request a revision</strong>
+                  <p>Explain the exact changes required so the creator can act without another clarification round.</p>
                   <label className="text-xs font-semibold text-[#6B8FAF] uppercase tracking-wider block mb-1.5">Revision notes (if requesting changes)</label>
-                  <textarea id="revNotes" rows={2} placeholder="Describe what needs to change…" className="vivit-input resize-none w-full" />
-                </div>
+                  <textarea name="revisionNotes" required minLength={3} rows={3} placeholder="Describe what needs to change…" className="vivit-input resize-none w-full" />
+                  <button type="submit" className="btn btn-danger">Send revision request</button>
+                </form>
               )}
             </div>
           )}
@@ -334,11 +353,11 @@ export default async function TaskDetailPage({ params }: { params: Promise<{id:s
           </div>
 
           {/* Brand Colors */}
-          {client?.colorPalette && (
+          {brandColors.length>0 && (
             <div className="card">
               <h2 className="font-semibold text-[#244D87] text-xs uppercase tracking-wider mb-3">Brand Colors</h2>
               <div className="flex flex-wrap gap-2">
-                {(JSON.parse(client.colorPalette) as string[]).map((hex:string)=>(
+                {brandColors.map((hex:string)=>(
                   <div key={hex} className="group relative w-9 h-9 rounded-lg border border-white/10 cursor-pointer" style={{background:hex}} title={hex}>
                     <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[9px] bg-black/80 text-white px-1 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap">{hex}</span>
                   </div>

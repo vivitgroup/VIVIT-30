@@ -1,0 +1,200 @@
+/* VIVIT v36 final UI pass — shared responsive + interaction layer */
+
+.app-content { min-width: 0; }
+.app-content > * { min-width: 0; }
+.app-content img, .app-content video { max-width: 100%; height: auto; }
+.app-content table { width: 100%; }
+.app-content .card,
+.app-content .card-vivit,
+.app-content .kpi-card { min-width: 0; }
+
+/* Normalize legacy dark-theme utility colors that remain in older modules. */
+.app-content [class*="text-[#6B8FAF]"] { color: var(--text-muted) !important; }
+.app-content [class*="text-[#3D5577]"] { color: var(--text-secondary) !important; }
+.app-content [class*="text-[#E8F4FD]"] { color: var(--text-primary) !important; }
+.app-content [style*="color: #E8F4FD"],
+.app-content [style*="color:#E8F4FD"] { color: var(--text-primary) !important; }
+.app-content [class*="border-white"] { border-color: var(--card-border) !important; }
+.app-content [class*="bg-white/[0.0"] { background: var(--bg-tertiary) !important; }
+.app-content [class*="bg-white/10"] { background: var(--bg-tertiary) !important; }
+
+/* Inputs and actions */
+.app-content input,
+.app-content select,
+.app-content textarea,
+.app-content button,
+.app-content a.btn { min-height: 42px; }
+.app-content input,
+.app-content select,
+.app-content textarea { max-width: 100%; }
+.app-content button,
+.app-content a { -webkit-tap-highlight-color: transparent; }
+
+/* Wide data surfaces stay usable rather than breaking layout */
+.app-content .data-table,
+.app-content .erp-table { min-width: 720px; }
+.app-content .card-body-flush:has(table),
+.app-content .overflow-x-auto,
+.app-content .responsive-table { overflow-x: auto; overscroll-behavior-inline: contain; }
+
+/* Fix old activity date headers that used display:sticky instead of position:sticky. */
+.app-content [style*="display: sticky"],
+.app-content [style*="display:sticky"] {
+  display:block !important;
+  position:sticky !important;
+  top:0;
+  z-index:3;
+  backdrop-filter:blur(10px);
+}
+
+/* Files */
+.files-page { display:flex; flex-direction:column; gap:18px; min-width:0; }
+.file-upload-form { display:grid; grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) minmax(0,.9fr) auto; gap:12px; align-items:end; }
+.file-upload-form .form-label { margin:0; min-width:0; }
+.upload-button { min-width:150px; }
+.upload-progress { height:8px; background:var(--bg-tertiary); border-radius:999px; overflow:hidden; margin-top:12px; }
+.upload-progress span { display:block; height:100%; border-radius:inherit; background:var(--vivit-gradient); transition:width .2s ease; }
+
+/* Settings */
+.settings-personal { display:flex; flex-direction:column; gap:18px; }
+.settings-hero { display:flex; gap:12px; align-items:center; }
+.settings-hero>span { width:48px; height:48px; display:grid; place-items:center; border-radius:14px; background:var(--vivit-gradient-soft); font-size:22px; }
+.settings-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; }
+.settings-row { display:flex; justify-content:space-between; gap:14px; padding:11px 0; border-bottom:1px solid var(--card-border); font-size:13px; }
+.settings-row:last-child { border-bottom:0; }
+
+/* Notifications */
+.app-content [style*="max-width: 800px"] { width:100%; }
+
+/* Calendar controls */
+.app-content select.form-select[style*="width: auto"] { max-width:220px; }
+.calendar-board { min-width:0; }
+
+/* Interactive cards */
+.app-content .card,
+.app-content .card-vivit { overflow-wrap:anywhere; }
+
+/* Legacy inline grids across dashboard modules */
+@media (max-width: 1100px) {
+  .app-content [style*="grid-template-columns: repeat(5"] { grid-template-columns: repeat(3,minmax(0,1fr)) !important; }
+  .app-content [style*="grid-template-columns: repeat(4"] { grid-template-columns: repeat(2,minmax(0,1fr)) !important; }
+  .app-content [style*="grid-template-columns: 2fr 1fr"],
+  .app-content [style*="grid-template-columns: 1.5fr 1fr"] { grid-template-columns: 1fr !important; }
+  .file-upload-form { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .upload-button { width:100%; }
+}
+
+@media (max-width: 820px) {
+  .app-content { padding: 16px 14px 92px !important; }
+  .page-title { font-size: 1.45rem !important; }
+  .page-subtitle { line-height: 1.55; }
+
+  .app-content [style*="grid-template-columns: repeat(5"],
+  .app-content [style*="grid-template-columns: repeat(4"],
+  .app-content [style*="grid-template-columns: repeat(3"] { grid-template-columns: repeat(2,minmax(0,1fr)) !important; }
+  .app-content [style*="grid-template-columns: 1fr 1fr"],
+  .app-content [style*="grid-template-columns: 2fr 1fr"],
+  .app-content [style*="grid-template-columns: 1fr 2fr"],
+  .app-content [style*="grid-template-columns: 1.5fr 1fr"] { grid-template-columns: 1fr !important; }
+
+  /* Tailwind legacy grids used by forecast/KPI/contracts/LTV. */
+  .app-content [class*="grid-cols-4"],
+  .app-content [class*="grid-cols-3"] { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
+  .app-content [class*="lg:grid-cols-2"] { grid-template-columns:1fr !important; }
+  .app-content form[class*="grid-cols-2"] { grid-template-columns:1fr !important; }
+
+  /* Headers/action rows */
+  .app-content > div > [style*="justify-content: space-between"],
+  .app-content [style*="justify-content:space-between"] { row-gap: 10px; }
+
+  /* Creative board: convert wide kanban to a stacked mobile board */
+  .app-content [style*="min-width: 900px"] {
+    min-width: 0 !important;
+    width: 100% !important;
+    flex-direction: column !important;
+  }
+  .app-content [style*="min-width: 200px"] { min-width: 0 !important; width: 100% !important; }
+  .app-content [style*="max-height: 500px"] { max-height: none !important; }
+
+  /* Calendar: stack sidebar and keep the seven-day board readable by horizontal scroll. */
+  .calendar-layout { grid-template-columns:1fr !important; }
+  .calendar-board { overflow-x:auto; overscroll-behavior-inline:contain; }
+  .calendar-days-header,
+  .calendar-days-grid { min-width:700px; }
+  .calendar-layout > div:last-child { position:static !important; top:auto !important; }
+
+  /* Calendar / other dense boards */
+  .app-content [style*="min-width: 700px"],
+  .app-content [style*="min-width:700px"],
+  .app-content [style*="min-width: 800px"],
+  .app-content [style*="min-width:800px"] { min-width: 640px !important; }
+
+  /* Form controls that were width:auto become touch-friendly */
+  .app-content select[style*="width: auto"],
+  .app-content select[style*="width:auto"] { min-width: 150px; }
+
+  .app-content .btn-sm { min-height: 40px; }
+  .settings-grid { grid-template-columns:1fr; }
+
+  /* Settings header/tabs and notification rows */
+  .app-content .flex.items-center.justify-between { flex-wrap:wrap; gap:10px; }
+  .app-content [style*="width: fit-content"] { width:100% !important; overflow-x:auto; }
+  .app-content [style*="width:fit-content"] { width:100% !important; overflow-x:auto; }
+}
+
+@media (max-width: 640px) {
+  .file-upload-form { grid-template-columns:1fr; }
+  .upload-button { min-width:0; }
+
+  /* Notification row: allow priority/time to wrap under title */
+  .app-content [style*="padding: 14px 20px"] { padding:12px 13px !important; gap:10px !important; }
+  .app-content [style*="flex-shrink: 0"][style*="gap: 6px"] { flex-wrap:wrap; justify-content:flex-end; }
+
+  /* HR approval controls */
+  .app-content [style*="min-width: 260px"] { min-width:0 !important; width:100% !important; }
+}
+
+@media (max-width: 560px) {
+  .app-content { padding-inline: 12px !important; }
+  .app-content [style*="grid-template-columns: repeat(5"],
+  .app-content [style*="grid-template-columns: repeat(4"],
+  .app-content [style*="grid-template-columns: repeat(3"],
+  .app-content [style*="grid-template-columns: repeat(2"] { grid-template-columns: 1fr !important; }
+
+  .app-content [class*="grid-cols-4"],
+  .app-content [class*="grid-cols-3"] { grid-template-columns:1fr !important; }
+
+  .kpi-grid { grid-template-columns: repeat(2,minmax(0,1fr)) !important; gap: 10px !important; }
+  .kpi-card { padding: 13px !important; }
+  .kpi-value { font-size: 1.15rem !important; }
+
+  .app-content form [style*="grid-template-columns"] { grid-template-columns: 1fr !important; }
+  .app-content .btn,
+  .app-content button { min-height: 44px; }
+
+  .app-content [style*="font-size: 56px"] { font-size: 42px !important; }
+
+  /* Keep dense tables horizontally scrollable on phones */
+  .app-content .data-table,
+  .app-content .erp-table { min-width: 660px; }
+
+  .settings-hero { align-items:flex-start; }
+  .settings-row { flex-direction:column; gap:4px; }
+}
+
+/* Focus and accessibility */
+.app-content :is(a,button,input,select,textarea):focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--vivit-yellow) 68%, transparent);
+  outline-offset: 2px;
+}
+
+/* Empty / loading states */
+.app-content .skeleton { overflow: hidden; position: relative; }
+.app-content .skeleton::after {
+  content: ""; position: absolute; inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg,transparent,rgba(255,255,255,.35),transparent);
+  animation: vivit-skeleton 1.35s infinite;
+}
+@keyframes vivit-skeleton { to { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) { .app-content .skeleton::after { animation: none; } }

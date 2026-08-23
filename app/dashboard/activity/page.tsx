@@ -34,6 +34,7 @@ export default async function ActivityPage() {
   };
 
   const now = new Date();
+  const logSummary=(value:string|null)=>{if(!value)return "";try{const parsed=JSON.parse(value);return String(parsed?.note??value).slice(0,80)}catch{return value.slice(0,80)}};
 
   return (
     <div style={{display:"flex",flexDirection:"column",gap:"20px",maxWidth:"900px"}}>
@@ -95,7 +96,7 @@ export default async function ActivityPage() {
                     {log.ipAddress&&<p style={{fontSize:"11px",color:"var(--text-dim)",marginTop:"2px",fontFamily:"JetBrains Mono,monospace"}}>IP: {log.ipAddress}</p>}
                     {log.newValues&&log.newValues!=="{}"&&(
                       <p style={{fontSize:"11px",color:"var(--text-muted)",marginTop:"3px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                        {JSON.parse(log.newValues??'{}').note??log.newValues.slice(0,80)}
+                        {logSummary(log.newValues)}
                       </p>
                     )}
                   </div>

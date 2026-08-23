@@ -6,9 +6,11 @@ function exportCSV() {
   const table = document.querySelector<HTMLTableElement>("table");
   if (!table) { alert("No table on this page"); return; }
   const rows = Array.from(table.querySelectorAll("tr"));
-  const csv  = rows.map(r => Array.from(r.querySelectorAll("th,td")).map(c=>`"${c.textContent?.trim()??""}`).join(",")).join("\n");
-  const a = Object.assign(document.createElement("a"),{href:URL.createObjectURL(new Blob([csv],{type:"text/csv"})),download:"vivit-export.csv"});
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  const quote = (value:string) => `"${value.replace(/"/g,'""')}"`;
+  const csv  = rows.map(r => Array.from(r.querySelectorAll("th,td")).map(c=>quote(c.textContent?.trim()??"")).join(",")).join("\n");
+  const url = URL.createObjectURL(new Blob(["\uFEFF",csv],{type:"text/csv;charset=utf-8"}));
+  const a = Object.assign(document.createElement("a"),{href:url,download:`vivit-${new Date().toISOString().slice(0,10)}.csv`});
+  document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
 }
 
 const PAGE_TITLES: Record<string,string> = {
@@ -20,6 +22,8 @@ const PAGE_TITLES: Record<string,string> = {
   "/dashboard/kpis":"KPIs & BI","/dashboard/forecast":"Revenue Forecast",
   "/dashboard/reports":"Reports","/dashboard/notifications":"Notifications",
   "/dashboard/files":"Files & Documents",
+  "/dashboard/calendar":"Calendar","/dashboard/contracts":"Contracts",
+  "/dashboard/ltv":"Client Lifetime Value","/dashboard/portal":"Client Portal",
   "/dashboard/media/control-center":"Media Buying Control Center",
   "/dashboard/media/sync":"Ad Platform Connections",
 };
@@ -36,13 +40,15 @@ export function Header({ role, unreadCount }: { role:string; unreadCount:number 
   const [lang,setLang]=useState<"en"|"ar">("en");
   const inputRef = useRef<HTMLInputElement>(null);
   const timer    = useRef<NodeJS.Timeout|null>(null);
-  const pageTitle = PAGE_TITLES[pathname] || pathname.split("/").pop()?.replace(/-/g," ") || "Dashboard";
+  const rawTitle = PAGE_TITLES[pathname] || pathname.split("/").pop()?.replace(/-/g," ") || "Dashboard";
+  const AR_TITLES:Record<string,string>={Dashboard:"لوحة التحكم",Clients:"العملاء","Sales CRM":"المبيعات","Media Buying":"إدارة الإعلانات","Creative Tasks":"المهام الإبداعية","Tasks Inbox":"صندوق المهام",Finance:"المالية",Analytics:"التحليلات","HR & Team":"الفريق","AI Studio":"استوديو الذكاء الاصطناعي",Settings:"الإعدادات","KPIs & BI":"مؤشرات الأداء","Revenue Forecast":"التوقعات المالية",Reports:"التقارير",Notifications:"الإشعارات","Files & Documents":"الملفات والمستندات"};
+  const pageTitle = lang==="ar"?(AR_TITLES[rawTitle]||rawTitle):rawTitle;
 
   useEffect(()=>{
     try { setHistory(JSON.parse(localStorage.getItem("vivit-search-history")??"[]")); const saved=(localStorage.getItem("vivit-lang") as "en"|"ar")||"en";setLang(saved);document.documentElement.lang=saved;document.documentElement.dir=saved==="ar"?"rtl":"ltr"; } catch {}
   },[]);
 
-  const toggleLanguage=()=>{const next=lang==="en"?"ar":"en";setLang(next);localStorage.setItem("vivit-lang",next);document.documentElement.lang=next;document.documentElement.dir=next==="ar"?"rtl":"ltr";};
+  const toggleLanguage=()=>{const next=lang==="en"?"ar":"en";setLang(next);localStorage.setItem("vivit-lang",next);document.documentElement.lang=next;document.documentElement.dir=next==="ar"?"rtl":"ltr";window.dispatchEvent(new CustomEvent("vivit-language",{detail:next}));};
 
   useEffect(()=>{
     const h=(e:KeyboardEvent)=>{
@@ -82,28 +88,29 @@ export function Header({ role, unreadCount }: { role:string; unreadCount:number 
     <>
       <header className="app-header">
         {/* Page title */}
-        <div style={{flex:1}}>
-          <h1 style={{fontSize:"16px",fontWeight:700,color:"var(--text-primary)",fontFamily:"Sora,sans-serif",textTransform:"capitalize"}}>{pageTitle}</h1>
+        <div className="header-page-copy">
+          <span className="header-eyebrow">VIVIT ERP</span>
+          <h1>{pageTitle}</h1>
         </div>
 
         {/* Search bar */}
         <button onClick={()=>setSearchOpen(true)}
-          style={{display:"flex",alignItems:"center",gap:"10px",padding:"8px 14px",background:"var(--bg-tertiary)",border:"1.5px solid var(--card-border)",borderRadius:"var(--radius-sm)",cursor:"text",color:"var(--text-muted)",fontSize:"13px",minWidth:"220px",transition:"var(--transition)"}}>
+          className="header-search">
           <span>🔍</span>
-          <span style={{flex:1,textAlign:"left"}}>Search...</span>
+          <span style={{flex:1,textAlign:lang==="ar"?"right":"left"}}>{lang==="ar"?"بحث...":"Search..."}</span>
           <kbd style={{fontSize:"10px",background:"var(--card-bg)",border:"1px solid var(--card-border)",borderRadius:"4px",padding:"1px 5px",color:"var(--text-muted)"}}>⌘K</kbd>
         </button>
 
         {/* Actions */}
-        <div className="flex items-center gap-2">
-          <button onClick={toggleLanguage} className="btn btn-ghost btn-sm" title="Switch language">{lang==="en"?"عربي":"English"}</button>
+        <div className="header-actions flex items-center gap-2">
+          <button onClick={toggleLanguage} className="btn btn-ghost btn-sm header-language" title={lang==="en"?"العربية":"English"}>{lang==="en"?"ع":"EN"}</button>
           {/* Export CSV */}
-          <button onClick={exportCSV} className="btn btn-ghost btn-sm btn-icon" title="Export CSV">
+          <button onClick={exportCSV} className="btn btn-ghost btn-sm btn-icon header-export" title="Export CSV">
             📥
           </button>
 
           {/* Notifications */}
-          <a href="/dashboard/notifications"
+          <a href="/dashboard/notifications" className="header-notifications"
             style={{position:"relative",display:"flex",alignItems:"center",justifyContent:"center",width:"36px",height:"36px",borderRadius:"var(--radius-sm)",border:"1.5px solid var(--card-border)",background:"var(--card-bg)",textDecoration:"none",fontSize:"16px",transition:"var(--transition)"}}>
             🔔
             {unreadCount>0&&(
@@ -114,13 +121,13 @@ export function Header({ role, unreadCount }: { role:string; unreadCount:number 
           </a>
 
           {/* Role badge */}
-          <span className="badge badge-blue" style={{fontSize:"11px"}}>
-            {role.replace(/_/g," ")}
+          <span className="badge badge-blue header-role" style={{fontSize:"11px"}}>
+            {lang==="ar"?({SUPER_ADMIN:"مدير النظام",ACCOUNT_MANAGER:"مدير حساب",MEDIA_BUYER:"مشتري إعلانات",CREATOR:"مصمم",ACCOUNTANT:"محاسب",SALES:"مبيعات",CLIENT:"عميل"} as Record<string,string>)[role]||role:role.replace(/_/g," ")}
           </span>
 
           {/* Sign out */}
-          <a href="/api/auth/signout" className="btn btn-ghost btn-sm" style={{textDecoration:"none"}}>
-            Sign Out
+          <a href="/signout" className="btn btn-ghost btn-sm header-signout" style={{textDecoration:"none"}} title={lang==="ar"?"تسجيل الخروج":"Sign Out"}>
+            <span className="header-signout-icon">↪</span><span className="header-signout-label">{lang==="ar"?"تسجيل الخروج":"Sign Out"}</span>
           </a>
         </div>
       </header>

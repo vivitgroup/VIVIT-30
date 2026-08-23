@@ -8,32 +8,13 @@ import { Role } from "@/lib/types";
 import { PERMISSION_GROUPS, ROLE_PERMISSIONS } from "@/lib/permissions";
 import Link from "next/link";
 
+function safeStringArray(value:string|null|undefined):string[]{
+  try{const parsed=JSON.parse(value||"[]");return Array.isArray(parsed)?parsed.filter(v=>typeof v==="string"):[];}
+  catch{return [];}
+}
+
 // ── Server Actions ────────────────────────────────────────────
 async function requireSuperAdmin(){"use server";const session=await auth();if(!session?.user||(session.user as any).role!==Role.SUPER_ADMIN)throw new Error("Unauthorized");return session;}
-
-async function inviteUser(fd: FormData) {
-  "use server";
-  await requireSuperAdmin();
-  const { db, users, workspaceMembers } = await import("@/lib/db");
-  const { eq } = await import("drizzle-orm");
-  const { hash } = await import("bcryptjs");
-  const email   = fd.get("email") as string;
-  const name    = fd.get("name") as string;
-  const role    = fd.get("role") as string;
-  if (!email || !name || !role) return;
-  const pw = await hash("Welcome@2025!", 10);
-  await db.insert(users).values({
-    email, name, role: role as any, password: pw, isActive: true,
-  }).onConflictDoNothing();
-  const [u] = await db.select({id:users.id}).from(users).where(eq(users.email,email));
-  if (u) {
-    await db.insert(workspaceMembers).values({
-      workspaceId:"default", userId:u.id, status:"ACTIVE", invitedBy:"system",
-    }).onConflictDoNothing();
-  }
-  const { revalidatePath } = await import("next/cache");
-  revalidatePath("/dashboard/settings");
-}
 
 async function updateUserRole(fd: FormData) {
   "use server";
@@ -42,7 +23,10 @@ async function updateUserRole(fd: FormData) {
   const { eq } = await import("drizzle-orm");
   const userId = fd.get("userId") as string;
   const role   = fd.get("role") as string;
-  if (!userId || !role) return;
+  const allowed=["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CREATOR","ACCOUNTANT","SALES","CLIENT"];
+  if (!userId || !allowed.includes(role)) throw new Error("Invalid role");
+  const session=await auth();
+  if(userId===(session!.user as any).id && role!=="SUPER_ADMIN")throw new Error("You cannot remove your own Super Admin access");
   await db.update(users).set({ role: role as any, updatedAt: new Date() }).where(eq(users.id, userId));
   const { revalidatePath } = await import("next/cache");
   revalidatePath("/dashboard/settings");
@@ -95,7 +79,14 @@ export default async function SettingsPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
   const role = (session.user as any).role as Role;
-  if (role !== Role.SUPER_ADMIN) redirect("/dashboard");
+  if (role !== Role.SUPER_ADMIN) return <div className="settings-personal">
+    <div className="settings-hero"><span>⚙️</span><div><h1 className="page-title">Account Settings</h1><p className="page-subtitle">Your preferences and account access</p></div></div>
+    <div className="settings-grid">
+      <section className="card"><div className="card-body"><h2 className="card-title">Profile</h2><div className="settings-row"><span>Name</span><strong>{session.user.name||"—"}</strong></div><div className="settings-row"><span>Email</span><strong>{session.user.email||"—"}</strong></div><div className="settings-row"><span>Role</span><span className="badge badge-blue">{String(role).replace(/_/g," ")}</span></div></div></section>
+      <section className="card"><div className="card-body"><h2 className="card-title">Preferences</h2><p className="page-subtitle">Use the عربي / English button in the top bar to change language. Your choice is saved on this device.</p><p className="page-subtitle" style={{marginTop:12}}>Theme and navigation controls are available at the bottom of the sidebar.</p></div></section>
+      <section className="card"><div className="card-body"><h2 className="card-title">Permissions</h2><p className="page-subtitle">Your access is managed by the Super Admin. Contact them if your responsibilities change.</p></div></section>
+    </div>
+  </div>;
 
   const [allUsers, allRoles] = await Promise.all([
     db.select({
@@ -135,7 +126,7 @@ export default async function SettingsPage() {
 
       {/* Tabs nav */}
       <div style={{display:"flex",gap:"4px",padding:"4px",background:"var(--bg-tertiary)",borderRadius:"var(--radius-sm)",width:"fit-content"}}>
-        {["Users","Roles & Permissions","Workspace","Security"].map((tab,i)=>(
+        {["Users","Roles & Permissions","Security"].map((tab,i)=>(
           <a key={tab} href={`#${tab.toLowerCase().replace(/ .*/,"")}`}
             style={{padding:"7px 18px",borderRadius:"6px",fontSize:"13px",fontWeight:600,textDecoration:"none",
               background:i===0?"var(--card-bg)":"transparent",
@@ -156,7 +147,7 @@ export default async function SettingsPage() {
             {label:"Total Users",    value:allUsers.length,    icon:"👥", color:"blue"},
             {label:"Active",         value:activeUsers.length, icon:"✅", color:"green"},
             {label:"Suspended",      value:suspendedUsers.length,icon:"🚫",color:suspendedUsers.length>0?"red":"gray"},
-            {label:"Custom Roles",   value:customRoles.length, icon:"🎭", color:"purple"},
+            {label:"Approved Roles", value:7, icon:"🛡️", color:"purple"},
           ].map(k=>(
             <div key={k.label} className={`kpi-card ${k.color}`} style={{padding:"16px 20px"}}>
               <div className="kpi-icon" style={{fontSize:"20px"}}>{k.icon}</div>
@@ -172,31 +163,10 @@ export default async function SettingsPage() {
             <p className="card-title">✉️ Invite New User</p>
           </div>
           <div className="card-body">
-            <form action={inviteUser}>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr auto",gap:"12px",alignItems:"end"}}>
-                <div>
-                  <label className="form-label">Full Name</label>
-                  <input name="name" required placeholder="Ahmed Mohamed" className="form-input"/>
-                </div>
-                <div>
-                  <label className="form-label">Email Address</label>
-                  <input name="email" type="email" required placeholder="ahmed@company.com" className="form-input"/>
-                </div>
-                <div>
-                  <label className="form-label">Role</label>
-                  <select name="role" required className="form-select">
-                    <option value="">Select role...</option>
-                    {["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CREATOR","ACCOUNTANT","SALES"].map(r=>(
-                      <option key={r} value={r}>{ROLE_ICONS[r]} {r.replace(/_/g," ")}</option>
-                    ))}
-                  </select>
-                </div>
-                <button type="submit" className="btn btn-primary">Send Invite →</button>
-              </div>
-              <p style={{fontSize:"12px",color:"var(--text-muted)",marginTop:"8px"}}>
-                Default password: <code style={{background:"var(--bg-tertiary)",padding:"1px 6px",borderRadius:"4px"}}>Welcome@2025!</code> — user should change on first login
-              </p>
-            </form>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:16,flexWrap:"wrap"}}>
+              <div><p style={{fontWeight:700,color:"var(--text-primary)"}}>Secure self-service registration</p><p style={{fontSize:12,color:"var(--text-muted)",marginTop:4}}>Ask the user to verify their Gmail, request a role, then approve the request from HR & Team. No shared default passwords.</p></div>
+              <Link href="/signup" className="btn btn-primary" style={{textDecoration:"none"}}>Open signup page →</Link>
+            </div>
           </div>
         </div>
 
@@ -231,17 +201,17 @@ export default async function SettingsPage() {
                       </div>
                     </td>
                     <td>
-                      <form action={updateUserRole} style={{display:"inline"}}>
+                      <form action={updateUserRole} style={{display:"flex",gap:6,alignItems:"center"}}>
                         <input type="hidden" name="userId" value={u.id}/>
                         <select name="role" defaultValue={u.role}
                           className={`badge badge-${ROLE_COLORS[u.role]??"gray"}`}
                           style={{border:"none",cursor:"pointer",fontFamily:"inherit",fontSize:"11.5px",fontWeight:600,padding:"3px 8px",borderRadius:"20px"}}
-                          onChange={undefined}>
+                          >
                           {["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CREATOR","ACCOUNTANT","SALES","CLIENT"].map(r=>(
                             <option key={r} value={r}>{ROLE_ICONS[r]} {r.replace(/_/g," ")}</option>
                           ))}
                         </select>
-                        <noscript><button type="submit" className="btn btn-ghost btn-sm">Save</button></noscript>
+                        <button type="submit" className="btn btn-ghost btn-sm">Save</button>
                       </form>
                     </td>
                     <td>
@@ -254,12 +224,6 @@ export default async function SettingsPage() {
                     </td>
                     <td>
                       <div style={{display:"flex",gap:"6px"}}>
-                        {/* Change role button */}
-                        <form action={updateUserRole}>
-                          <input type="hidden" name="userId" value={u.id}/>
-                          <input type="hidden" name="role" value={u.role}/>
-                          <button type="submit" className="btn btn-ghost btn-sm">Save Role</button>
-                        </form>
                         {/* Suspend/Activate */}
                         <form action={toggleUserStatus}>
                           <input type="hidden" name="userId" value={u.id}/>
@@ -284,14 +248,14 @@ export default async function SettingsPage() {
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"16px",flexWrap:"wrap",gap:"12px"}}>
           <div>
             <h2 style={{fontSize:"1.1rem",fontWeight:700,color:"var(--text-primary)",fontFamily:"Sora,sans-serif"}}>Roles & Permissions</h2>
-            <p style={{fontSize:"12.5px",color:"var(--text-muted)"}}>System roles + custom roles for your workspace</p>
+            <p style={{fontSize:"12.5px",color:"var(--text-muted)"}}>Approved system roles. Public signup creates client requests only; the Super Admin assigns employee roles after verification.</p>
           </div>
         </div>
 
         {/* System Roles Grid */}
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:"12px",marginBottom:"24px"}}>
           {allRoles.filter(r=>r.isSystem).map(r=>{
-            const perms: string[] = JSON.parse(r.permissions||"[]");
+            const perms = safeStringArray(r.permissions);
             return (
               <div key={r.id} className="card" style={{borderTop:`3px solid ${r.color}`}}>
                 <div className="card-body" style={{padding:"16px"}}>
@@ -321,7 +285,7 @@ export default async function SettingsPage() {
         </div>
 
         {/* Create Custom Role */}
-        <div className="card" style={{marginBottom:"20px"}}>
+        <div className="card" style={{marginBottom:"20px",display:"none"}} aria-hidden="true">
           <div className="card-header">
             <p className="card-title">🎭 Create Custom Role</p>
           </div>
@@ -383,7 +347,7 @@ export default async function SettingsPage() {
 
         {/* Custom roles list */}
         {customRoles.length > 0 && (
-          <div className="card">
+          <div className="card" style={{display:"none"}} aria-hidden="true">
             <div className="card-header">
               <p className="card-title">Custom Roles ({customRoles.length})</p>
             </div>
@@ -392,7 +356,7 @@ export default async function SettingsPage() {
                 <thead><tr><th>Role</th><th>Permissions</th><th>Created</th><th>Actions</th></tr></thead>
                 <tbody>
                   {customRoles.map(r=>{
-                    const perms: string[] = JSON.parse(r.permissions||"[]");
+                    const perms = safeStringArray(r.permissions);
                     return (
                       <tr key={r.id}>
                         <td>

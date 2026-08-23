@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { db, clients, financeRecords } from "@/lib/db";
-import { eq, sum, count, and } from "drizzle-orm";
+import { eq, sum, count } from "drizzle-orm";
 import { Role } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
 import Link from "next/link";
@@ -10,14 +10,18 @@ import Link from "next/link";
 export default async function LTVPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
-  if ((session.user as any).role !== Role.SUPER_ADMIN) redirect("/dashboard");
+  if (![Role.SUPER_ADMIN,Role.ACCOUNTANT].includes((session.user as any).role)) redirect("/dashboard");
 
-  const allClients = await db.select().from(clients).where(eq(clients.isActive, true)).orderBy(clients.companyName);
+  const [allClients, revenueByClient] = await Promise.all([
+    db.select().from(clients).where(eq(clients.isActive, true)).orderBy(clients.companyName),
+    db.select({clientId:financeRecords.clientId,totalPaid:sum(financeRecords.paid),months:count()})
+      .from(financeRecords).groupBy(financeRecords.clientId),
+  ]);
+  const revenueMap = new Map(revenueByClient.map(row => [row.clientId, row]));
 
   // LTV per client (all-time paid revenue)
-  const ltvData = await Promise.all(allClients.map(async (c) => {
-    const [agg] = await db.select({ totalPaid: sum(financeRecords.paid), months: count() })
-      .from(financeRecords).where(eq(financeRecords.clientId, c.id));
+  const ltvData = allClients.map((c) => {
+    const agg = revenueMap.get(c.id);
 
     const ltv     = Number(agg?.totalPaid ?? 0);
     const months  = Number(agg?.months ?? 0);
@@ -32,7 +36,7 @@ export default async function LTVPage() {
     const predictedLTV = ltv + (avgMonthly * contractMonthsLeft * (c.churnRisk==="HIGH" ? 0.4 : c.churnRisk==="MEDIUM" ? 0.7 : 0.9));
 
     return { client: c, ltv, months, avgMonthly, contractMonthsLeft, predictedLTV };
-  }));
+  });
 
   ltvData.sort((a,b) => b.ltv - a.ltv);
   const totalLTV = ltvData.reduce((s,d) => s+d.ltv, 0);

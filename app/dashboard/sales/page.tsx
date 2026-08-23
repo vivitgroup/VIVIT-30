@@ -16,6 +16,8 @@ async function moveLead(fd: FormData) {
   const { eq, and } = await import("drizzle-orm");
   const id    = fd.get("id") as string;
   const stage = fd.get("stage") as string;
+  const allowedStages=["NEW_LEAD","CONTACTED","QUALIFIED","PROPOSAL_SENT","NEGOTIATION","WON","LOST"];
+  if(!id||!allowedStages.includes(stage)) throw new Error("Invalid lead or pipeline stage.");
   const now   = new Date();
   const role=(session.user as any).role as Role,userId=String((session.user as any).id);
   const [lead]=await db.select({id:salesLeads.id,salesRepId:salesLeads.salesRepId}).from(salesLeads).where(eq(salesLeads.id,id)).limit(1);
@@ -36,16 +38,25 @@ async function createLead(fd: FormData) {
   const { auth } = await import("@/lib/auth");
   const session = await auth();
   if (!session?.user || ![Role.SUPER_ADMIN,Role.SALES,Role.ACCOUNT_MANAGER].includes((session.user as any).role)) throw new Error("Unauthorized");
+  const clean=(value:FormDataEntryValue|null,max=300)=>String(value||"").trim().slice(0,max);
+  const companyName=clean(fd.get("companyName"),160);
+  const contactPerson=clean(fd.get("contactPerson"),160);
+  const estimatedValue=Number(fd.get("estimatedValue"));
+  const source=clean(fd.get("source"),40)||"WEBSITE";
+  const allowedSources=["REFERRAL","INSTAGRAM","FACEBOOK","WEBSITE","COLD_CALL","OTHER"];
+  if(!companyName||!contactPerson) throw new Error("Company and contact person are required.");
+  if(!Number.isFinite(estimatedValue)||estimatedValue<0||estimatedValue>1_000_000_000) throw new Error("Enter a valid estimated value.");
+  if(!allowedSources.includes(source)) throw new Error("Invalid lead source.");
   await db.insert(salesLeads).values({
-    companyName:    fd.get("companyName") as string,
-    contactPerson:  fd.get("contactPerson") as string,
-    phone:          fd.get("phone") as string || null,
-    source:         (fd.get("source") as any) || "WEBSITE",
-    estimatedValue: parseFloat(fd.get("estimatedValue") as string) || 0,
+    companyName,
+    contactPerson,
+    phone:          clean(fd.get("phone"),40) || null,
+    source:         source as any,
+    estimatedValue,
     stage:          "NEW_LEAD",
     probability:    5,
-    industry:       fd.get("industry") as string || null,
-    notes:          fd.get("notes") as string || null,
+    industry:       clean(fd.get("industry"),100) || null,
+    notes:          clean(fd.get("notes"),2000) || null,
     salesRepId:     (session.user as any).id,
   });
   const { revalidatePath } = await import("next/cache");

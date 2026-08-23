@@ -2,11 +2,27 @@ export const dynamic="force-dynamic";
 import {NextRequest,NextResponse} from "next/server";
 import {auth} from "@/lib/auth";
 import {db,clients,contacts,auditLogs,users} from "@/lib/db";
-import {and,eq,ilike} from "drizzle-orm";
+import {and,eq,ilike,inArray} from "drizzle-orm";
 
 const str=(v:any,n=500)=>String(v||"").trim().slice(0,n);
 const num=(v:any)=>{const n=Number(v||0);return Number.isFinite(n)&&n>=0?n:0};
 const date=(v:any)=>v&&!Number.isNaN(new Date(v).getTime())?new Date(v):null;
+export async function GET(){
+  const session=await auth();if(!session?.user)return NextResponse.json({error:"Unauthorized"},{status:401});
+  const role=String((session.user as any).role),userId=String((session.user as any).id);
+  if(!["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","ACCOUNTANT","CREATOR","CLIENT"].includes(role))return NextResponse.json({clients:[]});
+  let rows:{id:string;companyName:string}[]=[];
+  if(role==="CREATOR"){
+    const {creativeTasks}=await import("@/lib/db");
+    const taskRows=await db.select({clientId:creativeTasks.clientId}).from(creativeTasks).where(eq(creativeTasks.assignedToId,userId));
+    const ids=[...new Set(taskRows.map(t=>t.clientId))];
+    rows=ids.length?await db.select({id:clients.id,companyName:clients.companyName}).from(clients).where(and(eq(clients.isActive,true),inArray(clients.id,ids))):[];
+  }else{
+    rows=await db.select({id:clients.id,companyName:clients.companyName}).from(clients).where(and(eq(clients.isActive,true),
+      role==="ACCOUNT_MANAGER"?eq(clients.accountManagerId,userId):role==="MEDIA_BUYER"?eq(clients.mediaBuyerId,userId):role==="CLIENT"?eq(clients.userId,userId):eq(clients.workspaceId,"default")));
+  }
+  return NextResponse.json({clients:rows});
+}
 export async function POST(req:NextRequest){
   const session=await auth();if(!session?.user)return NextResponse.json({error:"Unauthorized"},{status:401});
   const role=String((session.user as any).role),userId=String((session.user as any).id);

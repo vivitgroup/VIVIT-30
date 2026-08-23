@@ -68,6 +68,7 @@
 
 /* Calendar controls */
 .app-content select.form-select[style*="width: auto"] { max-width:220px; }
+.calendar-board { min-width:0; }
 
 /* Interactive cards */
 .app-content .card,
@@ -115,7 +116,14 @@
   .app-content [style*="min-width: 200px"] { min-width: 0 !important; width: 100% !important; }
   .app-content [style*="max-height: 500px"] { max-height: none !important; }
 
-  /* Calendar / dense boards */
+  /* Calendar: stack sidebar and keep the seven-day board readable by horizontal scroll. */
+  .calendar-layout { grid-template-columns:1fr !important; }
+  .calendar-board { overflow-x:auto; overscroll-behavior-inline:contain; }
+  .calendar-days-header,
+  .calendar-days-grid { min-width:700px; }
+  .calendar-layout > div:last-child { position:static !important; top:auto !important; }
+
+  /* Calendar / other dense boards */
   .app-content [style*="min-width: 700px"],
   .app-content [style*="min-width:700px"],
   .app-content [style*="min-width: 800px"],

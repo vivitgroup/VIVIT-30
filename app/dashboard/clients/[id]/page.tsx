@@ -69,11 +69,11 @@ export default async function ClientDetailPage({params}:{params:Promise<{id:stri
 
   const [client,tasks,invoices,allMetrics,contactList,activities]=await Promise.all([
     db.select().from(clients).where(eq(clients.id,id)).then(r=>r[0]),
-    db.select().from(creativeTasks).where(eq(creativeTasks.clientId,id)).orderBy(desc(creativeTasks.updatedAt)).limit(20),
+    role===Role.ACCOUNTANT?Promise.resolve([]):db.select().from(creativeTasks).where(eq(creativeTasks.clientId,id)).orderBy(desc(creativeTasks.updatedAt)).limit(20),
     db.select().from(financeRecords).where(and(eq(financeRecords.clientId,id),eq(financeRecords.year,now.getFullYear()))).orderBy(desc(financeRecords.month)).limit(12),
-    db.select({adSpend:sum(mediaMetrics.adSpend),leads:sum(mediaMetrics.leads),revenue:sum(mediaMetrics.revenue),purchases:sum(mediaMetrics.purchases)}).from(mediaMetrics).where(and(eq(mediaMetrics.clientId,id),gte(mediaMetrics.date,monthStart))),
+    role===Role.ACCOUNTANT?Promise.resolve([]):db.select({adSpend:sum(mediaMetrics.adSpend),leads:sum(mediaMetrics.leads),revenue:sum(mediaMetrics.revenue),purchases:sum(mediaMetrics.purchases)}).from(mediaMetrics).where(and(eq(mediaMetrics.clientId,id),gte(mediaMetrics.date,monthStart))),
     db.select().from(contacts).where(eq(contacts.clientId,id)).orderBy(contacts.isPrimary),
-    db.select().from(salesActivities).where(eq(salesActivities.leadId,id)).orderBy(desc(salesActivities.createdAt)).limit(15),
+    role===Role.ACCOUNTANT?Promise.resolve([]):db.select().from(salesActivities).where(eq(salesActivities.leadId,id)).orderBy(desc(salesActivities.createdAt)).limit(15),
   ]);
 
   if(!client) redirect("/dashboard/clients");
@@ -257,7 +257,7 @@ export default async function ClientDetailPage({params}:{params:Promise<{id:stri
                 </div>
               ))}
             </div>
-            {client.internalNotes&&(
+            {role!==Role.ACCOUNTANT&&client.internalNotes&&(
               <div className="mt-3 p-2 rounded-xl bg-white/[0.03]">
                 <p className="text-[10px] text-[#6B8FAF] font-semibold uppercase tracking-wider mb-1">Internal Notes</p>
                 <p className="text-xs text-[#E8F4FD]">{client.internalNotes}</p>

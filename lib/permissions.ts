@@ -67,7 +67,7 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     "view_media","edit_media","manage_budgets",
   ],
   CREATOR: [
-    "view_tasks",
+    "view_tasks","edit_tasks",
   ],
   ACCOUNTANT: [
     "view_finance","create_invoices","edit_invoices","approve_invoices",

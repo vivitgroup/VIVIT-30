@@ -81,14 +81,13 @@ export default async function TaskDetailPage({ params }: { params: Promise<{id:s
 
   const isCreator   = task.assignedToId === session.user.id;
   const isManager   = [Role.SUPER_ADMIN, Role.ACCOUNT_MANAGER].includes(role);
-  const isClient    = role === Role.CLIENT;
-  const canApprove  = isManager || isClient;
+  const canApprove  = isManager;
 
   const statusFlow: Record<string,string[]> = {
-    PENDING:     isCreator ? ["IN_PROGRESS"] : [],
-    IN_PROGRESS: isCreator ? ["REVIEW"] : [],
+    PENDING:     (isCreator||isManager) ? ["IN_PROGRESS"] : [],
+    IN_PROGRESS: (isCreator||isManager) ? ["REVIEW"] : [],
     REVIEW:      canApprove ? ["APPROVED","REVISION","REJECTED"] : [],
-    REVISION:    isCreator ? ["IN_PROGRESS"] : [],
+    REVISION:    (isCreator||isManager) ? ["IN_PROGRESS"] : [],
     APPROVED:    isManager ? ["COMPLETED"] : [],
   };
   const nextStatuses = statusFlow[task.status] ?? [];
@@ -188,7 +187,7 @@ export default async function TaskDetailPage({ params }: { params: Promise<{id:s
             <div className="card-vivit space-y-3">
               <h2 className="font-semibold text-[#244D87] text-xs uppercase tracking-wider">Actions</h2>
               <div className="flex flex-wrap gap-2">
-                {nextStatuses.map(s=>(
+                {nextStatuses.filter(s=>s!=="REVISION").map(s=>(
                   <form key={s} action={async()=>{"use server"; await updateTaskStatus(task.id, s);}}>
                     <button type="submit" className={`px-4 py-2.5 rounded-xl text-sm font-semibold border transition-colors ${STATUS_BTN[s]??""}`}>
                       {STATUS_LABEL[s]??s}
@@ -196,11 +195,14 @@ export default async function TaskDetailPage({ params }: { params: Promise<{id:s
                   </form>
                 ))}
               </div>
-              {task.status==="REVIEW" && isManager && (
-                <div>
+              {task.status==="REVIEW" && isManager && nextStatuses.includes("REVISION") && (
+                <form action={async(fd:FormData)=>{"use server";await updateTaskStatus(task.id,"REVISION",String(fd.get("revisionNotes")||""));}} className="approval-box approval-box--reject">
+                  <strong>↩ Request a revision</strong>
+                  <p>Explain the exact changes required so the creator can act without another clarification round.</p>
                   <label className="text-xs font-semibold text-[#6B8FAF] uppercase tracking-wider block mb-1.5">Revision notes (if requesting changes)</label>
-                  <textarea id="revNotes" rows={2} placeholder="Describe what needs to change…" className="vivit-input resize-none w-full" />
-                </div>
+                  <textarea name="revisionNotes" required minLength={3} rows={3} placeholder="Describe what needs to change…" className="vivit-input resize-none w-full" />
+                  <button type="submit" className="btn btn-danger">Send revision request</button>
+                </form>
               )}
             </div>
           )}

@@ -14,8 +14,10 @@ const ENTITIES: { value: Entity; label: string; icon: string; fields: string[] }
 
 const ROLE_ENTITIES:Record<string,Entity[]>={
   SUPER_ADMIN:["clients","tasks","sales","finance","media","expenses"],
-  ACCOUNT_MANAGER:["clients","tasks","sales","media"],
+  ACCOUNT_MANAGER:["clients","tasks","media"],
   ACCOUNTANT:["clients","finance","expenses"],
+  MEDIA_BUYER:["clients","media"],
+  SALES:["sales"],
 };
 
 export function ReportsClient({role}:{role:string}) {

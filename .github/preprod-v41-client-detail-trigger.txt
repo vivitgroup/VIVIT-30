@@ -1,1 +1,0 @@
-fix-client-detail-activity-validation-2026-08-23

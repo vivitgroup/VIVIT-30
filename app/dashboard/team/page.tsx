@@ -12,8 +12,11 @@ async function approveLeave(fd: FormData) {
   if ((session?.user as any)?.role !== Role.SUPER_ADMIN) throw new Error("Unauthorized");
   const { db, leaveRequests } = await import("@/lib/db");
   const { eq } = await import("drizzle-orm");
-  const id     = fd.get("id") as string;
-  const status = fd.get("status") as string;
+  const id     = String(fd.get("id")||"");
+  const status = String(fd.get("status")||"");
+  if(!id||!["APPROVED","REJECTED"].includes(status)) throw new Error("Invalid leave decision");
+  const [leave]=await db.select({id:leaveRequests.id,status:leaveRequests.status}).from(leaveRequests).where(eq(leaveRequests.id,id)).limit(1);
+  if(!leave||leave.status!=="PENDING") throw new Error("Leave request is no longer pending");
   await db.update(leaveRequests).set({ status:status as any, updatedAt:new Date() }).where(eq(leaveRequests.id,id));
   const { revalidatePath } = await import("next/cache");
   revalidatePath("/dashboard/team");
@@ -27,11 +30,13 @@ async function reviewAccount(fd: FormData) {
   const decision = String(fd.get("decision") ?? "");
   const selectedRole = String(fd.get("selectedRole") ?? "");
   const reviewNote = String(fd.get("reviewNote") ?? "").slice(0,500);
-  if (!id || !["APPROVED","REJECTED"].includes(decision)) return;
+  if (!id || !["APPROVED","REJECTED"].includes(decision)) throw new Error("Invalid account decision");
+  const allowedRoles=["ACCOUNT_MANAGER","MEDIA_BUYER","CREATOR","ACCOUNTANT","SALES","CLIENT"];
+  const record = await db.select({ requestedRole:users.requestedRole,email:users.email,name:users.name,approvalStatus:users.approvalStatus }).from(users).where(eq(users.id,id)).limit(1);
+  if(!record[0]||record[0].approvalStatus!=="PENDING") throw new Error("Account request is no longer pending");
   if (decision === "APPROVED") {
-    const record = await db.select({ requestedRole:users.requestedRole,email:users.email,name:users.name }).from(users).where(eq(users.id,id)).limit(1);
     const finalRole = selectedRole || record[0]?.requestedRole;
-    if (!finalRole || finalRole === "SUPER_ADMIN") throw new Error("Invalid requested role");
+    if (!finalRole || !allowedRoles.includes(finalRole)) throw new Error("Invalid requested role");
     await db.update(users).set({ role:finalRole as any, isActive:true, approvalStatus:"APPROVED", approvalNote:reviewNote||undefined, approvedBy:(session!.user as any).id, approvedAt:new Date(), rejectedAt:null, updatedAt:new Date() }).where(eq(users.id,id));
   } else {
     await db.update(users).set({ isActive:false, approvalStatus:"REJECTED", approvalNote:reviewNote||"Request rejected by Super Admin", rejectedAt:new Date(), updatedAt:new Date() }).where(eq(users.id,id));
@@ -86,7 +91,7 @@ export default async function TeamPage() {
   };
 
   const totalPayroll = recentPayroll.reduce((s,p)=>s+Number(p.netPay??0),0);
-  const fmt = (n:number) => n>=1000?`$${(n/1000).toFixed(0)}k`:`$${n.toLocaleString()}`;
+  const fmt = (n:number) => n>=1000?`EGP ${(n/1000).toFixed(0)}k`:`EGP ${n.toLocaleString()}`;
 
   return (
     <div style={{display:"flex",flexDirection:"column",gap:"20px"}}>

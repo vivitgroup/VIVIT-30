@@ -174,9 +174,6 @@ export default async function SettingsPage() {
         <div className="card">
           <div className="card-header">
             <p className="card-title">All Users ({allUsers.length})</p>
-            <input type="search" placeholder="Filter users..." className="form-input"
-              style={{maxWidth:"220px",fontSize:"13px",padding:"7px 12px"}}
-              onInput={undefined}/>
           </div>
           <div className="card-body-flush">
             <table className="data-table">

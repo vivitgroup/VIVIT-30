@@ -1,6 +1,6 @@
 export const CURRENCIES = {
   USD: { symbol: "$",   name: "US Dollar",        rate: 1 },
-  EGP: { symbol: "E£",  name: "Egyptian Pound",    rate: 48.5 },
+  EGP: { symbol: "ج.م",  name: "Egyptian Pound",   rate: 48.5 },
   AED: { symbol: "د.إ", name: "UAE Dirham",         rate: 3.67 },
   SAR: { symbol: "ر.س", name: "Saudi Riyal",        rate: 3.75 },
   GBP: { symbol: "£",   name: "British Pound",      rate: 0.79 },
@@ -11,16 +11,19 @@ export type CurrencyCode = keyof typeof CURRENCIES;
 
 export function formatCurrency(
   amount: number,
-  currency: CurrencyCode = "USD",
+  currency: CurrencyCode = "EGP",
   convert = false
 ): string {
-  const c = CURRENCIES[currency] ?? CURRENCIES.USD;
+  const c = CURRENCIES[currency] ?? CURRENCIES.EGP;
   const val = convert ? amount * c.rate : amount;
+  if (currency === "EGP") {
+    return `${new Intl.NumberFormat("en-EG", { maximumFractionDigits: 0 }).format(val)} ${c.symbol}`;
+  }
   return new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: currency === "EGP" ? "USD" : currency, // fallback for EGP display
+    currency,
     maximumFractionDigits: 0,
-  }).format(val).replace("$", c.symbol);
+  }).format(val);
 }
 
 export function convertCurrency(
@@ -77,8 +80,8 @@ export const CURRENCY_RATES: Record<string,number> = {
 export const CURRENCY_SYMBOLS: Record<string,string> = {
   USD: "$", EGP: "ج.م", AED: "د.إ", SAR: "﷼", GBP: "£", EUR: "€",
 };
-export function formatCurrencyLocale(amount: number, currency = "USD"): string {
-  const sym = CURRENCY_SYMBOLS[currency] ?? "$";
+export function formatCurrencyLocale(amount: number, currency = "EGP"): string {
+  const sym = CURRENCY_SYMBOLS[currency] ?? "ج.م";
   const val = amount.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
   return currency === "EGP" || currency === "AED" || currency === "SAR" ? `${val} ${sym}` : `${sym}${val}`;
 }
@@ -130,7 +133,7 @@ const ERROR_MSGS: Record<string, Record<Lang, string>> = {
   "NETWORK_ERROR":         { ar:"خطأ في الاتصال — تحقق من الإنترنت", en:"Connection error — check your internet" },
   "DUPLICATE":             { ar:"هذا السجل موجود بالفعل", en:"This record already exists" },
   "PERMISSION_DENIED":     { ar:"ليس لديك صلاحية للقيام بهذا الإجراء", en:"You don't have permission for this action" },
-  "FILE_TOO_LARGE":        { ar:"حجم الملف كبير جداً — الحد الأقصى 10MB", en:"File too large — max 10MB" },
+  "FILE_TOO_LARGE":        { ar:"حجم الملف كبير جداً — تحقق من الحد الأقصى المسموح", en:"File too large — check the maximum allowed size" },
   "INVALID_DATE":          { ar:"التاريخ غير صحيح", en:"Invalid date" },
   "SESSION_EXPIRED":       { ar:"انتهت جلسة العمل — يرجى تسجيل الدخول مرة أخرى", en:"Session expired — please log in again" },
   "BUDGET_EXCEEDED":       { ar:"تم تجاوز الميزانية المحددة", en:"Budget limit exceeded" },

@@ -16,30 +16,6 @@ function safeStringArray(value:string|null|undefined):string[]{
 // ── Server Actions ────────────────────────────────────────────
 async function requireSuperAdmin(){"use server";const session=await auth();if(!session?.user||(session.user as any).role!==Role.SUPER_ADMIN)throw new Error("Unauthorized");return session;}
 
-async function inviteUser(fd: FormData) {
-  "use server";
-  await requireSuperAdmin();
-  const { db, users, workspaceMembers } = await import("@/lib/db");
-  const { eq } = await import("drizzle-orm");
-  const { hash } = await import("bcryptjs");
-  const email   = fd.get("email") as string;
-  const name    = fd.get("name") as string;
-  const role    = fd.get("role") as string;
-  if (!email || !name || !role) return;
-  const pw = await hash("Welcome@2025!", 10);
-  await db.insert(users).values({
-    email, name, role: role as any, password: pw, isActive: true,
-  }).onConflictDoNothing();
-  const [u] = await db.select({id:users.id}).from(users).where(eq(users.email,email));
-  if (u) {
-    await db.insert(workspaceMembers).values({
-      workspaceId:"default", userId:u.id, status:"ACTIVE", invitedBy:"system",
-    }).onConflictDoNothing();
-  }
-  const { revalidatePath } = await import("next/cache");
-  revalidatePath("/dashboard/settings");
-}
-
 async function updateUserRole(fd: FormData) {
   "use server";
   await requireSuperAdmin();
@@ -150,7 +126,7 @@ export default async function SettingsPage() {
 
       {/* Tabs nav */}
       <div style={{display:"flex",gap:"4px",padding:"4px",background:"var(--bg-tertiary)",borderRadius:"var(--radius-sm)",width:"fit-content"}}>
-        {["Users","Roles & Permissions","Workspace","Security"].map((tab,i)=>(
+        {["Users","Roles & Permissions","Security"].map((tab,i)=>(
           <a key={tab} href={`#${tab.toLowerCase().replace(/ .*/,"")}`}
             style={{padding:"7px 18px",borderRadius:"6px",fontSize:"13px",fontWeight:600,textDecoration:"none",
               background:i===0?"var(--card-bg)":"transparent",
@@ -272,7 +248,7 @@ export default async function SettingsPage() {
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"16px",flexWrap:"wrap",gap:"12px"}}>
           <div>
             <h2 style={{fontSize:"1.1rem",fontWeight:700,color:"var(--text-primary)",fontFamily:"Sora,sans-serif"}}>Roles & Permissions</h2>
-            <p style={{fontSize:"12.5px",color:"var(--text-muted)"}}>Approved system roles. Users request a role at signup; Super Admin selects the final role before activation.</p>
+            <p style={{fontSize:"12.5px",color:"var(--text-muted)"}}>Approved system roles. Public signup creates client requests only; the Super Admin assigns employee roles after verification.</p>
           </div>
         </div>
 

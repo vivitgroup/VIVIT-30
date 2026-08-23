@@ -14,6 +14,7 @@ export default async function AccountsPaymentPage(){
  if(!session?.user) redirect("/login");
  const role=(session.user as any).role as Role;
  if(![Role.SUPER_ADMIN,Role.ACCOUNTANT,Role.ACCOUNT_MANAGER].includes(role)) redirect("/dashboard");
+ const userId=String((session.user as any).id||"");
  const rows:any[]=Array.from(await db.execute(sql`
   select c.id,c.company_name,c.account_manager_id,c.media_buyer_id,
    p.payment_day,p.responsible_name,p.phone,p.currency,p.amount_due,p.amount_paid,p.amount_remaining,p.payment_ratio,p.payment_status,
@@ -26,7 +27,10 @@ export default async function AccountsPaymentPage(){
   left join users mb on mb.id=c.media_buyer_id
   left join lateral (select string_agg(u.name,', ' order by u.name) sales_names from client_sales_assignments a join users u on u.id=a.sales_user_id where a.client_id=c.id and a.workspace_id='default') sa on true
   left join lateral (select string_agg(u.name,', ' order by u.name) creator_names from client_creator_assignments a join users u on u.id=a.creator_id where a.client_id=c.id and a.workspace_id='default') ca on true
-  where c.workspace_id='default' order by p.amount_remaining desc,c.company_name asc
+  where c.workspace_id='default'
+    and c.is_active=true
+    and (${role} <> 'ACCOUNT_MANAGER' or c.account_manager_id=${userId})
+  order by p.amount_remaining desc,c.company_name asc
  `));
  const totalDue=rows.reduce((s,r)=>s+Number(r.amount_due||0),0),paid=rows.reduce((s,r)=>s+Number(r.amount_paid||0),0),remaining=rows.reduce((s,r)=>s+Number(r.amount_remaining||0),0),collection=totalDue?Math.round(paid/totalDue*100):0;
  return <div className="pay-page"><style>{`

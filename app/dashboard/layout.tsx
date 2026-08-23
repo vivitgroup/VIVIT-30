@@ -41,8 +41,7 @@ export default async function DashboardLayout({ children }: { children:React.Rea
   return (
     <div style={{display:"flex",minHeight:"100vh",background:"var(--bg-primary)"}}>
       <Sidebar role={role} userName={userName}/>
-      <div style={{flex:1,display:"flex",flexDirection:"column",transition:"margin-left 0.2s ease"}}
-        id="app-main">
+      <div className="app-main-shell" id="app-main">
         <Header role={role} unreadCount={unreadCount}/>
         <main style={{flex:1,padding:"0"}}>
           <Suspense fallback={<PageSkeleton/>}>
@@ -57,28 +56,6 @@ export default async function DashboardLayout({ children }: { children:React.Rea
       <MobileNav role={role}/>
       <DashboardLanguage/>
 
-      {/* JS to sync sidebar collapse with main content margin */}
-      <script dangerouslySetInnerHTML={{__html:`
-        (function(){
-          var main = document.getElementById('app-main');
-          function sync(){
-            if(window.matchMedia('(max-width: 768px)').matches){
-              if(main){ main.style.marginLeft='0'; main.style.marginRight='0'; }
-              return;
-            }
-            var collapsed = localStorage.getItem('vivit-sidebar-collapsed')==='true';
-            if(main) main.style.marginLeft = collapsed ? '64px' : '240px';
-          }
-          sync();
-          window.addEventListener('resize', sync, {passive:true});
-          window.addEventListener('storage', sync);
-          // Also listen for sidebar toggle clicks
-          document.addEventListener('click', function(e){
-            if(e.target && e.target.textContent && (e.target.textContent.includes('←') || e.target.textContent.includes('→')))
-              setTimeout(sync, 250);
-          });
-        })();
-      `}}/>
     </div>
   );
 }

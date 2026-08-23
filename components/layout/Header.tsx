@@ -22,6 +22,8 @@ const PAGE_TITLES: Record<string,string> = {
   "/dashboard/kpis":"KPIs & BI","/dashboard/forecast":"Revenue Forecast",
   "/dashboard/reports":"Reports","/dashboard/notifications":"Notifications",
   "/dashboard/files":"Files & Documents",
+  "/dashboard/calendar":"Calendar","/dashboard/contracts":"Contracts",
+  "/dashboard/ltv":"Client Lifetime Value","/dashboard/portal":"Client Portal",
   "/dashboard/media/control-center":"Media Buying Control Center",
   "/dashboard/media/sync":"Ad Platform Connections",
 };
@@ -100,15 +102,15 @@ export function Header({ role, unreadCount }: { role:string; unreadCount:number 
         </button>
 
         {/* Actions */}
-        <div className="flex items-center gap-2">
-          <button onClick={toggleLanguage} className="btn btn-ghost btn-sm header-language" title="Switch language">{lang==="en"?"عربي":"EN"}</button>
+        <div className="header-actions flex items-center gap-2">
+          <button onClick={toggleLanguage} className="btn btn-ghost btn-sm header-language" title={lang==="en"?"العربية":"English"}>{lang==="en"?"ع":"EN"}</button>
           {/* Export CSV */}
           <button onClick={exportCSV} className="btn btn-ghost btn-sm btn-icon header-export" title="Export CSV">
             📥
           </button>
 
           {/* Notifications */}
-          <a href="/dashboard/notifications"
+          <a href="/dashboard/notifications" className="header-notifications"
             style={{position:"relative",display:"flex",alignItems:"center",justifyContent:"center",width:"36px",height:"36px",borderRadius:"var(--radius-sm)",border:"1.5px solid var(--card-border)",background:"var(--card-bg)",textDecoration:"none",fontSize:"16px",transition:"var(--transition)"}}>
             🔔
             {unreadCount>0&&(

@@ -28,7 +28,19 @@ const AR: Record<string,string> = {
   "Try again":"حاول مرة أخرى","Back to dashboard":"العودة للوحة التحكم","Settings & Preferences":"الإعدادات والتفضيلات",
   "Upload a file":"رفع ملف","Recent files":"أحدث الملفات","Private / not linked":"خاص / غير مرتبط",
   "Custom Report Builder":"منشئ التقارير المخصصة","Quick Export":"تصدير سريع","Export CSV":"تصدير CSV",
-  "Export JSON":"تصدير JSON","Print / PDF":"طباعة / PDF","Load 50 more":"تحميل 50 نتيجة إضافية"
+  "Export JSON":"تصدير JSON","Print / PDF":"طباعة / PDF","Load 50 more":"تحميل 50 نتيجة إضافية",
+  "Client Portal":"بوابة العميل","Client Lifetime Value":"القيمة الدائمة للعميل","Sales CRM":"إدارة المبيعات",
+  "Media Control":"إدارة الإعلانات","Platform Sync":"ربط المنصات","AI Studio":"استوديو الذكاء الاصطناعي",
+  "Tasks Inbox":"صندوق المهام","HR & Team":"الفريق والموارد البشرية","LTV & Revenue":"القيمة والإيرادات",
+  "YTD Revenue":"إيراد العام","Collected":"المُحصّل","YTD Expenses":"مصروفات العام","Collection Rate":"نسبة التحصيل",
+  "AR Aging Report":"تقرير أعمار الديون","Current":"حالي","Days":"يوم","Total outstanding":"إجمالي المستحق",
+  "Generate Invoice":"إنشاء فاتورة","Expense Quick-Log":"تسجيل مصروف سريع","Invoice History":"سجل الفواتير",
+  "Content Calendar":"تقويم المحتوى","Add Post":"إضافة منشور","All Platforms":"كل المنصات","All Clients":"كل العملاء",
+  "Today":"اليوم","Month":"شهر","Week":"أسبوع","Mark Posted":"تم النشر",
+  "Connected accounts":"الحسابات المتصلة","Campaign sync":"مزامنة الحملات","Link a campaign":"ربط حملة",
+  "Authorize":"تفويض","Connect":"ربط","Connected":"متصل","Not Connected":"غير متصل",
+  "Create client":"إنشاء العميل","New Client":"عميل جديد","Add First Client":"إضافة أول عميل",
+  "View / print invoice":"عرض / طباعة الفاتورة","Your Connected Workspace":"مساحة عملك المتصلة"
 };
 
 const originals = new WeakMap<Text,string>();

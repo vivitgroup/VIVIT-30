@@ -5,6 +5,7 @@ import { db, clients, creativeTasks, mediaMetrics, users, salesLeads, financeRec
 import { eq, sum, count, avg, desc, gte, and, notInArray } from "drizzle-orm";
 import { Role } from "@/lib/types";
 import Link from "next/link";
+import { withTimeout } from "@/lib/async";
 
 export default async function AnalyticsPage() {
   const session = await auth();
@@ -17,10 +18,7 @@ export default async function AnalyticsPage() {
   const mo6   = new Date(now.getFullYear(), now.getMonth()-6, 1);
   const yr    = new Date(now.getFullYear(), 0, 1);
 
-  const [
-    allClients, allCreators, taskStats, leadStats,
-    finYTD, mediaYTD, expenses, topClients, monthlyFinance, expenseRows,
-  ] = await Promise.all([
+  const analyticsQuery = Promise.all([
     db.select({ id:clients.id,companyName:clients.companyName,healthScore:clients.healthScore,
       churnRisk:clients.churnRisk,monthlyRetainer:clients.monthlyRetainer,lifetimeValue:clients.lifetimeValue,
       accountManagerId:clients.accountManagerId }).from(clients).where(eq(clients.isActive,true)),
@@ -44,6 +42,11 @@ export default async function AnalyticsPage() {
     db.select({date:companyExpenses.date,amount:companyExpenses.amount})
       .from(companyExpenses).where(gte(companyExpenses.date,yr)),
   ]);
+  const analyticsFallback = [[],[],[],[],[],[],[],[],[],[]] as Awaited<typeof analyticsQuery>;
+  const [
+    allClients, allCreators, taskStats, leadStats,
+    finYTD, mediaYTD, expenses, topClients, monthlyFinance, expenseRows,
+  ] = await withTimeout(analyticsQuery, analyticsFallback);
 
   const fmt  = (n:number) => n>=1000000?`$${(n/1000000).toFixed(1)}M`:n>=1000?`$${(n/1000).toFixed(0)}k`:`$${n.toLocaleString()}`;
   const pct  = (a:number,b:number) => b>0?Math.round(a/b*100):0;

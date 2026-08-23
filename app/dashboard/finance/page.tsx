@@ -138,7 +138,7 @@ export default async function FinancePage() {
       </div>
 
       {/* KPI Cards */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:"12px"}}>
+      <div className="finance-kpi-grid" style={{display:"grid",gridTemplateColumns:"repeat(5,minmax(0,1fr))",gap:"12px"}}>
         {[
           {label:"YTD Revenue",    value:fmt(ytdRev),          icon:"💰",color:"blue"},
           {label:"Collected",      value:fmt(ytdPaid),          icon:"✅",color:"green"},
@@ -161,7 +161,7 @@ export default async function FinancePage() {
           <span style={{fontSize:"12px",color:"var(--text-muted)"}}>Total outstanding: <strong style={{color:"var(--red)"}}>{fmt(outstanding)}</strong></span>
         </div>
         <div className="card-body">
-          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"12px"}}>
+          <div className="aging-grid" style={{display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gap:"12px"}}>
             {[
               {label:"Current",  items:aging.current, color:"var(--text-muted)", icon:"🟢"},
               {label:"1-30 Days",items:aging["1-30"], color:"var(--amber)",      icon:"🟡"},
@@ -194,7 +194,7 @@ export default async function FinancePage() {
       </div>
 
       {/* Invoice Wizard + Expense Quick-Log */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"16px"}}>
+      <div className="finance-form-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"16px"}}>
 
         {/* Invoice Wizard */}
         <div className="card" style={{borderTop:"3px solid var(--vivit-blue)"}}>
@@ -203,7 +203,7 @@ export default async function FinancePage() {
           </div>
           <div className="card-body">
             <form action={createInvoice} style={{display:"flex",flexDirection:"column",gap:"12px"}}>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"10px"}}>
+              <div className="invoice-field-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"10px"}}>
                 <div>
                   <label className="form-label">Client *</label>
                   <select name="clientId" required className="form-select">

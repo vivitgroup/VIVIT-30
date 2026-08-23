@@ -327,12 +327,12 @@ export function CalendarClient({ events, clients, approvedTasks, canManage }: Pr
       </div>
 
       {/* ── Main Layout: Calendar + Sidebar ── */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 320px",gap:"16px",alignItems:"start"}}>
+      <div className="calendar-layout" style={{display:"grid",gridTemplateColumns:"1fr 320px",gap:"16px",alignItems:"start"}}>
 
         {/* ── Calendar Grid ── */}
-        <div className="card">
+        <div className="card calendar-board">
           {/* Day headers */}
-          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",borderBottom:"1px solid var(--card-border)"}}>
+          <div className="calendar-days-header" style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",borderBottom:"1px solid var(--card-border)"}}>
             {DAYS_SHORT.map(d=>(
               <div key={d} style={{padding:"10px 4px",textAlign:"center",fontSize:"11px",fontWeight:700,
                 color:d==="Sun"||d==="Sat"?"var(--vivit-blue)":"var(--text-muted)",
@@ -343,7 +343,7 @@ export function CalendarClient({ events, clients, approvedTasks, canManage }: Pr
           </div>
 
           {/* Calendar cells */}
-          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)"}}>
+          <div className="calendar-days-grid" style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)"}}>
             {/* Previous month filler days */}
             {Array.from({length:firstDay},(_,i)=>(
               <div key={`prev-${i}`} style={{

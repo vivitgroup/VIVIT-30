@@ -12,6 +12,7 @@ export default async function ClientsPage() {
   const role = (session.user as any).role as Role;
   const userId = (session.user as any).id as string;
   if (![Role.SUPER_ADMIN,Role.ACCOUNT_MANAGER,Role.MEDIA_BUYER,Role.ACCOUNTANT].includes(role)) redirect("/dashboard");
+  const canAddClient=[Role.SUPER_ADMIN,Role.ACCOUNT_MANAGER,Role.ACCOUNTANT].includes(role);
 
   const allClients = await db.select({
     id:clients.id, companyName:clients.companyName, industry:clients.industry,
@@ -41,9 +42,9 @@ export default async function ClientsPage() {
           <h1 className="page-title">Clients</h1>
           <p className="page-subtitle">{allClients.length} active clients · Sorted by health score</p>
         </div>
-        <Link href="/dashboard/clients/new" className="btn btn-primary" style={{textDecoration:"none"}}>
+        {canAddClient&&<Link href="/dashboard/clients/new" className="btn btn-primary" style={{textDecoration:"none"}}>
           + Add Client
-        </Link>
+        </Link>}
       </div>
 
       {/* Summary KPIs */}
@@ -126,7 +127,7 @@ export default async function ClientsPage() {
                   <div style={{textAlign:"center",padding:"48px",color:"var(--text-muted)"}}>
                     <p style={{fontSize:"32px",marginBottom:"8px"}}>🏢</p>
                     <p style={{fontWeight:600,marginBottom:"4px"}}>No clients yet</p>
-                    <Link href="/dashboard/clients/new" className="btn btn-primary btn-sm" style={{textDecoration:"none",marginTop:"12px",display:"inline-flex"}}>Add First Client</Link>
+                    {canAddClient&&<Link href="/dashboard/clients/new" className="btn btn-primary btn-sm" style={{textDecoration:"none",marginTop:"12px",display:"inline-flex"}}>Add First Client</Link>}
                   </div>
                 </td></tr>
               )}

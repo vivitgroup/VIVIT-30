@@ -16,6 +16,8 @@
     "db:push":   "npx drizzle-kit push",
     "db:studio": "npx drizzle-kit studio",
     "type-check": "tsc --noEmit"
+    ,"qa:static": "node scripts/qa-static.mjs"
+    ,"qa": "npm run qa:static && npm run type-check && npm run build"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.7.4",

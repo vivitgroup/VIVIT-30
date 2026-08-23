@@ -5,6 +5,7 @@ import { db, clients, creativeTasks, salesLeads, mediaMetrics, financeRecords, u
 import { eq, and, gte, lte, count, sum, inArray, notInArray, ne } from "drizzle-orm";
 import { Role } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
+import { withTimeout } from "@/lib/async";
 
 export default async function KPIPage() {
   const session = await auth();
@@ -19,15 +20,7 @@ export default async function KPIPage() {
   const prevEnd    = new Date(y, m, 0);
   const yearStart  = new Date(y, 0, 1);
 
-  const [
-    activeClients, totalClients,
-    taskStats, prevTaskStats,
-    metricsNow, metricsPrev,
-    financeYear,
-    salesStats,
-    creatorStats,
-    teamCount,
-  ] = await Promise.all([
+  const primaryQuery = Promise.all([
     db.select({count:count()}).from(clients).where(eq(clients.isActive, true)),
     db.select({count:count()}).from(clients),
     db.select({status:creativeTasks.status,count:count()}).from(creativeTasks).where(gte(creativeTasks.createdAt, monthStart)).groupBy(creativeTasks.status),
@@ -39,6 +32,16 @@ export default async function KPIPage() {
     db.select({id:users.id,name:users.name}).from(users).where(and(eq(users.role,"CREATOR"),eq(users.isActive,true))),
     db.select({count:count()}).from(users).where(and(ne(users.role,"CLIENT"),eq(users.isActive,true))),
   ]);
+  const primaryFallback = [[],[],[],[],[],[],[],[],[],[]] as Awaited<typeof primaryQuery>;
+  const [
+    activeClients, totalClients,
+    taskStats, prevTaskStats,
+    metricsNow, metricsPrev,
+    financeYear,
+    salesStats,
+    creatorStats,
+    teamCount,
+  ] = await withTimeout(primaryQuery, primaryFallback);
 
   // Creative task aggregates
   const taskByStatus = Object.fromEntries(taskStats.map(t=>[t.status,Number(t.count)]));
@@ -98,12 +101,14 @@ export default async function KPIPage() {
   };
 
   // ERP BI data
-  const [erpClients, erpFinance, erpLeads, erpExpenses] = await Promise.all([
+  const erpQuery = Promise.all([
     db.select({ id:clients.id, companyName:clients.companyName, churnRisk:clients.churnRisk, monthlyRetainer:clients.monthlyRetainer, healthScore:clients.healthScore }).from(clients).where(eq(clients.isActive,true)),
     db.select({ paid:sum(financeRecords.paid), total:sum(financeRecords.totalRevenue), outstanding:sum(financeRecords.outstanding) }).from(financeRecords).where(eq(financeRecords.year,new Date().getFullYear())),
     db.select({ stage:salesLeads.stage, estimatedValue:salesLeads.estimatedValue }).from(salesLeads).where(notInArray(salesLeads.stage,["WON","LOST"])),
     db.select({ total:sum(companyExpenses.amount) }).from(companyExpenses).where(gte(companyExpenses.date,new Date(new Date().getFullYear(),0,1))),
   ]);
+  const erpFallback = [[],[],[],[]] as Awaited<typeof erpQuery>;
+  const [erpClients, erpFinance, erpLeads, erpExpenses] = await withTimeout(erpQuery, erpFallback);
 
   const ytdPaid       = Number(erpFinance[0]?.paid??0);
   const ytdTotal      = Number(erpFinance[0]?.total??0);

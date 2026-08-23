@@ -12,7 +12,13 @@ const ENTITIES: { value: Entity; label: string; icon: string; fields: string[] }
   { value:"expenses", label:"Expenses",   icon:"🧾", fields:["Category","Description","Amount","Date"] },
 ];
 
-export function ReportsClient() {
+const ROLE_ENTITIES:Record<string,Entity[]>={
+  SUPER_ADMIN:["clients","tasks","sales","finance","media","expenses"],
+  ACCOUNT_MANAGER:["clients","tasks","sales","media"],
+  ACCOUNTANT:["clients","finance","expenses"],
+};
+
+export function ReportsClient({role}:{role:string}) {
   const [entity, setEntity]     = useState<Entity>("clients");
   const [selFields, setFields]  = useState<string[]>([]);
   const [data, setData]         = useState<any>(null);
@@ -38,7 +44,8 @@ export function ReportsClient() {
     else { setSortCol(col); setSortDir("asc"); }
   };
 
-  const selectedEntity = ENTITIES.find(e => e.value === entity)!;
+  const visibleEntities=ENTITIES.filter(e=>(ROLE_ENTITIES[role]||[]).includes(e.value));
+  const selectedEntity = visibleEntities.find(e => e.value === entity) || visibleEntities[0];
 
   const toggleField = (f: string) =>
     setFields(prev => prev.includes(f) ? prev.filter(x=>x!==f) : [...prev, f]);
@@ -107,7 +114,7 @@ export function ReportsClient() {
 
         {/* Entity selection */}
         <div className="grid grid-cols-3 md:grid-cols-6 gap-2 mb-4">
-          {ENTITIES.map(e => (
+          {visibleEntities.map(e => (
             <button key={e.value} onClick={() => { setEntity(e.value); setFields([]); setData(null); }}
               className={`p-2 rounded-xl border text-center transition-all ${entity===e.value ? "border-[#244D87] bg-[#244D87]/15" : "border-white/8 bg-white/[0.02] hover:border-white/20"}`}>
               <div className="text-xl mb-0.5">{e.icon}</div>
@@ -204,7 +211,7 @@ export function ReportsClient() {
       <div className="card-vivit">
         <h2 className="font-semibold mb-3">⚡ Quick Export</h2>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          {ENTITIES.map(e => (
+          {visibleEntities.map(e => (
             <button key={e.value} type="button" onClick={() => quickExport(e.value)}
               className="flex items-center gap-2 p-3 rounded-xl border border-white/8 bg-white/[0.02] hover:border-[#244D87]/30 transition-all"
               style={{textDecoration:"none", textAlign:"left"}}>

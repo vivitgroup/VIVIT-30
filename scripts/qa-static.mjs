@@ -40,7 +40,7 @@ pass("No fake in-memory login limiter remains", !/loginAttempts|addLoginFailure|
 const accountsPaymentRule = proxy.match(/\["\/dashboard\/clients\/accounts-payment",\s*\[([^\]]+)\]\]/)?.[1] ?? "";
 pass("Accounts Payment has a specific proxy rule", accountsPaymentRule.length > 0);
 pass("Media Buyer cannot access Accounts Payment", accountsPaymentRule.length > 0 && !accountsPaymentRule.includes("MEDIA_BUYER"));
-pass("Specific Accounts Payment rule precedes generic Clients rule", proxy.indexOf('"/dashboard/clients/accounts-payment"') < proxy.indexOf('"/dashboard/clients"'));
+pass("Specific Accounts Payment rule precedes generic Clients rule", proxy.indexOf('["/dashboard/clients/accounts-payment"') < proxy.indexOf('["/dashboard/clients",'));
 
 pass("Obsolete referral UI is removed", !exists("app/dashboard/referrals/page.tsx"));
 pass("Obsolete referral API is removed", !exists("app/api/referrals/route.ts"));
@@ -66,6 +66,10 @@ pass("Public clients API is workspace scoped", /eq\(clients\.workspaceId,\s*apiK
 pass("Public clients API does not accept API keys in query strings", !/searchParams\.get\(["']api_key["']\)/.test(publicClientsApi));
 pass("Public clients API does not advertise fake rate limits", !/X-RateLimit-Limit|X-RateLimit-Window/.test(publicClientsApi));
 
+const apiKeys = read("app/api/api-keys/route.ts");
+pass("Public API keys are explicitly read-only", /const permissions = ["']read["']/.test(apiKeys));
+pass("API key revoke is workspace scoped", /eq\(apiKeys\.workspaceId,\s*["']default["']\)/.test(apiKeys));
+
 const bulkApi = read("app/api/bulk/route.ts");
 for (const action of ["clients.export", "tasks.export", "tasks.notify", "clients.update_health", "invoices.mark_overdue"]) {
   const start = bulkApi.indexOf(`case \"${action}\"`);
@@ -84,7 +88,7 @@ pass("WhatsApp no longer records simulated sends as success", !/status:\s*["']SI
 
 const searchApi = read("app/api/search/route.ts");
 pass("Account Manager task search is client scoped", /inArray\(creativeTasks\.clientId,\s*assignedClientIds\)/.test(searchApi));
-pass("Sales search values use EGP", /EGP/.test(searchApi) && !/subtitle:\s*`\$/.test(searchApi));
+pass("Sales search values use EGP", searchApi.includes('toLocaleString("en-EG")} EGP'));
 
 const finance = read("app/dashboard/finance/page.tsx");
 pass("Finance due date uses the selected calendar month", /new Date\(year,\s*month\s*-\s*1,\s*5\)/.test(finance));
@@ -95,9 +99,13 @@ pass("Finance month select has no selected prop", !/selected=/.test(finance));
 pass("Finance KPIs are not limited to the recent invoice table", /ytdFinance/.test(finance) && /agingRows/.test(finance));
 
 const newTask = read("app/dashboard/creative/new/page.tsx");
+const createTask = read("lib/actions/create-task.ts");
 pass("New task form scopes Account Managers to assigned clients", /eq\(clients\.accountManagerId,\s*userId\)/.test(newTask));
 pass("New task form uses active creators only", /eq\(users\.isActive,\s*true\)/.test(newTask));
 pass("New task form rejects past deadlines in UI", /min=\{new Date\(\)\.toISOString\(\)\.slice\(0,\s*10\)\}/.test(newTask));
+pass("New task page uses the secure task action", newTask.includes('@/lib/actions/create-task'));
+pass("Task creation validates active creator role", /eq\(users\.role,\s*["']CREATOR["']\)/.test(createTask) && /eq\(users\.isActive,\s*true\)/.test(createTask));
+pass("Task creation validates deadline server-side", /Deadline cannot be in the past/.test(createTask));
 
 const signupApi = read("app/api/signup/route.ts");
 const signupOtp = read("app/api/signup/otp/route.ts");
@@ -115,15 +123,19 @@ const team = read("app/dashboard/team/page.tsx");
 pass("Team account approvals use a strict role allowlist", /APPROVABLE_ROLES/.test(team) && /includes\(finalRole/.test(team));
 pass("Team only reviews pending account requests", /approvalStatus\s*!==\s*["']PENDING["']/.test(team) && /eq\(users\.approvalStatus,\s*["']PENDING["']\)/.test(team));
 pass("Leave reviews accept only approved or rejected", /\["APPROVED",\s*"REJECTED"\]\.includes\(status\)/.test(team));
-pass("Team payroll uses EGP", /EGP/.test(team) && !/`\$/.test(team));
+pass("Team payroll uses EGP", team.includes('toLocaleString("en-EG")} EGP') && !team.includes('`$${'));
+
+const settings = read("app/dashboard/settings/page.tsx");
+pass("Settings has no dead user filter", !settings.includes('onInput={undefined}') && !settings.includes('placeholder="Filter users..."'));
+pass("Settings does not claim an active brute-force guard", !settings.includes('Brute Force Guard') && settings.includes('Login throttling'));
+pass("Settings protects the last active Super Admin", settings.includes('At least one active Super Admin is required'));
+pass("Hidden custom-role controls are removed", !settings.includes('Create Custom Role') && !settings.includes('display:"none"'));
 
 const reports = read("components/reports/ReportsClient.tsx");
 pass("Reports render UI instead of raw endpoint navigation", reports.includes("fetch(") && !/window\.location\s*=\s*["'`]\/api\/reports/.test(reports));
-
 const ai = read("app/api/ai/route.ts");
 pass("AI requires a configured provider", ai.includes("AI provider is not configured") && !ai.includes("Smart draft (local mode)"));
 pass("AI financial prompts use EGP", ai.includes(" EGP"));
-
 const workspace = read("app/dashboard/workspace/page.tsx");
 pass("Legacy workspace routes to settings", workspace.includes("/dashboard/settings#integrations"));
 const layout = read("app/layout.tsx");

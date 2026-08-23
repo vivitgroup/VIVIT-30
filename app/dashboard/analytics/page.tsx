@@ -19,7 +19,7 @@ export default async function AnalyticsPage() {
 
   const [
     allClients, allCreators, taskStats, leadStats,
-    finYTD, mediaYTD, expenses, topClients,
+    finYTD, mediaYTD, expenses, topClients, monthlyFinance, expenseRows,
   ] = await Promise.all([
     db.select({ id:clients.id,companyName:clients.companyName,healthScore:clients.healthScore,
       churnRisk:clients.churnRisk,monthlyRetainer:clients.monthlyRetainer,lifetimeValue:clients.lifetimeValue,
@@ -39,6 +39,10 @@ export default async function AnalyticsPage() {
     db.select({ id:clients.id,companyName:clients.companyName,monthlyRetainer:clients.monthlyRetainer,
       healthScore:clients.healthScore,lifetimeValue:clients.lifetimeValue })
       .from(clients).where(eq(clients.isActive,true)).orderBy(desc(clients.monthlyRetainer)).limit(8),
+    db.select({month:financeRecords.month,revenue:sum(financeRecords.totalRevenue)})
+      .from(financeRecords).where(eq(financeRecords.year,now.getFullYear())).groupBy(financeRecords.month),
+    db.select({date:companyExpenses.date,amount:companyExpenses.amount})
+      .from(companyExpenses).where(gte(companyExpenses.date,yr)),
   ]);
 
   const fmt  = (n:number) => n>=1000000?`$${(n/1000000).toFixed(1)}M`:n>=1000?`$${(n/1000).toFixed(0)}k`:`$${n.toLocaleString()}`;
@@ -70,6 +74,8 @@ export default async function AnalyticsPage() {
   const lowRisk    = allClients.filter(c=>c.churnRisk==="LOW").length;
   const avgHealth  = allClients.length>0
     ? Math.round(allClients.reduce((s,c)=>s+c.healthScore,0)/allClients.length) : 0;
+  const revenueByMonth=Array.from({length:12},(_,i)=>Number(monthlyFinance.find(x=>x.month===i+1)?.revenue??0));
+  const expensesByMonth=Array.from({length:12},(_,i)=>expenseRows.filter(x=>new Date(x.date).getMonth()===i).reduce((s,x)=>s+Number(x.amount),0));
 
   // SVG Donut helper
   const Donut = ({green,amber,red,total}: {green:number;amber:number;red:number;total:number}) => {
@@ -151,8 +157,8 @@ export default async function AnalyticsPage() {
           <div className="card-body">
             {(()=>{
               const months=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-              const rev=[42,45,48,44,52,55,58,54,61,65,70,ytdRev/1000||72].map(v=>Math.round(v));
-              const exp=[18,19,21,20,22,23,24,22,25,26,28,ytdExp/1000||30].map(v=>Math.round(v));
+              const rev=revenueByMonth.map(v=>Math.round(v/1000));
+              const exp=expensesByMonth.map(v=>Math.round(v/1000));
               const pro=rev.map((r,i)=>Math.max(0,r-exp[i]));
               const maxV=Math.max(...rev,...exp,1);
               const W=520,H=160,PAD=40,bW=(W-PAD*2)/12;

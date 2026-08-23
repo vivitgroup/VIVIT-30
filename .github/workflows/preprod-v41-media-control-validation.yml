@@ -1,0 +1,56 @@
+name: Preprod v41 media control validation
+on:
+  push:
+    branches: [fix/preprod-full-qa-v41]
+    paths: [.github/preprod-v41-media-control-trigger.txt]
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/preprod-full-qa-v41
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Harden media control inputs
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('app/api/media-control/route.ts')
+          s=p.read_text()
+          old=''' if(op==="link_campaign"){const parsed=parseCampaign(String(body.url||""));if(!parsed.externalId)return NextResponse.json({error:"Could not find Campaign ID in this link. Paste the full Ads Manager campaign URL."},{status:400});const [row]=await db.insert(adCampaigns).values({clientId:body.clientId,platform:parsed.platform,externalId:parsed.externalId,name:body.name||`${parsed.platform} Campaign ${parsed.externalId}`,campaignUrl:body.url,objective:body.objective||"LEADS",dailyBudget:Number(body.dailyBudget||0),lifetimeBudget:Number(body.lifetimeBudget||0),targetResult:Number(body.targetResult||0),targetCpl:Number(body.targetCpl||0),targetCpa:Number(body.targetCpa||0),targetRoas:Number(body.targetRoas||0),createdBy:ctx.userId})'''
+          new=''' if(op==="link_campaign"){const parsed=parseCampaign(String(body.url||""));if(!parsed.externalId)return NextResponse.json({error:"Could not find Campaign ID in this link. Paste the full Ads Manager campaign URL."},{status:400});if(!body.clientId)return NextResponse.json({error:"Client is required"},{status:400});const numeric=["dailyBudget","lifetimeBudget","targetResult","targetCpl","targetCpa","targetRoas"];for(const k of numeric){const v=Number(body[k]||0);if(!Number.isFinite(v)||v<0)return NextResponse.json({error:`${k} must be a non-negative number`},{status:400});}const [row]=await db.insert(adCampaigns).values({clientId:body.clientId,platform:parsed.platform,externalId:parsed.externalId,name:String(body.name||`${parsed.platform} Campaign ${parsed.externalId}`).trim().slice(0,160),campaignUrl:body.url,objective:body.objective||"LEADS",dailyBudget:Number(body.dailyBudget||0),lifetimeBudget:Number(body.lifetimeBudget||0),targetResult:Number(body.targetResult||0),targetCpl:Number(body.targetCpl||0),targetCpa:Number(body.targetCpa||0),targetRoas:Number(body.targetRoas||0),createdBy:ctx.userId})'''
+          assert old in s
+          s=s.replace(old,new)
+          old=''' if(op==="add_performance"){const campaign=(await db.select().from(adCampaigns).where(eq(adCampaigns.id,body.campaignId)).limit(1))[0];if(!campaign||!ctx.clientIds.includes(campaign.clientId))return NextResponse.json({error:"Campaign access denied"},{status:403});const spend=Number(body.spend||0),results=Number(body.results||0),revenue=Number(body.revenue||0),clicks=Number(body.clicks||0),impressions=Number(body.impressions||0);const [row]=await db.insert(adPerformanceDaily).values({campaignId:campaign.id,date:new Date(body.date||Date.now()),spend,results,revenue,clicks,impressions,qualifiedLeads:Number(body.qualifiedLeads||0),purchases:Number(body.purchases||0),reach:Number(body.reach||0),frequency:Number(body.frequency||0),ctr:impressions?clicks/impressions*100:0,cpc:clicks?spend/clicks:0,cpm:impressions?spend/impressions*1000:0,cpl:results?spend/results:0,roas:spend?revenue/spend:0}).returning();return NextResponse.json({success:true,performance:row});}'''
+          new=''' if(op==="add_performance"){const campaign=(await db.select().from(adCampaigns).where(eq(adCampaigns.id,body.campaignId)).limit(1))[0];if(!campaign||!ctx.clientIds.includes(campaign.clientId))return NextResponse.json({error:"Campaign access denied"},{status:403});const date=new Date(body.date||Date.now()),spend=Number(body.spend||0),results=Number(body.results||0),revenue=Number(body.revenue||0),clicks=Number(body.clicks||0),impressions=Number(body.impressions||0),qualifiedLeads=Number(body.qualifiedLeads||0),purchases=Number(body.purchases||0),reach=Number(body.reach||0),frequency=Number(body.frequency||0);const nums=[spend,results,revenue,clicks,impressions,qualifiedLeads,purchases,reach,frequency];if(Number.isNaN(date.getTime())||nums.some(v=>!Number.isFinite(v)||v<0))return NextResponse.json({error:"Performance metrics must be valid non-negative values"},{status:400});const [row]=await db.insert(adPerformanceDaily).values({campaignId:campaign.id,date,spend,results,revenue,clicks,impressions,qualifiedLeads,purchases,reach,frequency,ctr:impressions?clicks/impressions*100:0,cpc:clicks?spend/clicks:0,cpm:impressions?spend/impressions*1000:0,cpl:results?spend/results:0,roas:spend?revenue/spend:0}).returning();return NextResponse.json({success:true,performance:row});}'''
+          assert old in s
+          s=s.replace(old,new)
+          old=''' if(op==="log_action"){const campaign=(await db.select().from(adCampaigns).where(eq(adCampaigns.id,body.campaignId)).limit(1))[0];if(!campaign||!ctx.clientIds.includes(campaign.clientId))return NextResponse.json({error:"Forbidden"},{status:403});const [row]=await db.insert(mediaActions).values({campaignId:campaign.id,userId:ctx.userId,action:body.action,oldValue:body.oldValue||null,newValue:body.newValue||null,reason:body.reason||null}).returning();return NextResponse.json({success:true,action:row});}'''
+          new=''' if(op==="log_action"){const campaign=(await db.select().from(adCampaigns).where(eq(adCampaigns.id,body.campaignId)).limit(1))[0];if(!campaign||!ctx.clientIds.includes(campaign.clientId))return NextResponse.json({error:"Forbidden"},{status:403});const allowedActions=["INCREASE_BUDGET","DECREASE_BUDGET","PAUSE_AD","RESTART_AD","CHANGE_AUDIENCE","ADD_CREATIVE","CHANGE_BID","OTHER"];const action=String(body.action||"");if(!allowedActions.includes(action))return NextResponse.json({error:"Invalid media action"},{status:400});const [row]=await db.insert(mediaActions).values({campaignId:campaign.id,userId:ctx.userId,action,oldValue:String(body.oldValue||"").slice(0,200)||null,newValue:String(body.newValue||"").slice(0,200)||null,reason:String(body.reason||"").trim().slice(0,500)||null}).returning();return NextResponse.json({success:true,action:row});}'''
+          assert old in s
+          s=s.replace(old,new)
+          old=''' if(op==="create_plan"){const allocation=Array.isArray(body.allocation)?body.allocation:[];const budget=Number(body.totalBudget||0);const forecast={expectedLeads:Number(body.expectedLeads||0),expectedRevenue:Number(body.expectedRevenue||0),expectedRoas:budget?Number(body.expectedRevenue||0)/budget:0};const [row]=await db.insert(mediaPlans).values({clientId:body.clientId,name:body.name,periodStart:new Date(body.periodStart),periodEnd:new Date(body.periodEnd),totalBudget:budget,allocation:JSON.stringify(allocation),forecast:JSON.stringify(forecast),submittedBy:ctx.userId,status:body.submit?"PENDING_APPROVAL":"DRAFT"}).returning();return NextResponse.json({success:true,plan:row});}'''
+          new=''' if(op==="create_plan"){const allocation=Array.isArray(body.allocation)?body.allocation:[];const budget=Number(body.totalBudget||0),expectedLeads=Number(body.expectedLeads||0),expectedRevenue=Number(body.expectedRevenue||0),periodStart=new Date(body.periodStart),periodEnd=new Date(body.periodEnd);if(!body.clientId||!String(body.name||"").trim()||[budget,expectedLeads,expectedRevenue].some(v=>!Number.isFinite(v)||v<0)||Number.isNaN(periodStart.getTime())||Number.isNaN(periodEnd.getTime())||periodEnd<periodStart)return NextResponse.json({error:"Invalid media plan data"},{status:400});if(allocation.some((a:any)=>!a||!Number.isFinite(Number(a.budget))||Number(a.budget)<0))return NextResponse.json({error:"Invalid allocation"},{status:400});const forecast={expectedLeads,expectedRevenue,expectedRoas:budget?expectedRevenue/budget:0};const [row]=await db.insert(mediaPlans).values({clientId:body.clientId,name:String(body.name).trim().slice(0,160),periodStart,periodEnd,totalBudget:budget,allocation:JSON.stringify(allocation),forecast:JSON.stringify(forecast),submittedBy:ctx.userId,status:body.submit?"PENDING_APPROVAL":"DRAFT"}).returning();return NextResponse.json({success:true,plan:row});}'''
+          assert old in s
+          s=s.replace(old,new)
+          p.write_text(s)
+
+          p=Path('app/dashboard/media/control-center/page.tsx')
+          s=p.read_text()
+          for name in ['dailyBudget','targetResult','targetCpl','targetRoas','totalBudget','metaBudget','tiktokBudget','googleBudget','expectedLeads','expectedRevenue']:
+            s=s.replace(f'name="{name}" type="number"',f'name="{name}" type="number" min="0"')
+          p.write_text(s)
+          PY
+      - name: Commit validation
+        run: |
+          git config user.name "vivitgroup"
+          git config user.email "groupvivit@gmail.com"
+          git add app/api/media-control/route.ts app/dashboard/media/control-center/page.tsx
+          git diff --cached --quiet && exit 0
+          git commit -m "Validate media control inputs"
+          git push origin HEAD:fix/preprod-full-qa-v41

@@ -7,7 +7,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db, clients, contacts, auditLogs, notifications, calendarEvents,
-  creativeTasks, users, webhooks } from "@/lib/db";
+  creativeTasks, users, webhooks, fileDocuments } from "@/lib/db";
 import { eq, and, inArray, notInArray, desc } from "drizzle-orm";
 
 // ── Input Validation Helpers ─────────────────────────────────
@@ -146,16 +146,29 @@ export async function deleteNotification(id: string) {
 
 export async function createCalendarEvent(formData: FormData) {
   const session = await auth();
-  const clientId=formData.get("clientId") as string;
+  const clientId=sanitize(formData.get("clientId") as string,100);
+  const title=sanitize(formData.get("title") as string,160);
+  const dateValue=String(formData.get("date")||"");
+  const assetFileId=sanitize(formData.get("assetFileId") as string,100);
+  if(!clientId||!title||!dateValue||!assetFileId) throw new Error("Client, title, date and an image or video are required.");
+  const eventDate=new Date(dateValue);
+  if(Number.isNaN(eventDate.getTime())) throw new Error("Invalid schedule date.");
   await requireClientAccess(session,clientId,true);
+  const [asset]=await db.select({id:fileDocuments.id,mimeType:fileDocuments.mimeType})
+    .from(fileDocuments)
+    .where(and(eq(fileDocuments.id,assetFileId),eq(fileDocuments.clientId,clientId)))
+    .limit(1);
+  if(!asset||!String(asset.mimeType||"").match(/^(image|video)\//)) {
+    throw new Error("The selected image or video is unavailable for this client.");
+  }
   await db.insert(calendarEvents).values({
     clientId,
-    title:    formData.get("title")    as string,
-    date:     new Date(formData.get("date") as string),
-    platform: formData.get("platform") as string || null,
-    caption:  formData.get("caption")  as string || null,
-    taskId:   formData.get("taskId")   as string || null,
-    hashtags: `asset:${String(formData.get("assetFileId") || "")}`,
+    title,
+    date:     eventDate,
+    platform: sanitize(formData.get("platform") as string,40) || null,
+    caption:  sanitize(formData.get("caption") as string,4000) || null,
+    taskId:   sanitize(formData.get("taskId") as string,100) || null,
+    hashtags: `asset:${assetFileId}`,
     status:   "scheduled",
   } as any);
   revalidatePath("/dashboard/calendar");

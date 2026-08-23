@@ -223,7 +223,15 @@ export async function updateTaskStatus(taskId: string, status: string, revisionN
   const taskBefore=await taskForAccess(taskId);
   const role=roleOf(session),uid=session.user.id!;
   const creatorTransitions:Record<string,string[]>={PENDING:["IN_PROGRESS"],IN_PROGRESS:["REVIEW"],REVISION:["IN_PROGRESS"]};
-  const managerTransitions:Record<string,string[]>={REVIEW:["APPROVED","REVISION","REJECTED"],APPROVED:["COMPLETED"]};
+  // Account managers can step in for an assigned creator when delivery is urgent,
+  // while still respecting the same ordered workflow.
+  const managerTransitions:Record<string,string[]>={
+    PENDING:["IN_PROGRESS"],
+    IN_PROGRESS:["REVIEW"],
+    REVISION:["IN_PROGRESS"],
+    REVIEW:["APPROVED","REVISION","REJECTED"],
+    APPROVED:["COMPLETED"],
+  };
   if(role==="CREATOR"){
     if(taskBefore.assignedToId!==uid||!(creatorTransitions[taskBefore.status]||[]).includes(status))throw new Error("Forbidden transition");
   }else if(["SUPER_ADMIN","ACCOUNT_MANAGER"].includes(role)){

@@ -38,7 +38,7 @@ const MONTHS = ["January","February","March","April","May","June",
 const DAYS_SHORT = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
 // ── Post Card Component ───────────────────────────────────────
-function PostCard({ event, onPosted }: { event: CalEvent; onPosted: (id:string)=>void }) {
+function PostCard({ event, onPosted, canManage }: { event: CalEvent; onPosted: (id:string)=>void; canManage:boolean }) {
   const [expanded, setExpanded] = useState(false);
   const pl  = event.platform ?? "instagram";
   const cfg = PLATFORMS[pl] ?? PLATFORMS.instagram;
@@ -138,7 +138,7 @@ function PostCard({ event, onPosted }: { event: CalEvent; onPosted: (id:string)=
             }}>
               {isPosted ? "✅ Posted" : "⏰ Scheduled"}
             </span>
-            {!isPosted && (
+            {!isPosted && canManage && (
               <button
                 onClick={() => onPosted(event.id)}
                 style={{
@@ -168,6 +168,7 @@ export function CalendarClient({ events, clients, approvedTasks, canManage }: Pr
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
+  const [actionError,setActionError]=useState("");
   const [assetFileId, setAssetFileId] = useState("");
   const [assetName, setAssetName] = useState("");
   const [selectedClientId, setSelectedClientId] = useState("");
@@ -249,7 +250,9 @@ export function CalendarClient({ events, clients, approvedTasks, canManage }: Pr
   }
 
   async function handlePosted(id: string) {
-    await fetch(`/api/calendar/${id}/posted`, { method:"POST" });
+    setActionError("");
+    const response=await fetch(`/api/calendar/${id}/posted`, { method:"POST" });
+    if(!response.ok){const body=await response.json().catch(()=>({}));setActionError(body.error||"The post status could not be updated.");return;}
     window.location.reload();
   }
 
@@ -481,8 +484,9 @@ export function CalendarClient({ events, clients, approvedTasks, canManage }: Pr
                   )}
                 </div>
               ) : selectedEvents.map(ev=>(
-                <PostCard key={ev.id} event={ev} onPosted={handlePosted}/>
+                <PostCard key={ev.id} event={ev} onPosted={handlePosted} canManage={canManage}/>
               ))}
+              {actionError&&<p className="form-error" role="alert">{actionError}</p>}
             </div>
           </div>
 

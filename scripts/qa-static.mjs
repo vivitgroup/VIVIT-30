@@ -11,15 +11,12 @@ const pass = (name, ok, detail = "") => {
 };
 
 const walk = (dir) => fs.readdirSync(path.join(root, dir), { withFileTypes: true })
-  .flatMap((entry) => entry.isDirectory()
-    ? walk(path.join(dir, entry.name))
-    : [path.join(dir, entry.name)]);
+  .flatMap((entry) => entry.isDirectory() ? walk(path.join(dir, entry.name)) : [path.join(dir, entry.name)]);
 
 const pages = new Set(walk("app/dashboard")
   .filter((file) => file.endsWith("/page.tsx"))
   .map((file) => "/" + path.dirname(file).replaceAll("\\", "/").replace(/^app\//, "")));
-const sources = [...walk("app"), ...walk("components")]
-  .filter((file) => /\.(tsx?|jsx?)$/.test(file));
+const sources = [...walk("app"), ...walk("components")].filter((file) => /\.(tsx?|jsx?)$/.test(file));
 
 const internalLinks = new Set();
 for (const file of sources) {
@@ -56,13 +53,22 @@ const reports = read("components/reports/ReportsClient.tsx");
 pass("Reports render UI instead of raw endpoint navigation", reports.includes("fetch(") && !/window\.location\s*=\s*["'`]\/api\/reports/.test(reports));
 
 const ai = read("app/api/ai/route.ts");
-pass("AI has a no-key fallback", /fallback|local/i.test(ai));
+pass("AI requires a configured provider", ai.includes("AI provider is not configured") && !ai.includes("Smart draft (local mode)"));
+pass("AI financial prompts use EGP", ai.includes(" EGP"));
 
 const workspace = read("app/dashboard/workspace/page.tsx");
 pass("Legacy workspace routes to settings", workspace.includes("/dashboard/settings#integrations"));
 
 const layout = read("app/layout.tsx");
 pass("Mobile viewport is explicit", /device-width/.test(layout));
+
+const publicFiles = fs.existsSync(path.join(root,"public")) ? walk("public") : [];
+const demoAssets = publicFiles.filter(file => /demo|sample|mock/i.test(path.basename(file)));
+pass("No demo assets ship in public", demoAssets.length === 0, demoAssets.join(", "));
+
+const health = read("app/api/health/route.ts");
+const packageVersion = JSON.parse(read("package.json")).version;
+pass("Health reports package version", health.includes(`\"${packageVersion}\"`));
 
 for (const check of checks) console.log(`${check.ok ? "PASS" : "FAIL"}  ${check.name}${check.detail ? ` — ${check.detail}` : ""}`);
 console.log(`\n${checks.length - failures.length}/${checks.length} static QA checks passed.`);

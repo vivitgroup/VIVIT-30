@@ -1,3 +1,0 @@
-Trigger production deployment for v41 main release 68d207f25e02cf10460e2ff3b7d35262b676e4a9
-Direct main production trigger 2026-08-24
-Retry after Vercel limit opened

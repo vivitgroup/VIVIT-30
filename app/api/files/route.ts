@@ -28,7 +28,26 @@ async function scopeFor(role:string,userId:string){
   if(role==="CLIENT"){const rows=await db.select({id:clients.id}).from(clients).where(eq(clients.userId,userId));return rows.length?or(own,inArray(fileDocuments.clientId,rows.map(x=>x.id))):own;}
   if(role==="ACCOUNT_MANAGER"||role==="MEDIA_BUYER"){const rows=await db.select({id:clients.id}).from(clients).where(and(eq(clients.isActive,true),role==="ACCOUNT_MANAGER"?eq(clients.accountManagerId,userId):eq(clients.mediaBuyerId,userId)));return rows.length?or(own,inArray(fileDocuments.clientId,rows.map(x=>x.id))):own;}
   if(role==="CREATOR"){const rows=await db.select({id:creativeTasks.id}).from(creativeTasks).where(eq(creativeTasks.assignedToId,userId));return rows.length?or(own,inArray(fileDocuments.taskId,rows.map(x=>x.id))):own;}
+  if(role==="ACCOUNTANT")return or(own,inArray(fileDocuments.category,["CONTRACT","INVOICE","FINANCE","SHEET"]));
   return own;
+}
+async function validateLinks(role:string,userId:string,clientId:string|null,taskId:string|null,category:string){
+  if(!clientId&&!taskId)return true;
+  if(role==="SUPER_ADMIN")return true;
+  if(taskId){
+    const [task]=await db.select({clientId:creativeTasks.clientId,assignedToId:creativeTasks.assignedToId}).from(creativeTasks).where(eq(creativeTasks.id,taskId)).limit(1);
+    if(!task||clientId&&task.clientId!==clientId)return false;
+    if(role==="CREATOR")return task.assignedToId===userId;
+    clientId=task.clientId;
+  }
+  if(!clientId)return false;
+  const [client]=await db.select({userId:clients.userId,accountManagerId:clients.accountManagerId,mediaBuyerId:clients.mediaBuyerId}).from(clients).where(eq(clients.id,clientId)).limit(1);
+  if(!client)return false;
+  if(role==="ACCOUNT_MANAGER")return client.accountManagerId===userId;
+  if(role==="MEDIA_BUYER")return client.mediaBuyerId===userId;
+  if(role==="CLIENT")return client.userId===userId;
+  if(role==="ACCOUNTANT")return ["CONTRACT","INVOICE","FINANCE","SHEET"].includes(category);
+  return false;
 }
 export async function GET(){
   const session=await auth();if(!session?.user)return NextResponse.json({error:"Unauthorized"},{status:401});
@@ -57,9 +76,11 @@ export async function POST(req:NextRequest){
     const path=String(body.path||""),size=Number(body.size||0);
     if(!path.includes(`/${userId}/`)||path.includes(".."))return NextResponse.json({error:"Invalid file path."},{status:403});
     if(size<=0||size>MAX_SIZE)return NextResponse.json({error:"Invalid file size."},{status:400});
+    const role=String((session.user as any).role),category=String(body.category||"GENERAL").slice(0,40),clientId=body.clientId?String(body.clientId):null,taskId=body.taskId?String(body.taskId):null;
+    if(!(await validateLinks(role,userId,clientId,taskId,category)))return NextResponse.json({error:"You cannot attach this file to the selected client or task."},{status:403});
     const info=await fetch(`${base()}/storage/v1/object/info/${BUCKET}/${path}`,{headers:headers()});if(!info.ok)return NextResponse.json({error:"Upload was not completed."},{status:409});
     const existing=await db.select({id:fileDocuments.id}).from(fileDocuments).where(eq(fileDocuments.storagePath,path)).limit(1);if(existing[0])return NextResponse.json({success:true,fileId:existing[0].id});
-    const [row]=await db.insert(fileDocuments).values({uploadedBy:userId,name:String(body.name||"File").slice(0,255),storagePath:path,mimeType:String(body.mimeType||"application/octet-stream"),sizeBytes:size,category:String(body.category||"GENERAL").slice(0,40),clientId:body.clientId||null,taskId:body.taskId||null}).returning();
+    const [row]=await db.insert(fileDocuments).values({uploadedBy:userId,name:String(body.name||"File").slice(0,255),storagePath:path,mimeType:String(body.mimeType||"application/octet-stream"),sizeBytes:size,category,clientId,taskId}).returning();
     await db.insert(auditLogs).values({userId,action:"file_uploaded",entity:"file_documents",entityId:row.id,newValues:JSON.stringify({name:row.name,size})});
     return NextResponse.json({success:true,file:row});
   }

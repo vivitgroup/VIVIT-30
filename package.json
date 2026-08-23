@@ -4,20 +4,20 @@
   "description": "VIVIT ERP — Enterprise Marketing Agency Platform",
   "private": true,
   "engines": {
-    "node": ">=18.17.0"
+    "node": "22.x"
   },
   "scripts": {
-    "dev":   "next dev --turbopack",
+    "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint":  "next lint",
-    "seed":  "npx tsx scripts/seed.ts",
+    "lint": "next lint",
+    "seed": "npx tsx scripts/seed.ts",
     "seed:test": "npx tsx scripts/seed.ts --test",
-    "db:push":   "npx drizzle-kit push",
+    "db:push": "npx drizzle-kit push",
     "db:studio": "npx drizzle-kit studio",
-    "type-check": "tsc --noEmit"
-    ,"qa:static": "node scripts/qa-static.mjs"
-    ,"qa": "npm run qa:static && npm run type-check && npm run build"
+    "type-check": "tsc --noEmit",
+    "qa:static": "node scripts/qa-static.mjs",
+    "qa": "npm run qa:static && npm run type-check && npm run build"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.7.4",

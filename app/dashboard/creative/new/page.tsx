@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { db, clients, users } from "@/lib/db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { Role } from "@/lib/types";
 import { createTask } from "@/lib/actions";
 import Link from "next/link";
@@ -67,9 +67,10 @@ export default async function NewTaskPage() {
   const role = (session.user as any).role as Role;
   if (![Role.SUPER_ADMIN, Role.ACCOUNT_MANAGER].includes(role)) redirect("/dashboard/creative");
 
+  const userId=String((session.user as any).id||"");
   const [allClients, creators] = await Promise.all([
-    db.select({ id: clients.id, companyName: clients.companyName }).from(clients).where(eq(clients.isActive, true)).orderBy(clients.companyName),
-    db.select({ id: users.id, name: users.name }).from(users).where(eq(users.role, "CREATOR")),
+    db.select({id:clients.id,companyName:clients.companyName}).from(clients).where(role===Role.ACCOUNT_MANAGER?and(eq(clients.isActive,true),eq(clients.accountManagerId,userId)):eq(clients.isActive,true)).orderBy(clients.companyName),
+    db.select({id:users.id,name:users.name}).from(users).where(and(eq(users.role,"CREATOR"),eq(users.isActive,true))),
   ]);
 
   const types = ["REEL","GRAPHIC","CAROUSEL","MOTION_GRAPHIC","VIDEO_EDIT","PHOTO_SESSION","STORY","UGC"];
@@ -133,10 +134,10 @@ export default async function NewTaskPage() {
             </div>
             <div>
               <label className="block text-xs font-semibold text-[#6B8FAF] mb-1.5 uppercase tracking-wider">Priority *</label>
-              <select name="priority" id="f_priority" required className="form-input">
+              <select name="priority" id="f_priority" required defaultValue="MEDIUM" className="form-input">
                 <option value="URGENT">🔴 Urgent</option>
                 <option value="HIGH">🟠 High</option>
-                <option value="MEDIUM" selected>🟡 Medium</option>
+                <option value="MEDIUM">🟡 Medium</option>
                 <option value="LOW">⚪ Low</option>
               </select>
             </div>

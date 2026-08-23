@@ -3,229 +3,47 @@ import { useState } from "react";
 
 type Entity = "clients" | "tasks" | "sales" | "finance" | "media" | "expenses";
 
-const ENTITIES: { value: Entity; label: string; icon: string; fields: string[] }[] = [
-  { value:"clients",  label:"Clients",    icon:"🏢", fields:["Company","Industry","Health Score","Churn Risk","Monthly Retainer","Media Budget","Contract Value","Performance Score"] },
-  { value:"tasks",    label:"Tasks",      icon:"🎨", fields:["Title","Type","Status","Priority","Client ID","Assigned To","Deadline","Revisions","Posted"] },
-  { value:"sales",    label:"Sales",      icon:"🎯", fields:["Company","Contact","Stage","Source","Value","Probability","Industry","Expected Close"] },
-  { value:"finance",  label:"Finance",    icon:"💰", fields:["Client ID","Month","Year","Retainer","Media Fee","Extra","Total","Paid","Outstanding","Status"] },
-  { value:"media",    label:"Media",      icon:"📣", fields:["Client ID","Platform","Date","Ad Spend","Leads","Purchases","Revenue","ROAS","CPL","Agency Fee"] },
-  { value:"expenses", label:"Expenses",   icon:"🧾", fields:["Category","Description","Amount","Date"] },
+const ENTITIES:{value:Entity;label:string;icon:string;fields:string[]}[]=[
+ {value:"clients",label:"Clients",icon:"🏢",fields:["Company","Industry","Health Score","Churn Risk","Monthly Retainer","Media Budget","Contract Value","Performance Score"]},
+ {value:"tasks",label:"Tasks",icon:"🎨",fields:["Title","Type","Status","Priority","Client ID","Assigned To","Deadline","Revisions","Posted"]},
+ {value:"sales",label:"Sales",icon:"🎯",fields:["Company","Contact","Stage","Source","Value","Probability","Industry","Expected Close"]},
+ {value:"finance",label:"Finance",icon:"💰",fields:["Client ID","Month","Year","Retainer","Media Fee","Extra","Total","Paid","Outstanding","Status"]},
+ {value:"media",label:"Media",icon:"📣",fields:["Client ID","Platform","Date","Ad Spend","Leads","Purchases","Revenue","ROAS","CPL","Agency Fee"]},
+ {value:"expenses",label:"Expenses",icon:"🧾",fields:["Category","Description","Amount","Date"]},
 ];
+const ROLE_ENTITIES:Record<string,Entity[]>={SUPER_ADMIN:["clients","tasks","sales","finance","media","expenses"],ACCOUNT_MANAGER:["clients","tasks","media"],ACCOUNTANT:["clients","finance","expenses"],MEDIA_BUYER:["clients","media"],SALES:["sales"]};
 
-const ROLE_ENTITIES:Record<string,Entity[]>={
-  SUPER_ADMIN:["clients","tasks","sales","finance","media","expenses"],
-  ACCOUNT_MANAGER:["clients","tasks","media"],
-  ACCOUNTANT:["clients","finance","expenses"],
-  MEDIA_BUYER:["clients","media"],
-  SALES:["sales"],
-};
-
-export function ReportsClient({role}:{role:string}) {
-  const [entity, setEntity]     = useState<Entity>("clients");
-  const [selFields, setFields]  = useState<string[]>([]);
-  const [data, setData]         = useState<any>(null);
-  const [loading, setLoading]   = useState(false);
-  const [format, setFormat]     = useState<"table"|"json">("table");
-  const [sortCol, setSortCol]   = useState<number | null>(null);
-  const [sortDir, setSortDir]   = useState<"asc"|"desc">("asc");
-  const [visibleRows, setRows]  = useState(50);
-  const [error,setError]        = useState("");
-
-  const activeFields = data ? (selFields.length ? data.headers.filter((h:string)=>selFields.includes(h)) : data.headers) : [];
-  const activeIndexes = data ? activeFields.map((h:string)=>data.headers.indexOf(h)) : [];
-  const projectedRows = data ? data.rows.map((row:any[])=>activeIndexes.map((i:number)=>row[i])) : [];
-
-  const sortedRows = data ? [...projectedRows].sort((a:any[], b:any[]) => {
-    if (sortCol === null) return 0;
-    const va = String(a[sortCol] ?? ""), vb = String(b[sortCol] ?? "");
-    return sortDir === "asc" ? va.localeCompare(vb) : vb.localeCompare(va);
-  }) : [];
-
-  const handleSort = (col: number) => {
-    if (sortCol === col) setSortDir(d => d === "asc" ? "desc" : "asc");
-    else { setSortCol(col); setSortDir("asc"); }
-  };
-
-  const visibleEntities=ENTITIES.filter(e=>(ROLE_ENTITIES[role]||[]).includes(e.value));
-  const selectedEntity = visibleEntities.find(e => e.value === entity) || visibleEntities[0];
-
-  const toggleField = (f: string) =>
-    setFields(prev => prev.includes(f) ? prev.filter(x=>x!==f) : [...prev, f]);
-
-  const selectAll = () => setFields([...selectedEntity.fields]);
-  const clearAll  = () => setFields([]);
-
-  const runReport = async () => {
-    setLoading(true);setError("");setRows(50);
-    try {
-      const r = await fetch(`/api/export?entity=${entity}`);
-      const d = await r.json();
-      if(!r.ok)throw new Error(d.error||"The report could not be generated.");
-      setData(d);
-    } catch(e:any){setData(null);setError(e.message||"The report could not be generated.");}
-    finally { setLoading(false); }
-  };
-
-  const exportCSV = () => {
-    if (!data) return;
-    const rows = [activeFields, ...projectedRows];
-    const csv  = rows.map((r: any[]) => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(",")).join("\n");
-    const blob = new Blob([csv], { type:"text/csv" });
-    const a    = document.createElement("a");
-    a.href     = URL.createObjectURL(blob);
-    a.download = `vivit-${entity}-${new Date().toISOString().slice(0,10)}.csv`;
-    a.click();
-  };
-
-  const exportJSON = () => {
-    if (!data) return;
-    const records=projectedRows.map((row:any[])=>Object.fromEntries(activeFields.map((h:string,i:number)=>[h,row[i]])));
-    const blob = new Blob([JSON.stringify(records, null, 2)], { type:"application/json" });
-    const a    = document.createElement("a");
-    a.href     = URL.createObjectURL(blob);
-    a.download = `vivit-${entity}-${new Date().toISOString().slice(0,10)}.json`;
-    a.click();
-  };
-
-  const quickExport = async (target: Entity) => {
-    setError("");
-    try {
-      const response = await fetch(`/api/export?entity=${target}`);
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || "The export could not be generated.");
-      const records = payload.rows.map((row: unknown[]) =>
-        Object.fromEntries(payload.headers.map((header: string, index: number) => [header, row[index]]))
-      );
-      const blob = new Blob([JSON.stringify(records, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = `vivit-${target}-${new Date().toISOString().slice(0, 10)}.json`;
-      anchor.click();
-      URL.revokeObjectURL(url);
-    } catch (exportError: any) {
-      setError(exportError.message || "The export could not be generated.");
-    }
-  };
-
-  return (
-    <div className="space-y-5">
-      {/* Report Builder */}
-      <div className="card-vivit">
-        <h2 className="font-semibold mb-4">🔨 Custom Report Builder</h2>
-
-        {/* Entity selection */}
-        <div className="grid grid-cols-3 md:grid-cols-6 gap-2 mb-4">
-          {visibleEntities.map(e => (
-            <button key={e.value} onClick={() => { setEntity(e.value); setFields([]); setData(null); }}
-              className={`p-2 rounded-xl border text-center transition-all ${entity===e.value ? "border-[#244D87] bg-[#244D87]/15" : "border-white/8 bg-white/[0.02] hover:border-white/20"}`}>
-              <div className="text-xl mb-0.5">{e.icon}</div>
-              <p className="text-[11px] font-semibold">{e.label}</p>
-            </button>
-          ))}
-        </div>
-
-        {/* Field selector */}
-        <div className="mb-4">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-semibold text-muted uppercase tracking-wider">Select Fields</p>
-            <div className="flex gap-2">
-              <button onClick={selectAll} className="text-[10px] text-[#244D87] hover:text-[#00B4D8]">Select All</button>
-              <span className="text-dim">·</span>
-              <button onClick={clearAll} className="text-[10px] text-muted hover:text-[#D4E4F0]">Clear</button>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {selectedEntity.fields.map(f => (
-              <button key={f} onClick={() => toggleField(f)}
-                className={`text-xs px-2.5 py-1 rounded-lg border transition-all ${selFields.includes(f) ? "border-[#244D87] bg-[#244D87]/15 text-[#00B4D8]" : "border-white/10 text-muted hover:border-white/20"}`}>
-                {selFields.includes(f) ? "✓ " : ""}{f}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* View format + Run */}
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex rounded-xl border border-white/10 overflow-hidden">
-            {(["table","json"] as const).map(f => (
-              <button key={f} onClick={() => setFormat(f)}
-                className={`text-xs px-3 py-1.5 transition-all ${format===f ? "bg-[#244D87]/20 text-[#00B4D8]" : "text-muted hover:bg-white/5"}`}>
-                {f === "table" ? "📋 Table" : "{ } JSON"}
-              </button>
-            ))}
-          </div>
-          <button onClick={runReport} disabled={loading}
-            className="btn-grad">
-            {loading ? "⏳ Loading..." : "▶ Run Report"}
-          </button>
-          {data && (
-            <>
-              <button onClick={exportCSV}  className="btn-outline text-xs">📥 Export CSV</button>
-              <button onClick={exportJSON} className="btn-outline text-xs">📥 Export JSON</button>
-              <button onClick={()=>window.print()} className="btn-outline text-xs">🖨️ Print / PDF</button>
-            </>
-          )}
-        </div>
-        {error&&<p className="form-error" role="alert">{error}</p>}
-      </div>
-
-      {/* Results */}
-      {data && (
-        <div className="card-vivit !p-0 overflow-hidden">
-          <div className="px-5 py-3 border-b border-white/5 flex items-center justify-between">
-            <span className="text-sm font-semibold">{data.count} records — {selectedEntity.label}</span>
-            <span className="badge badge-info text-[10px]">{format.toUpperCase()}</span>
-          </div>
-          {format === "table" ? (
-            <div className="overflow-x-auto">
-              <table className="erp-table">
-                <thead><tr>{activeFields.map((h:string, i:number) => (
-                <th key={h} className={`sortable-th ${sortCol===i?sortDir:""}`}
-                  onClick={()=>handleSort(i)}>{h}</th>
-              ))}</tr></thead>
-                <tbody>
-                  {sortedRows.slice(0, visibleRows).map((row:any[], i:number) => (
-                    <tr key={i}>{row.map((cell:any, j:number) => (
-                      <td key={j}>{cell === null || cell === undefined ? "—" : String(cell).slice(0, 80)}</td>
-                    ))}</tr>
-                  ))}
-                </tbody>
-              </table>
-              {sortedRows.length > 50 && (
-                <div className="text-center py-3">
-                  <p className="text-xs text-muted">Showing {Math.min(visibleRows, sortedRows.length)} of {sortedRows.length} rows</p>
-                  {visibleRows < sortedRows.length && (
-                    <button onClick={()=>setRows(v=>v+50)} className="btn-ghost text-xs mt-2">Load 50 more ↓</button>
-                  )}
-                </div>
-              )}
-            </div>
-          ) : (
-            <pre className="p-4 text-[11px] text-[#00B4D8] overflow-x-auto max-h-96 font-mono">
-              {JSON.stringify(projectedRows.slice(0, 20).map((row:any[])=>Object.fromEntries(activeFields.map((h:string,i:number)=>[h,row[i]]))), null, 2)}
-            </pre>
-          )}
-        </div>
-      )}
-
-      {/* Quick Export shortcuts */}
-      <div className="card-vivit">
-        <h2 className="font-semibold mb-3">⚡ Quick Export</h2>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          {visibleEntities.map(e => (
-            <button key={e.value} type="button" onClick={() => quickExport(e.value)}
-              className="flex items-center gap-2 p-3 rounded-xl border border-white/8 bg-white/[0.02] hover:border-[#244D87]/30 transition-all"
-              style={{textDecoration:"none", textAlign:"left"}}>
-              <span className="text-xl">{e.icon}</span>
-              <div>
-                <p className="text-sm font-semibold">{e.label}</p>
-                <p className="text-[10px] text-muted">JSON export</p>
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
+export function ReportsClient({role}:{role:string}){
+ const visibleEntities=ENTITIES.filter(e=>(ROLE_ENTITIES[role]||[]).includes(e.value));
+ const [entity,setEntity]=useState<Entity>(visibleEntities[0]?.value||"clients");
+ const [selFields,setFields]=useState<string[]>([]);
+ const [data,setData]=useState<any>(null);
+ const [loading,setLoading]=useState(false);
+ const [format,setFormat]=useState<"table"|"json">("table");
+ const [sortCol,setSortCol]=useState<number|null>(null);
+ const [sortDir,setSortDir]=useState<"asc"|"desc">("asc");
+ const [visibleRows,setRows]=useState(50);
+ const [error,setError]=useState("");
+ const selectedEntity=visibleEntities.find(e=>e.value===entity)||visibleEntities[0];
+ const activeFields=data?(selFields.length?data.headers.filter((h:string)=>selFields.includes(h)):data.headers):[];
+ const activeIndexes=data?activeFields.map((h:string)=>data.headers.indexOf(h)):[];
+ const projectedRows=data?data.rows.map((row:any[])=>activeIndexes.map((i:number)=>row[i])):[];
+ const sortedRows=data?[...projectedRows].sort((a:any[],b:any[])=>{if(sortCol===null)return 0;const va=String(a[sortCol]??""),vb=String(b[sortCol]??"");return sortDir==="asc"?va.localeCompare(vb):vb.localeCompare(va)}):[];
+ const handleSort=(col:number)=>{if(sortCol===col)setSortDir(d=>d==="asc"?"desc":"asc");else{setSortCol(col);setSortDir("asc")}};
+ const toggleField=(f:string)=>setFields(prev=>prev.includes(f)?prev.filter(x=>x!==f):[...prev,f]);
+ const selectAll=()=>setFields([...(selectedEntity?.fields||[])]);
+ const clearAll=()=>setFields([]);
+ const runReport=async()=>{setLoading(true);setError("");setRows(50);try{const r=await fetch(`/api/export?entity=${entity}`);const d=await r.json();if(!r.ok)throw new Error(d.error||"The report could not be generated.");setData(d)}catch(e:any){setData(null);setError(e.message||"The report could not be generated.")}finally{setLoading(false)}};
+ const download=(kind:"csv"|"json")=>{if(!data)return;let blob:Blob;if(kind==="csv"){const rows=[activeFields,...projectedRows];const csv=rows.map((r:any[])=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(",")).join("\n");blob=new Blob([csv],{type:"text/csv"})}else{const records=projectedRows.map((row:any[])=>Object.fromEntries(activeFields.map((h:string,i:number)=>[h,row[i]])));blob=new Blob([JSON.stringify(records,null,2)],{type:"application/json"})}const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=`vivit-${entity}-${new Date().toISOString().slice(0,10)}.${kind}`;a.click();URL.revokeObjectURL(url)};
+ const quickExport=async(target:Entity)=>{setError("");try{const response=await fetch(`/api/export?entity=${target}`);const payload=await response.json();if(!response.ok)throw new Error(payload.error||"The export could not be generated.");const records=payload.rows.map((row:unknown[])=>Object.fromEntries(payload.headers.map((header:string,index:number)=>[header,row[index]])));const blob=new Blob([JSON.stringify(records,null,2)],{type:"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=`vivit-${target}-${new Date().toISOString().slice(0,10)}.json`;a.click();URL.revokeObjectURL(url)}catch(e:any){setError(e.message||"The export could not be generated.")}};
+ if(!selectedEntity)return <div className="card"><div className="card-body">No reports available for this role.</div></div>;
+ return <div className="reports-ui"><style>{`
+  .reports-ui{display:flex;flex-direction:column;gap:16px;min-width:0}.report-card{background:var(--card-bg);border:1px solid var(--card-border);border-radius:16px;padding:18px;box-shadow:var(--shadow-sm)}.report-title{font-size:14px;font-weight:800;color:var(--text-primary);margin-bottom:14px}.entity-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}.entity-btn{min-height:72px;border:1px solid var(--card-border);background:var(--bg-tertiary);border-radius:12px;color:var(--text-secondary);cursor:pointer;font:inherit;transition:.18s ease}.entity-btn:hover{border-color:rgba(197,42,49,.35);transform:translateY(-1px)}.entity-btn.active{border-color:rgba(197,42,49,.5);background:var(--vivit-gradient-soft);color:var(--text-primary);box-shadow:inset 0 0 0 1px rgba(197,42,49,.06)}.field-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:16px 0 9px}.field-head p{font-size:10px;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em}.field-actions{display:flex;gap:7px}.link-btn{border:0;background:transparent;color:var(--vivit-cyan);font:inherit;font-size:11px;font-weight:750;cursor:pointer}.field-list{display:flex;flex-wrap:wrap;gap:7px}.field-chip{border:1px solid var(--card-border);background:var(--card-bg);color:var(--text-secondary);border-radius:999px;padding:6px 9px;font:inherit;font-size:11px;cursor:pointer}.field-chip.active{border-color:rgba(197,42,49,.45);background:rgba(197,42,49,.08);color:var(--vivit-blue);font-weight:750}.report-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:16px}.format-toggle{display:flex;border:1px solid var(--card-border);border-radius:10px;overflow:hidden}.format-toggle button{border:0;background:var(--card-bg);color:var(--text-muted);padding:8px 11px;font:inherit;font-size:11px;font-weight:700;cursor:pointer}.format-toggle button.active{background:var(--vivit-gradient-soft);color:var(--text-primary)}.result-card{background:var(--card-bg);border:1px solid var(--card-border);border-radius:16px;overflow:hidden}.result-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 16px;border-bottom:1px solid var(--card-border)}.result-table{overflow:auto;-webkit-overflow-scrolling:touch}.result-table table{min-width:760px}.report-json{padding:16px;font-size:11px;color:var(--vivit-cyan);overflow:auto;max-height:420px;background:var(--bg-tertiary)}.quick-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}.quick-btn{display:flex;align-items:center;gap:10px;padding:12px;border:1px solid var(--card-border);background:var(--bg-tertiary);border-radius:12px;color:var(--text-primary);font:inherit;text-align:left;cursor:pointer}.quick-btn:hover{border-color:rgba(197,42,49,.35)}
+  @media(max-width:900px){.entity-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.quick-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media(max-width:560px){.report-card{padding:14px}.entity-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.entity-btn{min-height:66px}.report-controls{align-items:stretch}.report-controls>.btn,.report-controls>.btn-grad,.report-controls>.btn-outline{flex:1;min-width:130px}.format-toggle{width:100%}.format-toggle button{flex:1;min-height:42px}.quick-grid{grid-template-columns:1fr}.field-head{align-items:flex-start}.result-head{align-items:flex-start;flex-wrap:wrap}}
+ `}</style>
+ <section className="report-card"><div className="report-title">🔨 Custom Report Builder</div><div className="entity-grid">{visibleEntities.map(e=><button key={e.value} type="button" onClick={()=>{setEntity(e.value);setFields([]);setData(null)}} className={`entity-btn${entity===e.value?" active":""}`}><div style={{fontSize:20}}>{e.icon}</div><div style={{fontSize:11,fontWeight:750,marginTop:2}}>{e.label}</div></button>)}</div><div className="field-head"><p>Select fields</p><div className="field-actions"><button type="button" onClick={selectAll} className="link-btn">Select all</button><button type="button" onClick={clearAll} className="link-btn">Clear</button></div></div><div className="field-list">{selectedEntity.fields.map(f=><button key={f} type="button" onClick={()=>toggleField(f)} className={`field-chip${selFields.includes(f)?" active":""}`}>{selFields.includes(f)?"✓ ":""}{f}</button>)}</div><div className="report-controls"><div className="format-toggle">{(["table","json"] as const).map(f=><button type="button" key={f} onClick={()=>setFormat(f)} className={format===f?"active":""}>{f==="table"?"📋 Table":"{ } JSON"}</button>)}</div><button type="button" onClick={runReport} disabled={loading} className="btn btn-primary">{loading?"Loading…":"▶ Run Report"}</button>{data&&<><button type="button" onClick={()=>download("csv")} className="btn btn-secondary">CSV</button><button type="button" onClick={()=>download("json")} className="btn btn-secondary">JSON</button><button type="button" onClick={()=>window.print()} className="btn btn-secondary">Print / PDF</button></>}</div>{error&&<p className="form-error" role="alert" style={{marginTop:10}}>{error}</p>}</section>
+ {data&&<section className="result-card"><div className="result-head"><b style={{fontSize:13,color:"var(--text-primary)"}}>{data.count} records — {selectedEntity.label}</b><span className="badge badge-blue">{format.toUpperCase()}</span></div>{format==="table"?<div className="result-table"><table className="data-table"><thead><tr>{activeFields.map((h:string,i:number)=><th key={h} onClick={()=>handleSort(i)} style={{cursor:"pointer"}}>{h}{sortCol===i?(sortDir==="asc"?" ↑":" ↓"):""}</th>)}</tr></thead><tbody>{sortedRows.slice(0,visibleRows).map((row:any[],i:number)=><tr key={i}>{row.map((cell:any,j:number)=><td key={j}>{cell==null?"—":String(cell).slice(0,80)}</td>)}</tr>)}</tbody></table>{sortedRows.length>visibleRows&&<div style={{padding:12,textAlign:"center"}}><button type="button" onClick={()=>setRows(v=>v+50)} className="btn btn-secondary">Load 50 more</button></div>}</div>:<pre className="report-json">{JSON.stringify(projectedRows.slice(0,20).map((row:any[])=>Object.fromEntries(activeFields.map((h:string,i:number)=>[h,row[i]]))),null,2)}</pre>}</section>}
+ <section className="report-card"><div className="report-title">⚡ Quick Export</div><div className="quick-grid">{visibleEntities.map(e=><button key={e.value} type="button" onClick={()=>quickExport(e.value)} className="quick-btn"><span style={{fontSize:20}}>{e.icon}</span><span><b style={{display:"block",fontSize:12}}>{e.label}</b><small style={{color:"var(--text-muted)"}}>JSON export</small></span></button>)}</div></section>
+ </div>;
 }

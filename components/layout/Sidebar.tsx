@@ -20,6 +20,7 @@ const SECTIONS:Section[]=[
  ]},
  {label:"FINANCE & HR",items:[
   {icon:"💰",label:"Finance",href:"/dashboard/finance",roles:["SUPER_ADMIN","ACCOUNTANT"]},
+  {icon:"💳",label:"Accounts Payment",href:"/dashboard/clients/accounts-payment",roles:["SUPER_ADMIN","ACCOUNTANT","ACCOUNT_MANAGER"]},
   {icon:"📋",label:"Contracts",href:"/dashboard/contracts",roles:["SUPER_ADMIN","ACCOUNTANT"]},
   {icon:"👥",label:"HR & Team",href:"/dashboard/team",roles:["SUPER_ADMIN"]},
   {icon:"💎",label:"LTV & Revenue",href:"/dashboard/ltv",roles:["SUPER_ADMIN","ACCOUNTANT"]},
@@ -54,7 +55,7 @@ export function Sidebar({role,userName}:{role:string;userName:string}){
   setCollapsed(c);setTheme(t);setLang(l);document.documentElement.classList.toggle("dark",t==="dark");
   const onLang=(e:Event)=>setLang((e as CustomEvent).detail);window.addEventListener("vivit-language",onLang);return()=>window.removeEventListener("vivit-language",onLang);
  },[]);
- const ar:Record<string,string>={MAIN:"الرئيسية","FINANCE & HR":"المالية والموارد البشرية",ANALYTICS:"التحليلات","AI & TOOLS":"الذكاء الاصطناعي والأدوات","CLIENT PORTAL":"بوابة العميل",Dashboard:"لوحة التحكم",Clients:"العملاء","Sales CRM":"المبيعات","Online Aman":"أمان أونلاين","Media Control":"إدارة الإعلانات","Platform Sync":"ربط المنصات",Creative:"الإبداع","Tasks Inbox":"صندوق المهام",Calendar:"التقويم",Finance:"المالية",Contracts:"العقود","HR & Team":"الفريق","LTV & Revenue":"القيمة والإيرادات",Analytics:"التحليلات",Forecast:"التوقعات","KPIs & BI":"مؤشرات الأداء",Reports:"التقارير","AI Studio":"استوديو الذكاء الاصطناعي",Files:"الملفات",Notifications:"الإشعارات",Settings:"الإعدادات","My Portal":"بوابتي"};
+ const ar:Record<string,string>={MAIN:"الرئيسية","FINANCE & HR":"المالية والموارد البشرية",ANALYTICS:"التحليلات","AI & TOOLS":"الذكاء الاصطناعي والأدوات","CLIENT PORTAL":"بوابة العميل",Dashboard:"لوحة التحكم",Clients:"العملاء","Sales CRM":"المبيعات","Online Aman":"أمان أونلاين","Media Control":"إدارة الإعلانات","Platform Sync":"ربط المنصات",Creative:"الإبداع","Tasks Inbox":"صندوق المهام",Calendar:"التقويم",Finance:"المالية","Accounts Payment":"تحصيلات العملاء",Contracts:"العقود","HR & Team":"الفريق","LTV & Revenue":"القيمة والإيرادات",Analytics:"التحليلات",Forecast:"التوقعات","KPIs & BI":"مؤشرات الأداء",Reports:"التقارير","AI Studio":"استوديو الذكاء الاصطناعي",Files:"الملفات",Notifications:"الإشعارات",Settings:"الإعدادات","My Portal":"بوابتي"};
  const t=(v:string)=>lang==="ar"?(ar[v]||v):v;
  const initials=userName.split(" ").filter(Boolean).map(n=>n[0]).join("").slice(0,2).toUpperCase();
  const visible=SECTIONS.map(s=>({...s,items:s.items.filter(i=>i.roles.includes(role))})).filter(s=>s.items.length);

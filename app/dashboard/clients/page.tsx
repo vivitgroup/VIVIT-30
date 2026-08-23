@@ -2,139 +2,54 @@ export const dynamic = "force-dynamic";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { db, clients, users } from "@/lib/db";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { Role } from "@/lib/types";
 import Link from "next/link";
 
-export default async function ClientsPage() {
+const money=(n:number)=>new Intl.NumberFormat("en-EG",{style:"currency",currency:"EGP",maximumFractionDigits:0}).format(Number(n||0));
+
+export default async function ClientsPage({searchParams}:{searchParams?:Promise<Record<string,string|undefined>>}) {
   const session = await auth();
   if (!session?.user) redirect("/login");
   const role = (session.user as any).role as Role;
-  const userId = (session.user as any).id as string;
+  const userId = String((session.user as any).id);
   if (![Role.SUPER_ADMIN,Role.ACCOUNT_MANAGER,Role.MEDIA_BUYER,Role.ACCOUNTANT].includes(role)) redirect("/dashboard");
   const canAddClient=[Role.SUPER_ADMIN,Role.ACCOUNT_MANAGER,Role.ACCOUNTANT].includes(role);
+  const params=(await searchParams)||{};
+  const q=String(params.q||"").trim().toLowerCase();
 
-  const allClients = await db.select({
-    id:clients.id, companyName:clients.companyName, industry:clients.industry,
-    healthScore:clients.healthScore, churnRisk:clients.churnRisk,
-    monthlyRetainer:clients.monthlyRetainer, lifetimeValue:clients.lifetimeValue,
-    isActive:clients.isActive, accountManagerId:clients.accountManagerId,
-    contractEnd:clients.contractEnd, mediaBudget:clients.mediaBudget,
-    createdAt:clients.createdAt,
-  }).from(clients).where(and(eq(clients.isActive,true),role===Role.ACCOUNT_MANAGER?eq(clients.accountManagerId,userId):role===Role.MEDIA_BUYER?eq(clients.mediaBuyerId,userId):eq(clients.workspaceId,"default"))).orderBy(clients.healthScore);
+  const [allClientsRaw, allAMs] = await Promise.all([
+    db.select({
+      id:clients.id, companyName:clients.companyName, industry:clients.industry,
+      healthScore:clients.healthScore, churnRisk:clients.churnRisk,
+      monthlyRetainer:clients.monthlyRetainer, lifetimeValue:clients.lifetimeValue,
+      isActive:clients.isActive, accountManagerId:clients.accountManagerId,
+      contractEnd:clients.contractEnd, mediaBudget:clients.mediaBudget,
+      createdAt:clients.createdAt,
+    }).from(clients).where(and(eq(clients.isActive,true),role===Role.ACCOUNT_MANAGER?eq(clients.accountManagerId,userId):role===Role.MEDIA_BUYER?eq(clients.mediaBuyerId,userId):eq(clients.workspaceId,"default"))).orderBy(clients.healthScore),
+    db.select({id:users.id,name:users.name}).from(users).where(eq(users.role,"ACCOUNT_MANAGER")),
+  ]);
+  const amMap=Object.fromEntries(allAMs.map(u=>[u.id,u.name]));
+  const allClients=q?allClientsRaw.filter(c=>[c.companyName,c.industry,amMap[c.accountManagerId||""]].some(v=>String(v||"").toLowerCase().includes(q))):allClientsRaw;
+  const totalARR=allClientsRaw.reduce((s,c)=>s+Number(c.monthlyRetainer||0)*12,0);
+  const atRisk=allClientsRaw.filter(c=>c.churnRisk==="HIGH").length;
+  const avgHealth=allClientsRaw.length?Math.round(allClientsRaw.reduce((s,c)=>s+Number(c.healthScore||0),0)/allClientsRaw.length):0;
+  const RISK_BADGE:Record<string,string>={HIGH:"badge-red",MEDIUM:"badge-amber",LOW:"badge-green"};
 
-  const allAMs = await db.select({id:users.id,name:users.name}).from(users).where(eq(users.role,"ACCOUNT_MANAGER"));
-  const amMap  = Object.fromEntries(allAMs.map(u=>[u.id,u.name]));
+  return <div className="clients-page"><style>{`
+    .clients-page{display:flex;flex-direction:column;gap:18px;min-width:0}.clients-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}.clients-actions{display:flex;gap:8px;flex-wrap:wrap}.clients-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.client-kpi{background:var(--card-bg);border:1px solid var(--card-border);border-radius:16px;padding:16px;box-shadow:var(--shadow-sm)}.client-kpi span{display:block;font-size:12px;color:var(--text-muted);font-weight:650}.client-kpi b{display:block;margin-top:7px;font-size:22px;color:var(--text-primary)}.client-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}.client-search{display:flex;gap:8px;flex:1;min-width:240px;max-width:520px}.client-search input{min-width:0}.clients-table-wrap{overflow:auto}.clients-mobile{display:none}.client-card{background:var(--card-bg);border:1px solid var(--card-border);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:10px}.client-top{display:flex;align-items:center;justify-content:space-between;gap:10px}.client-ident{display:flex;align-items:center;gap:10px;min-width:0}.client-avatar{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;color:white;font-weight:800;font-size:11px;flex:0 0 auto}.client-name{font-size:14px;font-weight:800;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.client-muted{font-size:11px;color:var(--text-muted);margin-top:2px}.client-row{display:flex;justify-content:space-between;gap:12px}.client-row span:first-child{font-size:11px;color:var(--text-muted)}.client-row span:last-child{font-size:12px;color:var(--text-primary);text-align:right}.health-line{display:flex;align-items:center;gap:8px}.health-track{height:7px;flex:1;background:var(--bg-tertiary);border-radius:999px;overflow:hidden}.health-track i{display:block;height:100%;border-radius:999px}.client-empty{text-align:center;padding:42px 20px;color:var(--text-muted)}
+    @media(max-width:900px){.clients-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.clients-table-wrap{display:none}.clients-mobile{display:grid;gap:10px}.clients-head h1{font-size:1.55rem}.client-toolbar{align-items:stretch}.client-search{max-width:none;width:100%}}
+    @media(max-width:560px){.clients-actions{width:100%}.clients-actions a{flex:1;text-align:center}.clients-kpis{grid-template-columns:1fr 1fr}.client-kpi{padding:13px}.client-kpi b{font-size:18px}.client-search{display:grid;grid-template-columns:1fr auto}.client-search .btn{padding-inline:14px}}
+  `}</style>
 
-  const totalARR  = allClients.reduce((s,c)=>s+c.monthlyRetainer*12,0);
-  const atRisk    = allClients.filter(c=>c.churnRisk==="HIGH").length;
-  const avgHealth = allClients.length>0 ? Math.round(allClients.reduce((s,c)=>s+c.healthScore,0)/allClients.length) : 0;
+  <div className="clients-head"><div><h1 className="page-title">Clients</h1><p className="page-subtitle">{allClientsRaw.length} active clients · portfolio health and revenue overview</p></div><div className="clients-actions">{[Role.SUPER_ADMIN,Role.ACCOUNTANT,Role.ACCOUNT_MANAGER].includes(role)&&<Link href="/dashboard/clients/accounts-payment" className="btn btn-secondary" style={{textDecoration:"none"}}>Accounts Payment</Link>}{canAddClient&&<Link href="/dashboard/clients/new" className="btn btn-primary" style={{textDecoration:"none"}}>+ Add Client</Link>}</div></div>
 
-  const RISK_BADGE: Record<string,string> = { HIGH:"badge-red", MEDIUM:"badge-amber", LOW:"badge-green" };
+  <div className="clients-kpis"><div className="client-kpi"><span>Total Clients</span><b>{allClientsRaw.length}</b></div><div className="client-kpi"><span>Annual Revenue</span><b>{money(totalARR)}</b></div><div className="client-kpi"><span>Avg Health</span><b>{avgHealth}%</b></div><div className="client-kpi"><span>At Risk</span><b>{atRisk}</b></div></div>
 
-  const fmt = (n:number) => n>=1000000?`$${(n/1000000).toFixed(1)}M`:n>=1000?`$${(n/1000).toFixed(0)}k`:`$${n.toLocaleString()}`;
+  <div className="client-toolbar"><form className="client-search" action="/dashboard/clients" method="GET"><input className="form-input" name="q" defaultValue={params.q||""} placeholder="Search client, industry or account manager"/><button className="btn btn-secondary" type="submit">Search</button></form>{q&&<Link href="/dashboard/clients" className="btn btn-ghost" style={{textDecoration:"none"}}>Clear</Link>}</div>
 
-  return (
-    <div style={{display:"flex",flexDirection:"column",gap:"20px"}}>
-      {/* Header */}
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:"12px"}}>
-        <div>
-          <h1 className="page-title">Clients</h1>
-          <p className="page-subtitle">{allClients.length} active clients · Sorted by health score</p>
-        </div>
-        {canAddClient&&<Link href="/dashboard/clients/new" className="btn btn-primary" style={{textDecoration:"none"}}>
-          + Add Client
-        </Link>}
-      </div>
+  <div className="card clients-table-wrap"><div className="card-body-flush"><table className="data-table"><thead><tr><th>Client</th><th>Industry</th><th>Account Manager</th><th>Health</th><th>Risk</th><th>Monthly</th><th>LTV</th><th>Actions</th></tr></thead><tbody>{allClients.map(c=>{const h=Math.round(Number(c.healthScore||0));const barColor=h>=80?"var(--green)":h>=60?"var(--amber)":"var(--red)";return <tr key={c.id}><td><div style={{display:"flex",alignItems:"center",gap:10}}><div className="avatar avatar-sm" style={{background:barColor,fontSize:11}}>{c.companyName.slice(0,2).toUpperCase()}</div><div><p style={{fontWeight:700,color:"var(--text-primary)",fontSize:13.5}}>{c.companyName}</p>{c.contractEnd&&<p style={{fontSize:11,color:"var(--text-muted)"}}>Contract ends {new Date(c.contractEnd).toLocaleDateString("en-GB",{month:"short",year:"numeric"})}</p>}</div></div></td><td>{c.industry||"—"}</td><td>{amMap[c.accountManagerId||""]||"—"}</td><td><div className="health-line" style={{minWidth:110}}><div className="health-track"><i style={{width:`${h}%`,background:barColor}}/></div><b style={{fontSize:11,color:barColor}}>{h}%</b></div></td><td><span className={`badge ${RISK_BADGE[c.churnRisk]||"badge-gray"}`}>{c.churnRisk}</span></td><td><b style={{color:"var(--text-primary)"}}>{money(Number(c.monthlyRetainer||0))}</b></td><td><b style={{color:"var(--vivit-blue)"}}>{money(Number(c.lifetimeValue||0))}</b></td><td><Link href={`/dashboard/clients/${c.id}`} className="btn btn-ghost btn-sm" style={{textDecoration:"none"}}>Open →</Link></td></tr>})}{!allClients.length&&<tr><td colSpan={8}><div className="client-empty"><div style={{fontSize:30,marginBottom:8}}>🏢</div><b>{q?"No matching clients":"No clients yet"}</b><p style={{fontSize:12,marginTop:4}}>{q?"Try another search term":"Create the first client to start the portfolio"}</p></div></td></tr>}</tbody></table></div></div>
 
-      {/* Summary KPIs */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"12px"}}>
-        {[
-          {label:"Total Clients", value:String(allClients.length), icon:"🏢", color:"blue"},
-          {label:"Annual Revenue",value:fmt(totalARR),             icon:"💰", color:"green"},
-          {label:"Avg Health",    value:`${avgHealth}%`,           icon:"❤️", color:avgHealth>=80?"green":avgHealth>=60?"amber":"red"},
-          {label:"At Risk",       value:String(atRisk),            icon:"⚠️", color:atRisk>0?"red":"green"},
-        ].map(k=>(
-          <div key={k.label} className={`kpi-card ${k.color}`}>
-            <div className="kpi-icon">{k.icon}</div>
-            <div className="kpi-label">{k.label}</div>
-            <div className="kpi-value" style={{fontSize:"1.5rem"}}>{k.value}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Client filter */}
-      <div style={{display:"flex",gap:"8px",alignItems:"center"}}>
-        <input type="search" id="client-filter" placeholder="🔍 Filter by name, industry, AM..."
-          className="form-input" style={{maxWidth:"320px"}}
-          onInput={undefined}/>
-        <script dangerouslySetInnerHTML={{__html:`
-          document.getElementById('client-filter')?.addEventListener('input',function(){
-            var q=this.value.toLowerCase();
-            document.querySelectorAll('tbody tr').forEach(function(r){
-              r.style.display=r.textContent.toLowerCase().includes(q)?'':'none';
-            });
-          });
-        `}}/>
-      </div>
-
-      {/* Table */}
-      <div className="card">
-        <div className="card-body-flush">
-          <table className="data-table">
-            <thead><tr>
-              <th>Client</th><th>Industry</th><th>Account Manager</th>
-              <th>Health</th><th>Risk</th><th>Monthly</th><th>LTV</th><th>Actions</th>
-            </tr></thead>
-            <tbody>
-              {allClients.map(c=>{
-                const h=Math.round(c.healthScore);
-                const barColor=h>=80?"var(--green)":h>=60?"var(--amber)":"var(--red)";
-                return (
-                  <tr key={c.id}>
-                    <td>
-                      <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
-                        <div className="avatar avatar-sm" style={{background:barColor,fontSize:"11px"}}>
-                          {c.companyName.slice(0,2).toUpperCase()}
-                        </div>
-                        <div>
-                          <p style={{fontWeight:700,color:"var(--text-primary)",fontSize:"13.5px"}}>{c.companyName}</p>
-                          {c.contractEnd&&<p style={{fontSize:"11px",color:"var(--text-muted)"}}>Contract ends {new Date(c.contractEnd).toLocaleDateString("en-GB",{month:"short",year:"numeric"})}</p>}
-                        </div>
-                      </div>
-                    </td>
-                    <td><span style={{fontSize:"12.5px",color:"var(--text-secondary)"}}>{c.industry??"—"}</span></td>
-                    <td><span style={{fontSize:"12.5px",color:"var(--text-secondary)"}}>{amMap[c.accountManagerId??""]?.split(" ")[0]??"—"}</span></td>
-                    <td>
-                      <div style={{display:"flex",alignItems:"center",gap:"8px",minWidth:"80px"}}>
-                        <div className="progress-bar" style={{flex:1}}>
-                          <div className="progress-fill" style={{width:`${h}%`,background:barColor}}/>
-                        </div>
-                        <span style={{fontSize:"12px",fontWeight:700,color:barColor,flexShrink:0}}>{h}%</span>
-                      </div>
-                    </td>
-                    <td><span className={`badge ${RISK_BADGE[c.churnRisk]}`}>{c.churnRisk}</span></td>
-                    <td style={{fontWeight:700,color:"var(--text-primary)"}}>{fmt(c.monthlyRetainer)}</td>
-                    <td style={{fontWeight:600,color:"var(--vivit-blue)"}}>{fmt(c.lifetimeValue??0)}</td>
-                    <td>
-                      <Link href={`/dashboard/clients/${c.id}`} className="btn btn-ghost btn-sm" style={{textDecoration:"none"}}>Open →</Link>
-                    </td>
-                  </tr>
-                );
-              })}
-              {allClients.length===0&&(
-                <tr><td colSpan={8}>
-                  <div style={{textAlign:"center",padding:"48px",color:"var(--text-muted)"}}>
-                    <p style={{fontSize:"32px",marginBottom:"8px"}}>🏢</p>
-                    <p style={{fontWeight:600,marginBottom:"4px"}}>No clients yet</p>
-                    {canAddClient&&<Link href="/dashboard/clients/new" className="btn btn-primary btn-sm" style={{textDecoration:"none",marginTop:"12px",display:"inline-flex"}}>Add First Client</Link>}
-                  </div>
-                </td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
+  <div className="clients-mobile">{allClients.map(c=>{const h=Math.round(Number(c.healthScore||0));const barColor=h>=80?"var(--green)":h>=60?"var(--amber)":"var(--red)";return <div className="client-card" key={c.id}><div className="client-top"><div className="client-ident"><div className="client-avatar" style={{background:barColor}}>{c.companyName.slice(0,2).toUpperCase()}</div><div style={{minWidth:0}}><div className="client-name">{c.companyName}</div><div className="client-muted">{c.industry||"No industry"}</div></div></div><span className={`badge ${RISK_BADGE[c.churnRisk]||"badge-gray"}`}>{c.churnRisk}</span></div><div className="health-line"><div className="health-track"><i style={{width:`${h}%`,background:barColor}}/></div><b style={{fontSize:11,color:barColor}}>{h}%</b></div><div className="client-row"><span>Account Manager</span><span>{amMap[c.accountManagerId||""]||"—"}</span></div><div className="client-row"><span>Monthly</span><span>{money(Number(c.monthlyRetainer||0))}</span></div><div className="client-row"><span>LTV</span><span>{money(Number(c.lifetimeValue||0))}</span></div>{c.contractEnd&&<div className="client-row"><span>Contract End</span><span>{new Date(c.contractEnd).toLocaleDateString("en-GB")}</span></div>}<Link href={`/dashboard/clients/${c.id}`} className="btn btn-secondary" style={{textDecoration:"none",textAlign:"center"}}>Open Client</Link></div>})}{!allClients.length&&<div className="client-card client-empty"><div style={{fontSize:30}}>🏢</div><b>{q?"No matching clients":"No clients yet"}</b></div>}</div>
+  </div>;
 }

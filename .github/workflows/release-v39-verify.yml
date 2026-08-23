@@ -1,0 +1,62 @@
+name: Release v39 Verify
+
+on:
+  push:
+    branches:
+      - release/v36-production-clean
+    paths-ignore:
+      - package-lock.json
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-v39-verify
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout release
+        uses: actions/checkout@v4
+        with:
+          ref: release/v36-production-clean
+          fetch-depth: 0
+
+      - name: Use Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install and refresh lockfile
+        run: npm install --package-lock-only --ignore-scripts && npm install
+
+      - name: Security audit
+        run: npm audit --audit-level=high
+
+      - name: Static QA
+        run: npm run qa:static
+
+      - name: Type check
+        run: npm run type-check
+
+      - name: Production build
+        run: npx next build
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+          NEXTAUTH_URL: http://localhost:3000
+
+      - name: Commit refreshed package lock
+        if: success()
+        run: |
+          if ! git diff --quiet -- package-lock.json; then
+            git config user.name "vivit-release-bot"
+            git config user.email "groupvivit@gmail.com"
+            git add package-lock.json
+            git commit -m "Refresh package lock for v39 release"
+            git push origin HEAD:release/v36-production-clean
+          fi

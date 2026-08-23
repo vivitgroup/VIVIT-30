@@ -22,9 +22,8 @@ export async function POST(req: NextRequest) {
     if (existing.length > 0)
       return NextResponse.json({ error: "Email already registered" }, { status: 409 });
 
-    const allowedRoles = ["ACCOUNTANT","ACCOUNT_MANAGER","MEDIA_BUYER","CREATOR","SALES","CLIENT"];
-    if (!allowedRoles.includes(requestedRole))
-      return NextResponse.json({ error: "Invalid requested role" }, { status: 400 });
+    if (requestedRole !== "CLIENT")
+      return NextResponse.json({ error: "Employee roles require Super Admin assignment" }, { status: 403 });
 
     if (otpRequired) {
       const [verification] = await db.select().from(emailVerificationCodes).where(and(

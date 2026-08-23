@@ -20,6 +20,14 @@ export function LegacyUiGuard(){
       });
     };
 
+    const removeDeadControls=()=>{
+      if(root.querySelector(".calendar-layout")){
+        root.querySelectorAll<HTMLButtonElement>("button").forEach(button=>{
+          if(button.textContent?.trim()==="Week")button.remove();
+        });
+      }
+    };
+
     const sanitize=()=>{
       root.querySelectorAll<HTMLElement>(".card").forEach(card=>{
         const text=card.innerText||"";
@@ -48,6 +56,7 @@ export function LegacyUiGuard(){
         });
       });
       bindUserFilter();
+      removeDeadControls();
     };
 
     sanitize();

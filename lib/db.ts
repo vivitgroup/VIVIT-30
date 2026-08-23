@@ -74,17 +74,47 @@ export const getCachedTeam = unstable_cache(
     }).from(schema.users).where(eq(schema.users.isActive, true));
   },
   ["team-list"],
-  { revalidate: 60, tags: ["team"] }
+  { revalidate: 300, tags: ["team"] }
 );
 
-export const getCachedFinance = unstable_cache(
-  async () => db.select().from(schema.financeRecords).orderBy(desc(schema.financeRecords.createdAt)).limit(100),
-  ["finance-list"],
-  { revalidate: 60, tags: ["finance"] }
-);
+export async function getClientsWithAMs() {
+  return db.select({
+    id:               schema.clients.id,
+    companyName:      schema.clients.companyName,
+    industry:         schema.clients.industry,
+    healthScore:      schema.clients.healthScore,
+    churnRisk:        schema.clients.churnRisk,
+    monthlyRetainer:  schema.clients.monthlyRetainer,
+    lifetimeValue:    schema.clients.lifetimeValue,
+    isActive:         schema.clients.isActive,
+    accountManagerId: schema.clients.accountManagerId,
+    mediaBudget:      schema.clients.mediaBudget,
+    amName:           schema.users.name,
+    amEmail:          schema.users.email,
+  })
+  .from(schema.clients)
+  .leftJoin(schema.users, eq(schema.clients.accountManagerId, schema.users.id))
+  .where(eq(schema.clients.isActive, true));
+}
 
-export const getCachedTasks = unstable_cache(
-  async () => db.select().from(schema.creativeTasks).orderBy(desc(schema.creativeTasks.createdAt)).limit(100),
-  ["task-list"],
-  { revalidate: 60, tags: ["tasks"] }
-);
+export async function getTasksWithClients() {
+  return db.select({
+    id:          schema.creativeTasks.id,
+    title:       schema.creativeTasks.title,
+    status:      schema.creativeTasks.status,
+    priority:    schema.creativeTasks.priority,
+    deadline:    schema.creativeTasks.deadline,
+    type:        schema.creativeTasks.type,
+    assignedToId:schema.creativeTasks.assignedToId,
+    clientId:    schema.creativeTasks.clientId,
+    companyName: schema.clients.companyName,
+  })
+  .from(schema.creativeTasks)
+  .leftJoin(schema.clients, eq(schema.creativeTasks.clientId, schema.clients.id))
+  .where(
+    and(
+      notInArray(schema.creativeTasks.status, ["COMPLETED", "REJECTED"] as any[]),
+      sql`true`
+    )
+  );
+}

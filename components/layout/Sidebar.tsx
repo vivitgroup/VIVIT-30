@@ -102,9 +102,10 @@ export function Sidebar({ role, userName }: { role:string; userName:string }) {
     <aside className={`app-sidebar${collapsed?" collapsed":""}`}>
       {/* Logo */}
       <div className="sidebar-logo" style={{justifyContent: collapsed?"center":"flex-start"}}>
-        <Image src="/vivit-mark.png" alt="VIVIT" width={collapsed?34:52} height={42}
-          style={{objectFit:"contain",maxWidth:collapsed?"34px":"52px",transition:"all 0.2s ease"}}
+        <Image src="/vivit-mark.png" alt="VIVIT" width={collapsed?38:58} height={50}
+          style={{objectFit:"contain",maxWidth:collapsed?"38px":"58px",transition:"all 0.2s ease"}}
           priority/>
+        {!collapsed&&<div className="sidebar-brand-copy"><strong>VIVIT</strong><span>Marketing ERP</span></div>}
       </div>
 
       {/* User info */}

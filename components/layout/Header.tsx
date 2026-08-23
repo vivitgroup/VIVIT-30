@@ -86,13 +86,14 @@ export function Header({ role, unreadCount }: { role:string; unreadCount:number 
     <>
       <header className="app-header">
         {/* Page title */}
-        <div style={{flex:1}}>
-          <h1 style={{fontSize:"16px",fontWeight:700,color:"var(--text-primary)",fontFamily:"Sora,sans-serif",textTransform:"capitalize"}}>{pageTitle}</h1>
+        <div className="header-page-copy">
+          <span className="header-eyebrow">VIVIT ERP</span>
+          <h1>{pageTitle}</h1>
         </div>
 
         {/* Search bar */}
         <button onClick={()=>setSearchOpen(true)}
-          style={{display:"flex",alignItems:"center",gap:"10px",padding:"8px 14px",background:"var(--bg-tertiary)",border:"1.5px solid var(--card-border)",borderRadius:"var(--radius-sm)",cursor:"text",color:"var(--text-muted)",fontSize:"13px",minWidth:"220px",transition:"var(--transition)"}}>
+          className="header-search">
           <span>🔍</span>
           <span style={{flex:1,textAlign:lang==="ar"?"right":"left"}}>{lang==="ar"?"بحث...":"Search..."}</span>
           <kbd style={{fontSize:"10px",background:"var(--card-bg)",border:"1px solid var(--card-border)",borderRadius:"4px",padding:"1px 5px",color:"var(--text-muted)"}}>⌘K</kbd>

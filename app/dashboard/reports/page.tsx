@@ -8,7 +8,7 @@ export default async function ReportsPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
   const role = (session.user as any).role as Role;
-  if (![Role.SUPER_ADMIN,Role.ACCOUNTANT,Role.ACCOUNT_MANAGER].includes(role)) redirect("/dashboard");
+  if (![Role.SUPER_ADMIN,Role.ACCOUNTANT,Role.ACCOUNT_MANAGER,Role.MEDIA_BUYER,Role.SALES].includes(role)) redirect("/dashboard");
 
   return (
     <div className="max-w-6xl space-y-5 animate-fade-up">

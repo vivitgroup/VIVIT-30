@@ -1,0 +1,43 @@
+/* VIVIT dashboard production polish — scoped responsive rules */
+.dashboard-home{min-width:0}
+.dashboard-home .kpi-grid{grid-template-columns:repeat(4,minmax(0,1fr))!important}
+.finance-kpi-grid{grid-template-columns:repeat(5,minmax(0,1fr))!important}
+.aging-grid{grid-template-columns:repeat(4,minmax(0,1fr))!important}
+.finance-form-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+.invoice-field-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+
+/* Prevent large finance tables from breaking the page shell. */
+.finance-kpi-grid>*{min-width:0}
+.card-body-flush{max-width:100%;overflow-x:auto}
+.data-table{min-width:760px}
+
+/* Better touch behavior for horizontally scrollable operational boards. */
+.pipeline-wrap,.card-body-flush{-webkit-overflow-scrolling:touch;scrollbar-width:thin}
+
+@media(max-width:1100px){
+  .dashboard-home .kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .finance-kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+  .aging-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+}
+
+@media(max-width:760px){
+  .app-content{padding:16px 14px 92px!important}
+  .dashboard-home{gap:14px!important}
+  .dashboard-home .kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px!important}
+  .finance-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px!important}
+  .finance-form-grid{grid-template-columns:1fr!important}
+  .invoice-field-grid{grid-template-columns:1fr!important}
+  .aging-grid{grid-template-columns:1fr 1fr!important;gap:9px!important}
+  .finance-kpi-grid .kpi-card,.dashboard-home .kpi-card{padding:13px!important}
+  .finance-kpi-grid .kpi-value,.dashboard-home .kpi-value{font-size:1.12rem!important;overflow-wrap:anywhere}
+  .card-header{align-items:flex-start!important;gap:8px;flex-wrap:wrap}
+  .btn{min-height:42px}
+  .form-input,.form-select,textarea{font-size:16px!important}
+}
+
+@media(max-width:430px){
+  .dashboard-home .kpi-grid,.finance-kpi-grid{grid-template-columns:1fr 1fr!important}
+  .aging-grid{grid-template-columns:1fr!important}
+  .finance-kpi-grid .kpi-label,.dashboard-home .kpi-label{font-size:10px!important}
+  .finance-kpi-grid .kpi-icon,.dashboard-home .kpi-icon{width:32px!important;height:32px!important;font-size:15px!important}
+}

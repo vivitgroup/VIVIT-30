@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { db, clients, users } from "@/lib/db";
 import { and, eq } from "drizzle-orm";
 import { Role } from "@/lib/types";
-import { createTask } from "@/lib/actions";
+import { createTask } from "@/lib/actions/create-task";
 import Link from "next/link";
 import { TASK_TEMPLATES } from "@/lib/task-templates";
 

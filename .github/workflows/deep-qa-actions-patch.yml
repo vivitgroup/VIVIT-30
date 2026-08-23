@@ -1,0 +1,29 @@
+name: Deep QA server action patch
+
+on:
+  push:
+    branches:
+      - fix/deep-release-qa-v39
+    paths:
+      - scripts/deep-qa-actions-patch.mjs
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/deep-release-qa-v39
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/deep-qa-actions-patch.mjs
+      - run: |
+          git config user.name "vivit-qa-bot"
+          git config user.email "groupvivit@gmail.com"
+          git add -A
+          git commit -m "Harden creative file submission action"
+          git push origin HEAD:fix/deep-release-qa-v39

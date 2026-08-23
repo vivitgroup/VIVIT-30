@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
-const VERSION = "39.0.0";
+const VERSION = "41.0.0";
 
 export async function GET() {
   try {

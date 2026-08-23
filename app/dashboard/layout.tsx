@@ -14,6 +14,7 @@ import { LegacyUiGuard } from "@/components/ui/LegacyUiGuard";
 import "./dashboard-polish.css";
 import "./final-ui-pass.css";
 import "./final-module-polish.css";
+import "./odoo-shell.css";
 
 function PageSkeleton() {
   return (

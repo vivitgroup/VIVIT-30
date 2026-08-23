@@ -9,14 +9,15 @@ import { RealtimeNotifications } from "@/components/realtime-notifications";
 import { KeyboardShortcutsModal } from "@/components/keyboard-shortcuts";
 import { Suspense } from "react";
 import { DashboardLanguage } from "@/components/i18n/DashboardLanguage";
+import "./dashboard-polish.css";
 
 function PageSkeleton() {
   return (
-    <div style={{padding:"28px",display:"grid",gap:"16px"}}>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"16px"}}>
+    <div className="dashboard-skeleton" style={{padding:"28px",display:"grid",gap:"16px"}}>
+      <div className="dashboard-skeleton-kpis" style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"16px"}}>
         {[1,2,3,4].map(i=><div key={i} className="skeleton" style={{height:"110px",borderRadius:"16px"}}/>)}
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:"16px"}}>
+      <div className="dashboard-skeleton-main" style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:"16px"}}>
         <div className="skeleton" style={{height:"300px",borderRadius:"16px"}}/>
         <div className="skeleton" style={{height:"300px",borderRadius:"16px"}}/>
       </div>
@@ -55,7 +56,6 @@ export default async function DashboardLayout({ children }: { children:React.Rea
       <KeyboardShortcutsModal/>
       <MobileNav role={role}/>
       <DashboardLanguage/>
-
     </div>
   );
 }

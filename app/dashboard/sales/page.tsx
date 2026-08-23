@@ -11,7 +11,7 @@ import Link from "next/link";
 async function moveLead(fd: FormData) {
   "use server";
   const session=await auth();
-  if(!session?.user||![Role.SUPER_ADMIN,Role.SALES,Role.ACCOUNT_MANAGER].includes((session.user as any).role)) throw new Error("Unauthorized");
+  if(!session?.user||![Role.SUPER_ADMIN,Role.SALES].includes((session.user as any).role)) throw new Error("Unauthorized");
   const { db, salesLeads } = await import("@/lib/db");
   const { eq, and } = await import("drizzle-orm");
   const id    = fd.get("id") as string;
@@ -37,7 +37,7 @@ async function createLead(fd: FormData) {
   const { db, salesLeads } = await import("@/lib/db");
   const { auth } = await import("@/lib/auth");
   const session = await auth();
-  if (!session?.user || ![Role.SUPER_ADMIN,Role.SALES,Role.ACCOUNT_MANAGER].includes((session.user as any).role)) throw new Error("Unauthorized");
+  if (!session?.user || ![Role.SUPER_ADMIN,Role.SALES].includes((session.user as any).role)) throw new Error("Unauthorized");
   const clean=(value:FormDataEntryValue|null,max=300)=>String(value||"").trim().slice(0,max);
   const companyName=clean(fd.get("companyName"),160);
   const contactPerson=clean(fd.get("contactPerson"),160);
@@ -68,7 +68,7 @@ export default async function SalesPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
   const role = (session.user as any).role as Role;
-  if (![Role.SUPER_ADMIN, Role.SALES, Role.ACCOUNT_MANAGER].includes(role)) redirect("/dashboard");
+  if (![Role.SUPER_ADMIN, Role.SALES].includes(role)) redirect("/dashboard");
 
   const [allLeads, allReps] = await Promise.all([
     db.select().from(salesLeads).where(role===Role.SUPER_ADMIN?eq(salesLeads.workspaceId,"default"):eq(salesLeads.salesRepId,String((session.user as any).id))).orderBy(desc(salesLeads.updatedAt)),

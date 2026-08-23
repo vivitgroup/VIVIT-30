@@ -57,8 +57,7 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     "view_reports","export_data",
     "view_clients","create_clients","edit_clients",
     "view_tasks","create_tasks","edit_tasks","approve_tasks","assign_tasks",
-    "view_media","edit_media",
-    "view_sales","create_leads","edit_leads","view_proposals","create_proposals",
+    "view_media",
     "use_ai_studio","view_ai_history",
   ],
   MEDIA_BUYER: [
@@ -70,7 +69,7 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     "view_tasks","edit_tasks",
   ],
   ACCOUNTANT: [
-    "view_finance","create_invoices","edit_invoices","approve_invoices",
+    "view_finance","create_invoices","edit_invoices",
     "view_payroll","manage_payroll","view_reports","export_data",
     "view_clients","create_clients","view_team","view_salaries",
     "view_salary_recommendations","approve_salary_finance","view_payroll_lock",
@@ -78,7 +77,7 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     "view_resource_planning",
   ],
   SALES: [
-    "view_sales","create_leads","edit_leads","delete_leads",
+    "view_sales","create_leads","edit_leads",
     "view_proposals","create_proposals","view_reports",
   ],
   CLIENT: [

@@ -730,7 +730,7 @@ html[dir="rtl"] body{font-family:'Plus Jakarta Sans',Tahoma,Arial,sans-serif}htm
   white-space: nowrap;
 }
 
-.badge-blue,                    { background: rgba(30,136,229,0.1);  color: var(--vivit-blue);   }
+.badge-blue                     { background: rgba(30,136,229,0.1);  color: var(--vivit-blue);   }
 .badge-info                     { background: rgba(30,136,229,0.1);  color: var(--vivit-blue);   }
 .badge-green, .badge-success    { background: var(--green-bg);       color: var(--green);        }
 .badge-red,   .badge-danger     { background: var(--red-bg);         color: var(--red);          }

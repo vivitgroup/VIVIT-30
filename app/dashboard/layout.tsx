@@ -10,6 +10,7 @@ import { KeyboardShortcutsModal } from "@/components/keyboard-shortcuts";
 import { Suspense } from "react";
 import { DashboardLanguage } from "@/components/i18n/DashboardLanguage";
 import { WorkspaceCurrencyGuard } from "@/components/ui/WorkspaceCurrencyGuard";
+import { LegacyUiGuard } from "@/components/ui/LegacyUiGuard";
 import "./dashboard-polish.css";
 import "./final-ui-pass.css";
 
@@ -55,6 +56,7 @@ export default async function DashboardLayout({ children }: { children:React.Rea
         </main>
       </div>
       <WorkspaceCurrencyGuard/>
+      <LegacyUiGuard/>
       <RealtimeNotifications/>
       <KeyboardShortcutsModal/>
       <MobileNav role={role}/>

@@ -8,6 +8,8 @@ import { Role } from "@/lib/types";
 import Link from "next/link";
 
 const money=(n:number)=>new Intl.NumberFormat("en-EG",{style:"currency",currency:"EGP",maximumFractionDigits:0}).format(Number(n||0));
+const CONTRACT_TYPES=["RETAINER","PROJECT","MEDIA_ONLY","FULL_SERVICE"] as const;
+const RENEWAL_DAYS=[7,14,30,60];
 
 async function createContract(fd: FormData) {
   "use server";
@@ -15,18 +17,25 @@ async function createContract(fd: FormData) {
   if(!session?.user||![Role.SUPER_ADMIN,Role.ACCOUNTANT].includes((session.user as any).role))throw new Error("Unauthorized");
   const clientId=String(fd.get("clientId")||"");
   const title=String(fd.get("title")||"").trim().slice(0,140);
-  const startDate=String(fd.get("startDate")||"");
-  const endDate=String(fd.get("endDate")||"");
-  if(!clientId||!title||!startDate||!endDate)throw new Error("Complete the required contract fields");
+  const startDateRaw=String(fd.get("startDate")||"");
+  const endDateRaw=String(fd.get("endDate")||"");
+  const type=String(fd.get("type")||"RETAINER");
+  const value=Number(fd.get("value")||0);
+  const renewalDays=Number(fd.get("renewalDays")||30);
+  if(!clientId||!title||!startDateRaw||!endDateRaw)throw new Error("Complete the required contract fields");
+  if(!CONTRACT_TYPES.includes(type as any)) throw new Error("Invalid contract type");
+  if(!Number.isFinite(value)||value<0) throw new Error("Contract value must be zero or greater");
+  if(!RENEWAL_DAYS.includes(renewalDays)) throw new Error("Invalid renewal alert period");
+  const startDate=new Date(startDateRaw),endDate=new Date(endDateRaw);
+  if(Number.isNaN(startDate.getTime())||Number.isNaN(endDate.getTime())) throw new Error("Invalid contract dates");
+  if(endDate<=startDate) throw new Error("Contract end date must be after the start date");
+  const [client]=await db.select({id:clients.id}).from(clients).where(eq(clients.id,clientId)).limit(1);
+  if(!client) throw new Error("Selected client does not exist");
   await db.insert(contracts).values({
-    clientId,title,
-    type:String(fd.get("type")||"RETAINER"),
-    value:Number(fd.get("value")||0),
-    startDate:new Date(startDate),
-    endDate:new Date(endDate),
+    clientId,title,type,
+    value,startDate,endDate,
     autoRenew:String(fd.get("autoRenew"))==="true",
-    renewalDays:Number(fd.get("renewalDays")||30),
-    status:"ACTIVE",
+    renewalDays,status:"ACTIVE",
     notes:String(fd.get("notes")||"").trim().slice(0,1000)||null,
   });
   const {revalidatePath}=await import("next/cache");
@@ -66,14 +75,14 @@ export default async function ContractsPage(){
 
     <details className="card"><summary className="card-title" style={{cursor:"pointer",listStyle:"none"}}>＋ Add contract</summary><div className="card-body" style={{paddingInline:0,paddingBottom:0}}><form action={createContract} className="contract-form">
       <div><label className="form-label">Client *</label><select name="clientId" required className="form-select"><option value="">Select client…</option>{allClients.map(c=><option key={c.id} value={c.id}>{c.companyName}</option>)}</select></div>
-      <div><label className="form-label">Title *</label><input name="title" required className="form-input" placeholder="Annual retainer"/></div>
-      <div><label className="form-label">Type</label><select name="type" className="form-select">{["RETAINER","PROJECT","MEDIA_ONLY","FULL_SERVICE"].map(t=><option key={t} value={t}>{t.replace(/_/g," ")}</option>)}</select></div>
+      <div><label className="form-label">Title *</label><input name="title" required maxLength={140} className="form-input" placeholder="Annual retainer"/></div>
+      <div><label className="form-label">Type</label><select name="type" className="form-select">{CONTRACT_TYPES.map(t=><option key={t} value={t}>{t.replace(/_/g," ")}</option>)}</select></div>
       <div><label className="form-label">Contract value (EGP)</label><input name="value" type="number" min="0" step="1" className="form-input" placeholder="35000"/></div>
       <div><label className="form-label">Start date *</label><input name="startDate" type="date" required className="form-input"/></div>
       <div><label className="form-label">End date *</label><input name="endDate" type="date" required className="form-input"/></div>
       <div><label className="form-label">Renewal alert</label><select name="renewalDays" defaultValue="30" className="form-select"><option value="7">7 days before</option><option value="14">14 days before</option><option value="30">30 days before</option><option value="60">60 days before</option></select></div>
       <div><label className="form-label">Auto renew</label><select name="autoRenew" className="form-select"><option value="false">No</option><option value="true">Yes</option></select></div>
-      <div className="span-2"><label className="form-label">Notes</label><textarea name="notes" rows={3} className="form-input" placeholder="Commercial or renewal notes"/></div>
+      <div className="span-2"><label className="form-label">Notes</label><textarea name="notes" rows={3} maxLength={1000} className="form-input" placeholder="Commercial or renewal notes"/></div>
       <div className="span-2"><button type="submit" className="btn btn-primary">Save contract</button></div>
     </form></div></details>
 

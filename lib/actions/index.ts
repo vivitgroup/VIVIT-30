@@ -298,7 +298,11 @@ export async function submitTaskFile(taskId: string, fileName: string, fileUrl: 
   const taskBefore=await taskForAccess(taskId);
   const role=String((session!.user as any).role);
   const isManager=["SUPER_ADMIN","ACCOUNT_MANAGER"].includes(role);
-  const allowedStatuses=isManager?["PENDING","IN_PROGRESS","REVISION","APPROVED","COMPLETED"]:["IN_PROGRESS","REVISION"];
+  const allowedStatuses=role==="SUPER_ADMIN"
+    ? ["PENDING","IN_PROGRESS","REVIEW","REVISION","APPROVED","COMPLETED"]
+    : role==="ACCOUNT_MANAGER"
+      ? ["PENDING","IN_PROGRESS","REVIEW","REVISION"]
+      : ["IN_PROGRESS","REVISION"];
   if((!isManager&&taskBefore.assignedToId!==session!.user!.id)||!allowedStatuses.includes(taskBefore.status))throw new Error("Forbidden");
 
   const [task] = await db.update(creativeTasks)
@@ -332,8 +336,13 @@ export async function updateTaskCaption(taskId: string, caption: string) {
   const session = await auth();
   if(!session?.user)throw new Error("Unauthorized");
   const task=await taskForAccess(taskId);
-  if(roleOf(session)==="CREATOR"){if(task.assignedToId!==session.user.id)throw new Error("Forbidden");}
-  else await requireClientAccess(session,task.clientId,true);
+  const role=roleOf(session);
+  if(role==="CREATOR"){
+    if(task.assignedToId!==session.user.id||!["PENDING","IN_PROGRESS","REVIEW","REVISION"].includes(task.status))throw new Error("This caption is locked.");
+  } else {
+    await requireClientAccess(session,task.clientId,true);
+    if(role!=="SUPER_ADMIN"&&!["PENDING","IN_PROGRESS","REVIEW","REVISION"].includes(task.status))throw new Error("Approved or completed work is locked.");
+  }
   await db.update(creativeTasks).set({ caption, updatedAt: new Date() } as any).where(eq(creativeTasks.id, taskId));
   revalidatePath(`/dashboard/creative/${taskId}`);
 }

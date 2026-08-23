@@ -127,9 +127,6 @@ export default auth((req) => {
   if(pathname.startsWith("/api/ad-oauth") && !["SUPER_ADMIN","MEDIA_BUYER"].includes(role)) {
     return NextResponse.json({error:"Forbidden"},{status:403});
   }
-  if(pathname==="/api/media-control" && req.method!=="GET" && role==="ACCOUNT_MANAGER") {
-    return NextResponse.json({error:"Account Managers have read-only media access."},{status:403});
-  }
   if(pathname==="/dashboard"){
     const homes:Record<string,string>={CLIENT:"/dashboard/portal",CREATOR:"/dashboard/creative",ACCOUNTANT:"/dashboard/finance",MEDIA_BUYER:"/dashboard/media/control-center",SALES:"/dashboard/sales",ACCOUNT_MANAGER:"/dashboard/clients"};
     if(homes[role])return NextResponse.redirect(new URL(homes[role],req.url));

@@ -11,10 +11,14 @@ import Link from "next/link";
 async function logActivity(clientId: string, fd: FormData) {
   "use server";
   const {auth:getAuth}=await import("@/lib/auth");
-  const {db,salesActivities,salesLeads}=await import("@/lib/db");
-  const {eq}=await import("drizzle-orm");
+  const {db,salesActivities,salesLeads,clients}=await import("@/lib/db");
+  const {eq,and}=await import("drizzle-orm");
   const session=await getAuth();
   if(!session?.user||![Role.SUPER_ADMIN,Role.ACCOUNT_MANAGER].includes((session.user as any).role)) throw new Error("Unauthorized");
+  if((session.user as any).role===Role.ACCOUNT_MANAGER){
+    const [owned]=await db.select({id:clients.id}).from(clients).where(and(eq(clients.id,clientId),eq(clients.accountManagerId,session.user.id!))).limit(1);
+    if(!owned) throw new Error("Client access denied");
+  }
   // Find or create a lead for this client
   const [lead]=await db.select().from(salesLeads).where(eq(salesLeads.clientId,clientId)).limit(1);
   const leadId=lead?.id||clientId;
@@ -34,7 +38,11 @@ async function updateClient(id: string, fd: FormData) {
   const session=await auth();
   if(!session?.user||![Role.SUPER_ADMIN,Role.ACCOUNT_MANAGER].includes((session.user as any).role)) throw new Error("Unauthorized");
   const {db,clients}=await import("@/lib/db");
-  const {eq}=await import("drizzle-orm");
+  const {eq,and}=await import("drizzle-orm");
+  if((session.user as any).role===Role.ACCOUNT_MANAGER){
+    const [owned]=await db.select({id:clients.id}).from(clients).where(and(eq(clients.id,id),eq(clients.accountManagerId,session.user.id!))).limit(1);
+    if(!owned) throw new Error("Client access denied");
+  }
   await db.update(clients).set({
     companyName:fd.get("companyName") as string,
     industry:fd.get("industry") as string||null,
@@ -52,7 +60,7 @@ export default async function ClientDetailPage({params}:{params:Promise<{id:stri
   const session=await auth();
   if(!session?.user) redirect("/login");
   const role=(session.user as any).role as Role;
-  if(![Role.SUPER_ADMIN,Role.ACCOUNT_MANAGER,Role.MEDIA_BUYER].includes(role)) redirect("/dashboard");
+  if(![Role.SUPER_ADMIN,Role.ACCOUNT_MANAGER,Role.MEDIA_BUYER,Role.ACCOUNTANT].includes(role)) redirect("/dashboard");
 
   const {id}=await params;
   const now=new Date();
@@ -69,6 +77,8 @@ export default async function ClientDetailPage({params}:{params:Promise<{id:stri
   ]);
 
   if(!client) redirect("/dashboard/clients");
+  if(role===Role.ACCOUNT_MANAGER&&client.accountManagerId!==session.user.id) redirect("/dashboard/clients");
+  if(role===Role.MEDIA_BUYER&&client.mediaBuyerId!==session.user.id) redirect("/dashboard/clients");
 
   const spend  =Number(allMetrics[0]?.adSpend??0);
   const leads  =Number(allMetrics[0]?.leads??0);
@@ -112,7 +122,7 @@ export default async function ClientDetailPage({params}:{params:Promise<{id:stri
         <div className="flex gap-2 flex-wrap">
           {primary?.whatsapp&&<a href={`https://wa.me/${primary.whatsapp.replace(/\D/g,"")}`} target="_blank" className="text-xs px-3 py-1.5 rounded-xl bg-green-500/10 border border-green-500/20 text-green-400 font-semibold" style={{textDecoration:"none"}}>💬 WhatsApp</a>}
           {primary?.email&&<a href={`mailto:${primary.email}`} className="text-xs px-3 py-1.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 font-semibold" style={{textDecoration:"none"}}>📧 Email</a>}
-          <Link href={`/dashboard/creative/new?clientId=${id}`} className="btn-grad text-xs py-1.5" style={{textDecoration:"none"}}>+ New Task</Link>
+          {isManager&&<Link href={`/dashboard/creative/new?clientId=${id}`} className="btn-grad text-xs py-1.5" style={{textDecoration:"none"}}>+ New Task</Link>}
         </div>
       </div>
 
@@ -141,17 +151,18 @@ export default async function ClientDetailPage({params}:{params:Promise<{id:stri
           <div className="card-vivit !p-0 overflow-hidden">
             <div className="px-5 py-3 border-b border-white/5 flex justify-between items-center">
               <span className="font-semibold text-sm">🎨 Tasks {pending>0&&<span className="ml-1 badge bg-yellow-500/10 text-yellow-400 text-[10px]">{pending} in review</span>}</span>
-              <Link href={`/dashboard/creative/new?clientId=${id}`} className="text-xs text-[#244D87] hover:text-[#00B4D8]" style={{textDecoration:"none"}}>+ Create Task</Link>
+              {isManager&&<Link href={`/dashboard/creative/new?clientId=${id}`} className="text-xs text-[#244D87] hover:text-[#00B4D8]" style={{textDecoration:"none"}}>+ Create Task</Link>}
             </div>
             {tasks.slice(0,8).map(t=>(
-              <Link key={t.id} href={`/dashboard/creative/${t.id}`} className="flex items-center gap-3 px-5 py-3 border-b border-white/[0.03] last:border-0 hover:bg-white/[0.02] transition-colors" style={{textDecoration:"none"}}>
+              <div key={t.id} className="flex items-center gap-3 px-5 py-3 border-b border-white/[0.03] last:border-0 hover:bg-white/[0.02] transition-colors">
                 <span className="text-lg">{TYPE_ICON[t.type]??""}</span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate text-[#E8F4FD]">{t.title}</p>
                   <p className="text-xs text-[#3D5577]">Due {new Date(t.deadline).toLocaleDateString("en-GB",{day:"2-digit",month:"short"})}{t.revisionCount>0&&` · ${t.revisionCount} revisions`}</p>
                 </div>
                 <span className={`badge text-[10px] ${t.status==="APPROVED"||t.status==="COMPLETED"?"bg-green-500/10 text-green-400":t.status==="REVIEW"?"bg-yellow-500/10 text-yellow-400":t.status==="REVISION"?"bg-orange-500/10 text-orange-400":"bg-blue-500/10 text-blue-400"}`}>{t.status}</span>
-              </Link>
+                {[Role.SUPER_ADMIN,Role.ACCOUNT_MANAGER].includes(role)&&<Link href={`/dashboard/creative/${t.id}`} className="text-xs text-[#244D87]" style={{textDecoration:"none"}}>Open →</Link>}
+              </div>
             ))}
             {tasks.length===0&&<p className="text-sm text-[#3D5577] px-5 py-4">No tasks yet.</p>}
           </div>

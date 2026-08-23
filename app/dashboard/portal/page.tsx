@@ -12,9 +12,117 @@ function safeObject(value:string|null|undefined):Record<string,any>{
   catch{return {};}
 }
 
-async function reviewMediaPlan(fd:FormData){"use server";const session=await auth();if(!session?.user)throw new Error("Unauthorized");const userId=(session.user as any).id;const [client]=await db.select({id:clients.id}).from(clients).where(eq(clients.userId,userId)).limit(1);if(!client)throw new Error("Forbidden");const planId=String(fd.get("planId")),decision=String(fd.get("decision")),note=String(fd.get("note")||"").slice(0,500);const [plan]=await db.select().from(mediaPlans).where(and(eq(mediaPlans.id,planId),eq(mediaPlans.clientId,client.id))).limit(1);if(!plan||!["APPROVED","REJECTED"].includes(decision))throw new Error("Invalid request");await db.update(mediaPlans).set({status:decision,clientNote:note||null,approvedBy:userId,approvedAt:decision==="APPROVED"?new Date():null,updatedAt:new Date()}).where(eq(mediaPlans.id,planId));await db.insert(notifications).values({userId:plan.submittedBy,type:"MEDIA_PLAN_REVIEW",title:`Media plan ${decision.toLowerCase()}`,message:`The client ${decision.toLowerCase()} ${plan.name}.${note?` Note: ${note}`:""}`,link:"/dashboard/media/control-center",priority:decision==="APPROVED"?"normal":"high"});await db.insert(auditLogs).values({userId,action:`media_plan_${decision.toLowerCase()}`,entity:"media_plans",entityId:planId,newValues:JSON.stringify({note})});const {revalidatePath}=await import("next/cache");revalidatePath("/dashboard/portal");}
+async function reviewMediaPlan(fd: FormData) {
+  "use server";
+  const session = await auth();
+  if (!session?.user || (session.user as any).role !== "CLIENT") throw new Error("Unauthorized");
+  const userId = String((session.user as any).id);
+  const [client] = await db.select({ id: clients.id }).from(clients).where(and(
+    eq(clients.userId, userId),
+    eq(clients.workspaceId, "default"),
+    eq(clients.isActive, true),
+  )).limit(1);
+  if (!client) throw new Error("Forbidden");
 
-async function portalAction(fd:FormData){"use server";const session=await auth();if(!session?.user)throw new Error("Unauthorized");const userId=(session.user as any).id;const [client]=await db.select().from(clients).where(eq(clients.userId,userId)).limit(1);if(!client)throw new Error("Forbidden");const action=String(fd.get("action")||"");const now=new Date();if(action==="nps"){const score=Number(fd.get("score")),comment=String(fd.get("comment")||"").trim().slice(0,500);if(!Number.isInteger(score)||score<0||score>10)throw new Error("Choose a score from 0 to 10");await db.insert(clientFeedback).values({clientId:client.id,score,comment:comment||null,month:now.getMonth()+1,year:now.getFullYear()});await db.insert(auditLogs).values({userId,action:"client_nps_submitted",entity:"clients",entityId:client.id,newValues:JSON.stringify({score,comment})});}else if(action==="message"){const message=String(fd.get("message")||"").trim().slice(0,1000);if(!message)throw new Error("Message is required");const recipient=client.accountManagerId;if(!recipient)throw new Error("No account manager is assigned yet");await db.insert(notifications).values({userId:recipient,type:"CLIENT_MESSAGE",title:`Message from ${client.companyName}`,message,link:"/dashboard/clients",priority:"high"});await db.insert(auditLogs).values({userId,action:"client_message_sent",entity:"clients",entityId:client.id,newValues:JSON.stringify({message})});}else if(action==="task_review"){const taskId=String(fd.get("taskId")||""),decision=String(fd.get("decision")||""),comment=String(fd.get("comment")||"").trim().slice(0,1000);if(!["APPROVED","REVISION"].includes(decision))throw new Error("Invalid decision");if(decision==="REVISION"&&!comment)throw new Error("Please explain what should be changed before rejecting the design.");const [task]=await db.select().from(creativeTasks).where(and(eq(creativeTasks.id,taskId),eq(creativeTasks.clientId,client.id))).limit(1);if(!task)throw new Error("Task not found");await db.update(creativeTasks).set({status:decision,updatedAt:now,revisionCount:decision==="REVISION"?(task.revisionCount||0)+1:task.revisionCount,revisionNotes:decision==="REVISION"?comment:null}).where(eq(creativeTasks.id,taskId));if(task.assignedToId)await db.insert(notifications).values({userId:task.assignedToId,type:"CLIENT_REVIEW",title:`Client ${decision.toLowerCase()}: ${task.title}`,message:decision==="APPROVED"?"The client approved this creative.":`The client requested changes: ${comment}`,link:`/dashboard/creative/${task.id}`,priority:decision==="REVISION"?"high":"normal"});await db.insert(auditLogs).values({userId,action:`creative_${decision.toLowerCase()}`,entity:"creative_tasks",entityId:task.id,newValues:JSON.stringify({comment})});}else throw new Error("Invalid action");const {revalidatePath}=await import("next/cache");revalidatePath("/dashboard/portal");}
+  const planId = String(fd.get("planId") || "");
+  const decision = String(fd.get("decision") || "");
+  const note = String(fd.get("note") || "").trim().slice(0, 500);
+  if (!planId || !["APPROVED", "REJECTED"].includes(decision)) throw new Error("Invalid request");
+  const [plan] = await db.select().from(mediaPlans).where(and(
+    eq(mediaPlans.id, planId),
+    eq(mediaPlans.clientId, client.id),
+    eq(mediaPlans.status, "PENDING_APPROVAL"),
+  )).limit(1);
+  if (!plan) throw new Error("This media plan is no longer pending approval");
+
+  await db.update(mediaPlans).set({
+    status: decision,
+    clientNote: note || null,
+    approvedBy: userId,
+    approvedAt: decision === "APPROVED" ? new Date() : null,
+    updatedAt: new Date(),
+  }).where(and(eq(mediaPlans.id, planId), eq(mediaPlans.clientId, client.id), eq(mediaPlans.status, "PENDING_APPROVAL")));
+
+  if (plan.submittedBy) await db.insert(notifications).values({
+    userId: plan.submittedBy,
+    type: "MEDIA_PLAN_REVIEW",
+    title: `Media plan ${decision.toLowerCase()}`,
+    message: `The client ${decision.toLowerCase()} ${plan.name}.${note ? ` Note: ${note}` : ""}`,
+    link: "/dashboard/media/control-center",
+    priority: decision === "APPROVED" ? "normal" : "high",
+  });
+  await db.insert(auditLogs).values({ userId, action: `media_plan_${decision.toLowerCase()}`, entity: "media_plans", entityId: planId, newValues: JSON.stringify({ note }) });
+  const { revalidatePath } = await import("next/cache");
+  revalidatePath("/dashboard/portal");
+}
+
+async function portalAction(fd: FormData) {
+  "use server";
+  const session = await auth();
+  if (!session?.user || (session.user as any).role !== "CLIENT") throw new Error("Unauthorized");
+  const userId = String((session.user as any).id);
+  const [client] = await db.select().from(clients).where(and(
+    eq(clients.userId, userId),
+    eq(clients.workspaceId, "default"),
+    eq(clients.isActive, true),
+  )).limit(1);
+  if (!client) throw new Error("Forbidden");
+  const action = String(fd.get("action") || "");
+  const now = new Date();
+
+  if (action === "nps") {
+    const score = Number(fd.get("score"));
+    const comment = String(fd.get("comment") || "").trim().slice(0, 500);
+    if (!Number.isInteger(score) || score < 0 || score > 10) throw new Error("Choose a score from 0 to 10");
+    const [existing] = await db.select({ id: clientFeedback.id }).from(clientFeedback).where(and(
+      eq(clientFeedback.clientId, client.id),
+      eq(clientFeedback.month, now.getMonth() + 1),
+      eq(clientFeedback.year, now.getFullYear()),
+    )).limit(1);
+    if (existing) await db.update(clientFeedback).set({ score, comment: comment || null }).where(eq(clientFeedback.id, existing.id));
+    else await db.insert(clientFeedback).values({ clientId: client.id, score, comment: comment || null, month: now.getMonth() + 1, year: now.getFullYear() });
+    await db.insert(auditLogs).values({ userId, action: "client_nps_submitted", entity: "clients", entityId: client.id, newValues: JSON.stringify({ score, comment }) });
+  } else if (action === "message") {
+    const message = String(fd.get("message") || "").trim().slice(0, 1000);
+    if (!message) throw new Error("Message is required");
+    const recipient = client.accountManagerId;
+    if (!recipient) throw new Error("No account manager is assigned yet");
+    await db.insert(notifications).values({ userId: recipient, type: "CLIENT_MESSAGE", title: `Message from ${client.companyName}`, message, link: "/dashboard/clients", priority: "high" });
+    await db.insert(auditLogs).values({ userId, action: "client_message_sent", entity: "clients", entityId: client.id, newValues: JSON.stringify({ message }) });
+  } else if (action === "task_review") {
+    const taskId = String(fd.get("taskId") || "");
+    const decision = String(fd.get("decision") || "");
+    const comment = String(fd.get("comment") || "").trim().slice(0, 1000);
+    if (!["APPROVED", "REVISION"].includes(decision)) throw new Error("Invalid decision");
+    if (decision === "REVISION" && !comment) throw new Error("Please explain what should be changed before requesting a revision.");
+    const [task] = await db.select().from(creativeTasks).where(and(
+      eq(creativeTasks.id, taskId),
+      eq(creativeTasks.clientId, client.id),
+      eq(creativeTasks.status, "REVIEW"),
+    )).limit(1);
+    if (!task) throw new Error("This creative is no longer awaiting client review");
+    await db.update(creativeTasks).set({
+      status: decision,
+      updatedAt: now,
+      completedAt: decision === "APPROVED" ? now : task.completedAt,
+      revisionCount: decision === "REVISION" ? (task.revisionCount || 0) + 1 : task.revisionCount,
+      revisionNotes: decision === "REVISION" ? comment : null,
+    }).where(and(eq(creativeTasks.id, taskId), eq(creativeTasks.clientId, client.id), eq(creativeTasks.status, "REVIEW")));
+    if (task.assignedToId) await db.insert(notifications).values({
+      userId: task.assignedToId,
+      type: "CLIENT_REVIEW",
+      title: `Client ${decision.toLowerCase()}: ${task.title}`,
+      message: decision === "APPROVED" ? "The client approved this creative." : `The client requested changes: ${comment}`,
+      link: `/dashboard/creative/${task.id}`,
+      priority: decision === "REVISION" ? "high" : "normal",
+    });
+    await db.insert(auditLogs).values({ userId, action: `creative_${decision.toLowerCase()}`, entity: "creative_tasks", entityId: task.id, newValues: JSON.stringify({ comment }) });
+  } else {
+    throw new Error("Invalid action");
+  }
+  const { revalidatePath } = await import("next/cache");
+  revalidatePath("/dashboard/portal");
+}
 
 export default async function PortalPage() {
   const session = await auth();
@@ -22,7 +130,7 @@ export default async function PortalPage() {
   if ((session.user as any).role !== "CLIENT") redirect("/dashboard");
   const userId = (session.user as any).id as string;
 
-  const [clientRow] = await db.select().from(clients).where(eq(clients.userId, userId)).limit(1);
+  const [clientRow] = await db.select().from(clients).where(and(eq(clients.userId, userId), eq(clients.workspaceId, "default"), eq(clients.isActive, true))).limit(1);
   if (!clientRow) {
     return (
       <div style={{textAlign:"center",padding:"80px 24px"}}>
@@ -66,7 +174,7 @@ export default async function PortalPage() {
   const cpl      = leads>0?(spend/leads).toFixed(0):"—";
   const outstanding = Number(finance[0]?.outstanding??0);
   const pendingTasks = recentCreatives.filter(t=>t.status==="REVIEW");
-  const fmt = (n:number) => n>=1000?`$${(n/1000).toFixed(0)}k`:`$${n.toLocaleString()}`;
+  const fmt = (n:number) => `${Math.round(Number(n)||0).toLocaleString("en-EG")} EGP`;
 
   const TYPE_ICONS: Record<string,string> = {REEL:"🎬",GRAPHIC:"🎨",CAROUSEL:"📱",STORY:"📸",UGC:"🎤"};
   const PLATFORM_ICONS: Record<string,string> = {instagram:"📸",facebook:"👥",tiktok:"🎵",snapchat:"👻",google:"🔍"};
@@ -101,7 +209,7 @@ export default async function PortalPage() {
 
       <div className="card" style={{borderTop:"3px solid var(--vivit-blue)"}}>
         <div className="card-header"><div><p className="card-title">🔗 Your Connected Workspace</p><p style={{fontSize:12,color:"var(--text-muted)",marginTop:3}}>Campaigns, calendar posts, creatives and files linked to {clientRow.companyName}</p></div></div>
-        <div className="card-body" style={{display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gap:10}}>
+        <div className="card-body" style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:10}}>
           {[{label:"Campaigns",value:campaigns.length,icon:"📣"},{label:"Upcoming posts",value:upcoming.length,icon:"📅"},{label:"Creatives",value:recentCreatives.length,icon:"🎨"},{label:"Recent files",value:assets.length,icon:"📁"}].map(item=>item.label==="Creatives"?<a key={item.label} href="#creative-gallery" style={{padding:14,border:"1px solid var(--purple)",borderRadius:10,background:"var(--bg-tertiary)",textDecoration:"none",color:"inherit",cursor:"pointer"}}><div style={{fontSize:20}}>{item.icon}</div><strong style={{fontSize:22,color:"var(--text-primary)"}}>{item.value}</strong><p style={{fontSize:11,color:"var(--text-muted)"}}>{item.label} · Click to view</p></a>:<div key={item.label} style={{padding:14,border:"1px solid var(--card-border)",borderRadius:10,background:"var(--bg-tertiary)"}}><div style={{fontSize:20}}>{item.icon}</div><strong style={{fontSize:22,color:"var(--text-primary)"}}>{item.value}</strong><p style={{fontSize:11,color:"var(--text-muted)"}}>{item.label}</p></div>)}
         </div>
         {(campaigns.length>0||assets.length>0||recentCreatives.length>0)&&<div className="card-body" style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:14,paddingTop:0}}>

@@ -13,6 +13,7 @@ import { WorkspaceCurrencyGuard } from "@/components/ui/WorkspaceCurrencyGuard";
 import { LegacyUiGuard } from "@/components/ui/LegacyUiGuard";
 import "./dashboard-polish.css";
 import "./final-ui-pass.css";
+import "./final-module-polish.css";
 
 function PageSkeleton() {
   return (

@@ -32,10 +32,12 @@ const routeExists = (href) => pages.has(href) || [...pages].some((page) => {
 const broken = [...internalLinks].filter((href) => !routeExists(href));
 pass("All static dashboard links resolve", broken.length === 0, broken.join(", "));
 
-const middleware = read("middleware.ts");
+const proxy = read("proxy.ts");
 for (const route of ["/dashboard/revenue-attribution", "/dashboard/nps", "/dashboard/onboarding", "/dashboard/monthly-reports", "/dashboard/marketplace", "/dashboard/budget"]) {
-  pass(`Middleware protects ${route}`, middleware.includes(route));
+  pass(`Proxy protects ${route}`, proxy.includes(route));
 }
+pass("Next 16 proxy convention is used", fs.existsSync(path.join(root,"proxy.ts")) && !fs.existsSync(path.join(root,"middleware.ts")));
+pass("No fake in-memory login limiter remains", !/loginAttempts|addLoginFailure|checkBruteForce/.test(proxy));
 
 const calendar = read("components/calendar/CalendarClient.tsx");
 pass("Scheduled posts require media", /assetFileId/.test(calendar) && /required/.test(calendar) && /disabled=\{saving\|\|uploading\|\|!assetFileId\}/.test(calendar));

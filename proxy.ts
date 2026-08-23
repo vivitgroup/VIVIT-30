@@ -104,7 +104,9 @@ export default auth((req) => {
     if (homes[role]) return NextResponse.redirect(new URL(homes[role], req.url));
   }
 
+  // Order matters: more-specific paths must appear before their parent sections.
   const pageAccess: [string, string[]][] = [
+    ["/dashboard/clients/accounts-payment", ["SUPER_ADMIN", "ACCOUNTANT", "ACCOUNT_MANAGER"]],
     ["/dashboard/settings", ["SUPER_ADMIN", "ACCOUNT_MANAGER", "MEDIA_BUYER", "CREATOR", "ACCOUNTANT", "SALES", "CLIENT"]],
     ["/dashboard/team", ["SUPER_ADMIN"]],
     ["/dashboard/workspace", ["SUPER_ADMIN"]],

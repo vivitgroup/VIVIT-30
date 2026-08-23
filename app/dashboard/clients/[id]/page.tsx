@@ -97,6 +97,7 @@ export default async function ClientDetailPage({params}:{params:Promise<{id:stri
   const TYPE_ICON:Record<string,string>={REEL:"🎬",GRAPHIC:"🎨",CAROUSEL:"📊",MOTION_GRAPHIC:"✨",VIDEO_EDIT:"🎥",STORY:"📱",UGC:"👤"};
   const ACT_ICON:Record<string,string>={call:"📞",email:"📧",whatsapp:"💬",meeting:"🤝",note:"📝"};
   const MONTHS=["","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const waNumber=(value:string)=>{let p=String(value||"").replace(/\D/g,"");if(p.startsWith("00"))p=p.slice(2);if(p.startsWith("0"))p=`20${p.slice(1)}`;return p;};
 
   return(
     <div className="max-w-6xl space-y-5 animate-fade-up">
@@ -120,7 +121,7 @@ export default async function ClientDetailPage({params}:{params:Promise<{id:stri
           </div>
         </div>
         <div className="flex gap-2 flex-wrap">
-          {primary?.whatsapp&&<a href={`https://wa.me/${primary.whatsapp.replace(/\D/g,"")}`} target="_blank" className="text-xs px-3 py-1.5 rounded-xl bg-green-500/10 border border-green-500/20 text-green-400 font-semibold" style={{textDecoration:"none"}}>💬 WhatsApp</a>}
+          {primary?.whatsapp&&<a href={`https://wa.me/${waNumber(primary.whatsapp)}`} target="_blank" className="text-xs px-3 py-1.5 rounded-xl bg-green-500/10 border border-green-500/20 text-green-400 font-semibold" style={{textDecoration:"none"}}>💬 WhatsApp</a>}
           {primary?.email&&<a href={`mailto:${primary.email}`} className="text-xs px-3 py-1.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 font-semibold" style={{textDecoration:"none"}}>📧 Email</a>}
           {isManager&&<Link href={`/dashboard/creative/new?clientId=${id}`} className="btn-grad text-xs py-1.5" style={{textDecoration:"none"}}>+ New Task</Link>}
         </div>

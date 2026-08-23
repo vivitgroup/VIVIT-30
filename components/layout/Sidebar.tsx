@@ -14,7 +14,7 @@ const SECTIONS:Section[]=[
   {icon:"🧾",label:"Online Aman",href:"/dashboard/sales/aman",roles:["SUPER_ADMIN","SALES"]},
   {icon:"💬",label:"WhatsApp",href:"/dashboard/whatsapp",roles:["SUPER_ADMIN","ACCOUNT_MANAGER","SALES"]},
   {icon:"📣",label:"Media Control",href:"/dashboard/media/control-center",roles:["SUPER_ADMIN","MEDIA_BUYER","ACCOUNT_MANAGER"]},
-  {icon:"🔄",label:"Platform Sync",href:"/dashboard/media/sync",roles:["SUPER_ADMIN","MEDIA_BUYER"]},
+  {icon:"🔗",label:"Platform Integrations",href:"/dashboard/media/integrations",roles:["SUPER_ADMIN","MEDIA_BUYER"]},
   {icon:"🎨",label:"Creative",href:"/dashboard/creative",roles:["SUPER_ADMIN","ACCOUNT_MANAGER","CREATOR"]},
   {icon:"📥",label:"Tasks Inbox",href:"/dashboard/tasks-inbox",roles:["SUPER_ADMIN","ACCOUNT_MANAGER"]},
   {icon:"📅",label:"Calendar",href:"/dashboard/calendar",roles:["SUPER_ADMIN","ACCOUNT_MANAGER","CREATOR"]},
@@ -56,7 +56,7 @@ export function Sidebar({role,userName}:{role:string;userName:string}){
   setCollapsed(c);setTheme(t);setLang(l);document.documentElement.classList.toggle("dark",t==="dark");
   const onLang=(e:Event)=>setLang((e as CustomEvent).detail);window.addEventListener("vivit-language",onLang);return()=>window.removeEventListener("vivit-language",onLang);
  },[]);
- const ar:Record<string,string>={MAIN:"الرئيسية","FINANCE & HR":"المالية والموارد البشرية",ANALYTICS:"التحليلات","AI & TOOLS":"الذكاء الاصطناعي والأدوات","CLIENT PORTAL":"بوابة العميل",Dashboard:"لوحة التحكم",Clients:"العملاء","Sales CRM":"المبيعات","Online Aman":"أمان أونلاين",WhatsApp:"واتساب","Media Control":"إدارة الإعلانات","Platform Sync":"ربط المنصات",Creative:"الإبداع","Tasks Inbox":"صندوق المهام",Calendar:"التقويم",Finance:"المالية","Accounts Payment":"تحصيلات العملاء",Contracts:"العقود","HR & Team":"الفريق","LTV & Revenue":"القيمة والإيرادات",Analytics:"التحليلات",Forecast:"التوقعات","KPIs & BI":"مؤشرات الأداء",Reports:"التقارير","AI Studio":"استوديو الذكاء الاصطناعي",Files:"الملفات",Notifications:"الإشعارات",Settings:"الإعدادات","My Portal":"بوابتي"};
+ const ar:Record<string,string>={MAIN:"الرئيسية","FINANCE & HR":"المالية والموارد البشرية",ANALYTICS:"التحليلات","AI & TOOLS":"الذكاء الاصطناعي والأدوات","CLIENT PORTAL":"بوابة العميل",Dashboard:"لوحة التحكم",Clients:"العملاء","Sales CRM":"المبيعات","Online Aman":"أمان أونلاين",WhatsApp:"واتساب","Media Control":"إدارة الإعلانات","Platform Integrations":"ربط المنصات",Creative:"الإبداع","Tasks Inbox":"صندوق المهام",Calendar:"التقويم",Finance:"المالية","Accounts Payment":"تحصيلات العملاء",Contracts:"العقود","HR & Team":"الفريق","LTV & Revenue":"القيمة والإيرادات",Analytics:"التحليلات",Forecast:"التوقعات","KPIs & BI":"مؤشرات الأداء",Reports:"التقارير","AI Studio":"استوديو الذكاء الاصطناعي",Files:"الملفات",Notifications:"الإشعارات",Settings:"الإعدادات","My Portal":"بوابتي"};
  const t=(v:string)=>lang==="ar"?(ar[v]||v):v;
  const initials=userName.split(" ").filter(Boolean).map(n=>n[0]).join("").slice(0,2).toUpperCase();
  const visible=SECTIONS.map(s=>({...s,items:s.items.filter(i=>i.roles.includes(role))})).filter(s=>s.items.length);

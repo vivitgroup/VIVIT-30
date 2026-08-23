@@ -1,0 +1,53 @@
+name: Preprod v41 media fixes
+on:
+  push:
+    branches: [fix/preprod-full-qa-v41]
+    paths: [.github/preprod-v41-media-trigger.txt]
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/preprod-full-qa-v41
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Patch media scope validation and EGP
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('app/dashboard/media/page.tsx')
+          s=p.read_text()
+          old='''  const { db, mediaMetrics } = await import("@/lib/db");\n  const clientId = fd.get("clientId") as string;\n  const platform = fd.get("platform") as string;\n  const adSpend  = parseFloat(fd.get("adSpend") as string)  || 0;\n  const leads    = parseInt(fd.get("leads") as string)       || 0;\n  const revenue  = parseFloat(fd.get("revenue") as string)   || 0;'''
+          new='''  const { db, mediaMetrics, clients } = await import("@/lib/db");\n  const { eq, and } = await import("drizzle-orm");\n  const role=(session.user as any).role as Role;\n  const userId=String((session.user as any).id||"");\n  const clientId = String(fd.get("clientId")||"");\n  const platform = String(fd.get("platform")||"");\n  const allowedPlatforms=["meta","instagram","tiktok","google","snapchat","linkedin","twitter"];\n  if(!clientId||!allowedPlatforms.includes(platform)) throw new Error("Invalid client or platform");\n  if(role!==Role.SUPER_ADMIN){\n    const [owned]=await db.select({id:clients.id}).from(clients).where(and(eq(clients.id,clientId),eq(clients.isActive,true),role===Role.MEDIA_BUYER?eq(clients.mediaBuyerId,userId):eq(clients.accountManagerId,userId))).limit(1);\n    if(!owned) throw new Error("Forbidden");\n  }\n  const adSpend=Number(fd.get("adSpend")||0),leads=Number(fd.get("leads")||0),revenue=Number(fd.get("revenue")||0),budget=Number(fd.get("budget")||0);\n  if(![adSpend,leads,revenue,budget].every(Number.isFinite)||adSpend<0||leads<0||!Number.isInteger(leads)||revenue<0||budget<0) throw new Error("Metrics must be valid non-negative numbers");'''
+          assert old in s
+          s=s.replace(old,new)
+          s=s.replace('remainingBudget:parseFloat(fd.get("budget") as string)||0,','remainingBudget:budget,')
+          old='''  const allowedClientIds=allClients.map(c=>c.id);\n  const visibleThisMonth=role===Role.SUPER_ADMIN?thisMonth:thisMonth.filter(m=>allowedClientIds.includes(m.clientId));\n\n  const clientMap = Object.fromEntries(allClients.map(c=>[c.id,c]));\n  const fmt = (n:number) => n>=1000000?`$${(n/1000000).toFixed(1)}M`:n>=1000?`$${(n/1000).toFixed(0)}k`:`$${n.toLocaleString()}`;'''
+          new='''  const allowedClientIds=allClients.map(c=>c.id);\n  const visibleThisMonth=role===Role.SUPER_ADMIN?thisMonth:thisMonth.filter(m=>allowedClientIds.includes(m.clientId));\n  const platformMap=new Map<string,{platform:string,spend:number,leads:number,revenue:number}>();\n  for(const m of visibleThisMonth){\n    const key=String(m.platform||"meta"),cur=platformMap.get(key)||{platform:key,spend:0,leads:0,revenue:0};\n    cur.spend+=Number(m.spend||0);cur.leads+=Number(m.leads||0);cur.revenue+=Number(m.revenue||0);platformMap.set(key,cur);\n  }\n  const visiblePlatformMetrics=Array.from(platformMap.values());\n\n  const clientMap = Object.fromEntries(allClients.map(c=>[c.id,c]));\n  const fmt = (n:number) => new Intl.NumberFormat("en-EG",{style:"currency",currency:"EGP",maximumFractionDigits:0}).format(Number(n||0));'''
+          assert old in s
+          s=s.replace(old,new)
+          s=s.replace('platformMetrics.length===0','visiblePlatformMetrics.length===0')
+          s=s.replace('{platformMetrics.map(p=>{','{visiblePlatformMetrics.map(p=>{')
+          s=s.replace('value:`$${avgCpl}`','value:avgCpl==="—"?"—":`${avgCpl} EGP`')
+          s=s.replace('value:`$${cpl}`','value:cpl==="—"?"—":`${cpl} EGP`')
+          s=s.replace('>${c.cpl.toFixed(0)}</td>', '>{c.cpl.toFixed(0)} EGP</td>')
+          s=s.replace('Monthly Budget ($)','Monthly Budget (EGP)').replace('Ad Spend ($) *','Ad Spend (EGP) *').replace('Revenue Attributed ($)','Revenue Attributed (EGP)')
+          s=s.replace('name="budget" type="number" placeholder=', 'name="budget" type="number" min="0" placeholder=')
+          s=s.replace('name="adSpend" type="number" step="0.01" required', 'name="adSpend" type="number" min="0" step="0.01" required')
+          s=s.replace('name="leads" type="number" placeholder=', 'name="leads" type="number" min="0" step="1" placeholder=')
+          s=s.replace('name="revenue" type="number" step="0.01" placeholder=', 'name="revenue" type="number" min="0" step="0.01" placeholder=')
+          p.write_text(s)
+          PY
+      - name: Commit media fixes
+        run: |
+          git config user.name "vivitgroup"
+          git config user.email "groupvivit@gmail.com"
+          git add app/dashboard/media/page.tsx
+          git diff --cached --quiet && exit 0
+          git commit -m "Harden media metric writes and scoped aggregates"
+          git push origin HEAD:fix/preprod-full-qa-v41

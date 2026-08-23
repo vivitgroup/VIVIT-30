@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { db, users, creatorProfiles, creativeTasks } from "@/lib/db";
+import { db, users, creatorProfiles, creativeTasks, clients } from "@/lib/db";
 import { eq, and, inArray } from "drizzle-orm";
 import { Role } from "@/lib/types";
 
@@ -16,7 +16,7 @@ async function saveProfile(fd: FormData) {
   const data = {
     userId: session.user.id!, bio: fd.get("bio") as string,
     portfolioUrl: fd.get("portfolio") as string || null,
-    ratePerTask: parseFloat(fd.get("rate") as string) || 0,
+    ratePerTask: Math.max(0, Number.parseFloat(String(fd.get("rate")||"0")) || 0),
     specialties: fd.get("specialties") as string,
     isAvailable: fd.get("available") === "true",
     updatedAt: new Date(),
@@ -38,7 +38,15 @@ export default async function MarketplacePage() {
   const creatorUsers = userIds.length > 0 ? await db.select({ id:users.id, name:users.name, email:users.email }).from(users).where(inArray(users.id, userIds)) : [];
   const userMap = Object.fromEntries(creatorUsers.map(u => [u.id, u]));
 
-  const openTasks = role !== Role.CREATOR ? await db.select().from(creativeTasks).where(eq(creativeTasks.status, "PENDING")).limit(10) : [];
+  const userId=String((session.user as any).id||"");
+  let openTasks:any[]=[];
+  if(role===Role.SUPER_ADMIN){
+    openTasks=await db.select().from(creativeTasks).where(eq(creativeTasks.status,"PENDING")).limit(10);
+  }else if(role===Role.ACCOUNT_MANAGER){
+    const owned=await db.select({id:clients.id}).from(clients).where(and(eq(clients.accountManagerId,userId),eq(clients.isActive,true)));
+    const ids=owned.map(c=>c.id);
+    openTasks=ids.length?await db.select().from(creativeTasks).where(and(eq(creativeTasks.status,"PENDING"),inArray(creativeTasks.clientId,ids))).limit(10):[];
+  }
   const myProfile = role === Role.CREATOR ? await db.select().from(creatorProfiles).where(eq(creatorProfiles.userId, session.user.id!)).then(r=>r[0]) : null;
 
   const TYPE_ICON: Record<string,string> = {REEL:"🎬",GRAPHIC:"🎨",CAROUSEL:"📊",MOTION_GRAPHIC:"✨",VIDEO_EDIT:"🎥",PHOTO_SESSION:"📸",STORY:"📱",UGC:"👤"};
@@ -64,15 +72,15 @@ export default async function MarketplacePage() {
             <div className="grid grid-cols-2 gap-3">
               <div><label className="block text-xs text-[#6B8FAF] mb-1.5 font-semibold uppercase tracking-wider">Portfolio URL</label>
                 <input name="portfolio" defaultValue={myProfile?.portfolioUrl??""} placeholder="https://behance.net/..." className="form-input" /></div>
-              <div><label className="block text-xs text-[#6B8FAF] mb-1.5 font-semibold uppercase tracking-wider">Rate per Task ($)</label>
+              <div><label className="block text-xs text-[#6B8FAF] mb-1.5 font-semibold uppercase tracking-wider">Rate per Task (EGP)</label>
                 <input name="rate" type="number" defaultValue={myProfile?.ratePerTask??0} className="form-input" /></div>
             </div>
             <div><label className="block text-xs text-[#6B8FAF] mb-1.5 font-semibold uppercase tracking-wider">Specialties</label>
               <input name="specialties" defaultValue={myProfile?.specialties??"REEL,GRAPHIC,UGC"} placeholder="REEL,GRAPHIC,UGC,CAROUSEL" className="form-input" /></div>
             <div><label className="block text-xs text-[#6B8FAF] mb-1.5 font-semibold uppercase tracking-wider">Available for work</label>
-              <select name="available" className="form-input">
-                <option value="true" selected={myProfile?.isAvailable!==false}>✅ Available</option>
-                <option value="false" selected={myProfile?.isAvailable===false}>❌ Not Available</option>
+              <select name="available" className="form-input" defaultValue={myProfile?.isAvailable===false?"false":"true"}>
+                <option value="true">✅ Available</option>
+                <option value="false">❌ Not Available</option>
               </select></div>
             <button type="submit" className="btn btn-primary">Save Profile</button>
           </form>
@@ -96,7 +104,7 @@ export default async function MarketplacePage() {
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <p className="font-semibold text-sm">{u?.name}</p>
-                      {p.ratePerTask > 0 && <span className="text-xs text-[#244D87] font-semibold">${p.ratePerTask}/task</span>}
+                      {p.ratePerTask > 0 && <span className="text-xs text-[#244D87] font-semibold">${Number(p.ratePerTask).toLocaleString("en-EG")} EGP/task</span>}
                       <span className="ml-auto badge bg-green-500/10 text-green-400 text-[10px]">● Available</span>
                     </div>
                     {p.bio && <p className="text-xs text-[#6B8FAF] mt-0.5">{p.bio}</p>}
@@ -104,7 +112,7 @@ export default async function MarketplacePage() {
                       {specialties.map(s => <span key={s} className="badge bg-blue-500/10 text-blue-400 text-[10px]">{TYPE_ICON[s]??""} {s}</span>)}
                     </div>
                     {p.portfolioUrl && (
-                      <a href={p.portfolioUrl} target="_blank" className="text-xs text-[#244D87] hover:text-[#00B4D8] mt-1 inline-block">🔗 Portfolio →</a>
+                      <a href={p.portfolioUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-[#244D87] hover:text-[#00B4D8] mt-1 inline-block">🔗 Portfolio →</a>
                     )}
                   </div>
                 </div>

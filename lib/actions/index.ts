@@ -53,6 +53,10 @@ export async function createClient(formData: FormData) {
   const session = await auth();
   requireRole(session,["SUPER_ADMIN","ACCOUNT_MANAGER"]);
   const creatorRole=roleOf(session);
+  const requestedAm=creatorRole==="ACCOUNT_MANAGER"?session!.user!.id!:String(formData.get("accountManagerId")||"")||null;
+  const requestedMb=String(formData.get("mediaBuyerId")||"")||null;
+  if(requestedAm){const [am]=await db.select({id:users.id}).from(users).where(and(eq(users.id,requestedAm),eq(users.role,"ACCOUNT_MANAGER"),eq(users.isActive,true))).limit(1);if(!am)throw new Error("Invalid account manager");}
+  if(requestedMb){const [mb]=await db.select({id:users.id}).from(users).where(and(eq(users.id,requestedMb),eq(users.role,"MEDIA_BUYER"),eq(users.isActive,true))).limit(1);if(!mb)throw new Error("Invalid media buyer");}
 
   const [client] = await db.insert(clients).values({
     companyName:      formData.get("companyName") as string,
@@ -61,8 +65,8 @@ export async function createClient(formData: FormData) {
     monthlyRetainer:  parseFloat(formData.get("monthlyRetainer") as string) || 0,
     mediaBudget:      parseFloat(formData.get("mediaBudget") as string) || 0,
     contractValue:    parseFloat(formData.get("contractValue") as string) || 0,
-    accountManagerId: creatorRole==="ACCOUNT_MANAGER" ? session!.user!.id! : (formData.get("accountManagerId") as string || null),
-    mediaBuyerId:     formData.get("mediaBuyerId") as string || null,
+    accountManagerId: requestedAm,
+    mediaBuyerId:     requestedMb,
     metaAdsLink:      formData.get("metaAdsLink") as string || null,
     tiktokAdsLink:    formData.get("tiktokAdsLink") as string || null,
     snapchatAdsLink:  formData.get("snapchatAdsLink") as string || null,
@@ -96,6 +100,15 @@ export async function createClient(formData: FormData) {
 export async function updateClient(clientId: string, formData: FormData) {
   const session = await auth();
   await requireClientAccess(session,clientId,true);
+  const updateRole=roleOf(session);
+  const [existingClient]=await db.select({accountManagerId:clients.accountManagerId,mediaBuyerId:clients.mediaBuyerId}).from(clients).where(eq(clients.id,clientId)).limit(1);
+  if(!existingClient)throw new Error("Client not found");
+  let nextAm=existingClient.accountManagerId,nextMb=existingClient.mediaBuyerId;
+  if(updateRole==="SUPER_ADMIN"){
+    nextAm=String(formData.get("accountManagerId")||"")||null;nextMb=String(formData.get("mediaBuyerId")||"")||null;
+    if(nextAm){const [am]=await db.select({id:users.id}).from(users).where(and(eq(users.id,nextAm),eq(users.role,"ACCOUNT_MANAGER"),eq(users.isActive,true))).limit(1);if(!am)throw new Error("Invalid account manager");}
+    if(nextMb){const [mb]=await db.select({id:users.id}).from(users).where(and(eq(users.id,nextMb),eq(users.role,"MEDIA_BUYER"),eq(users.isActive,true))).limit(1);if(!mb)throw new Error("Invalid media buyer");}
+  }
 
   await db.update(clients).set({
     companyName:      formData.get("companyName") as string,
@@ -104,8 +117,8 @@ export async function updateClient(clientId: string, formData: FormData) {
     monthlyRetainer:  parseFloat(formData.get("monthlyRetainer") as string) || 0,
     mediaBudget:      parseFloat(formData.get("mediaBudget")     as string) || 0,
     contractValue:    parseFloat(formData.get("contractValue")   as string) || 0,
-    accountManagerId: formData.get("accountManagerId") as string || null,
-    mediaBuyerId:     formData.get("mediaBuyerId")     as string || null,
+    accountManagerId: nextAm,
+    mediaBuyerId:     nextMb,
     metaAdsLink:      formData.get("metaAdsLink")      as string || null,
     tiktokAdsLink:    formData.get("tiktokAdsLink")    as string || null,
     snapchatAdsLink:  formData.get("snapchatAdsLink")  as string || null,
@@ -201,12 +214,15 @@ export async function createTask(formData: FormData) {
   const deadline     = formData.get("deadline") as string;
   const caption      = formData.get("caption") as string || null;
 
-  if (!title || !clientId || !type || !brief || !deadline) throw new Error("Missing required fields");
+  const allowedTypes=["REEL","GRAPHIC","CAROUSEL","MOTION_GRAPHIC","VIDEO_EDIT","PHOTO_SESSION","STORY","UGC"],allowedPriorities=["URGENT","HIGH","MEDIUM","LOW"];
+  const deadlineDate=new Date(deadline);
+  if(!title||!clientId||!brief||!allowedTypes.includes(type)||!allowedPriorities.includes(priority)||!deadline||Number.isNaN(deadlineDate.getTime()))throw new Error("Invalid task data");
+  if(assignedToId){const [creator]=await db.select({id:users.id}).from(users).where(and(eq(users.id,assignedToId),eq(users.role,"CREATOR"),eq(users.isActive,true))).limit(1);if(!creator)throw new Error("Invalid creator assignment");}
 
   const [task] = await db.insert(creativeTasks).values({
     title, clientId, type: type as any, brief, tov: tov || null,
     priority: priority as any, status: "PENDING",
-    assignedToId, deadline: new Date(deadline), caption,
+    assignedToId, deadline: deadlineDate, caption,
     createdById: session.user.id!,
   } as any).returning();
 
@@ -304,6 +320,8 @@ export async function submitTaskFile(taskId: string, fileName: string, fileUrl: 
       ? ["PENDING","IN_PROGRESS","REVIEW","REVISION"]
       : ["IN_PROGRESS","REVISION"];
   if((!isManager&&taskBefore.assignedToId!==session!.user!.id)||!allowedStatuses.includes(taskBefore.status))throw new Error("Forbidden");
+  if(isManager)await requireClientAccess(session,taskBefore.clientId,true);
+  if(!validateUrl(String(fileUrl||"")))throw new Error("A valid uploaded file URL is required");
 
   const [task] = await db.update(creativeTasks)
     .set({ status: "REVIEW", fileUrl: fileUrl || null, updatedAt: new Date() } as any)

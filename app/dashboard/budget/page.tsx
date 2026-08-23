@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { db, clients, mediaMetrics } from "@/lib/db";
-import { eq, gte, and, sum, desc } from "drizzle-orm";
+import { eq, gte, and, sum, desc, inArray } from "drizzle-orm";
 import { Role } from "@/lib/types";
 import Link from "next/link";
 
@@ -19,16 +19,21 @@ export default async function BudgetPage() {
   const daysElapsed  = now.getDate();
   const daysRemaining = daysInMonth - daysElapsed;
 
-  const [allClients, mtdMetrics] = await Promise.all([
-    db.select({id:clients.id,companyName:clients.companyName,mediaBudget:clients.mediaBudget,targetLeads:clients.targetLeads})
-      .from(clients).where(eq(clients.isActive,true)),
-    db.select({clientId:mediaMetrics.clientId,spend:sum(mediaMetrics.adSpend),leads:sum(mediaMetrics.leads)})
-      .from(mediaMetrics).where(gte(mediaMetrics.date,moStart))
-      .groupBy(mediaMetrics.clientId),
-  ]);
+  const userId=String((session.user as any).id||"");
+  const clientScope=role===Role.ACCOUNT_MANAGER
+    ? and(eq(clients.isActive,true),eq(clients.accountManagerId,userId))
+    : role===Role.MEDIA_BUYER
+      ? and(eq(clients.isActive,true),eq(clients.mediaBuyerId,userId))
+      : eq(clients.isActive,true);
+  const allClients=await db.select({id:clients.id,companyName:clients.companyName,mediaBudget:clients.mediaBudget,targetLeads:clients.targetLeads})
+    .from(clients).where(clientScope);
+  const clientIds=allClients.map(c=>c.id);
+  const mtdMetrics=clientIds.length?await db.select({clientId:mediaMetrics.clientId,spend:sum(mediaMetrics.adSpend),leads:sum(mediaMetrics.leads)})
+    .from(mediaMetrics).where(and(gte(mediaMetrics.date,moStart),inArray(mediaMetrics.clientId,clientIds)))
+    .groupBy(mediaMetrics.clientId):[];
 
   const metricMap = Object.fromEntries(mtdMetrics.map(m=>[m.clientId,m]));
-  const fmt = (n:number) => n>=1000?`$${(n/1000).toFixed(0)}k`:`$${n.toLocaleString()}`;
+  const fmt = (n:number) => new Intl.NumberFormat("en-EG",{style:"currency",currency:"EGP",maximumFractionDigits:0}).format(Number(n||0));
   const month = now.toLocaleDateString("en-US",{month:"long",year:"numeric"});
 
   const budgetData = allClients.map(c=>{

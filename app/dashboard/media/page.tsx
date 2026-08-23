@@ -11,12 +11,20 @@ async function addMetrics(fd: FormData) {
   "use server";
   const session=await auth();
   if(!session?.user||![Role.SUPER_ADMIN,Role.MEDIA_BUYER,Role.ACCOUNT_MANAGER].includes((session.user as any).role)) throw new Error("Unauthorized");
-  const { db, mediaMetrics } = await import("@/lib/db");
-  const clientId = fd.get("clientId") as string;
-  const platform = fd.get("platform") as string;
-  const adSpend  = parseFloat(fd.get("adSpend") as string)  || 0;
-  const leads    = parseInt(fd.get("leads") as string)       || 0;
-  const revenue  = parseFloat(fd.get("revenue") as string)   || 0;
+  const { db, mediaMetrics, clients } = await import("@/lib/db");
+  const { eq, and } = await import("drizzle-orm");
+  const role=(session.user as any).role as Role;
+  const userId=String((session.user as any).id||"");
+  const clientId = String(fd.get("clientId")||"");
+  const platform = String(fd.get("platform")||"");
+  const allowedPlatforms=["meta","instagram","tiktok","google","snapchat","linkedin","twitter"];
+  if(!clientId||!allowedPlatforms.includes(platform)) throw new Error("Invalid client or platform");
+  if(role!==Role.SUPER_ADMIN){
+    const [owned]=await db.select({id:clients.id}).from(clients).where(and(eq(clients.id,clientId),eq(clients.isActive,true),role===Role.MEDIA_BUYER?eq(clients.mediaBuyerId,userId):eq(clients.accountManagerId,userId))).limit(1);
+    if(!owned) throw new Error("Forbidden");
+  }
+  const adSpend=Number(fd.get("adSpend")||0),leads=Number(fd.get("leads")||0),revenue=Number(fd.get("revenue")||0),budget=Number(fd.get("budget")||0);
+  if(![adSpend,leads,revenue,budget].every(Number.isFinite)||adSpend<0||leads<0||!Number.isInteger(leads)||revenue<0||budget<0) throw new Error("Metrics must be valid non-negative numbers");
   const roas     = adSpend>0 ? revenue/adSpend : 0;
   const cpl      = leads>0   ? adSpend/leads   : 0;
   const agencyFee= adSpend*0.2;
@@ -24,7 +32,7 @@ async function addMetrics(fd: FormData) {
     clientId, platform, date:new Date(),
     adSpend, leads, revenue, roas:parseFloat(roas.toFixed(2)),
     cpl:parseFloat(cpl.toFixed(2)), agencyFee,
-    remainingBudget:parseFloat(fd.get("budget") as string)||0,
+    remainingBudget:budget,
     targetLeads:0, totalDue:adSpend+agencyFee,
   }).onConflictDoNothing();
   const { revalidatePath } = await import("next/cache");
@@ -64,9 +72,15 @@ export default async function MediaPage() {
 
   const allowedClientIds=allClients.map(c=>c.id);
   const visibleThisMonth=role===Role.SUPER_ADMIN?thisMonth:thisMonth.filter(m=>allowedClientIds.includes(m.clientId));
+  const platformMap=new Map<string,{platform:string,spend:number,leads:number,revenue:number}>();
+  for(const m of visibleThisMonth){
+    const key=String(m.platform||"meta"),cur=platformMap.get(key)||{platform:key,spend:0,leads:0,revenue:0};
+    cur.spend+=Number(m.spend||0);cur.leads+=Number(m.leads||0);cur.revenue+=Number(m.revenue||0);platformMap.set(key,cur);
+  }
+  const visiblePlatformMetrics=Array.from(platformMap.values());
 
   const clientMap = Object.fromEntries(allClients.map(c=>[c.id,c]));
-  const fmt = (n:number) => n>=1000000?`$${(n/1000000).toFixed(1)}M`:n>=1000?`$${(n/1000).toFixed(0)}k`:`$${n.toLocaleString()}`;
+  const fmt = (n:number) => new Intl.NumberFormat("en-EG",{style:"currency",currency:"EGP",maximumFractionDigits:0}).format(Number(n||0));
 
   const totalSpend   = visibleThisMonth.reduce((s,m)=>s+Number(m.spend),0);
   const totalLeads   = visibleThisMonth.reduce((s,m)=>s+Number(m.leads),0);
@@ -118,7 +132,7 @@ export default async function MediaPage() {
           {label:"MTD Ad Spend",  value:fmt(totalSpend),   icon:"💸",color:"blue"},
           {label:"MTD Leads",     value:totalLeads.toLocaleString(), icon:"👥",color:"purple"},
           {label:"Avg ROAS",      value:`${avgRoas}×`,     icon:"📊",color:Number(avgRoas)>=3?"green":"amber"},
-          {label:"Avg CPL",       value:`$${avgCpl}`,      icon:"🎯",color:"cyan"},
+          {label:"Avg CPL",       value:avgCpl==="—"?"—":`${avgCpl} EGP`,      icon:"🎯",color:"cyan"},
           {label:"Agency Fee",    value:fmt(totalFee),     icon:"💼",color:"green"},
         ].map(k=>(
           <div key={k.label} className={`kpi-card ${k.color}`}>
@@ -135,11 +149,11 @@ export default async function MediaPage() {
           <p className="card-title">Platform Performance — MTD</p>
         </div>
         <div className="card-body">
-          {platformMetrics.length===0 ? (
+          {visiblePlatformMetrics.length===0 ? (
             <p style={{textAlign:"center",color:"var(--text-muted)",padding:"24px"}}>No media data this month. Log metrics below.</p>
           ) : (
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:"12px"}}>
-              {platformMetrics.map(p=>{
+              {visiblePlatformMetrics.map(p=>{
                 const cfg = PLATFORMS[p.platform??"meta"]??PLATFORMS.meta;
                 const spend   = Number(p.spend);
                 const leads   = Number(p.leads);
@@ -160,7 +174,7 @@ export default async function MediaPage() {
                         {label:"Spend",  value:fmt(spend)},
                         {label:"Leads",  value:String(leads)},
                         {label:"ROAS",   value:`${roas}×`},
-                        {label:"CPL",    value:`$${cpl}`},
+                        {label:"CPL",    value:cpl==="—"?"—":`${cpl} EGP`},
                       ].map(m=>(
                         <div key={m.label}>
                           <p style={{fontSize:"10px",color:"var(--text-muted)",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>{m.label}</p>
@@ -207,7 +221,7 @@ export default async function MediaPage() {
                           padding:"3px 10px",borderRadius:"12px",background:roasColor+"15"
                         }}>{c.roas.toFixed(1)}×</span>
                       </td>
-                      <td style={{color:"var(--text-secondary)",fontWeight:600}}>${c.cpl.toFixed(0)}</td>
+                      <td style={{color:"var(--text-secondary)",fontWeight:600}}>{c.cpl.toFixed(0)} EGP</td>
                       <td>
                         <div style={{display:"flex",alignItems:"center",gap:"8px",minWidth:"100px"}}>
                           <div className="progress-bar" style={{flex:1}}>
@@ -252,20 +266,20 @@ export default async function MediaPage() {
                 </select>
               </div>
               <div>
-                <label className="form-label">Monthly Budget ($)</label>
-                <input name="budget" type="number" placeholder="10,000" className="form-input"/>
+                <label className="form-label">Monthly Budget (EGP)</label>
+                <input name="budget" type="number" min="0" placeholder="10,000" className="form-input"/>
               </div>
               <div>
-                <label className="form-label">Ad Spend ($) *</label>
-                <input name="adSpend" type="number" step="0.01" required placeholder="5,000" className="form-input"/>
+                <label className="form-label">Ad Spend (EGP) *</label>
+                <input name="adSpend" type="number" min="0" step="0.01" required placeholder="5,000" className="form-input"/>
               </div>
               <div>
                 <label className="form-label">Leads Generated</label>
-                <input name="leads" type="number" placeholder="250" className="form-input"/>
+                <input name="leads" type="number" min="0" step="1" placeholder="250" className="form-input"/>
               </div>
               <div>
-                <label className="form-label">Revenue Attributed ($)</label>
-                <input name="revenue" type="number" step="0.01" placeholder="15,000" className="form-input"/>
+                <label className="form-label">Revenue Attributed (EGP)</label>
+                <input name="revenue" type="number" min="0" step="0.01" placeholder="15,000" className="form-input"/>
               </div>
             </div>
             <button type="submit" className="btn btn-primary">Log Metrics →</button>

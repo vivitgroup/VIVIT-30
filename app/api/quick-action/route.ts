@@ -2,78 +2,67 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { db, notifications, clients } from "@/lib/db";
+import { db, notifications } from "@/lib/db";
 import { eq } from "drizzle-orm";
 
-
-// Fix 76: robots.txt handler
 export async function GET(req: NextRequest) {
   const { pathname } = req.nextUrl;
-  
   if (pathname === "/api/robots" || req.nextUrl.searchParams.get("type") === "robots") {
     return new NextResponse(
       `User-agent: *\nDisallow: /dashboard\nDisallow: /api\nAllow: /\nSitemap: ${process.env.NEXTAUTH_URL ?? ""}/sitemap.xml`,
       { headers: { "Content-Type": "text/plain" } }
     );
   }
-
-  // Fix 45: Real health check with DB
   if (req.nextUrl.searchParams.get("type") === "health") {
+    const session=await auth();
+    if(!session?.user||(session.user as any).role!=="SUPER_ADMIN") return NextResponse.json({error:"Forbidden"},{status:403});
     try {
       const { db, users } = await import("@/lib/db");
       const { count } = await import("drizzle-orm");
       const [r] = await db.select({ cnt: count() }).from(users).limit(1);
-      return NextResponse.json({
-        status: "healthy",
-        db: "connected",
-        users: Number(r?.cnt ?? 0),
-        ts: new Date().toISOString(),
-        version: "30.0.0",
-      });
+      return NextResponse.json({status:"healthy",db:"connected",users:Number(r?.cnt??0),ts:new Date().toISOString()});
     } catch (e) {
-      return NextResponse.json({ status:"unhealthy", error:String(e) }, { status:503 });
+      return NextResponse.json({ status:"unhealthy" }, { status:503 });
     }
   }
-
   return NextResponse.json({ ok: true });
 }
 
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const { action } = await req.json();
-  if(["recalculate_health","recalculate_health_old","generate_recurring"].includes(action)&&(session.user as any).role!=="SUPER_ADMIN")return NextResponse.json({error:"Forbidden"},{status:403});
+  const body=await req.json().catch(()=>null);
+  if(!body) return NextResponse.json({error:"Invalid JSON body"},{status:400});
+  const action=String(body.action||"");
+  const role=String((session.user as any).role||"");
 
   switch (action) {
     case "mark_all_read": {
       await db.update(notifications).set({ isRead: true }).where(eq(notifications.userId, session.user.id!));
       return NextResponse.json({ success: true, action });
     }
-    case "recalculate_health":
-      // Fix 9: Actually call performance-score API
+    case "recalculate_health": {
+      if(role!=="SUPER_ADMIN") return NextResponse.json({error:"Forbidden"},{status:403});
       try {
-        const baseUrl = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
-        await fetch(`${baseUrl}/api/performance-score`, {
+        const baseUrl = process.env.NEXTAUTH_URL ?? new URL(req.url).origin;
+        const res=await fetch(`${baseUrl}/api/performance-score`, {
           method: "POST",
-          headers: { "Content-Type": "application/json",
-            "Cookie": req.headers.get("cookie") ?? "" },
-          body: JSON.stringify({}),
+          headers: { "Content-Type": "application/json", "Cookie": req.headers.get("cookie") ?? "" },
+          body: "{}",
         });
-        return NextResponse.json({ success:true, action:"recalculate_health", status:"triggered" });
-      } catch (e) {
-        return NextResponse.json({ success:false, action:"recalculate_health", status:"failed", error:String(e) }, { status:502 });
+        if(!res.ok) return NextResponse.json({success:false,error:"Health recalculation failed"},{status:502});
+        const data=await res.json().catch(()=>({}));
+        return NextResponse.json({ success:true, action, processed:data.processed??null });
+      } catch {
+        return NextResponse.json({ success:false, action, error:"Health recalculation failed" }, { status:502 });
       }
-    case "recalculate_health_old": {
-      // Trigger health score recalculation
-      const base = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
-      await fetch(`${base}/api/performance-score`, { method: "POST" });
-      return NextResponse.json({ success: true, action });
     }
     case "generate_recurring": {
-      const base = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
-      const res = await fetch(`${base}/api/recurring`, { method: "POST" });
-      const data = await res.json();
+      if(!["SUPER_ADMIN","ACCOUNTANT"].includes(role)) return NextResponse.json({error:"Forbidden"},{status:403});
+      const base = process.env.NEXTAUTH_URL ?? new URL(req.url).origin;
+      const res = await fetch(`${base}/api/recurring`, { method:"POST", headers:{"Cookie":req.headers.get("cookie")??""} });
+      const data = await res.json().catch(()=>({}));
+      if(!res.ok) return NextResponse.json({error:data.error||"Recurring invoice generation failed"},{status:res.status});
       return NextResponse.json({ success: true, ...data });
     }
     default:

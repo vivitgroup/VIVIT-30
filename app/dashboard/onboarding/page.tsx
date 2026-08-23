@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { db, clients, onboardingProgress, users } from "@/lib/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { Role } from "@/lib/types";
 
 const STEPS = [
@@ -27,13 +27,21 @@ const CATEGORY_COLOR: Record<string,string> = {
 async function toggleStep(clientId: string, stepId: string, completed: boolean) {
   "use server";
   const { auth: getAuth } = await import("@/lib/auth");
-  const { db, onboardingProgress } = await import("@/lib/db");
+  const { db, onboardingProgress, clients } = await import("@/lib/db");
   const { eq, and } = await import("drizzle-orm");
   const session = await getAuth();
   const role = (session?.user as any)?.role as Role | undefined;
   if (!session?.user || ![Role.SUPER_ADMIN, Role.ACCOUNT_MANAGER].includes(role!)) throw new Error("Unauthorized");
   if (!STEPS.some(step => step.id === stepId)) throw new Error("Invalid onboarding step");
   const userId = (session.user as any).id as string;
+  if (role === Role.ACCOUNT_MANAGER) {
+    const [ownedClient] = await db.select({ id: clients.id }).from(clients)
+      .where(and(eq(clients.id, clientId), eq(clients.accountManagerId, userId), eq(clients.isActive, true))).limit(1);
+    if (!ownedClient) throw new Error("Forbidden");
+  } else {
+    const [existingClient] = await db.select({ id: clients.id }).from(clients).where(eq(clients.id, clientId)).limit(1);
+    if (!existingClient) throw new Error("Client not found");
+  }
   const existing = await db.select().from(onboardingProgress)
     .where(and(eq(onboardingProgress.clientId, clientId), eq(onboardingProgress.stepId, stepId)));
   if (existing.length > 0) {
@@ -55,10 +63,16 @@ export default async function OnboardingPage() {
   const role = (session.user as any).role as Role;
   if (![Role.SUPER_ADMIN, Role.ACCOUNT_MANAGER].includes(role)) redirect("/dashboard");
 
+  const userId = String((session.user as any).id || "");
   const allClients = await db.select({ id: clients.id, companyName: clients.companyName, createdAt: clients.createdAt })
-    .from(clients).where(eq(clients.isActive, true)).orderBy(clients.createdAt);
+    .from(clients).where(role === Role.ACCOUNT_MANAGER
+      ? and(eq(clients.isActive, true), eq(clients.accountManagerId, userId))
+      : eq(clients.isActive, true)).orderBy(clients.createdAt);
 
-  const allProgress = await db.select().from(onboardingProgress);
+  const clientIds = allClients.map(c => c.id);
+  const allProgress = clientIds.length
+    ? await db.select().from(onboardingProgress).where(inArray(onboardingProgress.clientId, clientIds))
+    : [];
   
   const progressMap: Record<string, Record<string, boolean>> = {};
   for (const p of allProgress) {

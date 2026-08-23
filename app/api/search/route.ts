@@ -1,8 +1,8 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { db, clients, creativeTasks, salesLeads, contacts, proposals } from "@/lib/db";
-import { ilike, or, eq, and, desc } from "drizzle-orm";
+import { db, clients, creativeTasks, salesLeads, contacts } from "@/lib/db";
+import { ilike, or, eq, and } from "drizzle-orm";
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -14,15 +14,12 @@ export async function GET(req: NextRequest) {
 
   if (!q || q.length < 2) return NextResponse.json({ results:[], query:q });
 
-  const term    = `%${q}%`;
+  const term = `%${q}%`;
   const results: any[] = [];
-
-  // Fix 62: Only return data user has access to
-  const isAdmin = ["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","SALES","ACCOUNTANT"].includes(role);
+  const canSearchClients = ["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","SALES","ACCOUNTANT"].includes(role);
 
   try {
-    // Clients — only if not CLIENT role
-    if (isAdmin) {
+    if (canSearchClients) {
       const clientResults = await db.select({
         id:clients.id, companyName:clients.companyName,
         industry:clients.industry, churnRisk:clients.churnRisk,
@@ -36,15 +33,19 @@ export async function GET(req: NextRequest) {
       })));
     }
 
-    // Tasks
     if (["SUPER_ADMIN","ACCOUNT_MANAGER","CREATOR"].includes(role)) {
-      const where = role === "CREATOR"
+      const taskWhere = role === "CREATOR"
         ? and(ilike(creativeTasks.title,term), eq(creativeTasks.assignedToId,userId))
-        : ilike(creativeTasks.title,term);
-      const taskResults = await db.select({
+        : role === "ACCOUNT_MANAGER"
+          ? and(ilike(creativeTasks.title,term), eq(clients.accountManagerId,userId), eq(clients.isActive,true))
+          : ilike(creativeTasks.title,term);
+      const taskBase = db.select({
         id:creativeTasks.id, title:creativeTasks.title,
         status:creativeTasks.status, type:creativeTasks.type,
-      }).from(creativeTasks).where(where).limit(5);
+      }).from(creativeTasks);
+      const taskResults = role === "ACCOUNT_MANAGER"
+        ? await taskBase.innerJoin(clients,eq(creativeTasks.clientId,clients.id)).where(taskWhere).limit(5)
+        : await taskBase.where(taskWhere).limit(5);
       results.push(...taskResults.map(t=>({
         type:"task", title:t.title,
         subtitle:`${t.type?.replace(/_/g," ")} · ${t.status}`,
@@ -52,7 +53,6 @@ export async function GET(req: NextRequest) {
       })));
     }
 
-    // Leads — sales + admins only
     if (["SUPER_ADMIN","SALES"].includes(role)) {
       const leadResults = await db.select({
         id:salesLeads.id, companyName:salesLeads.companyName,
@@ -62,12 +62,11 @@ export async function GET(req: NextRequest) {
         .limit(3);
       results.push(...leadResults.map(l=>({
         type:"lead", title:l.companyName,
-        subtitle:`${l.stage} · $${(l.estimatedValue??0).toLocaleString()}`,
+        subtitle:`${l.stage} · EGP ${(l.estimatedValue??0).toLocaleString()}`,
         href:`/dashboard/sales`, icon:"🎯",
       })));
     }
 
-    // Contacts
     if (["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"].includes(role)) {
       const contactResults = await db.select({
         id:contacts.id, name:contacts.name,

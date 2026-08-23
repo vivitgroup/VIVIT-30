@@ -20,7 +20,8 @@ export async function POST(req: NextRequest) {
   let payload:any;
   try{payload=await req.json();}catch{return NextResponse.json({error:"Invalid JSON body"},{status:400});}
   const action=String(payload?.action||"");
-  const ids=Array.from(new Set((Array.isArray(payload?.ids)?payload.ids:[]).map((v:any)=>String(v)).filter(Boolean))).slice(0,100);
+  const rawIds:string[]=(Array.isArray(payload?.ids)?payload.ids:[]).map((v:any)=>String(v)).filter((v:string)=>v.length>0);
+  const ids:string[]=[...new Set<string>(rawIds)].slice(0,100);
   const data=payload?.data&&typeof payload.data==="object"?payload.data:{};
   const updated:string[]=[];
 

@@ -11,10 +11,10 @@ export default async function ReportsPage() {
   if (![Role.SUPER_ADMIN,Role.ACCOUNTANT,Role.ACCOUNT_MANAGER,Role.MEDIA_BUYER,Role.SALES].includes(role)) redirect("/dashboard");
 
   return (
-    <div className="max-w-6xl space-y-5 animate-fade-up">
+    <div className="max-w-6xl space-y-4">
       <div>
-        <h1 className="page-title">📈 Reports & Analytics</h1>
-        <p className="text-muted text-sm mt-0.5">Build custom reports, export data, analyze trends</p>
+        <h1 className="page-title">Reports & Analytics</h1>
+        <p className="page-subtitle">Build custom reports, export data, and analyze operational trends.</p>
       </div>
       <ReportsClient role={role} />
     </div>

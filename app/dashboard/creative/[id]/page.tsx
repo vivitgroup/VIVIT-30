@@ -4,7 +4,7 @@ import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
 import { db, creativeTasks, clients, users, auditLogs, taskComments , calendarEvents } from "@/lib/db";
-import { eq, desc , notInArray , and, gte } from "drizzle-orm";
+import { eq, desc , notInArray , and, gte, inArray } from "drizzle-orm";
 import { Role } from "@/lib/types";
 import { updateTaskStatus, submitTaskFile, updateTaskCaption, markTaskPosted } from "@/lib/actions";
 
@@ -76,7 +76,7 @@ export default async function TaskDetailPage({ params }: { params: Promise<{id:s
 
   // Get commenter names
   const commenterIds = [...new Set(comments.map(c=>c.userId))];
-  const commenters = commenterIds.length > 0 ? await db.select({ id: users.id, name: users.name }).from(users).where(eq(users.id, commenterIds[0])) : [];
+  const commenters = commenterIds.length > 0 ? await db.select({ id: users.id, name: users.name }).from(users).where(inArray(users.id, commenterIds)) : [];
   const commenterMap = Object.fromEntries(commenters.map(u=>[u.id,u.name]));
 
   const isCreator   = task.assignedToId === session.user.id;

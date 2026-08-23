@@ -12,11 +12,14 @@ async function createInvoice(fd: FormData) {
   const session=await auth();
   if(!session?.user||![Role.SUPER_ADMIN,Role.ACCOUNTANT].includes((session.user as any).role)) throw new Error("Unauthorized");
   const { db, financeRecords } = await import("@/lib/db");
-  const clientId  = fd.get("clientId") as string;
-  const month     = parseInt(fd.get("month") as string) || new Date().getMonth()+1;
-  const year      = parseInt(fd.get("year") as string)  || new Date().getFullYear();
-  const retainer  = parseFloat(fd.get("retainer") as string) || 0;
-  const adSpend   = parseFloat(fd.get("adSpend") as string)  || 0;
+  const clientId  = String(fd.get("clientId")||"");
+  const month     = Number(fd.get("month"));
+  const year      = Number(fd.get("year")||new Date().getFullYear());
+  const retainer  = Number(fd.get("retainer"));
+  const adSpend   = Number(fd.get("adSpend")||0);
+  if(!clientId||!Number.isInteger(month)||month<1||month>12||!Number.isInteger(year)||year<2020||year>2100||!Number.isFinite(retainer)||retainer<0||!Number.isFinite(adSpend)||adSpend<0) throw new Error("Invalid invoice data");
+  const [validClient]=await db.select({id:clients.id}).from(clients).where(and(eq(clients.id,clientId),eq(clients.isActive,true),eq(clients.workspaceId,"default"))).limit(1);
+  if(!validClient) throw new Error("Invalid client");
   const agencyFee = adSpend * 0.2;
   const total     = retainer + agencyFee;
   const dueDate   = new Date(year, month, 5);
@@ -37,13 +40,12 @@ async function logExpense(fd: FormData) {
   const session=await auth();
   if(!session?.user||![Role.SUPER_ADMIN,Role.ACCOUNTANT].includes((session.user as any).role)) throw new Error("Unauthorized");
   const { db, companyExpenses } = await import("@/lib/db");
-  await db.insert(companyExpenses).values({
-    category:    fd.get("category") as string,
-    description: fd.get("description") as string,
-    amount:      parseFloat(fd.get("amount") as string) || 0,
-    date:        new Date(),
-    approvedBy:  (session.user as any).id,
-  });
+  const allowedCategories=["Salaries","Freelancers","Tools","Office","Production","Advertising","Travel","Other"];
+  const category=String(fd.get("category")||"");
+  const description=String(fd.get("description")||"").trim().slice(0,500);
+  const amount=Number(fd.get("amount"));
+  if(!allowedCategories.includes(category)||!description||!Number.isFinite(amount)||amount<=0) throw new Error("Invalid expense data");
+  await db.insert(companyExpenses).values({category,description,amount,date:new Date(),approvedBy:(session.user as any).id});
   const { revalidatePath } = await import("next/cache");
   revalidatePath("/dashboard/finance");
 }
@@ -93,7 +95,7 @@ export default async function FinancePage() {
   ]);
 
   const clientMap = Object.fromEntries(allClients.map(c=>[c.id,c.companyName]));
-  const fmt = (n:number) => n>=1000000?`$${(n/1000000).toFixed(1)}M`:n>=1000?`$${(n/1000).toFixed(0)}k`:`$${n.toLocaleString()}`;
+  const fmt = (n:number) => n>=1000000?`EGP ${(n/1000000).toFixed(1)}M`:n>=1000?`EGP ${(n/1000).toFixed(0)}k`:`EGP ${n.toLocaleString()}`;
 
   // KPIs
   const ytdRev     = allRecords.filter(r=>r.year===year).reduce((s,r)=>s+Number(r.totalRevenue),0);
@@ -215,16 +217,16 @@ export default async function FinancePage() {
                   <label className="form-label">Month</label>
                   <select name="month" defaultValue={month} className="form-select">
                     {MONTHS.slice(1).map((m,i)=>(
-                      <option key={i+1} value={i+1} selected={i+1===month}>{m}</option>
+                      <option key={i+1} value={i+1}>{m}</option>
                     ))}
                   </select>
                 </div>
                 <div>
-                  <label className="form-label">Retainer ($) *</label>
+                  <label className="form-label">Retainer (EGP) *</label>
                   <input name="retainer" type="number" required placeholder="5,000" className="form-input"/>
                 </div>
                 <div>
-                  <label className="form-label">Ad Spend ($) <span style={{fontWeight:400,color:"var(--text-muted)"}}>+20% fee</span></label>
+                  <label className="form-label">Ad Spend (EGP) <span style={{fontWeight:400,color:"var(--text-muted)"}}>+20% fee</span></label>
                   <input name="adSpend" type="number" placeholder="10,000" className="form-input"/>
                 </div>
               </div>
@@ -252,7 +254,7 @@ export default async function FinancePage() {
                 <input name="description" required placeholder="e.g. Adobe CC subscription" className="form-input"/>
               </div>
               <div>
-                <label className="form-label">Amount ($) *</label>
+                <label className="form-label">Amount (EGP) *</label>
                 <input name="amount" type="number" step="0.01" required placeholder="249" className="form-input"/>
               </div>
               <button type="submit" className="btn btn-primary w-full" style={{background:"linear-gradient(135deg,#D97706,#F59E0B)"}}>Log Expense</button>

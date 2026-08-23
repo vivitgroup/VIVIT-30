@@ -172,7 +172,6 @@ export function CalendarClient({ events, clients, approvedTasks, canManage }: Pr
   const [assetFileId, setAssetFileId] = useState("");
   const [assetName, setAssetName] = useState("");
   const [selectedClientId, setSelectedClientId] = useState("");
-  const [view, setView]    = useState<"month"|"week">("month");
 
   const firstDay    = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month+1, 0).getDate();
@@ -206,11 +205,17 @@ export function CalendarClient({ events, clients, approvedTasks, canManage }: Pr
       setUploadError("Upload the post image or video before scheduling.");
       return;
     }
+    setActionError("");
     setSaving(true);
-    await createCalendarEvent(fd);
-    setSaving(false);
-    setShowAdd(false);
-    window.location.reload();
+    try {
+      await createCalendarEvent(fd);
+      setShowAdd(false);
+      window.location.reload();
+    } catch (error: any) {
+      setActionError(error?.message || "The post could not be scheduled.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function uploadPostAsset(file: File) {
@@ -278,20 +283,6 @@ export function CalendarClient({ events, clients, approvedTasks, canManage }: Pr
           </p>
         </div>
         <div style={{display:"flex",gap:"8px",alignItems:"center",flexWrap:"wrap"}}>
-          {/* View toggle */}
-          <div style={{display:"flex",background:"var(--bg-tertiary)",borderRadius:"8px",padding:"3px",gap:"2px"}}>
-            {(["month","week"] as const).map(v=>(
-              <button key={v} onClick={()=>setView(v)}
-                style={{padding:"5px 12px",borderRadius:"6px",fontSize:"12px",fontWeight:600,border:"none",cursor:"pointer",
-                  background:view===v?"var(--card-bg)":"transparent",
-                  color:view===v?"var(--vivit-blue)":"var(--text-muted)",
-                  fontFamily:"inherit",transition:"all 0.15s",
-                  boxShadow:view===v?"0 1px 3px rgba(0,0,0,0.08)":"none"}}>
-                {v==="month"?"Month":"Week"}
-              </button>
-            ))}
-          </div>
-
           {/* Filters */}
           <select value={filterPlatform} onChange={e=>setFilterPlatform(e.target.value)}
             className="form-select" style={{fontSize:"12.5px",padding:"7px 10px",width:"auto"}}>

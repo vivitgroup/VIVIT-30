@@ -1,0 +1,204 @@
+/* VIVIT ERP — module-level Odoo-inspired polish */
+
+body:has(.app-main-shell) .app-content{
+  --module-gap:12px;
+}
+
+/* Dense operational spacing */
+body:has(.app-main-shell) .app-content > *{
+  scroll-margin-top:70px;
+}
+body:has(.app-main-shell) .app-content .card-body{
+  padding:14px 16px!important;
+}
+body:has(.app-main-shell) .app-content .card-header{
+  padding:10px 14px!important;
+}
+body:has(.app-main-shell) .app-content .divider{
+  border-color:#ececf0!important;
+}
+
+/* Remove remaining showcase gradients inside modules. */
+body:has(.app-main-shell) .app-content .btn[style*="linear-gradient"],
+body:has(.app-main-shell) .app-content button[style*="linear-gradient"]{
+  background:var(--erp-accent-strong)!important;
+  border-color:var(--erp-accent-strong)!important;
+  color:#fff!important;
+  box-shadow:none!important;
+}
+body:has(.app-main-shell) .app-content [style*="var(--vivit-gradient)"]{
+  box-shadow:none!important;
+}
+body:has(.app-main-shell) .app-content .avatar[style*="var(--vivit-gradient)"]{
+  background:var(--erp-accent)!important;
+}
+
+/* Forms read like ERP editors, not marketing cards. */
+body:has(.app-main-shell) .form-label{
+  color:#66666f!important;
+  font-size:10.5px!important;
+  font-weight:700!important;
+  letter-spacing:.035em!important;
+}
+body:has(.app-main-shell) .form-input,
+body:has(.app-main-shell) .form-select,
+body:has(.app-main-shell) textarea{
+  min-height:36px!important;
+  padding:7px 9px!important;
+  font-size:12.5px!important;
+}
+body:has(.app-main-shell) textarea{min-height:76px!important}
+body:has(.app-main-shell) .form-actions{
+  position:sticky;
+  bottom:0;
+  z-index:8;
+  padding:10px 0;
+  background:linear-gradient(to top,var(--erp-workspace) 72%,transparent);
+}
+
+/* Table/list view density. */
+body:has(.app-main-shell) .data-table th,
+body:has(.app-main-shell) .erp-table th{
+  height:36px!important;
+  padding:8px 10px!important;
+}
+body:has(.app-main-shell) .data-table td,
+body:has(.app-main-shell) .erp-table td{
+  padding:9px 10px!important;
+  border-bottom:1px solid #eeeeF1!important;
+  font-size:12px!important;
+}
+body:has(.app-main-shell) .data-table tbody tr:last-child td,
+body:has(.app-main-shell) .erp-table tbody tr:last-child td{border-bottom:0!important}
+
+/* Status chips should communicate state without dominating. */
+body:has(.app-main-shell) .badge{
+  border-radius:999px!important;
+  box-shadow:none!important;
+  font-size:10px!important;
+  font-weight:700!important;
+  line-height:1.2!important;
+  padding:3px 7px!important;
+}
+
+/* Finance */
+body:has(.app-main-shell) .finance-kpi-grid{gap:8px!important}
+body:has(.app-main-shell) .finance-form-grid{gap:12px!important}
+body:has(.app-main-shell) .aging-grid{gap:8px!important}
+body:has(.app-main-shell) .aging-grid>div{
+  border-radius:7px!important;
+  padding:12px!important;
+}
+body:has(.app-main-shell) .aging-grid>div p[style*="font-size:22px"]{
+  font-family:'Plus Jakarta Sans',system-ui,sans-serif!important;
+  font-size:17px!important;
+  color:var(--erp-text)!important;
+}
+
+/* Kanban boards */
+body:has(.app-main-shell) .stage,
+body:has(.app-main-shell) [style*="min-width:200px"][style*="background:var(--bg-tertiary)"]{
+  background:#f2f2f4!important;
+  border-color:#dedee3!important;
+  border-radius:7px!important;
+}
+body:has(.app-main-shell) .lead-card{
+  border-radius:6px!important;
+  box-shadow:0 1px 2px rgba(20,20,24,.025)!important;
+  transition:border-color 120ms ease,box-shadow 120ms ease!important;
+}
+body:has(.app-main-shell) .lead-card:hover{
+  border-color:#c8c8cf!important;
+  box-shadow:0 2px 6px rgba(20,20,24,.06)!important;
+}
+body:has(.app-main-shell) .stage-head{
+  background:#fafafa!important;
+  min-height:40px!important;
+}
+
+/* Settings/HR approval surfaces */
+body:has(.app-main-shell) #users,
+body:has(.app-main-shell) #roles,
+body:has(.app-main-shell) #security{
+  scroll-margin-top:72px;
+}
+body:has(.app-main-shell) .settings-grid{gap:10px!important}
+body:has(.app-main-shell) .settings-row{padding:9px 0!important}
+body:has(.app-main-shell) [style*="min-width:260px"]{
+  min-width:230px!important;
+}
+
+/* Notifications, files and report surfaces */
+body:has(.app-main-shell) .files-page{gap:12px!important}
+body:has(.app-main-shell) .file-upload-form{
+  padding:0!important;
+  gap:9px!important;
+}
+body:has(.app-main-shell) .upload-progress{height:5px!important}
+body:has(.app-main-shell) .upload-progress span{background:var(--erp-accent)!important}
+
+/* Search palette behaves like a command menu. */
+body:has(.app-main-shell) .app-header + div[style*="z-index:9999"]{
+  backdrop-filter:none!important;
+  background:rgba(24,24,27,.28)!important;
+}
+body:has(.app-main-shell) .app-header + div[style*="z-index:9999"]>div{
+  border-radius:8px!important;
+  box-shadow:0 18px 48px rgba(0,0,0,.18)!important;
+}
+
+/* Motion: only state transitions; no decorative drift. */
+body:has(.app-main-shell) .app-content a,
+body:has(.app-main-shell) .app-content button,
+body:has(.app-main-shell) .app-content input,
+body:has(.app-main-shell) .app-content select,
+body:has(.app-main-shell) .app-content textarea{
+  transition-duration:140ms!important;
+}
+body:has(.app-main-shell) .app-content .card,
+body:has(.app-main-shell) .app-content .card-vivit,
+body:has(.app-main-shell) .app-content .kpi-card{
+  animation:none!important;
+}
+body:has(.app-main-shell) .stagger>*{
+  animation-name:erp-row-enter!important;
+  animation-duration:160ms!important;
+  animation-fill-mode:both!important;
+}
+@keyframes erp-row-enter{
+  from{opacity:.01;transform:translateY(3px)}
+  to{opacity:1;transform:none}
+}
+
+/* Dark mode keeps the same information architecture. */
+.dark body:has(.app-main-shell),
+body:has(.app-main-shell).dark{
+  --erp-surface:#111827;
+  --erp-workspace:#0b1220;
+  --erp-line:#263244;
+  --erp-text:#e5e7eb;
+  --erp-muted:#94a3b8;
+  --erp-accent-soft:rgba(135,90,123,.20);
+}
+.dark body:has(.app-main-shell) .app-header,
+.dark body:has(.app-main-shell) .app-sidebar{background:#111827!important}
+.dark body:has(.app-main-shell) .card-header,
+.dark body:has(.app-main-shell) .stage-head{background:#151e2d!important}
+.dark body:has(.app-main-shell) .data-table thead th,
+.dark body:has(.app-main-shell) .erp-table thead th{background:#151e2d!important;color:#b6c1d0!important}
+.dark body:has(.app-main-shell) .data-table tbody tr:hover,
+.dark body:has(.app-main-shell) .erp-table tbody tr:hover{background:#172131!important}
+
+@media(max-width:820px){
+  body:has(.app-main-shell) .app-content .card-body{padding:12px!important}
+  body:has(.app-main-shell) .app-content .card-header{padding:9px 11px!important}
+  body:has(.app-main-shell) .form-input,
+  body:has(.app-main-shell) .form-select,
+  body:has(.app-main-shell) textarea{font-size:16px!important;min-height:42px!important}
+  body:has(.app-main-shell) .form-actions{padding-bottom:78px}
+  body:has(.app-main-shell) [style*="min-width:260px"]{min-width:0!important;width:100%!important}
+}
+
+@media(prefers-reduced-motion:reduce){
+  body:has(.app-main-shell) .stagger>*{animation:none!important}
+}

@@ -26,13 +26,7 @@ export default async function DashboardPage() {
   const today    = new Date(now); today.setHours(0,0,0,0);
   const period   = `${year}-${String(month).padStart(2,"0")}`;
 
-  const [
-    allClients, thisMonthFin, lastMonthFin, ytdFin,
-    thisMonthMedia, activeTasks, inReviewTasks,
-    overdueTasks, wonLeads, staleLead,
-    totalExpenses, recentNotifs, agencyHealth,
-    recentTasks, payrollLock,
-  ] = await Promise.all([
+  const dashboardResults = await Promise.allSettled([
     db.select({ id:clients.id, companyName:clients.companyName, healthScore:clients.healthScore,
       churnRisk:clients.churnRisk, monthlyRetainer:clients.monthlyRetainer,
       lifetimeValue:clients.lifetimeValue, accountManagerId:clients.accountManagerId })
@@ -49,26 +43,21 @@ export default async function DashboardPage() {
     db.select({cnt:count()}).from(creativeTasks).where(eq(creativeTasks.status,"REVIEW")),
     db.select({cnt:count()}).from(creativeTasks).where(and(lt(creativeTasks.deadline,today),notInArray(creativeTasks.status,["COMPLETED","REJECTED","APPROVED"]))),
     db.select({cnt:count()}).from(salesLeads).where(eq(salesLeads.stage,"WON")),
-    db.select({cnt:count()}).from(salesLeads).where(and(
-      lte(salesLeads.updatedAt, new Date(today.getTime()-5*86400000)),
-      notInArray(salesLeads.stage,["WON","LOST"])
-    )),
+    db.select({cnt:count()}).from(salesLeads).where(and(lte(salesLeads.updatedAt,new Date(today.getTime()-5*86400000)),notInArray(salesLeads.stage,["WON","LOST"]))),
     db.select({total:sum(companyExpenses.amount)}).from(companyExpenses).where(gte(companyExpenses.date,moStart)),
-    db.select({id:notifications.id,title:notifications.title,message:notifications.message,
-      priority:notifications.priority,createdAt:notifications.createdAt,isRead:notifications.isRead,link:notifications.link})
-      .from(notifications).where(eq(notifications.userId,userId)).orderBy(desc(notifications.createdAt)).limit(5),
+    db.select({id:notifications.id,title:notifications.title,message:notifications.message,priority:notifications.priority,createdAt:notifications.createdAt,isRead:notifications.isRead,link:notifications.link}).from(notifications).where(eq(notifications.userId,userId)).orderBy(desc(notifications.createdAt)).limit(5),
     db.select().from(agencyHealthScores).orderBy(desc(agencyHealthScores.calculatedAt)).limit(1),
-    db.select({id:creativeTasks.id,title:creativeTasks.title,status:creativeTasks.status,
-      priority:creativeTasks.priority,deadline:creativeTasks.deadline,
-      assignedToId:creativeTasks.assignedToId,clientId:creativeTasks.clientId})
-      .from(creativeTasks).where(notInArray(creativeTasks.status,["COMPLETED","REJECTED"]))
-      .orderBy(desc(creativeTasks.createdAt)).limit(6),
+    db.select({id:creativeTasks.id,title:creativeTasks.title,status:creativeTasks.status,priority:creativeTasks.priority,deadline:creativeTasks.deadline,assignedToId:creativeTasks.assignedToId,clientId:creativeTasks.clientId}).from(creativeTasks).where(notInArray(creativeTasks.status,["COMPLETED","REJECTED"])).orderBy(desc(creativeTasks.createdAt)).limit(6),
     db.select().from(payrollLocks).where(eq(payrollLocks.period,period)).limit(1),
-  ]).catch(() => [
-    [], [{total:0,paid:0,outstanding:0}], [{total:0,paid:0}], [{total:0,paid:0}],
-    [{spend:0,leads:0,revenue:0}], [{cnt:0}], [{cnt:0}], [{cnt:0}], [{cnt:0}], [{cnt:0}],
-    [{total:0}], [], [], [], [],
-  ]) as any[];
+  ]);
+  const dashboardDefaults:any[]=[[],[{total:0,paid:0,outstanding:0}],[{total:0,paid:0}],[{total:0,paid:0}],[{spend:0,leads:0,revenue:0}],[{cnt:0}],[{cnt:0}],[{cnt:0}],[{cnt:0}],[{cnt:0}],[{total:0}],[],[],[],[]];
+  const [
+    allClients, thisMonthFin, lastMonthFin, ytdFin,
+    thisMonthMedia, activeTasks, inReviewTasks,
+    overdueTasks, wonLeads, staleLead,
+    totalExpenses, recentNotifs, agencyHealth,
+    recentTasks, payrollLock,
+  ] = dashboardResults.map((result,index)=>result.status==="fulfilled"?result.value:dashboardDefaults[index]) as any[];
 
   const fmt = (n:number) => n>=1000000?`$${(n/1000000).toFixed(1)}M`:n>=1000?`$${(n/1000).toFixed(0)}k`:`$${n.toLocaleString()}`;
 
@@ -115,7 +104,7 @@ export default async function DashboardPage() {
   const PRIORITY_COLOR: Record<string,string> = {URGENT:"red",HIGH:"amber",MEDIUM:"blue",LOW:"gray"};
 
   return (
-    <div style={{display:"flex",flexDirection:"column",gap:"20px"}}>
+    <div className="dashboard-home">
 
       {/* ── Agency Command Center Header ── */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:"12px"}}>

@@ -13,7 +13,7 @@ async function createContract(fd: FormData) {
   const { auth: getAuth } = await import("@/lib/auth");
   const { db, contracts } = await import("@/lib/db");
   const session = await getAuth();
-  if (!session?.user||(session.user as any).role!==Role.SUPER_ADMIN) throw new Error("Unauthorized");
+  if (!session?.user||![Role.SUPER_ADMIN,Role.ACCOUNTANT].includes((session.user as any).role)) throw new Error("Unauthorized");
   await db.insert(contracts).values({
     clientId:   fd.get("clientId") as string,
     title:      fd.get("title") as string,
@@ -33,7 +33,7 @@ async function createContract(fd: FormData) {
 export default async function ContractsPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
-  if (![Role.SUPER_ADMIN].includes((session.user as any).role)) redirect("/dashboard");
+  if (![Role.SUPER_ADMIN,Role.ACCOUNTANT].includes((session.user as any).role)) redirect("/dashboard");
 
   const [allContracts, allClients] = await Promise.all([
     db.select().from(contracts).orderBy(desc(contracts.endDate)),

@@ -1,0 +1,60 @@
+name: Patch Platform Integration Navigation
+
+on:
+  push:
+    branches:
+      - feat/platform-integrations-v42
+    paths:
+      - .github/workflows/patch-platform-integration-nav.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/platform-integrations-v42
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply deterministic integration cleanup
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          sidebar=Path('components/layout/Sidebar.tsx')
+          s=sidebar.read_text()
+          old='{icon:"🔄",label:"Platform Sync",href:"/dashboard/media/sync",roles:["SUPER_ADMIN","MEDIA_BUYER"]},'
+          new='{icon:"🔗",label:"Platform Integrations",href:"/dashboard/media/integrations",roles:["SUPER_ADMIN","MEDIA_BUYER"]},'
+          if old not in s:
+              raise SystemExit('Platform Sync nav item not found')
+          s=s.replace(old,new,1)
+          s=s.replace('"Platform Sync":"ربط المنصات"','"Platform Integrations":"ربط المنصات"')
+          sidebar.write_text(s)
+
+          lock=Path('package-lock.json')
+          s=lock.read_text()
+          if s.count('"version": "39.0.0"') < 2:
+              raise SystemExit('Expected package-lock v39 markers not found')
+          s=s.replace('"version": "39.0.0"','"version": "41.0.0"',2)
+          lock.write_text(s)
+
+          client=Path('app/dashboard/clients/[id]/page.tsx')
+          s=client.read_text()
+          marker='  const MONTHS=["","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];'
+          helper='''  const MONTHS=["","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];\n  const waNumber=(value:string)=>{let p=String(value||"").replace(/\\D/g,"");if(p.startsWith("00"))p=p.slice(2);if(p.startsWith("0"))p=`20${p.slice(1)}`;return p;};'''
+          if marker not in s:
+              raise SystemExit('Client detail marker not found')
+          s=s.replace(marker,helper,1)
+          s=s.replace('primary.whatsapp.replace(/\\D/g,"")','waNumber(primary.whatsapp)',1)
+          client.write_text(s)
+          PY
+          rm .github/workflows/patch-platform-integration-nav.yml
+          git config user.name "vivit-integration-bot"
+          git config user.email "groupvivit@gmail.com"
+          git add components/layout/Sidebar.tsx package-lock.json 'app/dashboard/clients/[id]/page.tsx' .github/workflows/patch-platform-integration-nav.yml
+          git commit -m "Wire integration navigation and normalize WhatsApp links"
+          git push origin HEAD:feat/platform-integrations-v42

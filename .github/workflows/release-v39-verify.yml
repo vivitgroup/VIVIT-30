@@ -32,12 +32,29 @@ jobs:
       - name: Apply deterministic release cleanup
         run: |
           sed -i 's/\.badge-blue,                    {/\.badge-blue                     {/' app/globals.css
+          python - <<'PY'
+          from pathlib import Path
+
+          cal=Path('components/calendar/CalendarClient.tsx')
+          s=cal.read_text()
+          s=s.replace('  const [view, setView]    = useState<"month"|"week">("month");\n','')
+          s=s.replace('''    setSaving(true);\n    await createCalendarEvent(fd);\n    setSaving(false);\n    setShowAdd(false);\n    window.location.reload();''','''    setActionError("");\n    setSaving(true);\n    try {\n      await createCalendarEvent(fd);\n      setShowAdd(false);\n      window.location.reload();\n    } catch (error: any) {\n      setActionError(error?.message || "The post could not be scheduled.");\n    } finally {\n      setSaving(false);\n    }''')
+          toggle='''          {/* View toggle */}\n          <div style={{display:"flex",background:"var(--bg-tertiary)",borderRadius:"8px",padding:"3px",gap:"2px"}}>\n            {(["month","week"] as const).map(v=>(\n              <button key={v} onClick={()=>setView(v)}\n                style={{padding:"5px 12px",borderRadius:"6px",fontSize:"12px",fontWeight:600,border:"none",cursor:"pointer",\n                  background:view===v?"var(--card-bg)":"transparent",\n                  color:view===v?"var(--vivit-blue)":"var(--text-muted)",\n                  fontFamily:"inherit",transition:"all 0.15s",\n                  boxShadow:view===v?"0 1px 3px rgba(0,0,0,0.08)":"none"}}>\n                {v==="month"?"Month":"Week"}\n              </button>\n            ))}\n          </div>\n\n'''
+          s=s.replace(toggle,'')
+          cal.write_text(s)
+
+          detail=Path('app/dashboard/creative/[id]/page.tsx')
+          s=detail.read_text()
+          s=s.replace('import { eq, desc , notInArray , and, gte } from "drizzle-orm";','import { eq, desc , notInArray , and, gte, inArray } from "drizzle-orm";')
+          s=s.replace('const commenters = commenterIds.length > 0 ? await db.select({ id: users.id, name: users.name }).from(users).where(eq(users.id, commenterIds[0])) : [];','const commenters = commenterIds.length > 0 ? await db.select({ id: users.id, name: users.name }).from(users).where(inArray(users.id, commenterIds)) : [];')
+          detail.write_text(s)
+          PY
           npm install --package-lock-only --ignore-scripts
-          if ! git diff --quiet -- app/globals.css package-lock.json; then
+          if ! git diff --quiet -- app/globals.css package-lock.json components/calendar/CalendarClient.tsx 'app/dashboard/creative/[id]/page.tsx'; then
             git config user.name "vivit-release-bot"
             git config user.email "groupvivit@gmail.com"
-            git add app/globals.css package-lock.json
-            git commit -m "Finalize CSS and dependency lock for v39"
+            git add app/globals.css package-lock.json components/calendar/CalendarClient.tsx 'app/dashboard/creative/[id]/page.tsx'
+            git commit -m "Apply deep QA calendar and creative fixes"
             git push origin HEAD:${{ github.event.pull_request.head.ref }}
           fi
 

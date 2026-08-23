@@ -298,6 +298,13 @@ export async function submitTaskFile(taskId: string, fileName: string, fileUrl: 
   const taskBefore=await taskForAccess(taskId);
   const role=String((session!.user as any).role);
   const isManager=["SUPER_ADMIN","ACCOUNT_MANAGER"].includes(role);
+  if(role==="ACCOUNT_MANAGER") await requireClientAccess(session,taskBefore.clientId,true);
+
+  const safeFileUrl=sanitize(fileUrl,2000);
+  const safeFileName=sanitize(fileName,180)||"file";
+  const safeNotes=sanitize(notes,1000);
+  if(!safeFileUrl||!validateUrl(safeFileUrl)) throw new Error("A valid http or https file URL is required");
+
   const allowedStatuses=role==="SUPER_ADMIN"
     ? ["PENDING","IN_PROGRESS","REVIEW","REVISION","APPROVED","COMPLETED"]
     : role==="ACCOUNT_MANAGER"
@@ -306,7 +313,7 @@ export async function submitTaskFile(taskId: string, fileName: string, fileUrl: 
   if((!isManager&&taskBefore.assignedToId!==session!.user!.id)||!allowedStatuses.includes(taskBefore.status))throw new Error("Forbidden");
 
   const [task] = await db.update(creativeTasks)
-    .set({ status: "REVIEW", fileUrl: fileUrl || null, updatedAt: new Date() } as any)
+    .set({ status: "REVIEW", fileUrl: safeFileUrl, updatedAt: new Date() } as any)
     .where(eq(creativeTasks.id, taskId))
     .returning();
 
@@ -314,7 +321,7 @@ export async function submitTaskFile(taskId: string, fileName: string, fileUrl: 
     await db.insert(notifications).values({
       userId: task.createdById, type: "APPROVAL_REQUESTED",
       title: `📤 "${task.title}" submitted for review`,
-      message: `${session.user.name} submitted. File: ${fileName}. ${notes}`,
+      message: `${session.user.name} submitted. File: ${safeFileName}. ${safeNotes}`,
       link: `/dashboard/creative/${taskId}`,
     } as any);
 
@@ -322,13 +329,18 @@ export async function submitTaskFile(taskId: string, fileName: string, fileUrl: 
     if (client?.userId) {
       await db.insert(notifications).values({
         userId: client.userId, type: "APPROVAL_REQUESTED",
-        title: `🎨 New creative ready for review`,
+        title: "🎨 New creative ready for review",
         message: `${task.title} is ready. Please review and approve.`,
-        link: `/dashboard/portal`,
+        link: "/dashboard/portal",
       } as any);
     }
   }
 
+  await db.insert(auditLogs).values({
+    userId: session!.user!.id!, action: "task_file_submitted",
+    entity: "CreativeTask", entityId: taskId,
+    newValues: JSON.stringify({ fileUrl: safeFileUrl }),
+  } as any);
   revalidatePath(`/dashboard/creative/${taskId}`);
 }
 

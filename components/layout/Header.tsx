@@ -101,9 +101,9 @@ export function Header({ role, unreadCount }: { role:string; unreadCount:number 
 
         {/* Actions */}
         <div className="flex items-center gap-2">
-          <button onClick={toggleLanguage} className="btn btn-ghost btn-sm" title="Switch language">{lang==="en"?"عربي":"English"}</button>
+          <button onClick={toggleLanguage} className="btn btn-ghost btn-sm header-language" title="Switch language">{lang==="en"?"عربي":"EN"}</button>
           {/* Export CSV */}
-          <button onClick={exportCSV} className="btn btn-ghost btn-sm btn-icon" title="Export CSV">
+          <button onClick={exportCSV} className="btn btn-ghost btn-sm btn-icon header-export" title="Export CSV">
             📥
           </button>
 
@@ -119,13 +119,13 @@ export function Header({ role, unreadCount }: { role:string; unreadCount:number 
           </a>
 
           {/* Role badge */}
-          <span className="badge badge-blue" style={{fontSize:"11px"}}>
-            {role.replace(/_/g," ")}
+          <span className="badge badge-blue header-role" style={{fontSize:"11px"}}>
+            {lang==="ar"?({SUPER_ADMIN:"مدير النظام",ACCOUNT_MANAGER:"مدير حساب",MEDIA_BUYER:"مشتري إعلانات",CREATOR:"مصمم",ACCOUNTANT:"محاسب",SALES:"مبيعات",CLIENT:"عميل"} as Record<string,string>)[role]||role:role.replace(/_/g," ")}
           </span>
 
           {/* Sign out */}
-          <a href="/signout" className="btn btn-ghost btn-sm" style={{textDecoration:"none"}}>
-            {lang==="ar"?"تسجيل الخروج":"Sign Out"}
+          <a href="/signout" className="btn btn-ghost btn-sm header-signout" style={{textDecoration:"none"}} title={lang==="ar"?"تسجيل الخروج":"Sign Out"}>
+            <span className="header-signout-icon">↪</span><span className="header-signout-label">{lang==="ar"?"تسجيل الخروج":"Sign Out"}</span>
           </a>
         </div>
       </header>

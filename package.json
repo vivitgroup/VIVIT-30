@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "npm run qa:static && npm run type-check && next build",
+    "build": "npm audit --audit-level=high && npm run qa:static && npm run type-check && next build",
     "start": "next start",
     "lint": "next lint",
     "seed": "npx tsx scripts/seed.ts",
@@ -23,8 +23,8 @@
     "@auth/drizzle-adapter": "^1.7.4",
     "bcryptjs": "^2.4.3",
     "drizzle-orm": "^0.38.4",
-    "next": "15.5.18",
-    "next-auth": "5.0.0-beta.25",
+    "next": "15.5.21",
+    "next-auth": "5.0.0-beta.32",
     "postgres": "^3.4.5",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

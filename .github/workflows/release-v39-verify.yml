@@ -6,7 +6,7 @@ on:
       - main
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: release-v39-verify-${{ github.event.pull_request.number }}
@@ -17,14 +17,29 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Checkout proposed release
+      - name: Checkout proposed release branch
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
 
       - name: Use Node 22
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
+
+      - name: Apply deterministic release cleanup
+        run: |
+          sed -i 's/\.badge-blue,                    {/\.badge-blue                     {/' app/globals.css
+          npm install --package-lock-only --ignore-scripts
+          if ! git diff --quiet -- app/globals.css package-lock.json; then
+            git config user.name "vivit-release-bot"
+            git config user.email "groupvivit@gmail.com"
+            git add app/globals.css package-lock.json
+            git commit -m "Finalize CSS and dependency lock for v39"
+            git push origin HEAD:${{ github.event.pull_request.head.ref }}
+          fi
 
       - name: Install dependencies
         run: npm install

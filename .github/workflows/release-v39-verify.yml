@@ -48,13 +48,22 @@ jobs:
           s=s.replace('import { eq, desc , notInArray , and, gte } from "drizzle-orm";','import { eq, desc , notInArray , and, gte, inArray } from "drizzle-orm";')
           s=s.replace('const commenters = commenterIds.length > 0 ? await db.select({ id: users.id, name: users.name }).from(users).where(eq(users.id, commenterIds[0])) : [];','const commenters = commenterIds.length > 0 ? await db.select({ id: users.id, name: users.name }).from(users).where(inArray(users.id, commenterIds)) : [];')
           detail.write_text(s)
+
+          finance=Path('app/dashboard/finance/page.tsx')
+          s=finance.read_text()
+          s=s.replace('''  const clientId  = fd.get("clientId") as string;\n  const month     = parseInt(fd.get("month") as string) || new Date().getMonth()+1;\n  const year      = parseInt(fd.get("year") as string)  || new Date().getFullYear();\n  const retainer  = parseFloat(fd.get("retainer") as string) || 0;\n  const adSpend   = parseFloat(fd.get("adSpend") as string)  || 0;''','''  const clientId  = String(fd.get("clientId")||"");\n  const month     = Number(fd.get("month"));\n  const year      = Number(fd.get("year")||new Date().getFullYear());\n  const retainer  = Number(fd.get("retainer"));\n  const adSpend   = Number(fd.get("adSpend")||0);\n  if(!clientId||!Number.isInteger(month)||month<1||month>12||!Number.isInteger(year)||year<2020||year>2100||!Number.isFinite(retainer)||retainer<0||!Number.isFinite(adSpend)||adSpend<0) throw new Error("Invalid invoice data");\n  const [validClient]=await db.select({id:clients.id}).from(clients).where(and(eq(clients.id,clientId),eq(clients.isActive,true),eq(clients.workspaceId,"default"))).limit(1);\n  if(!validClient) throw new Error("Invalid client");''')
+          s=s.replace('''  await db.insert(companyExpenses).values({\n    category:    fd.get("category") as string,\n    description: fd.get("description") as string,\n    amount:      parseFloat(fd.get("amount") as string) || 0,\n    date:        new Date(),\n    approvedBy:  (session.user as any).id,\n  });''','''  const allowedCategories=["Salaries","Freelancers","Tools","Office","Production","Advertising","Travel","Other"];\n  const category=String(fd.get("category")||"");\n  const description=String(fd.get("description")||"").trim().slice(0,500);\n  const amount=Number(fd.get("amount"));\n  if(!allowedCategories.includes(category)||!description||!Number.isFinite(amount)||amount<=0) throw new Error("Invalid expense data");\n  await db.insert(companyExpenses).values({category,description,amount,date:new Date(),approvedBy:(session.user as any).id});''')
+          s=s.replace('const fmt = (n:number) => n>=1000000?`$${(n/1000000).toFixed(1)}M`:n>=1000?`$${(n/1000).toFixed(0)}k`:`$${n.toLocaleString()}`;','const fmt = (n:number) => n>=1000000?`EGP ${(n/1000000).toFixed(1)}M`:n>=1000?`EGP ${(n/1000).toFixed(0)}k`:`EGP ${n.toLocaleString()}`;')
+          s=s.replace('Retainer ($) *','Retainer (EGP) *').replace('Ad Spend ($)','Ad Spend (EGP)').replace('Amount ($) *','Amount (EGP) *')
+          s=s.replace(' selected={i+1===month}','')
+          finance.write_text(s)
           PY
           npm install --package-lock-only --ignore-scripts
-          if ! git diff --quiet -- app/globals.css package-lock.json components/calendar/CalendarClient.tsx 'app/dashboard/creative/[id]/page.tsx'; then
+          if ! git diff --quiet -- app/globals.css package-lock.json components/calendar/CalendarClient.tsx 'app/dashboard/creative/[id]/page.tsx' app/dashboard/finance/page.tsx; then
             git config user.name "vivit-release-bot"
             git config user.email "groupvivit@gmail.com"
-            git add app/globals.css package-lock.json components/calendar/CalendarClient.tsx 'app/dashboard/creative/[id]/page.tsx'
-            git commit -m "Apply deep QA calendar and creative fixes"
+            git add app/globals.css package-lock.json components/calendar/CalendarClient.tsx 'app/dashboard/creative/[id]/page.tsx' app/dashboard/finance/page.tsx
+            git commit -m "Apply deep QA calendar creative and finance fixes"
             git push origin HEAD:${{ github.event.pull_request.head.ref }}
           fi
 

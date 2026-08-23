@@ -1,0 +1,72 @@
+name: Preprod v41 report fixes
+on:
+  push:
+    branches: [fix/preprod-full-qa-v41]
+    paths: [.github/preprod-v41-report-trigger.txt]
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/preprod-full-qa-v41
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Patch report scope currency and periods
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          p=Path('app/dashboard/monthly-reports/page.tsx')
+          s=p.read_text()
+          s=s.replace('import { eq } from "drizzle-orm";', 'import { eq, and } from "drizzle-orm";')
+          old='''  const allClients = await db.select({ id:clients.id, companyName:clients.companyName, isActive:clients.isActive })\n    .from(clients).where(eq(clients.isActive, true)).orderBy(clients.companyName);'''
+          new='''  const userId = String((session.user as any).id || "");\n  const allClients = await db.select({ id:clients.id, companyName:clients.companyName, isActive:clients.isActive })\n    .from(clients).where(role === Role.ACCOUNT_MANAGER\n      ? and(eq(clients.isActive, true), eq(clients.accountManagerId, userId))\n      : eq(clients.isActive, true)).orderBy(clients.companyName);'''
+          assert old in s
+          s=s.replace(old,new)
+          old='''    const allC=await db.select({id:clients.id,companyName:clients.companyName}).from(clients).where(eq(clients.isActive,true));'''
+          new='''    const currentUserId=String((current.user as any).id||"");\n    const allC=await db.select({id:clients.id,companyName:clients.companyName}).from(clients).where(currentRole===Role.ACCOUNT_MANAGER\n      ? and(eq(clients.isActive,true),eq(clients.accountManagerId,currentUserId))\n      : eq(clients.isActive,true));'''
+          assert old in s
+          s=s.replace(old,new)
+          s=s.replace('>$${spend.toLocaleString()}</td>', '>${spend.toLocaleString()} EGP</td>')
+          s=s.replace('>$${rev.toLocaleString()}</td>', '>${rev.toLocaleString()} EGP</td>')
+          s=s.replace('>$${inv.totalRevenue.toLocaleString()} — ${inv.invoiceStatus}</td>', '>${inv.totalRevenue.toLocaleString()} EGP — ${inv.invoiceStatus}</td>')
+          s=s.replace("return new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0}).format(n||0);", "return new Intl.NumberFormat('en-EG',{style:'currency',currency:'EGP',maximumFractionDigits:0}).format(n||0);")
+          s=s.replace('<select id="rep-month" className="form-input">', '<select id="rep-month" className="form-input" defaultValue={now.getMonth()+1}>')
+          s=s.replace('<option key={i+1} value={i+1} selected={i+1===now.getMonth()+1}>{m}</option>', '<option key={i+1} value={i+1}>{m}</option>')
+          s=s.replace('<select id="rep-year" className="form-input">', '<select id="rep-year" className="form-input" defaultValue={now.getFullYear()}>')
+          s=s.replace('<option key={y} value={y} selected={y===now.getFullYear()}>{y}</option>', '<option key={y} value={y}>{y}</option>')
+          s=s.replace('📧 Auto-Send All Reports', '{role===Role.ACCOUNT_MANAGER?"📧 Send Assigned Reports":"📧 Auto-Send All Reports"}')
+          p.write_text(s)
+
+          p=Path('app/api/pdf-report/[clientId]/route.ts')
+          s=p.read_text()
+          s=s.replace('import { eq, and, gte, sum } from "drizzle-orm";', 'import { eq, and, gte, lte, sum } from "drizzle-orm";')
+          old='''  const month = parseInt(req.nextUrl.searchParams.get("month") ?? String(new Date().getMonth() + 1));\n  const year  = parseInt(req.nextUrl.searchParams.get("year")  ?? String(new Date().getFullYear()));'''
+          new='''  const month = parseInt(req.nextUrl.searchParams.get("month") ?? String(new Date().getMonth() + 1),10);\n  const year  = parseInt(req.nextUrl.searchParams.get("year")  ?? String(new Date().getFullYear()),10);\n  if(!Number.isInteger(month)||month<1||month>12||!Number.isInteger(year)||year<2020||year>2100) return new NextResponse("Invalid report period",{status:400});'''
+          assert old in s
+          s=s.replace(old,new)
+          s=s.replace('''  const monthStart = new Date(year, month - 1, 1);''','''  const monthStart = new Date(year, month - 1, 1);\n  const monthEnd = new Date(year, month, 0, 23, 59, 59, 999);''')
+          s=s.replace('where(and(eq(mediaMetrics.clientId, clientId), gte(mediaMetrics.date, monthStart)))', 'where(and(eq(mediaMetrics.clientId, clientId), gte(mediaMetrics.date, monthStart), lte(mediaMetrics.date, monthEnd)))')
+          s=s.replace('LTV: $${(client.lifetimeValue??0).toLocaleString()}', 'LTV: ${(client.lifetimeValue??0).toLocaleString()} EGP')
+          s=s.replace('$${spend.toLocaleString()}', '${spend.toLocaleString()} EGP')
+          s=s.replace('$${revenue.toLocaleString()}', '${revenue.toLocaleString()} EGP')
+          s=s.replace('$${(invoice.retainer??0).toLocaleString()}', '${(invoice.retainer??0).toLocaleString()} EGP')
+          s=s.replace('$${(invoice.totalRevenue??0).toLocaleString()}', '${(invoice.totalRevenue??0).toLocaleString()} EGP')
+          s=s.replace('$${(invoice.paid??0).toLocaleString()}', '${(invoice.paid??0).toLocaleString()} EGP')
+          s=s.replace('$${(invoice.outstanding??0).toLocaleString()}', '${(invoice.outstanding??0).toLocaleString()} EGP')
+          s=s.replace('`$${(spend/leads).toFixed(0)}`', '`${(spend/leads).toFixed(0)} EGP`')
+          p.write_text(s)
+          PY
+      - name: Commit report fixes
+        run: |
+          git config user.name "vivitgroup"
+          git config user.email "groupvivit@gmail.com"
+          git add app/dashboard/monthly-reports/page.tsx app/api/pdf-report/[clientId]/route.ts
+          git diff --cached --quiet && exit 0
+          git commit -m "Scope monthly reports and normalize EGP reporting"
+          git push origin HEAD:fix/preprod-full-qa-v41

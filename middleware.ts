@@ -123,6 +123,13 @@ export default auth((req) => {
   }
 
   const role = (session.user as any)?.role;
+  // Platform authorization is operational media access, never an AM approval action.
+  if(pathname.startsWith("/api/ad-oauth") && !["SUPER_ADMIN","MEDIA_BUYER"].includes(role)) {
+    return NextResponse.json({error:"Forbidden"},{status:403});
+  }
+  if(pathname==="/api/media-control" && req.method!=="GET" && role==="ACCOUNT_MANAGER") {
+    return NextResponse.json({error:"Account Managers have read-only media access."},{status:403});
+  }
   if(pathname==="/dashboard"){
     const homes:Record<string,string>={CLIENT:"/dashboard/portal",CREATOR:"/dashboard/creative",ACCOUNTANT:"/dashboard/finance",MEDIA_BUYER:"/dashboard/media/control-center",SALES:"/dashboard/sales",ACCOUNT_MANAGER:"/dashboard/clients"};
     if(homes[role])return NextResponse.redirect(new URL(homes[role],req.url));
@@ -135,7 +142,8 @@ export default auth((req) => {
     ["/dashboard/referrals",["SUPER_ADMIN"]],["/dashboard/saas-analytics",["SUPER_ADMIN"]],
     ["/dashboard/contracts",["SUPER_ADMIN","ACCOUNTANT"]],["/dashboard/finance",["SUPER_ADMIN","ACCOUNTANT"]],
     ["/dashboard/forecast",["SUPER_ADMIN","ACCOUNTANT"]],["/dashboard/ltv",["SUPER_ADMIN","ACCOUNTANT"]],
-    ["/dashboard/sales",["SUPER_ADMIN","SALES","ACCOUNT_MANAGER"]],
+    ["/dashboard/sales",["SUPER_ADMIN","SALES"]],
+    ["/dashboard/media/sync",["SUPER_ADMIN","MEDIA_BUYER"]],
     ["/dashboard/media",["SUPER_ADMIN","MEDIA_BUYER","ACCOUNT_MANAGER"]],
     ["/dashboard/analytics",["SUPER_ADMIN"]],
     ["/dashboard/ai-studio",["SUPER_ADMIN","MEDIA_BUYER","ACCOUNT_MANAGER"]],
@@ -143,7 +151,7 @@ export default auth((req) => {
     ["/dashboard/creative",["SUPER_ADMIN","ACCOUNT_MANAGER","CREATOR"]],
     ["/dashboard/tasks-inbox",["SUPER_ADMIN","ACCOUNT_MANAGER"]],
     ["/dashboard/calendar",["SUPER_ADMIN","ACCOUNT_MANAGER","CREATOR"]],
-    ["/dashboard/reports",["SUPER_ADMIN","ACCOUNTANT","ACCOUNT_MANAGER"]],
+    ["/dashboard/reports",["SUPER_ADMIN","ACCOUNTANT","ACCOUNT_MANAGER","MEDIA_BUYER","SALES"]],
     ["/dashboard/portal",["CLIENT"]],
   ];
   if(pathname.startsWith("/dashboard")){

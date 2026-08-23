@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db, clients, financeRecords, mediaMetrics, contacts } from "@/lib/db";
-import { eq, and, gte, sum } from "drizzle-orm";
+import { eq, and, gte, lte, sum } from "drizzle-orm";
 import { canAccessClient } from "@/lib/client-access";
 
 export async function GET(req: NextRequest, context: { params: Promise<{ clientId: string }> }) {
@@ -11,8 +11,9 @@ export async function GET(req: NextRequest, context: { params: Promise<{ clientI
 
   const { clientId } = await context.params;
   if(!(await canAccessClient(session,clientId)))return new NextResponse("Forbidden",{status:403});
-  const month = parseInt(req.nextUrl.searchParams.get("month") ?? String(new Date().getMonth() + 1));
-  const year  = parseInt(req.nextUrl.searchParams.get("year")  ?? String(new Date().getFullYear()));
+  const month = parseInt(req.nextUrl.searchParams.get("month") ?? String(new Date().getMonth() + 1),10);
+  const year  = parseInt(req.nextUrl.searchParams.get("year")  ?? String(new Date().getFullYear()),10);
+  if(!Number.isInteger(month)||month<1||month>12||!Number.isInteger(year)||year<2020||year>2100) return new NextResponse("Invalid report period",{status:400});
 
   const [client] = await db.select().from(clients).where(eq(clients.id, clientId));
   if (!client) return new NextResponse("Client not found", { status: 404 });
@@ -21,10 +22,11 @@ export async function GET(req: NextRequest, context: { params: Promise<{ clientI
     .where(and(eq(financeRecords.clientId, clientId), eq(financeRecords.month, month), eq(financeRecords.year, year)));
 
   const monthStart = new Date(year, month - 1, 1);
+  const monthEnd = new Date(year, month, 0, 23, 59, 59, 999);
   const [mAgg] = await db.select({
     spend: sum(mediaMetrics.adSpend), leads: sum(mediaMetrics.leads),
     revenue: sum(mediaMetrics.revenue), roas: sum(mediaMetrics.roas),
-  }).from(mediaMetrics).where(and(eq(mediaMetrics.clientId, clientId), gte(mediaMetrics.date, monthStart)));
+  }).from(mediaMetrics).where(and(eq(mediaMetrics.clientId, clientId), gte(mediaMetrics.date, monthStart), lte(mediaMetrics.date, monthEnd)));
 
   const [primaryContact] = await db.select().from(contacts)
     .where(and(eq(contacts.clientId, clientId), eq(contacts.isPrimary, true)));
@@ -103,15 +105,15 @@ export async function GET(req: NextRequest, context: { params: Promise<{ clientI
       <div style="text-align:right;">
         <p style="font-weight:600;color:#244D87;">Health Score: ${Math.round(client.healthScore)}%</p>
         <span class="badge ${client.churnRisk==="LOW"?"badge-green":client.churnRisk==="MEDIUM"?"badge-amber":"badge-red"}">${client.churnRisk} Risk</span>
-        <p style="color:#6A8AA0;margin-top:4px;font-size:11px;">LTV: $${(client.lifetimeValue??0).toLocaleString()}</p>
+        <p style="color:#6A8AA0;margin-top:4px;font-size:11px;">LTV: ${(client.lifetimeValue??0).toLocaleString()} EGP</p>
       </div>
     </div>
 
     <div class="kpi-grid">
-      <div class="kpi-card"><div class="kpi-val">$${spend.toLocaleString()}</div><div class="kpi-label">Ad Spend</div></div>
+      <div class="kpi-card"><div class="kpi-val">${spend.toLocaleString()} EGP</div><div class="kpi-label">Ad Spend</div></div>
       <div class="kpi-card"><div class="kpi-val">${leads}</div><div class="kpi-label">Leads</div></div>
       <div class="kpi-card"><div class="kpi-val">${roas}×</div><div class="kpi-label">ROAS</div></div>
-      <div class="kpi-card"><div class="kpi-val">$${revenue.toLocaleString()}</div><div class="kpi-label">Revenue</div></div>
+      <div class="kpi-card"><div class="kpi-val">${revenue.toLocaleString()} EGP</div><div class="kpi-label">Revenue</div></div>
     </div>
 
     ${invoice ? `
@@ -119,10 +121,10 @@ export async function GET(req: NextRequest, context: { params: Promise<{ clientI
       <h3>💰 Invoice Details</h3>
       <table>
         <tr><th>Item</th><th>Amount</th></tr>
-        <tr><td>Monthly Retainer</td><td>$${(invoice.retainer??0).toLocaleString()}</td></tr>
-        <tr><td>Total Invoice</td><td><strong>$${(invoice.totalRevenue??0).toLocaleString()}</strong></td></tr>
-        <tr><td>Amount Paid</td><td style="color:#10b981;font-weight:600;">$${(invoice.paid??0).toLocaleString()}</td></tr>
-        <tr><td>Outstanding</td><td style="color:${(invoice.outstanding??0)>0?"#ef4444":"#10b981"};font-weight:600;">$${(invoice.outstanding??0).toLocaleString()}</td></tr>
+        <tr><td>Monthly Retainer</td><td>${(invoice.retainer??0).toLocaleString()} EGP</td></tr>
+        <tr><td>Total Invoice</td><td><strong>${(invoice.totalRevenue??0).toLocaleString()} EGP</strong></td></tr>
+        <tr><td>Amount Paid</td><td style="color:#10b981;font-weight:600;">${(invoice.paid??0).toLocaleString()} EGP</td></tr>
+        <tr><td>Outstanding</td><td style="color:${(invoice.outstanding??0)>0?"#ef4444":"#10b981"};font-weight:600;">${(invoice.outstanding??0).toLocaleString()} EGP</td></tr>
         <tr><td>Status</td><td><span class="badge ${invoice.invoiceStatus==="PAID"?"badge-green":"badge-amber"}">${invoice.invoiceStatus}</span></td></tr>
       </table>
     </div>` : ""}
@@ -132,7 +134,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ clientI
       <table>
         <tr><th>Metric</th><th>This Month</th><th>Target</th><th>Status</th></tr>
         <tr><td>ROAS</td><td>${roas}×</td><td>3.0×</td><td><span class="badge ${parseFloat(roas)>=3?"badge-green":"badge-amber"}">${parseFloat(roas)>=3?"On Target":"Below Target"}</span></td></tr>
-        <tr><td>CPL</td><td>${spend>0&&leads>0?`$${(spend/leads).toFixed(0)}`:"—"}</td><td>—</td><td>—</td></tr>
+        <tr><td>CPL</td><td>${spend>0&&leads>0?`${(spend/leads).toFixed(0)} EGP`:"—"}</td><td>—</td><td>—</td></tr>
         <tr><td>Total Leads</td><td>${leads}</td><td>—</td><td><span class="badge badge-blue">In Progress</span></td></tr>
       </table>
     </div>

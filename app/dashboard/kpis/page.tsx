@@ -115,10 +115,12 @@ export default async function KPIPage() {
   const highRiskRevenue = erpClients.filter(c=>c.churnRisk==="HIGH").reduce((s,c)=>s+c.monthlyRetainer*12,0);
   const churnRevenueRisk= highRiskRevenue;
   const pipelineVal   = erpLeads.reduce((s,l)=>s+l.estimatedValue,0);
-  const erpWinRate       = 40; // use actual from sales analytics
+  const erpWinRate       = winRate;
   const pipelineEstimate = pipelineVal * (erpWinRate/100);
   const avgMonthlyRevenue = ytdPaid/Math.max(new Date().getMonth()+1,1);
-  const projectedRevenue  = avgMonthlyRevenue * 1.05; // 5% growth projection
+  const projectedRevenue  = avgMonthlyRevenue + pipelineEstimate/Math.max(12-new Date().getMonth(),1);
+  const openTasks=tasksTotal-tasksCompleted;
+  const creatorCapacity=creatorStats.length>0?Math.max(0,Math.min(100,Math.round(100-openTasks/(creatorStats.length*8)*100))):0;
   
   const erpMetrics = [
     {label:"YTD Revenue",      value:formatCurrency(ytdTotal),       color:"#244D87",  sub:"Invoiced",       trend:0},
@@ -131,7 +133,7 @@ export default async function KPIPage() {
   const erpHealthFactors = [
     {name:"💰 Financial Health",    score:Math.min(100,erpCollectionRate),   note:`${collectionRate}% collection rate`},
     {name:"😊 Client Satisfaction", score:avgHealth,                      note:`Avg health score across ${erpClients.length} clients`},
-    {name:"⚡ Team Capacity",       score:80,                             note:"Estimated from active task load"},
+    {name:"⚡ Team Capacity",       score:creatorCapacity,                note:`Calculated from ${openTasks} open tasks across ${creatorStats.length} creators`},
     {name:"📈 Revenue Growth",      score:Math.min(100,Math.max(0,50+profitMargin)), note:`${profitMargin}% profit margin`},
     {name:"🎯 Sales Pipeline",      score:Math.min(100,Math.round((pipelineVal/100000)*100)), note:`${formatCurrency(pipelineVal)} in active pipeline`},
   ];

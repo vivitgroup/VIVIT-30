@@ -57,13 +57,26 @@ jobs:
           s=s.replace('Retainer ($) *','Retainer (EGP) *').replace('Ad Spend ($)','Ad Spend (EGP)').replace('Amount ($) *','Amount (EGP) *')
           s=s.replace(' selected={i+1===month}','')
           finance.write_text(s)
+
+          team=Path('app/dashboard/team/page.tsx')
+          s=team.read_text()
+          s=s.replace('''  const id     = fd.get("id") as string;\n  const status = fd.get("status") as string;\n  await db.update(leaveRequests).set({ status:status as any, updatedAt:new Date() }).where(eq(leaveRequests.id,id));''','''  const id     = String(fd.get("id")||"");\n  const status = String(fd.get("status")||"");\n  if(!id||!["APPROVED","REJECTED"].includes(status)) throw new Error("Invalid leave decision");\n  const [leave]=await db.select({id:leaveRequests.id,status:leaveRequests.status}).from(leaveRequests).where(eq(leaveRequests.id,id)).limit(1);\n  if(!leave||leave.status!=="PENDING") throw new Error("Leave request is no longer pending");\n  await db.update(leaveRequests).set({ status:status as any, updatedAt:new Date() }).where(eq(leaveRequests.id,id));''')
+          s=s.replace('''  if (!id || !["APPROVED","REJECTED"].includes(decision)) return;\n  if (decision === "APPROVED") {\n    const record = await db.select({ requestedRole:users.requestedRole,email:users.email,name:users.name }).from(users).where(eq(users.id,id)).limit(1);\n    const finalRole = selectedRole || record[0]?.requestedRole;\n    if (!finalRole || finalRole === "SUPER_ADMIN") throw new Error("Invalid requested role");''','''  if (!id || !["APPROVED","REJECTED"].includes(decision)) throw new Error("Invalid account decision");\n  const allowedRoles=["ACCOUNT_MANAGER","MEDIA_BUYER","CREATOR","ACCOUNTANT","SALES","CLIENT"];\n  const record = await db.select({ requestedRole:users.requestedRole,email:users.email,name:users.name,approvalStatus:users.approvalStatus }).from(users).where(eq(users.id,id)).limit(1);\n  if(!record[0]||record[0].approvalStatus!=="PENDING") throw new Error("Account request is no longer pending");\n  if (decision === "APPROVED") {\n    const finalRole = selectedRole || record[0]?.requestedRole;\n    if (!finalRole || !allowedRoles.includes(finalRole)) throw new Error("Invalid requested role");''')
+          s=s.replace('const fmt = (n:number) => n>=1000?`$${(n/1000).toFixed(0)}k`:`$${n.toLocaleString()}`;','const fmt = (n:number) => n>=1000?`EGP ${(n/1000).toFixed(0)}k`:`EGP ${n.toLocaleString()}`;')
+          team.write_text(s)
+
+          settings=Path('app/dashboard/settings/page.tsx')
+          s=settings.read_text()
+          dead='''            <input type="search" placeholder="Filter users..." className="form-input"\n              style={{maxWidth:"220px",fontSize:"13px",padding:"7px 12px"}}\n              onInput={undefined}/>\n'''
+          s=s.replace(dead,'')
+          settings.write_text(s)
           PY
           npm install --package-lock-only --ignore-scripts
-          if ! git diff --quiet -- app/globals.css package-lock.json components/calendar/CalendarClient.tsx 'app/dashboard/creative/[id]/page.tsx' app/dashboard/finance/page.tsx; then
+          if ! git diff --quiet -- app/globals.css package-lock.json components/calendar/CalendarClient.tsx 'app/dashboard/creative/[id]/page.tsx' app/dashboard/finance/page.tsx app/dashboard/team/page.tsx app/dashboard/settings/page.tsx; then
             git config user.name "vivit-release-bot"
             git config user.email "groupvivit@gmail.com"
-            git add app/globals.css package-lock.json components/calendar/CalendarClient.tsx 'app/dashboard/creative/[id]/page.tsx' app/dashboard/finance/page.tsx
-            git commit -m "Apply deep QA calendar creative and finance fixes"
+            git add app/globals.css package-lock.json components/calendar/CalendarClient.tsx 'app/dashboard/creative/[id]/page.tsx' app/dashboard/finance/page.tsx app/dashboard/team/page.tsx app/dashboard/settings/page.tsx
+            git commit -m "Apply deep QA calendar creative finance team settings fixes"
             git push origin HEAD:${{ github.event.pull_request.head.ref }}
           fi
 

@@ -10,7 +10,7 @@ const SECTIONS = [
     items: [
       { icon:"🏠", label:"Dashboard",     href:"/dashboard",              roles:["SUPER_ADMIN"] },
       { icon:"🏢", label:"Clients",       href:"/dashboard/clients",      roles:["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","ACCOUNTANT"] },
-      { icon:"🎯", label:"Sales CRM",     href:"/dashboard/sales",        roles:["SUPER_ADMIN","SALES","ACCOUNT_MANAGER"] },
+      { icon:"🎯", label:"Sales CRM",     href:"/dashboard/sales",        roles:["SUPER_ADMIN","SALES"] },
       { icon:"📣", label:"Media Control", href:"/dashboard/media/control-center",roles:["SUPER_ADMIN","MEDIA_BUYER","ACCOUNT_MANAGER"] },
       { icon:"🔄", label:"Platform Sync", href:"/dashboard/media/sync",roles:["SUPER_ADMIN","MEDIA_BUYER"] },
       { icon:"🎨", label:"Creative",      href:"/dashboard/creative",     roles:["SUPER_ADMIN","ACCOUNT_MANAGER","CREATOR"] },
@@ -33,7 +33,7 @@ const SECTIONS = [
       { icon:"📊", label:"Analytics",     href:"/dashboard/analytics",    roles:["SUPER_ADMIN"] },
       { icon:"📈", label:"Forecast",      href:"/dashboard/forecast",     roles:["SUPER_ADMIN","ACCOUNTANT"] },
       { icon:"🎯", label:"KPIs & BI",     href:"/dashboard/kpis",         roles:["SUPER_ADMIN"] },
-      { icon:"📋", label:"Reports",       href:"/dashboard/reports",      roles:["SUPER_ADMIN","ACCOUNTANT","ACCOUNT_MANAGER"] },
+      { icon:"📋", label:"Reports",       href:"/dashboard/reports",      roles:["SUPER_ADMIN","ACCOUNTANT","ACCOUNT_MANAGER","MEDIA_BUYER","SALES"] },
     ]
   },
   {

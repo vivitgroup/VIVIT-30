@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { db, clients, aiGenerations } from "@/lib/db";
-import { eq, desc, count } from "drizzle-orm";
+import { eq, and, desc, count } from "drizzle-orm";
 import { Role } from "@/lib/types";
 import Link from "next/link";
 import {AIStudioRuntime} from "@/components/ai/AIStudioRuntime";
@@ -13,10 +13,20 @@ export default async function AIStudioPage() {
   const role = (session.user as any).role as Role;
   if (![Role.SUPER_ADMIN,Role.ACCOUNT_MANAGER,Role.MEDIA_BUYER].includes(role)) redirect("/dashboard");
 
+  const userId = String((session.user as any).id || "");
+  const clientScope = role === Role.ACCOUNT_MANAGER
+    ? and(eq(clients.isActive,true), eq(clients.accountManagerId,userId))
+    : role === Role.MEDIA_BUYER
+      ? and(eq(clients.isActive,true), eq(clients.mediaBuyerId,userId))
+      : eq(clients.isActive,true);
   const [allClients, recentGens, genCount] = await Promise.all([
-    db.select({id:clients.id,companyName:clients.companyName}).from(clients).where(eq(clients.isActive,true)),
-    db.select().from(aiGenerations).orderBy(desc(aiGenerations.createdAt)).limit(10),
-    db.select({cnt:count()}).from(aiGenerations),
+    db.select({id:clients.id,companyName:clients.companyName}).from(clients).where(clientScope),
+    role === Role.SUPER_ADMIN
+      ? db.select().from(aiGenerations).orderBy(desc(aiGenerations.createdAt)).limit(10)
+      : db.select().from(aiGenerations).where(eq(aiGenerations.userId,userId)).orderBy(desc(aiGenerations.createdAt)).limit(10),
+    role === Role.SUPER_ADMIN
+      ? db.select({cnt:count()}).from(aiGenerations)
+      : db.select({cnt:count()}).from(aiGenerations).where(eq(aiGenerations.userId,userId)),
   ]);
 
   const TOOLS = [
@@ -50,7 +60,7 @@ export default async function AIStudioPage() {
       color:"#F59E0B",bg:"#FFFBEB",
       fields:[
         {name:"clientId",  label:"Client",        type:"select"},
-        {name:"totalBudget",label:"Total Budget ($)",type:"number",placeholder:"50,000"},
+        {name:"totalBudget",label:"Total Budget (EGP)",type:"number",placeholder:"50,000"},
         {name:"objective", label:"Campaign Goal",  type:"select",  options:["Lead Generation","Brand Awareness","Sales/Revenue","App Installs"]},
       ],
     },
@@ -68,7 +78,7 @@ export default async function AIStudioPage() {
       color:"#10B981",bg:"#ECFDF5",
       fields:[
         {name:"clientId",  label:"Client",        type:"select"},
-        {name:"period",    label:"Period",         type:"select",  options:["This Month","Last Month","Q1 2025","Q2 2025","Q3 2025","Q4 2025"]},
+        {name:"period",    label:"Period",         type:"select",  options:["This Month","Last Month","Q1 2026","Q2 2026","Q3 2026","Q4 2026"]},
       ],
     },
   ];

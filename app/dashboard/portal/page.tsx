@@ -66,7 +66,7 @@ export default async function PortalPage() {
   const cpl      = leads>0?(spend/leads).toFixed(0):"—";
   const outstanding = Number(finance[0]?.outstanding??0);
   const pendingTasks = recentCreatives.filter(t=>t.status==="REVIEW");
-  const fmt = (n:number) => n>=1000?`$${(n/1000).toFixed(0)}k`:`$${n.toLocaleString()}`;
+  const fmt = (n:number) => new Intl.NumberFormat("en-EG",{style:"currency",currency:"EGP",maximumFractionDigits:0}).format(Number(n||0));
 
   const TYPE_ICONS: Record<string,string> = {REEL:"🎬",GRAPHIC:"🎨",CAROUSEL:"📱",STORY:"📸",UGC:"🎤"};
   const PLATFORM_ICONS: Record<string,string> = {instagram:"📸",facebook:"👥",tiktok:"🎵",snapchat:"👻",google:"🔍"};

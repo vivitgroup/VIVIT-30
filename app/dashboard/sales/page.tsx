@@ -13,16 +13,19 @@ async function moveLead(fd: FormData) {
   const session=await auth();
   if(!session?.user||![Role.SUPER_ADMIN,Role.SALES,Role.ACCOUNT_MANAGER].includes((session.user as any).role)) throw new Error("Unauthorized");
   const { db, salesLeads } = await import("@/lib/db");
-  const { eq } = await import("drizzle-orm");
+  const { eq, and } = await import("drizzle-orm");
   const id    = fd.get("id") as string;
   const stage = fd.get("stage") as string;
   const now   = new Date();
+  const role=(session.user as any).role as Role,userId=String((session.user as any).id);
+  const [lead]=await db.select({id:salesLeads.id,salesRepId:salesLeads.salesRepId}).from(salesLeads).where(eq(salesLeads.id,id)).limit(1);
+  if(!lead||(role!==Role.SUPER_ADMIN&&lead.salesRepId!==userId))throw new Error("You can only update leads assigned to you.");
   await db.update(salesLeads).set({
     stage: stage as any,
     updatedAt: now,
     wonAt:  stage === "WON"  ? now : null,
     lostReason: stage === "LOST" ? "Deal not closed" : null,
-  }).where(eq(salesLeads.id, id));
+  }).where(role===Role.SUPER_ADMIN?eq(salesLeads.id,id):and(eq(salesLeads.id,id),eq(salesLeads.salesRepId,userId)));
   const { revalidatePath } = await import("next/cache");
   revalidatePath("/dashboard/sales");
 }
@@ -57,7 +60,7 @@ export default async function SalesPage() {
   if (![Role.SUPER_ADMIN, Role.SALES, Role.ACCOUNT_MANAGER].includes(role)) redirect("/dashboard");
 
   const [allLeads, allReps] = await Promise.all([
-    db.select().from(salesLeads).orderBy(desc(salesLeads.updatedAt)),
+    db.select().from(salesLeads).where(role===Role.SUPER_ADMIN?eq(salesLeads.workspaceId,"default"):eq(salesLeads.salesRepId,String((session.user as any).id))).orderBy(desc(salesLeads.updatedAt)),
     db.select({ id:users.id, name:users.name }).from(users)
       .where(eq(users.role, "SALES")),
   ]);

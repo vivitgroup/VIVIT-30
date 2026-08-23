@@ -1,0 +1,157 @@
+name: Preprod v41 core actions hardening
+on:
+  push:
+    branches: [fix/preprod-full-qa-v41]
+    paths: [.github/preprod-v41-core-actions-trigger.txt]
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/preprod-full-qa-v41
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Harden core server actions
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('lib/actions/index.ts')
+          s=p.read_text()
+
+          start=s.index('export async function createClient(formData: FormData) {')
+          end=s.index('// ── NOTIFICATION & CALENDAR ACTIONS', start)
+          replacement=r'''export async function createClient(formData: FormData) {
+  const session = await auth();
+  requireRole(session,["SUPER_ADMIN","ACCOUNT_MANAGER"]);
+  const creatorRole=roleOf(session);
+  const companyName=sanitize(formData.get("companyName") as string,160);
+  if(!companyName) throw new Error("Company name is required");
+  const moneyField=(key:string)=>{const v=Number(formData.get(key)||0);if(!Number.isFinite(v)||v<0)throw new Error(`${key} must be a non-negative number`);return v;};
+  const monthlyRetainer=moneyField("monthlyRetainer"),mediaBudget=moneyField("mediaBudget"),contractValue=moneyField("contractValue");
+  const startRaw=String(formData.get("contractStart")||""),endRaw=String(formData.get("contractEnd")||"");
+  const contractStart=startRaw?new Date(startRaw):null,contractEnd=endRaw?new Date(endRaw):null;
+  if((contractStart&&Number.isNaN(contractStart.getTime()))||(contractEnd&&Number.isNaN(contractEnd.getTime()))||(contractStart&&contractEnd&&contractEnd<=contractStart)) throw new Error("Invalid contract dates");
+  const accountManagerId=creatorRole==="ACCOUNT_MANAGER"?session!.user!.id!:String(formData.get("accountManagerId")||"")||null;
+  const mediaBuyerId=String(formData.get("mediaBuyerId")||"")||null;
+  if(accountManagerId){const [am]=await db.select({id:users.id}).from(users).where(and(eq(users.id,accountManagerId),eq(users.role,"ACCOUNT_MANAGER"),eq(users.isActive,true))).limit(1);if(!am)throw new Error("Invalid account manager");}
+  if(mediaBuyerId){const [mb]=await db.select({id:users.id}).from(users).where(and(eq(users.id,mediaBuyerId),eq(users.role,"MEDIA_BUYER"),eq(users.isActive,true))).limit(1);if(!mb)throw new Error("Invalid media buyer");}
+  const website=String(formData.get("website")||"").trim();
+  if(website&&!validateUrl(website))throw new Error("Invalid website URL");
+  const link=(key:string)=>{const v=String(formData.get(key)||"").trim();if(v&&!validateUrl(v))throw new Error(`Invalid ${key} URL`);return v||null;};
+
+  const [client] = await db.insert(clients).values({
+    companyName, industry:sanitize(formData.get("industry") as string,120)||null, website:website||null,
+    monthlyRetainer,mediaBudget,contractValue,accountManagerId,mediaBuyerId,
+    metaAdsLink:link("metaAdsLink"),tiktokAdsLink:link("tiktokAdsLink"),snapchatAdsLink:link("snapchatAdsLink"),googleAdsLink:link("googleAdsLink"),
+    internalNotes:sanitize(formData.get("internalNotes") as string,2000)||null,contractStart,contractEnd,
+  } as any).returning();
+  const contactName=sanitize(formData.get("contactName") as string,120);
+  if(contactName){
+    const contactEmail=String(formData.get("contactEmail")||"").trim();if(contactEmail&&!validateEmail(contactEmail))throw new Error("Invalid contact email");
+    await db.insert(contacts).values({clientId:client.id,name:contactName,isPrimary:true,email:contactEmail||null,phone:sanitize(formData.get("contactPhone") as string,50)||null,whatsapp:sanitize(formData.get("contactWhatsapp") as string,50)||null,title:sanitize(formData.get("contactTitle") as string,100)||null} as any);
+  }
+  await db.insert(auditLogs).values({userId:session!.user!.id!,action:"client_created",entity:"Client",entityId:client.id,newValues:JSON.stringify({companyName:client.companyName})} as any);
+  revalidatePath("/dashboard/clients");redirect(`/dashboard/clients/${client.id}`);
+}
+
+export async function updateClient(clientId: string, formData: FormData) {
+  const session=await auth();
+  await requireClientAccess(session,clientId,true);
+  const role=roleOf(session);
+  const [existing]=await db.select({accountManagerId:clients.accountManagerId,mediaBuyerId:clients.mediaBuyerId}).from(clients).where(eq(clients.id,clientId)).limit(1);
+  if(!existing)throw new Error("Client not found");
+  const companyName=sanitize(formData.get("companyName") as string,160);if(!companyName)throw new Error("Company name is required");
+  const moneyField=(key:string)=>{const v=Number(formData.get(key)||0);if(!Number.isFinite(v)||v<0)throw new Error(`${key} must be a non-negative number`);return v;};
+  const website=String(formData.get("website")||"").trim();if(website&&!validateUrl(website))throw new Error("Invalid website URL");
+  const link=(key:string)=>{const v=String(formData.get(key)||"").trim();if(v&&!validateUrl(v))throw new Error(`Invalid ${key} URL`);return v||null;};
+  let accountManagerId=existing.accountManagerId,mediaBuyerId=existing.mediaBuyerId;
+  if(role==="SUPER_ADMIN"){
+    accountManagerId=String(formData.get("accountManagerId")||"")||null;mediaBuyerId=String(formData.get("mediaBuyerId")||"")||null;
+    if(accountManagerId){const [am]=await db.select({id:users.id}).from(users).where(and(eq(users.id,accountManagerId),eq(users.role,"ACCOUNT_MANAGER"),eq(users.isActive,true))).limit(1);if(!am)throw new Error("Invalid account manager");}
+    if(mediaBuyerId){const [mb]=await db.select({id:users.id}).from(users).where(and(eq(users.id,mediaBuyerId),eq(users.role,"MEDIA_BUYER"),eq(users.isActive,true))).limit(1);if(!mb)throw new Error("Invalid media buyer");}
+  }
+  await db.update(clients).set({companyName,industry:sanitize(formData.get("industry") as string,120)||null,website:website||null,monthlyRetainer:moneyField("monthlyRetainer"),mediaBudget:moneyField("mediaBudget"),contractValue:moneyField("contractValue"),accountManagerId,mediaBuyerId,metaAdsLink:link("metaAdsLink"),tiktokAdsLink:link("tiktokAdsLink"),snapchatAdsLink:link("snapchatAdsLink"),googleAdsLink:link("googleAdsLink"),internalNotes:sanitize(formData.get("internalNotes") as string,2000)||null,updatedAt:new Date()} as any).where(eq(clients.id,clientId));
+  await db.insert(auditLogs).values({userId:session!.user!.id!,action:"client_updated",entity:"Client",entityId:clientId,newValues:JSON.stringify({companyName})} as any);
+  revalidatePath(`/dashboard/clients/${clientId}`);revalidatePath("/dashboard/clients");redirect(`/dashboard/clients/${clientId}`);
+}
+
+'''
+          s=s[:start]+replacement+s[end:]
+
+          old=r'''  const title        = formData.get("title") as string;
+  const clientId     = formData.get("clientId") as string;
+  await requireClientAccess(session,clientId,true);
+  const type         = formData.get("type") as string;
+  const brief        = formData.get("brief") as string;
+  const tov          = formData.get("tov") as string;
+  const priority     = formData.get("priority") as string;
+  const assignedToId = formData.get("assignedToId") as string || null;
+  const deadline     = formData.get("deadline") as string;
+  const caption      = formData.get("caption") as string || null;
+
+  if (!title || !clientId || !type || !brief || !deadline) throw new Error("Missing required fields");
+
+  const [task] = await db.insert(creativeTasks).values({
+    title, clientId, type: type as any, brief, tov: tov || null,
+    priority: priority as any, status: "PENDING",
+    assignedToId, deadline: new Date(deadline), caption,
+    createdById: session.user.id!,
+  } as any).returning();'''
+          new=r'''  const title=sanitize(formData.get("title") as string,180),clientId=String(formData.get("clientId")||"");
+  await requireClientAccess(session,clientId,true);
+  const type=String(formData.get("type")||""),brief=sanitize(formData.get("brief") as string,8000),tov=sanitize(formData.get("tov") as string,1500),priority=String(formData.get("priority")||"MEDIUM"),assignedToId=String(formData.get("assignedToId")||"")||null,deadlineRaw=String(formData.get("deadline")||""),caption=sanitize(formData.get("caption") as string,5000)||null;
+  const allowedTypes=["REEL","GRAPHIC","CAROUSEL","MOTION_GRAPHIC","VIDEO_EDIT","PHOTO_SESSION","STORY","UGC"],allowedPriorities=["URGENT","HIGH","MEDIUM","LOW"];
+  if(!title||!clientId||!brief||!allowedTypes.includes(type)||!allowedPriorities.includes(priority)||!deadlineRaw)throw new Error("Invalid task data");
+  const deadline=new Date(deadlineRaw);if(Number.isNaN(deadline.getTime()))throw new Error("Invalid deadline");
+  if(assignedToId){const [creator]=await db.select({id:users.id}).from(users).where(and(eq(users.id,assignedToId),eq(users.role,"CREATOR"),eq(users.isActive,true))).limit(1);if(!creator)throw new Error("Invalid creator assignment");}
+  const [task]=await db.insert(creativeTasks).values({title,clientId,type:type as any,brief,tov:tov||null,priority:priority as any,status:"PENDING",assignedToId,deadline,caption,createdById:session.user.id!} as any).returning();'''
+          assert old in s
+          s=s.replace(old,new)
+          s=s.replace('message: `Deadline: ${new Date(deadline).toLocaleDateString()}`,','message: `Deadline: ${deadline.toLocaleDateString()}`,')
+
+          old=r'''  if((!isManager&&taskBefore.assignedToId!==session!.user!.id)||!allowedStatuses.includes(taskBefore.status))throw new Error("Forbidden");
+
+  const [task] = await db.update(creativeTasks)'''
+          new=r'''  if((!isManager&&taskBefore.assignedToId!==session!.user!.id)||!allowedStatuses.includes(taskBefore.status))throw new Error("Forbidden");
+  if(isManager) await requireClientAccess(session,taskBefore.clientId,true);
+  const safeUrl=String(fileUrl||"").trim();if(!safeUrl||!validateUrl(safeUrl))throw new Error("A valid uploaded file URL is required");
+  const safeFileName=sanitize(fileName,240),safeNotes=sanitize(notes,1000);
+
+  const [task] = await db.update(creativeTasks)'''
+          assert old in s
+          s=s.replace(old,new)
+          s=s.replace('.set({ status: "REVIEW", fileUrl: fileUrl || null, updatedAt: new Date() } as any)', '.set({ status: "REVIEW", fileUrl: safeUrl, updatedAt: new Date() } as any)')
+          s=s.replace('message: `${session.user.name} submitted. File: ${fileName}. ${notes}`,','message: `${session.user.name} submitted. File: ${safeFileName}. ${safeNotes}`,')
+          p.write_text(s)
+
+          p=Path('app/dashboard/creative/new/page.tsx')
+          s=p.read_text()
+          s=s.replace('import { eq } from "drizzle-orm";', 'import { eq, and } from "drizzle-orm";')
+          old=r'''  const [allClients, creators] = await Promise.all([
+    db.select({ id: clients.id, companyName: clients.companyName }).from(clients).where(eq(clients.isActive, true)).orderBy(clients.companyName),
+    db.select({ id: users.id, name: users.name }).from(users).where(eq(users.role, "CREATOR")),
+  ]);'''
+          new=r'''  const userId=String((session.user as any).id||"");
+  const [allClients, creators] = await Promise.all([
+    db.select({id:clients.id,companyName:clients.companyName}).from(clients).where(role===Role.ACCOUNT_MANAGER?and(eq(clients.isActive,true),eq(clients.accountManagerId,userId)):eq(clients.isActive,true)).orderBy(clients.companyName),
+    db.select({id:users.id,name:users.name}).from(users).where(and(eq(users.role,"CREATOR"),eq(users.isActive,true))),
+  ]);'''
+          assert old in s
+          s=s.replace(old,new)
+          s=s.replace('<select name="priority" id="f_priority" required className="form-input">','<select name="priority" id="f_priority" required defaultValue="MEDIUM" className="form-input">')
+          s=s.replace('<option value="MEDIUM" selected>🟡 Medium</option>','<option value="MEDIUM">🟡 Medium</option>')
+          p.write_text(s)
+          PY
+      - name: Commit core hardening
+        run: |
+          git config user.name "vivitgroup"
+          git config user.email "groupvivit@gmail.com"
+          git add lib/actions/index.ts app/dashboard/creative/new/page.tsx
+          git diff --cached --quiet && exit 0
+          git commit -m "Harden client and creative server actions"
+          git push origin HEAD:fix/preprod-full-qa-v41

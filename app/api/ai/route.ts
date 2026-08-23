@@ -57,6 +57,10 @@ function checkRateLimit(key: string, maxPerMinute = 10): boolean {
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const role=String((session.user as any).role);
+  if(!["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"].includes(role)){
+    return NextResponse.json({error:"Your role cannot use AI Studio."},{status:403});
+  }
 
   // Rate limiting: 10 AI calls per minute per user
   if (!checkRateLimit(`ai:${session.user.id}`, 10)) {

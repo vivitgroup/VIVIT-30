@@ -10,7 +10,7 @@ import Link from "next/link";
 export default async function LTVPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
-  if ((session.user as any).role !== Role.SUPER_ADMIN) redirect("/dashboard");
+  if (![Role.SUPER_ADMIN,Role.ACCOUNTANT].includes((session.user as any).role)) redirect("/dashboard");
 
   const allClients = await db.select().from(clients).where(eq(clients.isActive, true)).orderBy(clients.companyName);
 

@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   const entity = req.nextUrl.searchParams.get("entity") ?? "clients";
   const role=(session.user as any).role as string;
   const userId=(session.user as any).id as string;
-  const allowed:Record<string,string[]>={SUPER_ADMIN:["clients","tasks","sales","finance","media","expenses"],ACCOUNT_MANAGER:["clients","tasks","sales","media"],MEDIA_BUYER:["clients","media"],ACCOUNTANT:["clients","finance","expenses"],SALES:["clients","sales"],CREATOR:["tasks"],CLIENT:[]};
+  const allowed:Record<string,string[]>={SUPER_ADMIN:["clients","tasks","sales","finance","media","expenses"],ACCOUNT_MANAGER:["clients","tasks","media"],MEDIA_BUYER:["clients","media"],ACCOUNTANT:["clients","finance","expenses"],SALES:["sales"],CREATOR:["tasks"],CLIENT:[]};
   if(!(allowed[role]??[]).includes(entity))return NextResponse.json({error:"Forbidden"},{status:403});
 
   let data: any[] = [];
@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
       data = data.map(t => [t.title,t.type,t.status,t.priority,t.clientId,t.assignedToId,t.deadline,t.revisionCount,t.isPosted]);
       break;
     case "sales":
-      data = await db.select().from(salesLeads).where(role==="ACCOUNT_MANAGER"?(clientIds.length?inArray(salesLeads.clientId,clientIds):eq(salesLeads.clientId,"__none__")):eq(salesLeads.workspaceId,"default"));
+      data = await db.select().from(salesLeads).where(role==="SALES"?eq(salesLeads.salesRepId,userId):eq(salesLeads.workspaceId,"default"));
       headers = ["Company","Contact","Stage","Source","Value","Probability","Industry","Expected Close"];
       data = data.map(l => [l.companyName,l.contactPerson,l.stage,l.source,l.estimatedValue,l.probability,l.industry,l.expectedClose]);
       break;

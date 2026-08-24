@@ -8,10 +8,10 @@ check("Finance page loads all workspace invoices",finance.includes("from(finance
 check("Invoice creation accepts active workspace clients only",finance.includes("eq(clients.isActive,true)")&&finance.includes("eq(clients.workspaceId,WORKSPACE_ID)"));
 check("Invoice duplicate client-period is blocked",finance.includes("An invoice already exists for this client and period"));
 check("Invoice period is validated",finance.includes("month<1||month>12")&&finance.includes("year<2020||year>2100"));
-check("Invoice amounts reject negative and invalid numbers",finance.includes("!Number.isFinite(retainer)||retainer<0")&&finance.includes("!Number.isFinite(adSpend)||adSpend<0"));
+check("Invoice amounts reject negative and invalid numbers",finance.includes("![retainer,adSpend,extraServices].every(Number.isFinite)")&&finance.includes("retainer<0||adSpend<0||extraServices<0"));
 check("Agency fee percentage comes from workspace",finance.includes("workspaces.agencyFeePercent")&&finance.includes("feePercent=Math.max(0,Number(workspace?.agencyFeePercent??20))"));
-check("Invoice stores media buying fee explicitly",finance.includes("mediaBuyingFee=adSpend*(feePercent/100)")&&finance.includes("mediaBuyingFee,extraServices:0"));
-check("Invoice total uses stored fee",finance.includes("total=retainer+mediaBuyingFee"));
+check("Invoice stores media buying fee explicitly",finance.includes("mediaBuyingFee=Number((adSpend*feePercent/100).toFixed(2))")&&finance.includes("retainer,mediaBuyingFee,extraServices,totalRevenue:total"));
+check("Invoice total uses stored fee and extras",finance.includes("retainer+mediaBuyingFee+extraServices"));
 check("Invoice creation stores workspace id",finance.includes("workspaceId:WORKSPACE_ID,clientId"));
 check("Invoice creation writes audit history",finance.includes('action:"invoice_created"'));
 check("Expense creation stores workspace id",finance.includes("workspaceId:WORKSPACE_ID,category"));
@@ -20,10 +20,11 @@ check("Expense creation writes audit history",finance.includes('action:"expense_
 check("Mark paid is finance-role gated",finance.includes("async function markPaid")&&finance.includes("requireFinanceUser()"));
 check("Mark paid uses database transaction",finance.includes("db.transaction(async tx=>"));
 check("Mark paid invoice is workspace scoped",finance.includes("eq(financeRecords.id,id),eq(financeRecords.workspaceId,WORKSPACE_ID)"));
-check("Mark paid is idempotent for settled invoices",finance.includes("remaining<=0||Number(r.paid||0)>=Number(r.totalRevenue||0)"));
+check("Mark paid is idempotent for settled invoices",finance.includes('remaining<=0||r.invoiceStatus==="PAID"'));
 check("Mark paid creates payment history row",finance.includes("tx.insert(paymentRecords).values"));
 check("Payment history records invoice and client",finance.includes("invoiceId:r.id,clientId:r.clientId"));
-check("Payment history stores status and timestamp",finance.includes('status:"SUCCEEDED",paidAt:now'));
+check("Payment history stores completed status and timestamp",finance.includes('status:"COMPLETED",paidAt:now'));
+check("Legacy paid amount is reconciled before final payment",finance.includes("legacyGap")&&finance.includes('method:"legacy"')&&finance.includes('status:"COMPLETED"'));
 check("Mark paid updates paid date and method",finance.includes("paidDate:now,paymentMethod:method"));
 check("Mark paid writes audit history",finance.includes('action:"invoice_paid"'));
 check("Finance page shows recent payment history",finance.includes("Recent payments")&&finance.includes("recentPayments"));

@@ -1,6 +1,5 @@
-production trigger 2026-08-24T19:35:00+03:00
-restore full Media Buying dashboard with KPI cards
-account-first grouping with campaigns under each ad account
-campaign-level Meta metrics cards restored
-archive, delete and sync controls preserved
-release main c535bd49f0d39fb50e392e888e030a484b2cb546
+production trigger 2026-08-24T20:05:00+03:00
+client open page redesigned as task-style workspace with visual creative cards
+client contact, notes, communication log and finance visibility reorganized
+full Media Buying dashboard retained with campaign metrics, sync, archive and delete
+release main 2a40fc5f58ba4bff7d04853e287bbe6db730d647

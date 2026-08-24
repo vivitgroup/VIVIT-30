@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "npm audit --audit-level=high && npm run qa:static && npm run qa:clients && npm run qa:tasks-archive && npm run type-check && next build",
+    "build": "npm audit --audit-level=high && npm run qa:static && npm run qa:clients && npm run qa:tasks-archive && npm run qa:media-control && npm run type-check && next build",
     "start": "next start",
     "lint": "eslint .",
     "seed": "npx tsx scripts/seed.ts",
@@ -19,6 +19,7 @@
     "qa:static": "node scripts/qa-static.mjs",
     "qa:clients": "node scripts/qa-clients.mjs",
     "qa:tasks-archive": "node scripts/qa-tasks-archive.mjs",
+    "qa:media-control": "node scripts/qa-media-control.mjs",
     "qa": "npm run build"
   },
   "dependencies": {

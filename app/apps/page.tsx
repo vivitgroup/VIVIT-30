@@ -2,15 +2,17 @@ import Image from "next/image";
 import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { homeFor } from "@/lib/permissions";
+import { Role } from "@/lib/types";
 
 const apps = [
   {title:"Dashboard",desc:"Agency command center & performance",icon:"🏠",href:"/dashboard",tone:"#875A7B"},
   {title:"Clients",desc:"Accounts, health, retainers & portal",icon:"🏢",href:"/dashboard/clients",tone:"#244D87"},
   {title:"Sales CRM",desc:"Leads, pipeline, proposals & wins",icon:"🎯",href:"/dashboard/sales",tone:"#C52A31"},
-  {title:"Online Aman",desc:"Online sales workspace",icon:"▤",href:"/dashboard/online-aman",tone:"#7C3AED"},
+  {title:"Online Aman",desc:"Online sales workspace",icon:"▤",href:"/dashboard/sales/aman",tone:"#7C3AED"},
   {title:"WhatsApp",desc:"Customer conversations & follow-ups",icon:"💬",href:"/dashboard/whatsapp",tone:"#0D9466"},
   {title:"Media Control",desc:"Campaigns, budgets, ROAS & buying",icon:"📣",href:"/dashboard/media/control-center",tone:"#D97706"},
-  {title:"Platform Sync",desc:"Meta, TikTok, Google & integrations",icon:"🔄",href:"/dashboard/platform-sync",tone:"#0891B2"},
+  {title:"Platform Sync",desc:"Meta, TikTok, Google & integrations",icon:"🔄",href:"/dashboard/media/sync",tone:"#0891B2"},
   {title:"Creative",desc:"Briefs, production, review & approval",icon:"🎨",href:"/dashboard/creative",tone:"#DB2777"},
   {title:"Tasks Inbox",desc:"Work queue, ownership & deadlines",icon:"📥",href:"/dashboard/tasks-inbox",tone:"#4F46E5"},
   {title:"Calendar",desc:"Content schedule & delivery planning",icon:"🗓️",href:"/dashboard/calendar",tone:"#2563EB"},
@@ -21,6 +23,8 @@ const apps = [
 export default async function AppsPage(){
   const session=await auth();
   if(!session?.user) redirect("/login");
+  const role=((session.user as any).role??Role.CLIENT) as Role;
+  if(role!==Role.SUPER_ADMIN) redirect(homeFor(role));
   const name=session.user.name??session.user.email??"User";
   return <main style={{minHeight:"100vh",background:"linear-gradient(145deg,#f7f5f2 0%,#f4f4f6 55%,#eee8ed 100%)",color:"#27272a",fontFamily:"'Plus Jakarta Sans',system-ui,sans-serif"}}>
     <header style={{height:72,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 clamp(20px,4vw,56px)",background:"rgba(255,255,255,.94)",borderBottom:"1px solid #dedee3"}}>

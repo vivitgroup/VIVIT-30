@@ -1,10 +1,16 @@
 const base=(process.env.BASE_URL||"http://127.0.0.1:3000").replace(/\/$/,"");
+const hasDatabase=Boolean(String(process.env.DATABASE_URL||"").trim());
 const checks=[];const check=(name,ok,detail="")=>checks.push({name,ok:Boolean(ok),detail});
 async function req(path,init={}){return fetch(base+path,{redirect:"manual",...init})}
 try{
  const health=await req("/api/health"),healthJson=await health.json().catch(()=>({}));
- check("Built server health is 200",health.status===200,`status=${health.status}`);
- check("Runtime database connection is healthy",healthJson.status==="healthy"&&healthJson.database==="connected",JSON.stringify(healthJson));
+ if(hasDatabase){
+  check("Built server health is 200 with configured database",health.status===200,`status=${health.status}`);
+  check("Runtime database connection is healthy",healthJson.status==="healthy"&&healthJson.database==="connected",JSON.stringify(healthJson));
+ }else{
+  check("Health fails closed when CI has no database credentials",health.status===503&&healthJson.status==="degraded"&&healthJson.database==="error",`status=${health.status} body=${JSON.stringify(healthJson)}`);
+  check("Degraded health still reports the built release version",healthJson.version==="41.0.0",JSON.stringify(healthJson));
+ }
  check("Health response is no-store",String(health.headers.get("cache-control")||"").includes("no-store"));
  const login=await req("/login"),loginText=await login.text();
  check("Login page renders from built artifact",login.status===200&&/VIVIT|sign in|login/i.test(loginText),`status=${login.status}`);

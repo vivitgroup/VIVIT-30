@@ -1,0 +1,15 @@
+import fs from "node:fs";
+const sql=fs.readFileSync("scripts/reconcile-finance-history.sql","utf8"),checks=[],check=(name,ok)=>checks.push({name,ok:Boolean(ok)}),lower=sql.toLowerCase();
+check("Reconciliation runs inside an explicit transaction",/\bbegin;/.test(lower)&&/\bcommit;/.test(lower)&&lower.indexOf("begin;")<lower.indexOf("insert into payment_records")&&lower.indexOf("commit;")>lower.indexOf("raise exception"));
+check("Reconciliation never mutates finance invoice balances",!lower.includes("update finance_records")&&!lower.includes("delete from finance_records"));
+check("Reconciliation only adds payment history rows",lower.includes("insert into payment_records")&&!lower.includes("update payment_records")&&!lower.includes("delete from payment_records"));
+check("Recorded payment history is workspace scoped",sql.includes("from payment_records")&&sql.includes("where workspace_id='default'"));
+check("Finance gap source is workspace scoped",sql.includes("from finance_records f")&&sql.includes("where f.workspace_id='default'"));
+check("Only successful payment statuses count toward reconciliation",sql.includes("status in ('COMPLETED','SUCCEEDED','SUCCESS','PAID')"));
+check("Gap calculation cannot create negative payments",sql.includes("greatest(0")&&sql.includes("g.gap>0.01"));
+check("Synthetic rows preserve invoice and client linkage",sql.includes("g.invoice_id")&&sql.includes("g.client_id")&&sql.includes("invoice_id,client_id"));
+check("Synthetic rows use workspace currency and completed status",sql.includes("select currency from workspaces where id='default'")&&sql.includes("'COMPLETED'"));
+check("Reconciliation is idempotent through source identity",sql.includes("source_key='finance_history_reconciliation'")&&sql.includes("source_ref='invoice:'||g.invoice_id||':gap:'||g.gap::text")&&sql.includes("not exists"));
+check("Post-check fails closed before commit",sql.includes("if remaining <> 0")&&sql.includes("raise exception 'Finance history reconciliation incomplete")&&lower.indexOf("raise exception")<lower.indexOf("commit;"));
+check("Operator verification remains after successful commit",sql.includes("invoices_with_unrecorded_paid_amount")&&lower.lastIndexOf("select count(*)")>lower.indexOf("commit;"));
+const failed=checks.filter(c=>!c.ok);for(const c of checks)console.log(`${c.ok?"PASS":"FAIL"}  ${c.name}`);console.log(`\n${checks.length-failed.length}/${checks.length} data integrity checks passed.`);if(failed.length)process.exit(1);

@@ -1,0 +1,18 @@
+"use client";
+import {useEffect,useState} from "react";
+
+const iso=(d:Date)=>d.toISOString().slice(0,10);
+async function read(r:Response){const t=await r.text();try{return t?JSON.parse(t):{}}catch{return {error:t||`Request failed (${r.status})`}}}
+export function MetaAccountConnectPanel(){
+ const [data,setData]=useState<any>({accountGroups:[]}),[busy,setBusy]=useState(""),[msg,setMsg]=useState("");
+ async function load(){const to=iso(new Date()),from=iso(new Date(Date.now()-29*86400000));const r=await fetch(`/api/media-control-v2?from=${from}&to=${to}`,{cache:"no-store"}),d=await read(r);if(r.ok)setData(d)}
+ useEffect(()=>{load();const q=new URLSearchParams(location.search),oauth=q.get("oauth"),connectionId=q.get("connectionId");if(oauth==="success"&&connectionId){setMsg("Meta connected. Discovering and syncing campaigns…");syncAll(connectionId,true)}else if(oauth==="error")setMsg(q.get("message")||"Meta connection failed");history.replaceState({},"",location.pathname)},[]);
+ function connect(a:any){const p=new URLSearchParams({clientId:a.clientId,adAccountId:String(a.adAccountId||"").replace(/^act_/i,""),accountName:a.accountName||"Meta Ad Account"});location.assign(`/api/ad-oauth/meta/start?${p}`)}
+ async function syncAll(id:string,auto=false){setBusy(id);if(!auto)setMsg("");const r=await fetch("/api/media-discover",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({connectionId:id})}),d=await read(r);if(r.ok)setMsg(`Meta sync complete · ${d.discovered||0} discovered · ${d.synced||0} synced${d.failed?` · ${d.failed} failed`:""}.`);else setMsg(d.error||"Meta sync failed");setBusy("");await load();if(r.ok)setTimeout(()=>location.reload(),500)}
+ const accounts=(data.accountGroups||[]).filter((a:any)=>a.platform==="META");
+ return <div className="card" style={{padding:14,border:"1px solid rgba(59,130,246,.25)"}}>
+  <div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"start",flexWrap:"wrap"}}><div><div style={{fontWeight:900,fontSize:16}}>Meta Accounts — Connect & Sync</div><div className="page-subtitle" style={{margin:0}}>Authorize each ad account once. VIVIT then discovers every campaign automatically and syncs the last 30 days.</div></div><span className="badge badge-blue">{accounts.length} accounts</span></div>
+  {msg&&<div style={{marginTop:12,padding:"10px 12px",borderRadius:10,background:"rgba(59,130,246,.08)",fontSize:12,fontWeight:700}}>{msg}</div>}
+  <div style={{display:"grid",gap:9,marginTop:12}}>{accounts.map((a:any)=>{const connected=a.status==="CONNECTED";return <div key={a.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,padding:12,border:"1px solid var(--card-border)",borderRadius:12,flexWrap:"wrap"}}><div><b>{a.accountName||a.adAccountId}</b><div className="page-subtitle" style={{margin:0}}>{a.clientName} · {a.adAccountId} · {a.campaignCount||0} campaigns · {connected?"Authorized":"Authorization required"}</div>{a.syncError&&<div style={{fontSize:11,color:"var(--danger)",marginTop:3}}>{a.syncError}</div>}</div><div style={{display:"flex",gap:8,flexWrap:"wrap"}}><button className={connected?"btn btn-secondary btn-sm":"btn btn-primary btn-sm"} onClick={()=>connect(a)} disabled={!!busy}>{connected?"Reconnect Meta":"Connect Meta"}</button><button className="btn btn-primary btn-sm" onClick={()=>syncAll(a.id)} disabled={!connected||busy===a.id}>{busy===a.id?"Syncing all…":"Sync all campaigns"}</button></div></div>})}{!accounts.length&&<div className="page-subtitle">No Meta ad accounts are registered yet.</div>}</div>
+ </div>
+}

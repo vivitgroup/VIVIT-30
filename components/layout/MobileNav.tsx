@@ -7,7 +7,7 @@ const byRole:Record<string,{icon:string;label:string;href:string}[]>={
  MEDIA_BUYER:[{icon:"📣",label:"Media",href:"/dashboard/media/control-center"},{icon:"🏢",label:"Clients",href:"/dashboard/clients"},{icon:"📊",label:"Reports",href:"/dashboard/reports"},{icon:"📁",label:"Files",href:"/dashboard/files"},{icon:"🔔",label:"Alerts",href:"/dashboard/notifications"}],
  CREATOR:[{icon:"🎨",label:"Tasks",href:"/dashboard/creative"},{icon:"📅",label:"Calendar",href:"/dashboard/calendar"},{icon:"📁",label:"Files",href:"/dashboard/files"},{icon:"🔔",label:"Alerts",href:"/dashboard/notifications"}],
  ACCOUNTANT:[{icon:"💰",label:"Finance",href:"/dashboard/finance"},{icon:"🧾",label:"Payments",href:"/dashboard/clients/accounts-payment"},{icon:"🏢",label:"Clients",href:"/dashboard/clients"},{icon:"📈",label:"Reports",href:"/dashboard/reports"},{icon:"📁",label:"Files",href:"/dashboard/files"}],
- SALES:[{icon:"🎯",label:"Pipeline",href:"/dashboard/sales"},{icon:"🧾",label:"Aman",href:"/dashboard/sales/aman"},{icon:"📈",label:"Reports",href:"/dashboard/reports"},{icon:"📁",label:"Files",href:"/dashboard/files"},{icon:"🔔",label:"Alerts",href:"/dashboard/notifications"}],
+ SALES:[{icon:"🎯",label:"Pipeline",href:"/dashboard/sales"},{icon:"💬",label:"WhatsApp",href:"/dashboard/whatsapp"},{icon:"📈",label:"Reports",href:"/dashboard/reports"},{icon:"📁",label:"Files",href:"/dashboard/files"},{icon:"🔔",label:"Alerts",href:"/dashboard/notifications"}],
  CLIENT:[{icon:"🏠",label:"Portal",href:"/dashboard/portal"},{icon:"📁",label:"Files",href:"/dashboard/files"},{icon:"🔔",label:"Alerts",href:"/dashboard/notifications"}],
 };
 export function MobileNav({role}:{role:string}){

@@ -5,6 +5,7 @@ import { db,calendarEvents,clients,creativeTasks } from "@/lib/db";
 import { eq,and,gte,lte,inArray,sql } from "drizzle-orm";
 import { Role } from "@/lib/types";
 import { CalendarClient } from "@/components/calendar/CalendarClient";
+import { ClientCalendarDemo } from "@/components/calendar/ClientCalendarDemo";
 
 export default async function CalendarPage(){
  const session=await auth();if(!session?.user)redirect("/login");const role=(session.user as any).role as Role,userId=String((session.user as any).id);
@@ -26,5 +27,6 @@ export default async function CalendarPage(){
  const clientIds=[...new Set([...events.map(e=>e.clientId),...approvedTasks.map(t=>t.clientId)])],clientRows=clientIds.length?await db.select({id:clients.id,companyName:clients.companyName}).from(clients).where(inArray(clients.id,clientIds)):[],clientMap=Object.fromEntries(clientRows.map(c=>[c.id,c.companyName]));
  const eventsWithClients=events.map(e=>({...e,client:{companyName:clientMap[e.clientId]??""}})),tasksWithClients=approvedTasks.map(t=>({...t,client:{companyName:clientMap[t.clientId]??""}}));
  const canManage=[Role.SUPER_ADMIN,Role.ACCOUNT_MANAGER,Role.SALES].includes(role);
+ if(role===Role.CLIENT&&eventsWithClients.length===0)return <ClientCalendarDemo companyName={visibleClients[0]?.companyName||"Your Brand"}/>;
  return <CalendarClient events={eventsWithClients} clients={visibleClients} approvedTasks={tasksWithClients} canManage={canManage}/>;
 }

@@ -2,46 +2,40 @@ import Image from "next/image";
 import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { homeFor } from "@/lib/permissions";
 import { Role } from "@/lib/types";
-import "./apps.css";
+import { SystemAssistant } from "@/components/assistant/SystemAssistant";
 
-const apps = [
-  {title:"Dashboard",desc:"Agency command center & performance",icon:"🏠",href:"/dashboard",tone:"#875A7B"},
-  {title:"Clients",desc:"Accounts, health, retainers & portal",icon:"🏢",href:"/dashboard/clients",tone:"#244D87"},
-  {title:"Sales CRM",desc:"All leads, pipeline, proposals & wins",icon:"🎯",href:"/dashboard/sales",tone:"#C52A31"},
-  {title:"WhatsApp",desc:"Customer conversations & follow-ups",icon:"💬",href:"/dashboard/whatsapp",tone:"#0D9466"},
-  {title:"Media Control",desc:"Campaigns, budgets, ROAS & buying",icon:"📣",href:"/dashboard/media/control-center",tone:"#D97706"},
-  {title:"Platform Sync",desc:"Meta, TikTok, Google & integrations",icon:"🔄",href:"/dashboard/media/sync",tone:"#0891B2"},
-  {title:"Creative",desc:"Briefs, production, review & approval",icon:"🎨",href:"/dashboard/creative",tone:"#DB2777"},
-  {title:"Tasks Inbox",desc:"Work queue, ownership & deadlines",icon:"📥",href:"/dashboard/tasks-inbox",tone:"#4F46E5"},
-  {title:"Calendar",desc:"Content schedule & delivery planning",icon:"🗓️",href:"/dashboard/calendar",tone:"#2563EB"},
-  {title:"Finance",desc:"Revenue, invoices, expenses & payroll",icon:"💰",href:"/dashboard/finance",tone:"#15803D"},
-  {title:"Analytics",desc:"Reports, KPIs & agency intelligence",icon:"📊",href:"/dashboard/analytics",tone:"#9333EA"},
+const APPS=[
+ {title:"Dashboard",desc:"Agency command center & performance",icon:"🏠",href:"/dashboard",tone:"#875A7B",roles:["SUPER_ADMIN"]},
+ {title:"Clients",desc:"Accounts, health, retainers & portal",icon:"🏢",href:"/dashboard/clients",tone:"#244D87",roles:["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","ACCOUNTANT"]},
+ {title:"Sales CRM",desc:"Leads, pipeline, proposals & wins",icon:"🎯",href:"/dashboard/sales",tone:"#C52A31",roles:["SUPER_ADMIN","SALES"]},
+ {title:"WhatsApp",desc:"Customer conversations & follow-ups",icon:"💬",href:"/dashboard/whatsapp",tone:"#0D9466",roles:["SUPER_ADMIN","ACCOUNT_MANAGER","SALES"]},
+ {title:"Media Control",desc:"Campaigns, budgets, ROAS & buying",icon:"📣",href:"/dashboard/media/control-center",tone:"#D97706",roles:["SUPER_ADMIN","MEDIA_BUYER","ACCOUNT_MANAGER"]},
+ {title:"Platform Sync",desc:"Meta, TikTok, Google & integrations",icon:"🔄",href:"/dashboard/media/sync",tone:"#0891B2",roles:["SUPER_ADMIN","MEDIA_BUYER"]},
+ {title:"Creative",desc:"Briefs, production, review & approval",icon:"🎨",href:"/dashboard/creative",tone:"#DB2777",roles:["SUPER_ADMIN","ACCOUNT_MANAGER","CREATOR"]},
+ {title:"Tasks",desc:"Work queue, ownership & deadlines",icon:"📥",href:"/dashboard/tasks-inbox",tone:"#4F46E5",roles:["SUPER_ADMIN","ACCOUNT_MANAGER"]},
+ {title:"Calendar",desc:"Client content schedule & delivery",icon:"🗓️",href:"/dashboard/calendar",tone:"#2563EB",roles:["SUPER_ADMIN","ACCOUNT_MANAGER","CREATOR","SALES","CLIENT"]},
+ {title:"Finance",desc:"Revenue, invoices, expenses & payroll",icon:"💰",href:"/dashboard/finance",tone:"#15803D",roles:["SUPER_ADMIN","ACCOUNTANT"]},
+ {title:"Analytics",desc:"Reports, KPIs & agency intelligence",icon:"📊",href:"/dashboard/analytics",tone:"#9333EA",roles:["SUPER_ADMIN"]},
+ {title:"AI Assistant",desc:"System help, marketing & media buying",icon:"✨",href:"/dashboard/ai-studio",tone:"#7C3AED",roles:["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CREATOR","SALES","ACCOUNTANT","CLIENT"]},
+ {title:"Files",desc:"Content plans, strategy & documents",icon:"📁",href:"/dashboard/files",tone:"#0F766E",roles:["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CREATOR","SALES","ACCOUNTANT","CLIENT"]},
+ {title:"Settings",desc:"Language, reminders & account",icon:"⚙️",href:"/dashboard/settings",tone:"#475569",roles:["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CREATOR","SALES","ACCOUNTANT","CLIENT"]},
+ {title:"My Portal",desc:"Approvals, creatives, calendar & results",icon:"🌐",href:"/dashboard/portal",tone:"#C52A31",roles:["CLIENT"]},
 ];
 
 export default async function AppsPage(){
-  const session=await auth();
-  if(!session?.user) redirect("/login");
-  const role=((session.user as any).role??Role.CLIENT) as Role;
-  if(role!==Role.SUPER_ADMIN) redirect(homeFor(role));
-  const name=session.user.name??session.user.email??"User";
-
-  return <main className="apps-launcher">
-    <div className="apps-orb apps-orb-a"/><div className="apps-orb apps-orb-b"/>
-    <header className="apps-topbar">
-      <div className="apps-brand"><Image src="/vivit-logo.png" alt="VIVIT" width={112} height={50} priority/><span/><strong>Marketing ERP</strong></div>
-      <div className="apps-user"><span>Welcome, <b>{name}</b></span><Link href="/signout">Sign Out</Link></div>
-    </header>
-    <section className="apps-stage">
-      <div className="apps-intro"><p>VIVIT Workspace</p><h1>Choose where you want to work</h1><span>One screen. Every department. Open any workspace directly.</span></div>
-      <div className="apps-grid">
-        {apps.map((app,index)=><Link key={app.title} href={app.href} className="app-tile" style={{"--tone":app.tone,"--delay":`${index*55}ms`} as React.CSSProperties}>
-          <div className="app-icon-3d"><span>{app.icon}</span></div>
-          <div className="app-copy"><h2>{app.title}</h2><p>{app.desc}</p></div>
-          <i className="app-arrow">↗</i>
-        </Link>)}
-      </div>
-    </section>
-  </main>;
+ const session=await auth(); if(!session?.user)redirect("/login");
+ const role=String((session.user as any).role??Role.CLIENT); const name=session.user.name??session.user.email??"User";
+ const apps=APPS.filter(a=>a.roles.includes(role));
+ return <main className="launcher"><style>{`
+ .launcher{min-height:100vh;background:radial-gradient(circle at 15% 10%,rgba(197,42,49,.12),transparent 30%),radial-gradient(circle at 86% 12%,rgba(135,90,123,.16),transparent 34%),linear-gradient(145deg,#f8f6f4 0%,#f2f3f7 55%,#eee7ed 100%);color:#27272a;font-family:'Plus Jakarta Sans',system-ui,sans-serif;overflow:hidden;position:relative}
+ .launcher:before,.launcher:after{content:'';position:fixed;border-radius:50%;filter:blur(4px);pointer-events:none;animation:orb 7s ease-in-out infinite}.launcher:before{width:320px;height:320px;background:rgba(197,42,49,.09);right:-80px;top:120px}.launcher:after{width:260px;height:260px;background:rgba(36,77,135,.08);left:-70px;bottom:70px;animation-delay:-3s}
+ .launch-head{height:74px;display:flex;align-items:center;justify-content:space-between;padding:0 clamp(18px,4vw,56px);background:rgba(255,255,255,.84);backdrop-filter:blur(18px);border-bottom:1px solid #dedee3;position:relative;z-index:2}.launch-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;perspective:1200px}
+ .app-card{min-height:175px;padding:20px;border:1px solid rgba(255,255,255,.85);border-radius:22px;background:rgba(255,255,255,.78);backdrop-filter:blur(14px);text-decoration:none;color:inherit;display:flex;flex-direction:column;justify-content:space-between;box-shadow:0 18px 44px rgba(24,24,32,.08),inset 0 1px 0 rgba(255,255,255,.9);transform-style:preserve-3d;animation:cardIn .7s cubic-bezier(.2,.8,.2,1) both;transition:transform .28s cubic-bezier(.2,.8,.2,1),box-shadow .28s,border-color .28s}.app-card:hover{transform:translateY(-10px) rotateX(4deg) rotateY(-3deg) scale(1.025);box-shadow:0 30px 70px rgba(31,31,45,.18);border-color:rgba(135,90,123,.28)}
+ .app-icon{width:62px;height:62px;border-radius:19px;display:grid;place-items:center;font-size:31px;box-shadow:0 16px 26px rgba(20,20,28,.14),inset 0 1px 1px rgba(255,255,255,.85);transform:translateZ(28px);animation:floatIcon 3.5s ease-in-out infinite}.app-card:hover .app-icon{animation-duration:1.1s}
+ @keyframes cardIn{from{opacity:0;transform:translateY(45px) rotateX(13deg) scale(.92)}to{opacity:1;transform:none}}@keyframes floatIcon{0%,100%{transform:translateZ(28px) translateY(0) rotate(-2deg)}50%{transform:translateZ(34px) translateY(-7px) rotate(3deg)}}@keyframes orb{0%,100%{transform:translate3d(0,0,0) scale(1)}50%{transform:translate3d(25px,-20px,0) scale(1.12)}}
+ @media(max-width:640px){.welcome{display:none}.launch-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.app-card{min-height:150px;padding:15px}.app-icon{width:52px;height:52px;font-size:26px}}@media(prefers-reduced-motion:reduce){.app-card,.app-icon,.launcher:before,.launcher:after{animation:none!important}.app-card:hover{transform:none}}
+ `}</style>
+ <header className="launch-head"><div style={{display:"flex",alignItems:"center",gap:12}}><Image src="/vivit-logo.png" alt="VIVIT" width={112} height={50} style={{objectFit:"contain"}} priority/><span style={{height:28,width:1,background:"#dedee3"}}/><strong style={{fontSize:14}}>Marketing ERP</strong></div><div className="welcome" style={{fontSize:13,color:"#71717a"}}>Welcome, <b style={{color:"#27272a"}}>{name}</b> · {role.replace(/_/g," ")}</div><Link href="/signout" style={{padding:"9px 13px",border:"1px solid #dedee3",borderRadius:10,textDecoration:"none",color:"#3f3f46",fontWeight:700,background:"#fff"}}>Sign Out</Link></header>
+ <section style={{width:"min(1400px,100%)",margin:"0 auto",padding:"clamp(34px,5vw,64px) clamp(18px,4vw,48px) 80px",position:"relative",zIndex:1}}><div style={{marginBottom:34}}><p style={{fontSize:11,fontWeight:800,letterSpacing:".14em",color:"#875A7B",textTransform:"uppercase"}}>VIVIT Workspace</p><h1 style={{fontSize:"clamp(30px,4vw,48px)",lineHeight:1.04,letterSpacing:"-.045em",margin:"7px 0 10px"}}>Choose where you want to work</h1><p style={{fontSize:14,color:"#71717a"}}>Every workspace you are allowed to use, in one place.</p></div><div className="launch-grid">{apps.map((app,i)=><Link className="app-card" key={app.title} href={app.href} style={{animationDelay:`${Math.min(i*55,600)}ms`}}><div className="app-icon" style={{background:`linear-gradient(145deg,#fff,${app.tone}24)`,border:`1px solid ${app.tone}35`}}>{app.icon}</div><div><h2 style={{fontSize:17,marginBottom:4}}>{app.title}</h2><p style={{fontSize:12.5,lineHeight:1.5,color:"#71717a"}}>{app.desc}</p></div></Link>)}</div></section><SystemAssistant role={role}/></main>;
 }

@@ -1,159 +1,35 @@
-// @ts-nocheck -- Drizzle's generated insert shape is narrower than the live schema.
-// ── Email Queue (Feature 34) ──────────────────────────────────
-// In-memory queue — in production use Upstash Queue or Vercel Queue
-interface EmailJob { to:string; subject:string; html:string; retries:number; }
-const emailQueue: EmailJob[] = [];
+// @ts-nocheck
+export const dynamic="force-dynamic";
+import {NextRequest,NextResponse} from "next/server";
+import {auth} from "@/lib/auth";
+import {db,emailLogs,clients,contacts,creativeTasks,users,financeRecords} from "@/lib/db";
+import {eq,and} from "drizzle-orm";
 
-async function processEmailJob(job: EmailJob): Promise<boolean> {
-  try {
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { "Content-Type":"application/json", "Authorization":`Bearer ${process.env.RESEND_API_KEY}` },
-      body: JSON.stringify({ from: process.env.EMAIL_FROM ?? "Vivit ERP <noreply@viviterp.com>", to:[job.to], subject:job.subject, html:job.html }),
-    });
-    if (!res.ok) throw new Error(`Resend: ${res.status}`);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function enqueueEmail(to:string, subject:string, html:string) {
-  if (!process.env.RESEND_API_KEY) return { queued:false, reason:"RESEND_API_KEY not set" };
-  const job = { to, subject, html, retries:0 };
-  // Try immediately — if fails, add to queue
-  const ok = await processEmailJob(job);
-  if (!ok) {
-    job.retries++;
-    emailQueue.push(job);
-    return { queued:true, willRetry:true };
-  }
-  return { queued:false, sent:true };
-}
-
-export const dynamic = "force-dynamic";
-import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import { db, emailLogs } from "@/lib/db";
-
-const RESEND_URL = "https://api.resend.com/emails";
-
-async function sendEmail(to: string, subject: string, html: string, type: string) {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) return { success: false, error: "RESEND_API_KEY not set" };
-
-  const res = await fetch(RESEND_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({
-      from: process.env.EMAIL_FROM ?? "Vivit CRM <noreply@vivitcrm.com>",
-      to: [to], subject, html,
-    }),
-  });
-
-  const data = await res.json();
-  await db.insert(emailLogs).values({
-    to, subject, type,
-    status: res.ok ? "sent" : "failed",
-    resendId: data.id,
-  });
-
-  return { success: res.ok, id: data.id };
-}
-
-const _emailRateMap = new Map<string,{count:number;resetAt:number}>();
-function emailRateOk(key:string):boolean{
-  const now=Date.now(),e=_emailRateMap.get(key);
-  if(!e||now>e.resetAt){_emailRateMap.set(key,{count:1,resetAt:now+3600000});return true;}
-  if(e.count>=20)return false; e.count++; return true;
-}
-export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if(!["SUPER_ADMIN","ACCOUNT_MANAGER","ACCOUNTANT"].includes(String((session.user as any).role)))return NextResponse.json({error:"Forbidden"},{status:403});
-  if(!emailRateOk(`email:${session.user.id}`)) return NextResponse.json({error:"Max 20 emails/hour exceeded"},{status:429});
-
-  const { type, to, data } = await req.json();
-
-  const brandColor = "#244D87";
-  const footer = `<p style="color:#999;font-size:12px;margin-top:32px;border-top:1px solid #eee;padding-top:16px">VIVIT GROUP — Technology builds the future, Marketing brings it to the world.</p>`;
-
-  const templates: Record<string, { subject: string; html: string }> = {
-    task_assigned: {
-      subject: `🎨 New task assigned: ${data?.taskTitle}`,
-      html: `<div style="font-family:Inter,sans-serif;max-width:600px;margin:0 auto;padding:24px">
-        <div style="background:${brandColor};color:white;padding:20px;border-radius:12px 12px 0 0"><h1 style="margin:0;font-size:20px">🎨 New Creative Task</h1></div>
-        <div style="background:#f9f9f9;padding:24px;border-radius:0 0 12px 12px">
-          <h2 style="color:#111">${data?.taskTitle}</h2>
-          <p><strong>Client:</strong> ${data?.clientName}</p>
-          <p><strong>Deadline:</strong> ${data?.deadline}</p>
-          <p><strong>Priority:</strong> ${data?.priority}</p>
-          <p style="background:#fff;padding:16px;border-left:4px solid ${brandColor};border-radius:4px">${data?.brief?.slice(0,300)}...</p>
-          <a href="${process.env.NEXTAUTH_URL}/dashboard/creative/${data?.taskId}" style="background:${brandColor};color:white;padding:12px 24px;border-radius:8px;text-decoration:none;display:inline-block;margin-top:16px">View Task →</a>
-        </div>${footer}</div>`,
-    },
-    invoice_reminder: {
-      subject: `💳 Invoice due: ${data?.clientName} — $${data?.amount}`,
-      html: `<div style="font-family:Inter,sans-serif;max-width:600px;margin:0 auto;padding:24px">
-        <div style="background:${brandColor};color:white;padding:20px;border-radius:12px 12px 0 0"><h1 style="margin:0;font-size:20px">💳 Invoice Reminder</h1></div>
-        <div style="background:#f9f9f9;padding:24px;border-radius:0 0 12px 12px">
-          <h2 style="color:#111">${data?.clientName}</h2>
-          <p><strong>Amount Due:</strong> $${data?.amount}</p>
-          <p><strong>Due Date:</strong> ${data?.dueDate}</p>
-          <p><strong>Invoice:</strong> ${data?.invoiceNumber}</p>
-          <a href="${process.env.NEXTAUTH_URL}/dashboard/finance" style="background:${brandColor};color:white;padding:12px 24px;border-radius:8px;text-decoration:none;display:inline-block;margin-top:16px">View Invoice →</a>
-        </div>${footer}</div>`,
-    },
-    creative_review: {
-      subject: `👀 Creative ready for review: ${data?.taskTitle}`,
-      html: `<div style="font-family:Inter,sans-serif;max-width:600px;margin:0 auto;padding:24px">
-        <div style="background:${brandColor};color:white;padding:20px;border-radius:12px 12px 0 0"><h1 style="margin:0;font-size:20px">👀 Review Required</h1></div>
-        <div style="background:#f9f9f9;padding:24px;border-radius:0 0 12px 12px">
-          <h2 style="color:#111">${data?.taskTitle}</h2>
-          <p>Your creative is ready for review. Please approve or request changes.</p>
-          ${data?.fileUrl ? `<p><a href="${data.fileUrl}" style="color:${brandColor}">📎 View File</a></p>` : ""}
-          <div style="display:flex;gap:12px;margin-top:16px">
-            <a href="${process.env.NEXTAUTH_URL}/dashboard/portal" style="background:#10b981;color:white;padding:12px 24px;border-radius:8px;text-decoration:none">✅ Approve</a>
-            <a href="${process.env.NEXTAUTH_URL}/dashboard/portal" style="background:#f59e0b;color:white;padding:12px 24px;border-radius:8px;text-decoration:none">↩ Request Changes</a>
-          </div>
-        </div>${footer}</div>`,
-    },
-    monthly_report: {
-      subject: `📊 Monthly Report: ${data?.clientName} — ${data?.period}`,
-      html: `<div style="font-family:Inter,sans-serif;max-width:600px;margin:0 auto;padding:24px">
-        <div style="background:${brandColor};color:white;padding:20px;border-radius:12px 12px 0 0"><h1 style="margin:0;font-size:20px">📊 Monthly Performance Report</h1></div>
-        <div style="background:#f9f9f9;padding:24px;border-radius:0 0 12px 12px">
-          <h2>${data?.clientName} — ${data?.period}</h2>
-          <table style="width:100%;border-collapse:collapse">
-            <tr style="background:${brandColor};color:white"><td style="padding:10px">Metric</td><td style="padding:10px">Value</td></tr>
-            <tr style="background:#fff"><td style="padding:10px;border:1px solid #eee">💰 Ad Spend</td><td style="padding:10px;border:1px solid #eee">$${data?.spend?.toLocaleString()}</td></tr>
-            <tr><td style="padding:10px;border:1px solid #eee">🎯 Leads</td><td style="padding:10px;border:1px solid #eee">${data?.leads}</td></tr>
-            <tr style="background:#fff"><td style="padding:10px;border:1px solid #eee">🔄 ROAS</td><td style="padding:10px;border:1px solid #eee">${data?.roas}x</td></tr>
-            <tr><td style="padding:10px;border:1px solid #eee">✅ Tasks Done</td><td style="padding:10px;border:1px solid #eee">${data?.tasks}</td></tr>
-          </table>
-          <a href="${process.env.NEXTAUTH_URL}/dashboard/portal" style="background:${brandColor};color:white;padding:12px 24px;border-radius:8px;text-decoration:none;display:inline-block;margin-top:16px">View Full Report →</a>
-        </div>${footer}</div>`,
-    },
-    welcome: {
-      subject: `🎉 Welcome to Vivit CRM — ${data?.name}!`,
-      html: `<div style="font-family:Inter,sans-serif;max-width:600px;margin:0 auto;padding:24px">
-        <div style="background:${brandColor};color:white;padding:20px;border-radius:12px 12px 0 0"><h1 style="margin:0;font-size:20px">Welcome to Vivit CRM 🚀</h1></div>
-        <div style="background:#f9f9f9;padding:24px;border-radius:0 0 12px 12px">
-          <h2>Hi ${data?.name}!</h2>
-          <p>Your account has been created. Here are your login details:</p>
-          <div style="background:#fff;padding:16px;border-radius:8px;border:1px solid #eee">
-            <p><strong>Email:</strong> ${data?.email}</p>
-            <p><strong>Password:</strong> ${data?.password}</p>
-            <p><strong>Role:</strong> ${data?.role}</p>
-          </div>
-          <a href="${process.env.NEXTAUTH_URL}/login" style="background:${brandColor};color:white;padding:12px 24px;border-radius:8px;text-decoration:none;display:inline-block;margin-top:16px">Login Now →</a>
-        </div>${footer}</div>`,
-    },
-  };
-
-  const template = templates[type];
-  if (!template) return NextResponse.json({ error: "Unknown email type" }, { status: 400 });
-
-  const result = await sendEmail(to, template.subject, template.html, type);
-  return NextResponse.json(result);
+const WORKSPACE="default",RESEND_URL="https://api.resend.com/emails";
+const esc=(v:any)=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]!)).slice(0,2000);
+const email=(v:any)=>String(v??"").trim().toLowerCase().slice(0,254);
+const validEmail=(v:string)=>/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+const _rate=new Map<string,{count:number;resetAt:number}>();
+function rateOk(key:string){const now=Date.now(),x=_rate.get(key);if(!x||now>x.resetAt){_rate.set(key,{count:1,resetAt:now+3600000});return true}if(x.count>=20)return false;x.count++;return true}
+async function sendEmail(to:string,subject:string,html:string,type:string){const apiKey=process.env.RESEND_API_KEY;if(!apiKey)return {success:false,error:"Email provider is not configured"};const res=await fetch(RESEND_URL,{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${apiKey}`},body:JSON.stringify({from:process.env.EMAIL_FROM??"VIVIT ERP <noreply@viviterp.com>",to:[to],subject,html}),signal:AbortSignal.timeout(8000)});const data=await res.json().catch(()=>({}));await db.insert(emailLogs).values({to,subject,type,status:res.ok?"sent":"failed",resendId:data.id||null});return res.ok?{success:true,id:data.id||null}:{success:false,error:"Email provider rejected the request"}}
+async function activeClient(clientId:string){return db.select({id:clients.id,companyName:clients.companyName,userId:clients.userId,accountManagerId:clients.accountManagerId}).from(clients).where(and(eq(clients.id,clientId),eq(clients.workspaceId,WORKSPACE),eq(clients.isActive,true))).limit(1).then(r=>r[0]||null)}
+async function clientRecipients(clientId:string){const c=await activeClient(clientId);if(!c)return {client:null,emails:[] as string[]};const [primary,portal]=await Promise.all([db.select({email:contacts.email}).from(contacts).where(and(eq(contacts.clientId,clientId),eq(contacts.isPrimary,true))).limit(1).then(r=>r[0]),c.userId?db.select({email:users.email}).from(users).where(and(eq(users.id,c.userId),eq(users.isActive,true))).limit(1).then(r=>r[0]):Promise.resolve(null)]);return {client:c,emails:[email(primary?.email),email(portal?.email)].filter(validEmail)}}
+export async function POST(req:NextRequest){
+ const session=await auth();if(!session?.user)return NextResponse.json({error:"Unauthorized"},{status:401});
+ const role=String((session.user as any).role||""),userId=String((session.user as any).id||"");if(!rateOk(`email:${userId}`))return NextResponse.json({error:"Email rate limit exceeded"},{status:429});
+ const body=await req.json().catch(()=>null);if(!body)return NextResponse.json({error:"Invalid JSON body"},{status:400});const type=String(body.type||""),to=email(body.to),data=body.data&&typeof body.data==="object"?body.data:{};if(!validEmail(to))return NextResponse.json({error:"Valid recipient required"},{status:400});
+ const allowed:Record<string,string[]>={task_assigned:["SUPER_ADMIN","ACCOUNT_MANAGER"],creative_review:["SUPER_ADMIN","ACCOUNT_MANAGER"],invoice_reminder:["SUPER_ADMIN","ACCOUNTANT"],monthly_report:["SUPER_ADMIN","ACCOUNT_MANAGER","ACCOUNTANT"],welcome:["SUPER_ADMIN"]};if(!allowed[type]?.includes(role))return NextResponse.json({error:"Forbidden"},{status:403});
+ let subject="",html="";const footer=`<p style="color:#777;font-size:12px;margin-top:28px;border-top:1px solid #ddd;padding-top:12px">VIVIT GROUP · Automated ERP message</p>`;
+ if(type==="task_assigned"){
+  const taskId=String(data.taskId||"");const [task]=await db.select({id:creativeTasks.id,title:creativeTasks.title,clientId:creativeTasks.clientId,assignedToId:creativeTasks.assignedToId,deadline:creativeTasks.deadline,brief:creativeTasks.brief}).from(creativeTasks).where(eq(creativeTasks.id,taskId)).limit(1);if(!task)return NextResponse.json({error:"Task not found"},{status:404});const c=await activeClient(task.clientId);if(!c||role==="ACCOUNT_MANAGER"&&c.accountManagerId!==userId)return NextResponse.json({error:"Forbidden"},{status:403});const [assignee]=task.assignedToId?await db.select({email:users.email,name:users.name}).from(users).where(and(eq(users.id,task.assignedToId),eq(users.isActive,true))).limit(1):[];if(!assignee||email(assignee.email)!==to)return NextResponse.json({error:"Recipient is not the assigned creator"},{status:403});subject=`New task assigned: ${String(task.title).slice(0,120)}`;html=`<h2>New Creative Task</h2><p><b>${esc(task.title)}</b></p><p>Client: ${esc(c.companyName)}</p><p>Deadline: ${esc(task.deadline)}</p><p>${esc(task.brief).slice(0,500)}</p><p><a href="${esc(process.env.NEXTAUTH_URL)}/dashboard/creative/${encodeURIComponent(task.id)}">Open task</a></p>${footer}`;
+ }else if(type==="creative_review"){
+  const taskId=String(data.taskId||"");const [task]=await db.select({id:creativeTasks.id,title:creativeTasks.title,clientId:creativeTasks.clientId}).from(creativeTasks).where(eq(creativeTasks.id,taskId)).limit(1);if(!task)return NextResponse.json({error:"Task not found"},{status:404});const {client:c,emails}=await clientRecipients(task.clientId);if(!c||role==="ACCOUNT_MANAGER"&&c.accountManagerId!==userId||!emails.includes(to))return NextResponse.json({error:"Recipient is not an authorized client contact"},{status:403});subject=`Creative ready for review: ${String(task.title).slice(0,120)}`;html=`<h2>Creative ready for review</h2><p>${esc(task.title)}</p><p>Please open your VIVIT portal to approve or request changes.</p><p><a href="${esc(process.env.NEXTAUTH_URL)}/dashboard/portal">Open portal</a></p>${footer}`;
+ }else if(type==="invoice_reminder"){
+  const invoiceId=String(data.invoiceId||"");const [inv]=await db.select({id:financeRecords.id,clientId:financeRecords.clientId,invoiceNumber:financeRecords.invoiceNumber,outstanding:financeRecords.outstanding,dueDate:financeRecords.dueDate}).from(financeRecords).where(and(eq(financeRecords.id,invoiceId),eq(financeRecords.workspaceId,WORKSPACE))).limit(1);if(!inv)return NextResponse.json({error:"Invoice not found"},{status:404});const {client:c,emails}=await clientRecipients(inv.clientId);if(!c||!emails.includes(to))return NextResponse.json({error:"Recipient is not an authorized client contact"},{status:403});subject=`Invoice reminder: ${inv.invoiceNumber||"VIVIT invoice"}`;html=`<h2>Invoice Reminder</h2><p>Client: ${esc(c.companyName)}</p><p>Invoice: ${esc(inv.invoiceNumber)}</p><p>Outstanding: ${esc(inv.outstanding)} EGP</p><p>Due: ${esc(inv.dueDate)}</p>${footer}`;
+ }else if(type==="monthly_report"){
+  const clientId=String(data.clientId||"");const {client:c,emails}=await clientRecipients(clientId);if(!c||role==="ACCOUNT_MANAGER"&&c.accountManagerId!==userId||!emails.includes(to))return NextResponse.json({error:"Recipient is not an authorized client contact"},{status:403});subject=`Monthly report: ${String(c.companyName).slice(0,120)}`;html=`<h2>Monthly Performance Report</h2><p>${esc(c.companyName)} · ${esc(data.period)}</p><p>Spend: ${esc(data.spend)} · Leads: ${esc(data.leads)} · ROAS: ${esc(data.roas)}</p><p><a href="${esc(process.env.NEXTAUTH_URL)}/dashboard/portal">Open portal</a></p>${footer}`;
+ }else if(type==="welcome"){
+  const targetId=String(data.userId||"");const [target]=await db.select({id:users.id,email:users.email,name:users.name,role:users.role,isActive:users.isActive}).from(users).where(eq(users.id,targetId)).limit(1);if(!target||!target.isActive||email(target.email)!==to)return NextResponse.json({error:"Recipient is not an active ERP user"},{status:403});subject="Welcome to VIVIT ERP";html=`<h2>Welcome ${esc(target.name)}</h2><p>Your VIVIT ERP account is ready.</p><p>Email: ${esc(target.email)}</p><p>Role: ${esc(target.role)}</p><p>For security, passwords are never sent by email.</p><p><a href="${esc(process.env.NEXTAUTH_URL)}/login">Sign in</a></p>${footer}`;
+ }
+ const result=await sendEmail(to,subject,html,type);return NextResponse.json(result,{status:result.success?200:502,headers:{"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}});
 }

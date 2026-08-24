@@ -45,9 +45,16 @@ export async function POST(req:NextRequest){
       await audit(userId,"client_restored","clients",id,{companyName:record.company_name});
       return NextResponse.json({success:true,state:"active"});
     }
-    const [deps]=await rows(sql`select (select count(*)::int from creative_tasks where client_id=${id}) as tasks,(select count(*)::int from file_documents where client_id=${id}) as files,(select count(*)::int from calendar_events where client_id=${id}) as calendar,(select count(*)::int from finance_records where client_id=${id}) as finance,(select count(*)::int from ad_campaigns where client_id=${id}) as campaigns`);
-    const dependent=Number(deps?.tasks||0)+Number(deps?.files||0)+Number(deps?.calendar||0)+Number(deps?.finance||0)+Number(deps?.campaigns||0)+(record.user_id?1:0);
-    if(dependent>0)return NextResponse.json({error:"This client has linked data or a portal account. Archive it instead of permanent deletion.",dependencies:deps},{status:409});
+    const [deps]=await rows(sql`select
+      (select count(*)::int from creative_tasks where client_id=${id}) as tasks,
+      (select count(*)::int from file_documents where client_id=${id}) as files,
+      (select count(*)::int from calendar_events where client_id=${id}) as calendar,
+      (select count(*)::int from finance_records where client_id=${id}) as finance,
+      (select count(*)::int from ad_campaigns where client_id=${id}) as campaigns,
+      (select count(*)::int from contacts where client_id=${id}) as contacts,
+      (select count(*)::int from sales_leads where client_id=${id}) as converted_leads`);
+    const dependent=Number(deps?.tasks||0)+Number(deps?.files||0)+Number(deps?.calendar||0)+Number(deps?.finance||0)+Number(deps?.campaigns||0)+Number(deps?.contacts||0)+Number(deps?.converted_leads||0)+(record.user_id?1:0);
+    if(dependent>0)return NextResponse.json({error:"This client has linked records or a portal account. Archive it instead of permanent deletion, or remove the linked records first.",dependencies:deps,portalAccount:Boolean(record.user_id)},{status:409});
     await db.execute(sql`delete from clients where id=${id}`);
     await audit(userId,"client_deleted","clients",id,{companyName:record.company_name});
     return NextResponse.json({success:true,state:"deleted"});

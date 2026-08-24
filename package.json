@@ -3,12 +3,10 @@
   "version": "41.0.0",
   "description": "VIVIT ERP — Enterprise Marketing Agency Platform",
   "private": true,
-  "engines": {
-    "node": "22.x"
-  },
+  "engines": {"node": "22.x"},
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "npm audit --audit-level=high && npm run qa:static && npm run qa:clients && npm run qa:tasks-archive && npm run qa:media-control && npm run type-check && next build",
+    "build": "npm audit --audit-level=high && npm run qa:static && npm run qa:clients && npm run qa:tasks-archive && npm run qa:media-control && npm run qa:media-pagination && npm run type-check && next build",
     "start": "next start",
     "lint": "eslint .",
     "seed": "npx tsx scripts/seed.ts",
@@ -20,28 +18,9 @@
     "qa:clients": "node scripts/qa-clients.mjs",
     "qa:tasks-archive": "node scripts/qa-tasks-archive.mjs",
     "qa:media-control": "node scripts/qa-media-control.mjs",
+    "qa:media-pagination": "node scripts/qa-media-pagination.mjs",
     "qa": "npm run build"
   },
-  "dependencies": {
-    "@auth/drizzle-adapter": "^1.7.4",
-    "bcryptjs": "^2.4.3",
-    "drizzle-orm": "0.45.2",
-    "next": "16.3.2",
-    "next-auth": "5.0.0-beta.32",
-    "postgres": "^3.4.5",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0"
-  },
-  "devDependencies": {
-    "@types/bcryptjs": "^2.4.6",
-    "@types/node": "^22",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "drizzle-kit": "^0.30.4",
-    "eslint": "^9.0.0",
-    "eslint-config-next": "16.3.2",
-    "tailwindcss": "^3.4.17",
-    "tsx": "^4.19.2",
-    "typescript": "^5"
-  }
+  "dependencies": {"@auth/drizzle-adapter":"^1.7.4","bcryptjs":"^2.4.3","drizzle-orm":"0.45.2","next":"16.3.2","next-auth":"5.0.0-beta.32","postgres":"^3.4.5","react":"^19.2.0","react-dom":"^19.2.0"},
+  "devDependencies": {"@types/bcryptjs":"^2.4.6","@types/node":"^22","@types/react":"^19","@types/react-dom":"^19","drizzle-kit":"^0.30.4","eslint":"^9.0.0","eslint-config-next":"16.3.2","tailwindcss":"^3.4.17","tsx":"^4.19.2","typescript":"^5"}
 }

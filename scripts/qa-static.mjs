@@ -31,7 +31,7 @@ pass("File storage bucket self-heals",/ensureBucket/.test(filesApi));pass("File 
 pass("Lifecycle API has archive restore delete",lifecycleApi.includes('"archive","restore","delete"')&&lifecycleApi.includes("client_archived")&&lifecycleApi.includes("task_archived")&&lifecycleApi.includes("lead_archived"));
 pass("Client permanent delete is admin only",lifecycleApi.includes("Only Super Admin can permanently delete a client"));
 pass("Hard delete blocks linked client data",lifecycleApi.includes("Archive it instead of permanent deletion")&&lifecycleApi.includes("dependencies"));
-pass("Task hard delete blocks linked files/calendar",lifecycleApi.includes("linked files or calendar items"));
+pass("Task hard delete blocks linked files/calendar/comments",lifecycleApi.includes("linked files, comments, or calendar items")&&lifecycleApi.includes("task_comments"));
 pass("Converted leads cannot hard delete",lifecycleApi.includes("converted to a client"));
 pass("Archive Center exposes restore and permanent delete",archivePage.includes("Restore")&&archivePage.includes("Delete permanently"));
 pass("Creative board excludes archived tasks",creativePage.includes("archived_at is null")&&creativePage.includes("archiveTask"));

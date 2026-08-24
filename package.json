@@ -6,7 +6,7 @@
   "engines":{"node":"22.x"},
   "scripts":{
     "dev":"next dev --turbopack",
-    "build":"npm audit --audit-level=high && npm run qa:static && npm run qa:clients && npm run qa:tasks-archive && npm run qa:media-control && npm run qa:media-pagination && npm run qa:finance-reports && npm run qa:finance-recurring && npm run qa:rbac-security && npm run qa:search-rbac && npm run qa:session-security && npm run qa:mobile-ux && npm run type-check && next build",
+    "build":"npm audit --audit-level=high && npm run qa:static && npm run qa:clients && npm run qa:tasks-archive && npm run qa:media-control && npm run qa:media-pagination && npm run qa:finance-reports && npm run qa:finance-recurring && npm run qa:rbac-security && npm run qa:search-rbac && npm run qa:session-security && npm run qa:mobile-ux && npm run qa:data-integrity && npm run type-check && next build",
     "start":"next start",
     "lint":"eslint .",
     "seed":"npx tsx scripts/seed.ts",
@@ -25,6 +25,7 @@
     "qa:search-rbac":"node scripts/qa-search-rbac.mjs",
     "qa:session-security":"node scripts/qa-session-security.mjs",
     "qa:mobile-ux":"node scripts/qa-mobile-ux.mjs",
+    "qa:data-integrity":"node scripts/qa-data-integrity.mjs",
     "qa:runtime-smoke":"node scripts/qa-runtime-smoke.mjs",
     "qa":"npm run build"
   },

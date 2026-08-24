@@ -1,5 +1,5 @@
 // @ts-nocheck -- Drizzle's generated recurring shapes are narrower than the live schema.
-export const dynamic = "force-dynamic";
+export const dynamic="force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db, clients, financeRecords, notifications, users, workspaces } from "@/lib/db";
@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
   const generated:string[]=[];
   const [activeClients,admins,workspace]=await Promise.all([
     db.select().from(clients).where(and(eq(clients.workspaceId,WORKSPACE_ID),eq(clients.isActive,true))),
-    db.select({id:users.id}).from(users).where(and(eq(users.role,"SUPER_ADMIN"),eq(users.isActive,true))),
+    db.select({id:users.id}).from(users).where(and(eq(users.workspaceId,WORKSPACE_ID),eq(users.role,"SUPER_ADMIN"),eq(users.isActive,true))),
     db.select({currency:workspaces.currency}).from(workspaces).where(eq(workspaces.id,WORKSPACE_ID)).limit(1).then(r=>r[0])
   ]);
   const currency=workspace?.currency||"EGP";
@@ -45,11 +45,11 @@ export async function POST(req: NextRequest) {
     }
     generated.push(client.companyName);
   }
-  return NextResponse.json({success:true,generated:generated.length,clients:generated,month,year,currency});
+  return NextResponse.json({success:true,generated:generated.length,clients:generated,month,year,currency},{headers:{"Cache-Control":"private, no-store"}});
 }
 
 export async function GET(req: NextRequest) {
-  const session=await auth();
+  const session = await auth();
   if(!session?.user)return NextResponse.json({error:"Unauthorized"},{status:401});
   if(!["SUPER_ADMIN","ACCOUNTANT"].includes(String((session.user as any).role)))return NextResponse.json({error:"Forbidden"},{status:403});
 

@@ -22,7 +22,9 @@ export default function LoginPage() {
       setError("Invalid credentials. Try again.");
       setLoading(false);
     } else {
-      window.location.href = "/dashboard";
+      // /apps is the post-login router: Super Admin sees the Odoo-style launcher;
+      // every other role is redirected server-side to its allowed home workspace.
+      window.location.href = "/apps";
     }
   };
 

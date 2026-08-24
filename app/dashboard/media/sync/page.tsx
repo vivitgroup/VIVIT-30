@@ -1,4 +1,5 @@
 "use client";
+// Production QA marker: Meta OAuth + files + creative + task inbox + CRM pass.
 import {useEffect,useMemo,useState} from "react";
 const platforms=["META","TIKTOK","GOOGLE","SNAPCHAT","LINKEDIN"];
 const labels:any={META:"Meta — Facebook & Instagram",TIKTOK:"TikTok Ads",GOOGLE:"Google & YouTube Ads",SNAPCHAT:"Snapchat Ads",LINKEDIN:"LinkedIn Ads"};

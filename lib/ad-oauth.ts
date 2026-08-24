@@ -2,6 +2,7 @@ import crypto from "crypto";
 import {db,adPlatformConnections} from "@/lib/db";
 import {eq} from "drizzle-orm";
 
+// Meta OAuth production configuration is resolved server-side from Vercel secrets.
 export type OAuthPlatform="META"|"TIKTOK"|"GOOGLE"|"SNAPCHAT"|"LINKEDIN";
 type State={platform:OAuthPlatform;clientId:string;adAccountId:string;accountName:string;userId:string;exp:number};
 type TokenSet={accessToken:string;refreshToken?:string;expiresIn?:number};

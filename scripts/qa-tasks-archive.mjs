@@ -62,8 +62,8 @@ check("Archived clients cannot open Client Portal",portalGuard.includes("eq(clie
 check("Client Portal review action rejects archived tasks",portal.includes("activeTask")&&portal.includes("archived_at is null"));
 check("Client Portal creative approvals exclude archived tasks",portal.includes("activeTaskOnly")&&portal.includes("inArray(creativeTasks.status,[\"APPROVED\",\"COMPLETED\"]),activeTaskOnly"));
 check("Client Portal deliverable counts exclude archived tasks",portal.includes("allCreative")&&portal.includes("eq(creativeTasks.clientId,client.id),activeTaskOnly"));
-check("Client Portal calendar excludes archived-task events",portal.includes("activeCalendarTask=sql`")&&portal.includes("select id from creative_tasks where archived_at is null")&&portal.includes("activeCalendarTask)).orderBy"));
-check("Client Portal documents exclude archived files",portal.includes("activeFileOnly")&&portal.includes("file_documents where archived_at is null"));
+check("Client Portal calendar excludes archived-task events",portal.includes("activeCalendarTask=sql`")&&portal.includes("creative_tasks where workspace_id=${WORKSPACE} and archived_at is null")&&portal.includes("activeCalendarTask)).orderBy"));
+check("Client Portal documents exclude archived files",portal.includes("activeFileOnly")&&portal.includes("file_documents where workspace_id=${WORKSPACE} and archived_at is null"));
 check("Files API validates task target before Super Admin bypass",files.indexOf("if(taskId)")<files.indexOf('if(role==="SUPER_ADMIN")return true'));
 check("Files API rejects archived task and archived client targets",files.includes("t.archived_at is null and c.is_active=true")&&files.includes("eq(clients.isActive,true)"));
 check("Task-scoped file GET rejects unavailable archived targets",files.includes("The selected client or task is archived or unavailable to you."));

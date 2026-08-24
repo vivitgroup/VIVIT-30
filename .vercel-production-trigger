@@ -1,6 +1,6 @@
-production trigger 2026-08-24T22:55:00Z
-Meta connect and sync embedded in media control center
-OAuth callback returns to control center
-Meta ad account campaign discovery and 30-day sync enabled
-release main 8e66930340c4791240c99b5ba99de35aedf907bf
+production trigger 2026-08-24T23:08:00Z
+Finance final 2026 workbook imported and reconciled
+Finance authoritative ledger enabled without double count
+Media connect, OAuth callback and campaign sync merged
+release main 2c12ce23aac45eca2a3b4eb5f5c1104846e1c8ac
 force production redeploy

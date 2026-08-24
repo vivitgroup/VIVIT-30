@@ -33,7 +33,7 @@ check('Sync records connection error on failure',api.includes('status:"ERROR"'))
 check('Meta sync verifies campaign belongs to ad account',platforms.includes('belongs to ad account'));
 check('Meta uses account attribution setting',platforms.includes('use_account_attribution_setting:"true"'));
 check('Meta uses conversion report time',platforms.includes('action_report_time:"conversion"'));
-check('Meta fetches both summary and daily insights',platforms.includes('summaryData')&&platforms.includes('dailyData')&&platforms.includes('time_increment'));
+check('Meta fetches summary plus paginated daily insights',platforms.includes('summaryData')&&platforms.includes('metaPages(`https://graph.facebook.com/${v}/${campaignId}/insights?${params("1")}`)')&&platforms.includes('time_increment'));
 check('Meta result label follows objective/optimization goal',platforms.includes('chooseMetaResult')&&platforms.includes('optimization_goal'));
 check('Meta commerce reads ATC purchases and revenue',platforms.includes('metaCommerce')&&platforms.includes('action_values'));
 check('Meta hierarchy sync is invoked for Meta campaigns',api.includes('campaign.platform==="META"')&&api.includes('syncMetaHierarchy(campaign,token,r'));

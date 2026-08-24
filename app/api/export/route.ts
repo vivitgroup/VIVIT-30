@@ -1,68 +1,15 @@
-export const dynamic = "force-dynamic";
-import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import { db, clients, creativeTasks, salesLeads, financeRecords, mediaMetrics , companyExpenses } from "@/lib/db";
-import { eq, gte, and, inArray } from "drizzle-orm";
+export const dynamic="force-dynamic";
+import {NextRequest,NextResponse} from "next/server";
+import {auth} from "@/lib/auth";
+import {db,clients,creativeTasks,salesLeads,financeRecords,mediaMetrics,companyExpenses,sql} from "@/lib/db";
+import {eq,and,inArray} from "drizzle-orm";
 
-export async function GET(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const entity = req.nextUrl.searchParams.get("entity") ?? "clients";
-  const role=(session.user as any).role as string;
-  const userId=(session.user as any).id as string;
-  const allowed:Record<string,string[]>={SUPER_ADMIN:["clients","tasks","sales","finance","media","expenses"],ACCOUNT_MANAGER:["clients","tasks","media"],MEDIA_BUYER:["clients","media"],ACCOUNTANT:["clients","finance","expenses"],SALES:["sales"],CREATOR:["tasks"],CLIENT:[]};
-  if(!(allowed[role]??[]).includes(entity))return NextResponse.json({error:"Forbidden"},{status:403});
-
-  let data: any[] = [];
-  let headers: string[] = [];
-  const assignedClients = ["ACCOUNT_MANAGER","MEDIA_BUYER"].includes(role)
-    ? await db.select({id:clients.id}).from(clients).where(and(eq(clients.isActive,true),role==="ACCOUNT_MANAGER"?eq(clients.accountManagerId,userId):eq(clients.mediaBuyerId,userId)))
-    : [];
-  const clientIds=assignedClients.map(c=>c.id);
-
-  switch (entity) {
-    case "clients":
-      data = await db.select().from(clients).where(and(
-        eq(clients.isActive, true),
-        role==="ACCOUNT_MANAGER" ? eq(clients.accountManagerId,userId) :
-        role==="MEDIA_BUYER" ? eq(clients.mediaBuyerId,userId) : eq(clients.workspaceId,"default")
-      ));
-      headers = ["Company","Industry","Health Score","Churn Risk","Monthly Retainer","Media Budget","Contract Value","Performance Score"];
-      data = data.map(c => [c.companyName,c.industry,c.healthScore,c.churnRisk,c.monthlyRetainer,c.mediaBudget,c.contractValue,c.performanceScore]);
-      break;
-    case "tasks":
-      data = await db.select().from(creativeTasks).where(
-        role==="CREATOR" ? eq(creativeTasks.assignedToId,userId) :
-        role==="ACCOUNT_MANAGER" ? (clientIds.length?inArray(creativeTasks.clientId,clientIds):eq(creativeTasks.clientId,"__none__")) :
-        eq(creativeTasks.workspaceId,"default")
-      );
-      headers = ["Title","Type","Status","Priority","Client ID","Assigned To","Deadline","Revisions","Posted"];
-      data = data.map(t => [t.title,t.type,t.status,t.priority,t.clientId,t.assignedToId,t.deadline,t.revisionCount,t.isPosted]);
-      break;
-    case "sales":
-      data = await db.select().from(salesLeads).where(role==="SALES"?eq(salesLeads.salesRepId,userId):eq(salesLeads.workspaceId,"default"));
-      headers = ["Company","Contact","Stage","Source","Value","Probability","Industry","Expected Close"];
-      data = data.map(l => [l.companyName,l.contactPerson,l.stage,l.source,l.estimatedValue,l.probability,l.industry,l.expectedClose]);
-      break;
-    case "finance":
-      data = await db.select().from(financeRecords).where(eq(financeRecords.year, new Date().getFullYear()));
-      headers = ["Client ID","Month","Year","Retainer","Media Fee","Extra","Total","Paid","Outstanding","Status"];
-      data = data.map(r => [r.clientId,r.month,r.year,r.retainer,r.mediaBuyingFee,r.extraServices,r.totalRevenue,r.paid,r.outstanding,r.invoiceStatus]);
-      break;
-    case "media":
-      const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-      data = await db.select().from(mediaMetrics).where(and(gte(mediaMetrics.date, monthStart),["ACCOUNT_MANAGER","MEDIA_BUYER"].includes(role)?(clientIds.length?inArray(mediaMetrics.clientId,clientIds):eq(mediaMetrics.clientId,"__none__")):eq(mediaMetrics.workspaceId,"default")));
-      headers = ["Client ID","Platform","Date","Ad Spend","Leads","Purchases","Revenue","ROAS","CPL","Agency Fee"];
-      data = data.map(m => [m.clientId,m.platform,m.date,m.adSpend,m.leads,m.purchases,m.revenue,m.roas,m.cpl,m.agencyFee]);
-      break;
-
-    case "expenses":
-      const expList = await db.select().from(companyExpenses).orderBy(companyExpenses.date);
-      headers = ["Category","Description","Amount","Date"];
-      data = expList.map(e=>[e.category,e.description,e.amount,e.date]);
-      break;
-  }
-
-  return NextResponse.json({ headers, rows: data, count: data.length, entity });
-}
+const WORKSPACE="default";
+export async function GET(req:NextRequest){const session=await auth();if(!session?.user)return NextResponse.json({error:"Unauthorized"},{status:401});const entity=req.nextUrl.searchParams.get("entity")??"clients",role=String((session.user as any).role||""),userId=String((session.user as any).id||""),allowed:Record<string,string[]>={SUPER_ADMIN:["clients","tasks","sales","finance","media","expenses"],ACCOUNT_MANAGER:["clients","tasks","media"],MEDIA_BUYER:["clients","media"],ACCOUNTANT:["clients","finance","expenses"],SALES:["sales"],CREATOR:["tasks"],CLIENT:[]};if(!(allowed[role]||[]).includes(entity))return NextResponse.json({error:"Forbidden"},{status:403});const activeRows=await db.select({id:clients.id}).from(clients).where(and(eq(clients.workspaceId,WORKSPACE),eq(clients.isActive,true),role==="ACCOUNT_MANAGER"?eq(clients.accountManagerId,userId):role==="MEDIA_BUYER"?eq(clients.mediaBuyerId,userId):sql`true`)),activeIds=activeRows.map(x=>x.id);let data:any[]=[],headers:string[]=[];
+ if(entity==="clients"){const rows=await db.select().from(clients).where(and(eq(clients.workspaceId,WORKSPACE),eq(clients.isActive,true),role==="ACCOUNT_MANAGER"?eq(clients.accountManagerId,userId):role==="MEDIA_BUYER"?eq(clients.mediaBuyerId,userId):sql`true`));headers=["Company","Industry","Health Score","Churn Risk","Monthly Retainer","Media Budget","Contract Value","Performance Score"];data=rows.map(c=>[c.companyName,c.industry,c.healthScore,c.churnRisk,c.monthlyRetainer,c.mediaBudget,c.contractValue,c.performanceScore])}
+ else if(entity==="tasks"){const activeTask=sql`${creativeTasks.id} in (select t.id from creative_tasks t join clients c on c.id=t.client_id where t.archived_at is null and c.is_active=true and c.workspace_id=${WORKSPACE})`,scope=role==="CREATOR"?eq(creativeTasks.assignedToId,userId):role==="ACCOUNT_MANAGER"?(activeIds.length?inArray(creativeTasks.clientId,activeIds):eq(creativeTasks.clientId,"__none__")):eq(creativeTasks.workspaceId,WORKSPACE),rows=await db.select().from(creativeTasks).where(and(scope,activeTask));headers=["Title","Type","Status","Priority","Client ID","Assigned To","Deadline","Revisions","Posted"];data=rows.map(t=>[t.title,t.type,t.status,t.priority,t.clientId,t.assignedToId,t.deadline,t.revisionCount,t.isPosted])}
+ else if(entity==="sales"){const activeLead=sql`${salesLeads.id} in (select id from sales_leads where archived_at is null)`,scope=role==="SALES"?and(eq(salesLeads.workspaceId,WORKSPACE),eq(salesLeads.salesRepId,userId)):eq(salesLeads.workspaceId,WORKSPACE),rows=await db.select().from(salesLeads).where(and(scope,activeLead));headers=["Company","Contact","Stage","Source","Value","Probability","Industry","Expected Close"];data=rows.map(l=>[l.companyName,l.contactPerson,l.stage,l.source,l.estimatedValue,l.probability,l.industry,l.expectedClose])}
+ else if(entity==="finance"){const rows=await db.select().from(financeRecords).where(eq(financeRecords.workspaceId,WORKSPACE)).orderBy(financeRecords.year,financeRecords.month);headers=["Client ID","Month","Year","Retainer","Media Fee","Extra","Total","Paid","Outstanding","Status"];data=rows.map(r=>[r.clientId,r.month,r.year,r.retainer,r.mediaBuyingFee,r.extraServices,r.totalRevenue,r.paid,r.outstanding,r.invoiceStatus])}
+ else if(entity==="media"){const scope=activeIds.length?inArray(mediaMetrics.clientId,activeIds):eq(mediaMetrics.clientId,"__none__"),rows=await db.select().from(mediaMetrics).where(and(eq(mediaMetrics.workspaceId,WORKSPACE),scope)).orderBy(mediaMetrics.date);headers=["Client ID","Platform","Date","Ad Spend","Leads","Purchases","Revenue","ROAS","CPL","Agency Fee"];data=rows.map(m=>[m.clientId,m.platform,m.date,m.adSpend,m.leads,m.purchases,m.revenue,m.roas,m.cpl,m.agencyFee])}
+ else if(entity==="expenses"){const rows=await db.select().from(companyExpenses).where(eq(companyExpenses.workspaceId,WORKSPACE)).orderBy(companyExpenses.date);headers=["Category","Description","Amount","Date"];data=rows.map(e=>[e.category,e.description,e.amount,e.date])}
+ return NextResponse.json({headers,rows:data,count:data.length,entity,scope:"workspace"},{headers:{"Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff"}})}

@@ -15,7 +15,7 @@ export async function GET(){
  if(!session?.user)return NextResponse.json({error:"Unauthorized"},{status:401});
  const userId=String((session.user as any).id),role=String((session.user as any).role);
  const clients=role==="SUPER_ADMIN"?await rows(sql`select id,company_name as name,archived_at from clients where archived_at is not null order by archived_at desc limit 100`):role==="ACCOUNT_MANAGER"?await rows(sql`select id,company_name as name,archived_at from clients where archived_at is not null and account_manager_id=${userId} order by archived_at desc limit 100`):[];
- const tasks=role==="SUPER_ADMIN"?await rows(sql`select id,title as name,archived_at from creative_tasks where archived_at is not null order by archived_at desc limit 150`):await rows(sql`select id,title as name,archived_at from creative_tasks where archived_at is not null and created_by_id=${userId} order by archived_at desc limit 150`);
+ const tasks=role==="SUPER_ADMIN"?await rows(sql`select id,title as name,archived_at from creative_tasks where archived_at is not null order by archived_at desc limit 150`):role==="ACCOUNT_MANAGER"?await rows(sql`select t.id,t.title as name,t.archived_at from creative_tasks t join clients c on c.id=t.client_id where t.archived_at is not null and c.account_manager_id=${userId} order by t.archived_at desc limit 150`):[];
  const leads=role==="SUPER_ADMIN"?await rows(sql`select id,company_name as name,archived_at from sales_leads where archived_at is not null order by archived_at desc limit 150`):role==="SALES"?await rows(sql`select id,company_name as name,archived_at from sales_leads where archived_at is not null and sales_rep_id=${userId} order by archived_at desc limit 150`):[];
  return NextResponse.json({clients,tasks,leads});
 }
@@ -36,15 +36,18 @@ export async function POST(req:NextRequest){
     if(action==="delete"&&role!=="SUPER_ADMIN")return NextResponse.json({error:"Only Super Admin can permanently delete a client."},{status:403});
     if(action!=="delete"&&role!=="SUPER_ADMIN"&&!managerOwns)return NextResponse.json({error:"You can only archive clients assigned to you."},{status:403});
     if(action==="archive"){
-      await db.execute(sql`update clients set is_active=false,archived_at=now(),archived_by=${userId},updated_at=now() where id=${id}`);
+      if(record.archived_at)return NextResponse.json({error:"Client is already archived."},{status:409});
+      await db.execute(sql`update clients set is_active=false,archived_at=now(),archived_by=${userId},updated_at=now() where id=${id} and archived_at is null`);
       await audit(userId,"client_archived","clients",id,{companyName:record.company_name});
       return NextResponse.json({success:true,state:"archived"});
     }
     if(action==="restore"){
-      await db.execute(sql`update clients set is_active=true,archived_at=null,archived_by=null,updated_at=now() where id=${id}`);
+      if(!record.archived_at)return NextResponse.json({error:"Client is already active."},{status:409});
+      await db.execute(sql`update clients set is_active=true,archived_at=null,archived_by=null,updated_at=now() where id=${id} and archived_at is not null`);
       await audit(userId,"client_restored","clients",id,{companyName:record.company_name});
       return NextResponse.json({success:true,state:"active"});
     }
+    if(!record.archived_at)return NextResponse.json({error:"Archive the client before permanent deletion."},{status:409});
     const [deps]=await rows(sql`select
       (select count(*)::int from creative_tasks where client_id=${id}) as tasks,
       (select count(*)::int from file_documents where client_id=${id}) as files,
@@ -61,23 +64,29 @@ export async function POST(req:NextRequest){
   }
 
   if(entity==="task"){
-    const [record]=await rows(sql`select id,title,client_id,created_by_id,assigned_to_id,archived_at from creative_tasks where id=${id} limit 1`);
+    const [record]=await rows(sql`select t.id,t.title,t.client_id,t.created_by_id,t.assigned_to_id,t.archived_at,c.account_manager_id,c.is_active as client_active from creative_tasks t left join clients c on c.id=t.client_id where t.id=${id} limit 1`);
     if(!record)return NextResponse.json({error:"Task not found."},{status:404});
-    const owner=record.created_by_id===userId;
-    if(role!=="SUPER_ADMIN"&&!owner)return NextResponse.json({error:"You can only archive or delete tasks you created."},{status:403});
+    const managerOwns=role==="ACCOUNT_MANAGER"&&record.account_manager_id===userId;
+    if(action==="delete"&&role!=="SUPER_ADMIN")return NextResponse.json({error:"Only Super Admin can permanently delete a task."},{status:403});
+    if(action!=="delete"&&role!=="SUPER_ADMIN"&&!managerOwns)return NextResponse.json({error:"You can only archive or restore tasks for clients assigned to you."},{status:403});
     if(action==="archive"){
-      await db.execute(sql`update creative_tasks set archived_at=now(),archived_by=${userId},updated_at=now() where id=${id}`);
+      if(record.archived_at)return NextResponse.json({error:"Task is already archived."},{status:409});
+      if(record.client_active===false)return NextResponse.json({error:"The client is archived. Restore the client before changing its task lifecycle."},{status:409});
+      await db.execute(sql`update creative_tasks set archived_at=now(),archived_by=${userId},updated_at=now() where id=${id} and archived_at is null`);
       await audit(userId,"task_archived","creative_tasks",id,{title:record.title});
       return NextResponse.json({success:true,state:"archived"});
     }
     if(action==="restore"){
-      await db.execute(sql`update creative_tasks set archived_at=null,archived_by=null,updated_at=now() where id=${id}`);
+      if(!record.archived_at)return NextResponse.json({error:"Task is already active."},{status:409});
+      if(record.client_active===false)return NextResponse.json({error:"Restore the client before restoring this task."},{status:409});
+      await db.execute(sql`update creative_tasks set archived_at=null,archived_by=null,updated_at=now() where id=${id} and archived_at is not null`);
       await audit(userId,"task_restored","creative_tasks",id,{title:record.title});
       return NextResponse.json({success:true,state:"active"});
     }
-    const [deps]=await rows(sql`select (select count(*)::int from file_documents where task_id=${id}) as files,(select count(*)::int from calendar_events where task_id=${id}) as calendar`);
-    const dependent=Number(deps?.files||0)+Number(deps?.calendar||0);
-    if(dependent>0)return NextResponse.json({error:"This task has linked files or calendar items. Archive it instead, or remove the linked records first.",dependencies:deps},{status:409});
+    if(!record.archived_at)return NextResponse.json({error:"Archive the task before permanent deletion."},{status:409});
+    const [deps]=await rows(sql`select (select count(*)::int from file_documents where task_id=${id}) as files,(select count(*)::int from calendar_events where task_id=${id}) as calendar,(select count(*)::int from task_comments where task_id=${id}) as comments`);
+    const dependent=Number(deps?.files||0)+Number(deps?.calendar||0)+Number(deps?.comments||0);
+    if(dependent>0)return NextResponse.json({error:"This task has linked files, comments, or calendar items. Keep it archived, or remove the linked records first.",dependencies:deps},{status:409});
     await db.execute(sql`delete from creative_tasks where id=${id}`);
     await audit(userId,"task_deleted","creative_tasks",id,{title:record.title});
     return NextResponse.json({success:true,state:"deleted"});
@@ -88,15 +97,18 @@ export async function POST(req:NextRequest){
   const owner=record.sales_rep_id===userId;
   if(role!=="SUPER_ADMIN"&&!owner)return NextResponse.json({error:"You can only archive or delete leads assigned to you."},{status:403});
   if(action==="archive"){
-    await db.execute(sql`update sales_leads set archived_at=now(),archived_by=${userId},updated_at=now() where id=${id}`);
+    if(record.archived_at)return NextResponse.json({error:"Lead is already archived."},{status:409});
+    await db.execute(sql`update sales_leads set archived_at=now(),archived_by=${userId},updated_at=now() where id=${id} and archived_at is null`);
     await audit(userId,"lead_archived","sales_leads",id,{companyName:record.company_name});
     return NextResponse.json({success:true,state:"archived"});
   }
   if(action==="restore"){
-    await db.execute(sql`update sales_leads set archived_at=null,archived_by=null,updated_at=now() where id=${id}`);
+    if(!record.archived_at)return NextResponse.json({error:"Lead is already active."},{status:409});
+    await db.execute(sql`update sales_leads set archived_at=null,archived_by=null,updated_at=now() where id=${id} and archived_at is not null`);
     await audit(userId,"lead_restored","sales_leads",id,{companyName:record.company_name});
     return NextResponse.json({success:true,state:"active"});
   }
+  if(!record.archived_at)return NextResponse.json({error:"Archive the lead before permanent deletion."},{status:409});
   if(record.client_id)return NextResponse.json({error:"This lead was converted to a client and cannot be permanently deleted. Archive it instead."},{status:409});
   await db.execute(sql`delete from sales_leads where id=${id}`);
   await audit(userId,"lead_deleted","sales_leads",id,{companyName:record.company_name});

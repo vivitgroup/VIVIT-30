@@ -1,130 +1,14 @@
-// @ts-nocheck -- Drizzle's generated approval shapes are narrower than the live schema.
-export const dynamic = "force-dynamic";
-import { db, approvalTokens, creativeTasks, clients } from "@/lib/db";
-import { eq, and, gte } from "drizzle-orm";
-import Link from "next/link";
+// @ts-nocheck
+export const dynamic="force-dynamic";
+import {db,approvalTokens,creativeTasks,clients,notifications,auditLogs,sql} from "@/lib/db";
+import {eq,and,gte,or,isNull} from "drizzle-orm";
+import {hashApprovalToken,safeHttpUrl} from "@/lib/approval-security";
+const WORKSPACE="default";
 
-export default async function ApproveTokenPage({ params }: { params: Promise<{ token: string }> }) {
-  const { token } = await params;
-
-  const [tokenRow] = await db.select().from(approvalTokens).where(
-    and(eq(approvalTokens.token, token), gte(approvalTokens.expiresAt, new Date()))
-  );
-
-  if (!tokenRow) {
-    return (
-      <div style={{minHeight:"100vh",background:"#060D1A",display:"flex",alignItems:"center",justifyContent:"center",padding:"20px"}}>
-        <div style={{background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:"20px",padding:"40px",textAlign:"center",maxWidth:"420px"}}>
-          <p style={{fontSize:"48px",marginBottom:"16px"}}>⏰</p>
-          <h1 style={{fontSize:"22px",fontWeight:"700",color:"#FCA5A5",marginBottom:"8px"}}>Link Expired or Invalid</h1>
-          <p style={{color:"#6B8FAF",fontSize:"14px"}}>This approval link has expired or already been used. Please contact your account manager for a new link.</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (tokenRow.usedAt) {
-    return (
-      <div style={{minHeight:"100vh",background:"#060D1A",display:"flex",alignItems:"center",justifyContent:"center",padding:"20px"}}>
-        <div style={{background:"rgba(16,185,129,0.08)",border:"1px solid rgba(16,185,129,0.25)",borderRadius:"20px",padding:"40px",textAlign:"center",maxWidth:"420px"}}>
-          <p style={{fontSize:"48px",marginBottom:"16px"}}>✅</p>
-          <h1 style={{fontSize:"22px",fontWeight:"700",color:"#6EE7B7",marginBottom:"8px"}}>Already Processed</h1>
-          <p style={{color:"#6B8FAF",fontSize:"14px"}}>This creative has already been {tokenRow.action}d. Thank you!</p>
-        </div>
-      </div>
-    );
-  }
-
-  const [task] = await db.select().from(creativeTasks).where(eq(creativeTasks.id, tokenRow.taskId));
-  const [client] = await db.select({ companyName: clients.companyName }).from(clients).where(eq(clients.id, tokenRow.clientId));
-
-  const TYPE_ICON: Record<string,string> = {REEL:"🎬",GRAPHIC:"🎨",CAROUSEL:"📊",MOTION_GRAPHIC:"✨",VIDEO_EDIT:"🎥",STORY:"📱",UGC:"👤"};
-
-  async function processApproval(action: "APPROVED" | "REVISION", comment = "") {
-    "use server";
-    const { db, approvalTokens, creativeTasks } = await import("@/lib/db");
-    const { eq, and, gte, isNull } = await import("drizzle-orm");
-    comment=comment.trim().slice(0,1000);
-    if(action==="REVISION"&&!comment)throw new Error("Please write a comment explaining the requested changes.");
-    const [freshToken] = await db.select().from(approvalTokens).where(and(
-      eq(approvalTokens.token, token),
-      gte(approvalTokens.expiresAt, new Date()),
-      isNull(approvalTokens.usedAt),
-    )).limit(1);
-    if (!freshToken || freshToken.taskId !== tokenRow.taskId || freshToken.clientId !== tokenRow.clientId) {
-      throw new Error("This approval link is invalid, expired, or already used");
-    }
-    const [freshTask] = await db.select().from(creativeTasks).where(eq(creativeTasks.id, freshToken.taskId)).limit(1);
-    if (!freshTask || freshTask.clientId !== freshToken.clientId) throw new Error("Creative not found");
-
-    await db.update(creativeTasks).set({
-      status: action,
-      ...(action === "APPROVED" ? {
-        approvedByClient: true,
-        clientApprovalAt: new Date(),
-        clientApprovalName: "Client via email",
-      } : {
-        revisionCount: (freshTask.revisionCount ?? 0) + 1,
-        revisionNotes: comment,
-      }),
-      updatedAt: new Date(),
-    }).where(eq(creativeTasks.id, freshToken.taskId));
-
-    await db.update(approvalTokens).set({ usedAt: new Date(), action }).where(and(eq(approvalTokens.token, token), isNull(approvalTokens.usedAt)));
-    const { revalidatePath } = await import("next/cache");
-    revalidatePath(`/approve/${token}`);
-  }
-
-  return (
-    <div style={{minHeight:"100vh",background:"#060D1A",display:"flex",alignItems:"center",justifyContent:"center",padding:"20px",fontFamily:"Inter,system-ui,sans-serif"}}>
-      <div style={{width:"100%",maxWidth:"500px"}}>
-        {/* Logo */}
-        <div style={{textAlign:"center",marginBottom:"28px"}}>
-          <div style={{width:"48px",height:"48px",borderRadius:"12px",background:"linear-gradient(135deg,#17345F,#244D87)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 10px"}}>
-            <svg width="22" height="22" viewBox="0 0 44 44" fill="none">
-              <path d="M4 8 L22 36 L40 8" stroke="white" strokeWidth="5.5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </div>
-          <p style={{fontSize:"11px",color:"#244D87",fontWeight:"700",letterSpacing:"0.15em"}}>VIVIT GROUP</p>
-        </div>
-
-        <div style={{background:"rgba(10,20,40,0.95)",border:"1px solid rgba(0,119,182,0.2)",borderRadius:"20px",padding:"32px",backdropFilter:"blur(20px)"}}>
-          <h1 style={{fontSize:"20px",fontWeight:"700",color:"#E8F4FD",marginBottom:"4px"}}>Creative Review Required</h1>
-          <p style={{color:"#6B8FAF",fontSize:"13px",marginBottom:"24px"}}>{client?.companyName} — please review and take action</p>
-
-          <div style={{background:"rgba(0,119,182,0.06)",border:"1px solid rgba(0,119,182,0.15)",borderRadius:"14px",padding:"18px",marginBottom:"24px"}}>
-            <div style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:"12px"}}>
-              <span style={{fontSize:"24px"}}>{TYPE_ICON[task?.type??""]??""}</span>
-              <div>
-                <p style={{fontWeight:"600",fontSize:"15px",color:"#E8F4FD"}}>{task?.title}</p>
-                <p style={{fontSize:"12px",color:"#6B8FAF"}}>{task?.type?.replace(/_/g," ")} · Due {task ? new Date(task.deadline).toLocaleDateString("en-GB",{day:"2-digit",month:"short"}) : ""}</p>
-              </div>
-            </div>
-            {task?.fileUrl && (
-              <a href={task.fileUrl} target="_blank" style={{display:"inline-flex",alignItems:"center",gap:"6px",fontSize:"13px",color:"#00B4D8",fontWeight:"600",textDecoration:"none",background:"rgba(0,180,216,0.1)",padding:"8px 14px",borderRadius:"8px"}}>
-                🔗 View File / Google Drive →
-              </a>
-            )}
-            {!task?.fileUrl && (
-              <p style={{fontSize:"12px",color:"#3D5577",fontStyle:"italic"}}>File not yet uploaded by creator</p>
-            )}
-          </div>
-
-          <div className="approval-grid">
-            <form action={async()=>{"use server"; await processApproval("APPROVED");}} className="approval-box approval-box--accept">
-              <div><strong>Approve design</strong><p>Confirm that the creative is ready to move forward.</p></div>
-              <button type="submit" className="btn btn-success">✅ Approve</button>
-            </form>
-            <form action={async(fd:FormData)=>{"use server"; await processApproval("REVISION",String(fd.get("comment")||""));}} className="approval-box approval-box--reject">
-              <div><strong>Reject & request changes</strong><p>Your comment is required and will be sent to the creative team.</p></div>
-              <textarea name="comment" required minLength={3} maxLength={1000} className="form-textarea" rows={3} placeholder="What should be changed?"/>
-              <button type="submit" className="btn btn-danger">✕ Reject with comment</button>
-            </form>
-          </div>
-
-          <p style={{textAlign:"center",color:"#2A3F5F",fontSize:"11px",marginTop:"20px"}}>This link expires 48 hours after it was sent · VIVIT GROUP</p>
-        </div>
-      </div>
-    </div>
-  );
-}
+export default async function ApproveTokenPage({params}:{params:Promise<{token:string}>}){const {token:rawToken}=await params,token=String(rawToken||"").trim();if(!/^[a-f0-9]{64}$/i.test(token))return <Invalid/>;const hash=hashApprovalToken(token),[tokenRow]=await db.select().from(approvalTokens).where(and(or(eq(approvalTokens.token,hash),eq(approvalTokens.token,token)),gte(approvalTokens.expiresAt,new Date()))).limit(1);if(!tokenRow)return <Invalid/>;if(tokenRow.usedAt)return <Processed action={tokenRow.action}/>;const [task]=await db.select().from(creativeTasks).where(and(eq(creativeTasks.id,tokenRow.taskId),eq(creativeTasks.workspaceId,WORKSPACE),eq(creativeTasks.clientId,tokenRow.clientId),eq(creativeTasks.status,"REVIEW"),sql`${creativeTasks.id} in (select id from creative_tasks where workspace_id=${WORKSPACE} and archived_at is null)`)).limit(1),[client]=await db.select({companyName:clients.companyName}).from(clients).where(and(eq(clients.id,tokenRow.clientId),eq(clients.workspaceId,WORKSPACE),eq(clients.isActive,true))).limit(1);if(!task||!client)return <Invalid/>;const fileUrl=safeHttpUrl(task.fileUrl),storedToken=tokenRow.token;
+ async function processApproval(fd:FormData){"use server";const action=String(fd.get("action")||""),comment=String(fd.get("comment")||"").trim().slice(0,1000);if(!["APPROVED","REVISION"].includes(action))throw new Error("Invalid review action");if(action==="REVISION"&&comment.length<3)throw new Error("Please explain the requested changes.");await db.transaction(async tx=>{const now=new Date(),claimed=await tx.update(approvalTokens).set({usedAt:now,action}).where(and(eq(approvalTokens.token,storedToken),isNull(approvalTokens.usedAt),gte(approvalTokens.expiresAt,now))).returning({taskId:approvalTokens.taskId,clientId:approvalTokens.clientId});if(claimed.length!==1)throw new Error("This approval link is expired or already used");const [freshTask]=await tx.select().from(creativeTasks).where(and(eq(creativeTasks.id,claimed[0].taskId),eq(creativeTasks.workspaceId,WORKSPACE),eq(creativeTasks.clientId,claimed[0].clientId),eq(creativeTasks.status,"REVIEW"),sql`${creativeTasks.id} in (select id from creative_tasks where workspace_id=${WORKSPACE} and archived_at is null)`)).limit(1);const [freshClient]=await tx.select({id:clients.id}).from(clients).where(and(eq(clients.id,claimed[0].clientId),eq(clients.workspaceId,WORKSPACE),eq(clients.isActive,true))).limit(1);if(!freshTask||!freshClient)throw new Error("Creative is no longer available for review");await tx.update(creativeTasks).set(action==="APPROVED"?{status:"APPROVED",approvedByClient:true,clientApprovalAt:now,clientApprovalName:"Client via approval link",revisionNotes:null,updatedAt:now}:{status:"REVISION",approvedByClient:false,revisionCount:(freshTask.revisionCount||0)+1,revisionNotes:comment,updatedAt:now}).where(and(eq(creativeTasks.id,freshTask.id),eq(creativeTasks.workspaceId,WORKSPACE),eq(creativeTasks.status,"REVIEW")));if(freshTask.assignedToId)await tx.insert(notifications).values({userId:freshTask.assignedToId,type:"CLIENT_REVIEW",title:action==="APPROVED"?`Client approved: ${freshTask.title}`:`Revision requested: ${freshTask.title}`,message:action==="APPROVED"?"The client approved this creative via secure review link.":comment,link:`/dashboard/creative/${freshTask.id}`,priority:action==="REVISION"?"high":"normal"});await tx.insert(auditLogs).values({workspaceId:WORKSPACE,userId:null,action:action==="APPROVED"?"approval_link_approved":"approval_link_revision",entity:"creative_tasks",entityId:freshTask.id,newValues:JSON.stringify({clientId:freshTask.clientId,comment:action==="REVISION"?comment:null})} as any)});const {revalidatePath}=await import("next/cache");revalidatePath(`/approve/${rawToken}`)}
+ return <Shell><h1 style={h1}>Creative Review Required</h1><p style={muted}>{client.companyName} — please review the creative below.</p><div style={preview}><b style={{fontSize:17}}>{task.title}</b><p style={muted}>{String(task.type||"").replace(/_/g," ")} · Due {new Date(task.deadline).toLocaleDateString("en-GB")}</p>{fileUrl?<a href={fileUrl} target="_blank" rel="noopener noreferrer" style={{color:"#00B4D8"}}>View creative file →</a>:<p style={muted}>No review file is currently attached.</p>}</div><div style={{display:"grid",gap:12}}><form action={processApproval} style={box}><input type="hidden" name="action" value="APPROVED"/><b>Approve creative</b><p style={muted}>Confirm the creative is ready to move forward.</p><button className="btn btn-success" type="submit">Approve</button></form><form action={processApproval} style={box}><input type="hidden" name="action" value="REVISION"/><b>Request changes</b><p style={muted}>Tell the creative team exactly what needs to change.</p><textarea name="comment" required minLength={3} maxLength={1000} className="form-textarea" rows={3}/><button className="btn btn-danger" type="submit">Send revision</button></form></div><p style={{...muted,textAlign:"center",marginTop:18}}>Secure single-use link · expires 48 hours after issue.</p></Shell>}
+function Shell({children}:{children:React.ReactNode}){return <div style={{minHeight:"100vh",background:"#060D1A",display:"grid",placeItems:"center",padding:20,fontFamily:"Inter,system-ui,sans-serif"}}><main style={{width:"min(520px,100%)",background:"#0A1428",border:"1px solid rgba(0,119,182,.2)",borderRadius:20,padding:28,color:"#E8F4FD",boxSizing:"border-box"}}>{children}</main></div>}
+function Invalid(){return <Shell><h1 style={h1}>Link expired or invalid</h1><p style={muted}>This review link is unavailable, expired, or the creative is no longer awaiting review. Please ask your VIVIT account manager for a new link.</p></Shell>}
+function Processed({action}:{action:string}){return <Shell><h1 style={h1}>Already processed</h1><p style={muted}>This single-use review link has already been completed ({String(action||"reviewed").toLowerCase()}).</p></Shell>}
+const h1={fontSize:22,margin:"0 0 8px"},muted={color:"#91A7C0",fontSize:13,lineHeight:1.6},preview={padding:16,border:"1px solid #183352",borderRadius:12,margin:"20px 0"},box={padding:16,border:"1px solid #183352",borderRadius:12,display:"grid",gap:8};

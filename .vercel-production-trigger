@@ -1,5 +1,6 @@
-production trigger 2026-08-24T20:05:00+03:00
+production trigger 2026-08-24T19:18:00+03:00
 client open page redesigned as task-style workspace with visual creative cards
 client contact, notes, communication log and finance visibility reorganized
 full Media Buying dashboard retained with campaign metrics, sync, archive and delete
-release main 2a40fc5f58ba4bff7d04853e287bbe6db730d647
+release main 92ade050e9da6b798c158d99c8f8bd5faa33e5cf
+force production redeploy

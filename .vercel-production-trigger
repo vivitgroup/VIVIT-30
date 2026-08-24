@@ -1,3 +1,3 @@
-production trigger 2026-08-24T13:00:00+03:00
-force production deploy: client portal calendar demo previews
+production trigger 2026-08-24T13:01:00+03:00
+force production deploy via merged PR: client portal calendar demo previews
 release main 0c2b967039cf49ba083dbbd620ecef550b2cee53

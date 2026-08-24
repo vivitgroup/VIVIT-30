@@ -1,6 +1,6 @@
 import fs from 'node:fs';import path from 'node:path';
 const root=process.cwd(),read=f=>fs.readFileSync(path.join(root,f),'utf8'),checks=[],check=(n,o)=>checks.push({n,o:!!o});
-const api=read('app/api/media-control-v2/route.ts'),ui=read('components/media/MediaControlV2.tsx'),platforms=read('lib/ad-platforms.ts'),link=read('app/api/media-link/route.ts'),sync=read('app/api/media-sync/[campaignId]/route.ts'),oauthStart=read('app/api/ad-oauth/[platform]/start/route.ts'),oauthCb=read('app/api/ad-oauth/[platform]/callback/route.ts'),syncUi=read('app/dashboard/media/sync/page.tsx');
+const api=read('app/api/media-control-v2/route.ts'),ui=read('components/media/MediaControlV2.tsx'),platforms=read('lib/ad-platforms.ts'),link=read('app/api/media-link/route.ts'),sync=read('app/api/media-sync/[campaignId]/route.ts'),oauthStart=read('app/api/ad-oauth/[platform]/start/route.ts'),oauthCb=read('app/api/ad-oauth/[platform]/callback/route.ts'),syncUi=read('app/dashboard/media/sync/page.tsx'),cron=read('app/api/cron/media-sync/route.ts');
 check('Media Control is restricted to SA/MB/AM',api.includes('SUPER_ADMIN')&&api.includes('MEDIA_BUYER')&&api.includes('ACCOUNT_MANAGER'));
 check('Client scope requires active clients',api.includes('eq(clients.isActive,true)'));
 check('Media Buyer scope uses assigned clients',api.includes('eq(clients.mediaBuyerId,userId)'));
@@ -53,4 +53,11 @@ check('OAuth start requires active owned client',oauthStart.includes('eq(clients
 check('OAuth callback revalidates active ownership',oauthCb.includes('Client access changed or the client was archived')&&oauthCb.includes('eq(clients.isActive,true)'));
 check('OAuth callback prevents cross-client account takeover',oauthCb.includes('already connected to another client'));
 check('Sync UI reads ATC/Purchases from summary payload',syncUi.includes('s.addToCart')&&syncUi.includes('s.purchases'));
+check('Automated media sync requires CRON_SECRET bearer auth',cron.includes('process.env.CRON_SECRET')&&cron.includes('authorization')&&cron.includes('Unauthorized'));
+check('Automated sync excludes archived campaigns',cron.includes('archived_at is null'));
+check('Automated sync excludes archived clients',cron.includes('eq(clients.isActive,true)'));
+check('Automated sync uses campaign connectionId',cron.includes('c.connectionId?'));
+check('Automated sync validates connection client/platform',cron.includes('connection.clientId!==c.clientId')&&cron.includes('connection.platform!==c.platform'));
+check('Automated sync persists add-to-cart',cron.includes('addToCart')&&cron.includes('addToCart,revenue'));
+check('Automated sync computes frequency from aggregate reach',cron.includes('avgFrequency=reach?impressions/reach:0'));
 const failed=checks.filter(x=>!x.o);for(const x of checks)console.log(`${x.o?'PASS':'FAIL'}  ${x.n}`);console.log(`\n${checks.length-failed.length}/${checks.length} media-control checks passed.`);if(failed.length)process.exit(1);

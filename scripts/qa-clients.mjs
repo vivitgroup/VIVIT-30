@@ -35,7 +35,7 @@ check("Existing client update validates ownership and assignments",actions.inclu
 check("Existing client edit/reassignment is exposed in UI",guard.includes("/edit")&&edit.includes("Save client")&&edit.includes("Role.SUPER_ADMIN")&&edit.includes("Role.ACCOUNT_MANAGER"));
 check("Existing client edit preserves AM ownership and validates admin reassignment",edit.includes("existing.accountManagerId!==userId")&&edit.includes("Choose a valid active account manager")&&edit.includes("Choose a valid active media buyer"));
 check("Existing client edit validates duplicate names and contract date order",edit.includes("already exists")&&edit.includes("Contract end date must be on or after the start date"));
-check("Communication log reads both legacy client-keyed and converted-lead-keyed activity",detail.includes("salesLeads.clientId")&&/activities[\s\S]*(lead\?\.id|leadId|sales_leads)/.test(detail)&&!detail.includes("where(eq(salesActivities.leadId,id))"));
+check("Communication log reads legacy client-keyed and converted-lead-keyed activity",detail.includes("linkedLead")&&detail.includes("activityKeys=linkedLead?.id?[id,linkedLead.id]:[id]")&&detail.includes("inArray(salesActivities.leadId,activityKeys)")&&!detail.includes("where(eq(salesActivities.leadId,id))"));
 
 const failed=checks.filter(c=>!c.ok);
 for(const c of checks)console.log(`${c.ok?"PASS":"FAIL"}  ${c.name}`);

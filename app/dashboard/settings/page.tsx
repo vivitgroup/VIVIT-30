@@ -1,7 +1,5 @@
 export const dynamic="force-dynamic";
-import { auth } from "@/lib/auth";
-import { redirect } from "next/navigation";
-import { Role } from "@/lib/types";
-import { PreferencePanel } from "@/components/settings/PreferencePanel";
-import Link from "next/link";
-export default async function SettingsPage(){const session=await auth();if(!session?.user)redirect("/login");const role=(session.user as any).role as Role;return <div style={{display:"flex",flexDirection:"column",gap:18}}><div><h1 className="page-title">Settings</h1><p className="page-subtitle">Language, reminders, session and account preferences</p></div><section className="card"><div className="card-body" style={{display:"grid",gridTemplateColumns:"auto 1fr auto",gap:14,alignItems:"center"}}><div className="avatar" style={{background:"var(--vivit-gradient)"}}>{(session.user.name||session.user.email||"U").split(" ").map(x=>x[0]).join("").slice(0,2).toUpperCase()}</div><div><b>{session.user.name||"User"}</b><p style={{fontSize:12,color:"var(--text-muted)"}}>{session.user.email} · {String(role).replace(/_/g," ")}</p></div><span className="badge badge-blue">Active</span></div></section><PreferencePanel/>{role===Role.SUPER_ADMIN&&<section className="card"><div className="card-body"><h2 className="card-title">Administration</h2><p className="page-subtitle">User approvals, roles, payroll access and team controls remain under the protected Super Admin tools.</p><div style={{display:"flex",gap:8,marginTop:14,flexWrap:"wrap"}}><Link href="/dashboard/team" className="btn btn-primary" style={{textDecoration:"none"}}>HR & Team →</Link><Link href="/dashboard/finance" className="btn btn-secondary" style={{textDecoration:"none"}}>Finance →</Link><Link href="/dashboard/files" className="btn btn-secondary" style={{textDecoration:"none"}}>Files →</Link></div></div></section>}</div>}
+import {auth} from "@/lib/auth";
+import {redirect} from "next/navigation";
+import PreferencePanel from "@/components/settings/PreferencePanel";
+export default async function SettingsPage(){const session=await auth();if(!session?.user)redirect("/login");return <PreferencePanel/>;}

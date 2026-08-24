@@ -6,7 +6,7 @@
   "engines":{"node":"22.x"},
   "scripts":{
     "dev":"next dev --turbopack",
-    "build":"npm audit --audit-level=high && npm run qa:static && npm run qa:clients && npm run qa:tasks-archive && npm run qa:media-control && npm run qa:media-pagination && npm run qa:finance-reports && npm run type-check && next build",
+    "build":"npm audit --audit-level=high && npm run qa:static && npm run qa:clients && npm run qa:tasks-archive && npm run qa:media-control && npm run qa:media-pagination && npm run qa:finance-reports && npm run qa:finance-recurring && npm run type-check && next build",
     "start":"next start",
     "lint":"eslint .",
     "seed":"npx tsx scripts/seed.ts",
@@ -20,6 +20,7 @@
     "qa:media-control":"node scripts/qa-media-control.mjs",
     "qa:media-pagination":"node scripts/qa-media-pagination.mjs",
     "qa:finance-reports":"node scripts/qa-finance-reports.mjs",
+    "qa:finance-recurring":"node scripts/qa-finance-recurring.mjs",
     "qa":"npm run build"
   },
   "dependencies":{"@auth/drizzle-adapter":"^1.7.4","bcryptjs":"^2.4.3","drizzle-orm":"0.45.2","next":"16.3.2","next-auth":"5.0.0-beta.32","postgres":"^3.4.5","react":"^19.2.0","react-dom":"^19.2.0"},

@@ -7,7 +7,8 @@ export function MediaControlV2(){
  const today=iso(new Date()),defaultFrom=iso(new Date(Date.now()-30*86400000));
  const[data,setData]=useState<any>({campaigns:[],archivedCampaigns:[],accountGroups:[],clients:[],range:{start:defaultFrom,end:today},access:{}}),[loading,setLoading]=useState(true),[msg,setMsg]=useState(""),[tab,setTab]=useState("overview"),[syncing,setSyncing]=useState<string|null>(null),[from,setFrom]=useState(defaultFrom),[to,setTo]=useState(today);
  async function load(start=from,end=to){setLoading(true);setMsg("");try{const q=new URLSearchParams({from:start,to:end}),r=await fetch(`/api/media-control-v2?${q}`,{cache:'no-store'}),d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'Could not load media control data');setData(d)}catch(e:any){setMsg(e.message||'Could not load media control data')}finally{setLoading(false)}}
- useEffect(()=>{load(defaultFrom,today);const t=setInterval(()=>load(from,to),30000);return()=>clearInterval(t)},[]);
+ useEffect(()=>{load(defaultFrom,today)},[]);
+ useEffect(()=>{const t=setInterval(()=>load(from,to),30000);return()=>clearInterval(t)},[from,to]);
  function applyRange(e?:React.FormEvent){e?.preventDefault();if(!from||!to||from>to){setMsg('Choose a valid date range.');return}load(from,to)}
  function preset(days:number){const end=iso(new Date()),start=iso(new Date(Date.now()-(days-1)*86400000));setFrom(start);setTo(end);load(start,end)}
  function monthToDate(){const d=new Date(),start=iso(new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),1))),end=iso(d);setFrom(start);setTo(end);load(start,end)}

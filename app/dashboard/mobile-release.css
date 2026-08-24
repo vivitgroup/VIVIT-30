@@ -1,0 +1,45 @@
+/* Gate 7 — mobile release overrides. Loaded after dashboard polish layers. */
+@media (max-width: 768px) {
+  /* Keep Global Search available on mobile without crowding the header. */
+  .app-header .header-search {
+    display: flex !important;
+    width: 38px !important;
+    min-width: 38px !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    padding: 0 !important;
+    justify-content: center !important;
+    flex: 0 0 38px !important;
+    border-radius: 11px !important;
+  }
+  .app-header .header-search > span:nth-of-type(2),
+  .app-header .header-search kbd {
+    display: none !important;
+  }
+
+  /* Shell containment and safe touch layout. */
+  #app-main,
+  .app-content,
+  .app-content > * {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+  .app-content {
+    overflow-x: hidden !important;
+    padding-bottom: calc(96px + env(safe-area-inset-bottom)) !important;
+  }
+
+  /* Wide data stays scrollable instead of widening the whole page. */
+  .responsive-table,
+  .table-scroll,
+  .card-body-flush {
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Sticky form actions must remain above the fixed mobile navigation. */
+  .form-actions {
+    bottom: calc(82px + env(safe-area-inset-bottom)) !important;
+  }
+}

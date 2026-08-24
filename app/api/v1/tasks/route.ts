@@ -1,23 +1,8 @@
-export const dynamic = "force-dynamic";
-import { NextRequest, NextResponse } from "next/server";
-import { db, creativeTasks, apiKeys } from "@/lib/db";
-import { eq, and } from "drizzle-orm";
+export const dynamic="force-dynamic";
+import {NextRequest,NextResponse} from "next/server";
+import {db,creativeTasks,apiKeys,sql} from "@/lib/db";
+import {eq,and} from "drizzle-orm";
 import crypto from "crypto";
-
-async function authenticateAPIKey(req: NextRequest) {
-  const key = req.headers.get("x-api-key") ?? req.headers.get("authorization")?.replace("Bearer ","");
-  if (!key) return null;
-  const keyHash = crypto.createHash("sha256").update(key).digest("hex");
-  const [apiKey] = await db.select().from(apiKeys).where(and(eq(apiKeys.keyHash,keyHash),eq(apiKeys.isActive,true)));
-  return apiKey ?? null;
-}
-
-export async function GET(req: NextRequest) {
-  const key = await authenticateAPIKey(req);
-  if (!key) return NextResponse.json({ error: "Invalid API key" }, { status: 401 });
-  const { searchParams } = new URL(req.url);
-  const status = searchParams.get("status");
-  const tasks = await db.select({ id:creativeTasks.id, title:creativeTasks.title, status:creativeTasks.status, type:creativeTasks.type, priority:creativeTasks.priority, deadline:creativeTasks.deadline, clientId:creativeTasks.clientId }).from(creativeTasks).where(eq(creativeTasks.workspaceId, key.workspaceId));
-  const filtered = status ? tasks.filter(t=>t.status===status) : tasks;
-  return NextResponse.json({ data: filtered, count: filtered.length });
-}
+const READ_PERMISSIONS=new Set(["read","read_write","admin"]);
+async function authenticateAPIKey(req:NextRequest){const raw=req.headers.get("x-api-key")??req.headers.get("authorization")?.replace(/^Bearer\s+/i,"");if(!raw)return null;const keyHash=crypto.createHash("sha256").update(raw).digest("hex");const [key]=await db.select().from(apiKeys).where(and(eq(apiKeys.keyHash,keyHash),eq(apiKeys.isActive,true))).limit(1);if(!key||!READ_PERMISSIONS.has(String(key.permissions||"")))return null;await db.update(apiKeys).set({lastUsedAt:new Date()}).where(eq(apiKeys.id,key.id));return key}
+export async function GET(req:NextRequest){const key=await authenticateAPIKey(req);if(!key)return NextResponse.json({error:"Invalid API key"},{status:401});const status=req.nextUrl.searchParams.get("status"),activeScope=sql`${creativeTasks.id} in (select t.id from creative_tasks t join clients c on c.id=t.client_id where t.workspace_id=${key.workspaceId} and c.workspace_id=${key.workspaceId} and t.archived_at is null and c.is_active=true)`,rows=await db.select({id:creativeTasks.id,title:creativeTasks.title,status:creativeTasks.status,type:creativeTasks.type,priority:creativeTasks.priority,deadline:creativeTasks.deadline,clientId:creativeTasks.clientId}).from(creativeTasks).where(and(eq(creativeTasks.workspaceId,key.workspaceId),activeScope));const data=status?rows.filter(t=>t.status===status):rows;return NextResponse.json({data,count:data.length},{headers:{"Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff"}})}

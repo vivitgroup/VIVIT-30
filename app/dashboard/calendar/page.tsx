@@ -10,15 +10,15 @@ import { ClientCalendarDemo } from "@/components/calendar/ClientCalendarDemo";
 export default async function CalendarPage(){
  const session=await auth();if(!session?.user)redirect("/login");const role=(session.user as any).role as Role,userId=String((session.user as any).id);
  if(![Role.SUPER_ADMIN,Role.ACCOUNT_MANAGER,Role.CREATOR,Role.SALES,Role.CLIENT].includes(role))redirect("/dashboard");
- const now=new Date(),start=new Date(now.getFullYear(),now.getMonth()-1,1),end=new Date(now.getFullYear(),now.getMonth()+2,0);
+ const now=new Date(),start=new Date(now.getFullYear(),now.getMonth()-1,1),end=new Date(now.getFullYear(),now.getMonth()+2,0),taskActive=sql`${creativeTasks.id} in (select id from creative_tasks where archived_at is null)`;
  let visibleClients:{id:string;companyName:string}[]=[];
  if(role===Role.SUPER_ADMIN||role===Role.SALES)visibleClients=await db.select({id:clients.id,companyName:clients.companyName}).from(clients).where(eq(clients.isActive,true)).orderBy(clients.companyName);
  else if(role===Role.ACCOUNT_MANAGER)visibleClients=await db.select({id:clients.id,companyName:clients.companyName}).from(clients).where(and(eq(clients.isActive,true),eq(clients.accountManagerId,userId))).orderBy(clients.companyName);
  else if(role===Role.CLIENT)visibleClients=await db.select({id:clients.id,companyName:clients.companyName}).from(clients).where(and(eq(clients.isActive,true),eq(clients.userId,userId))).limit(1);
- const creatorTasks=role===Role.CREATOR?await db.select({id:creativeTasks.id,clientId:creativeTasks.clientId}).from(creativeTasks).where(eq(creativeTasks.assignedToId,userId)):[];
+ const creatorTasks=role===Role.CREATOR?await db.select({id:creativeTasks.id,clientId:creativeTasks.clientId}).from(creativeTasks).where(and(eq(creativeTasks.assignedToId,userId),taskActive)):[];
  const allowedClientIds=role===Role.CREATOR?[...new Set(creatorTasks.map(t=>t.clientId))]:visibleClients.map(c=>c.id),allowedTaskIds=creatorTasks.map(t=>t.id);
  const eventScope=role===Role.SUPER_ADMIN||role===Role.SALES?sql`true`:role===Role.CREATOR?(allowedTaskIds.length?inArray(calendarEvents.taskId,allowedTaskIds):eq(calendarEvents.taskId,"__none__")):(allowedClientIds.length?inArray(calendarEvents.clientId,allowedClientIds):eq(calendarEvents.clientId,"__none__"));
- const taskScope=role===Role.SUPER_ADMIN||role===Role.SALES?eq(creativeTasks.workspaceId,"default"):role===Role.CREATOR?eq(creativeTasks.assignedToId,userId):(allowedClientIds.length?inArray(creativeTasks.clientId,allowedClientIds):eq(creativeTasks.clientId,"__none__"));
+ const taskScope=role===Role.SUPER_ADMIN||role===Role.SALES?and(eq(creativeTasks.workspaceId,"default"),taskActive):role===Role.CREATOR?and(eq(creativeTasks.assignedToId,userId),taskActive):(allowedClientIds.length?and(inArray(creativeTasks.clientId,allowedClientIds),taskActive):eq(creativeTasks.clientId,"__none__"));
  const eventFilter=role===Role.CLIENT?and(eventScope,eq(calendarEvents.status,"approved"),gte(calendarEvents.date,start),lte(calendarEvents.date,end)):and(eventScope,gte(calendarEvents.date,start),lte(calendarEvents.date,end));
  const [events,approvedTasks]=await Promise.all([
   db.select({id:calendarEvents.id,title:calendarEvents.title,date:calendarEvents.date,platform:calendarEvents.platform,caption:calendarEvents.caption,status:calendarEvents.status,clientId:calendarEvents.clientId}).from(calendarEvents).where(eventFilter).orderBy(calendarEvents.date),

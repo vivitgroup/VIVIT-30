@@ -1,8 +1,8 @@
 export const dynamic="force-dynamic";
 import {NextRequest,NextResponse} from "next/server";
 import {auth} from "@/lib/auth";
-import {db,clients,adPlatformConnections,adCampaigns,adPerformanceDaily,auditLogs} from "@/lib/db";
-import {and,eq,isNull,sql} from "drizzle-orm";
+import {db,clients,adPlatformConnections,adCampaigns,adPerformanceDaily,auditLogs,sql} from "@/lib/db";
+import {and,eq,isNull} from "drizzle-orm";
 import {platformConfigured,syncCampaign} from "@/lib/ad-platforms";
 import {connectionAccessToken} from "@/lib/ad-oauth";
 
@@ -10,6 +10,7 @@ const allowedRoles=["SUPER_ADMIN","MEDIA_BUYER"];
 const allowedPlatforms=["META","TIKTOK"];
 const cleanId=(v:any)=>String(v||"").trim().replace(/^act_/,"");
 const iso=(d:Date)=>d.toISOString().slice(0,10);
+const n=(v:any)=>Number(v||0);
 
 export async function POST(req:NextRequest){
  const session=await auth();if(!session?.user)return NextResponse.json({error:"Unauthorized"},{status:401});
@@ -22,16 +23,20 @@ export async function POST(req:NextRequest){
  let [connection]=await db.select().from(adPlatformConnections).where(and(eq(adPlatformConnections.platform,platform as any),eq(adPlatformConnections.adAccountId,adAccountId))).limit(1);
  let accessToken="";if(connection){try{accessToken=await connectionAccessToken(connection)}catch{accessToken="";}}
  if(!accessToken&&!platformConfigured(platform))return NextResponse.json({error:`${platform} is not authorized yet. Add the platform access token in Vercel or connect the ad account with OAuth first.`},{status:400});
- const end=new Date(),start=new Date(Date.now()-30*86400000);
+ const end=new Date(),start=new Date(Date.now()-30*86400000),startIso=iso(start),endIso=iso(end);
  try{
-  const result=await syncCampaign({platform,campaignId,adAccountId,accessToken:accessToken||undefined,start:iso(start),end:iso(end)});
+  const result=await syncCampaign({platform,campaignId,adAccountId,accessToken:accessToken||undefined,start:startIso,end:endIso});
   if(!connection){[connection]=await db.insert(adPlatformConnections).values({clientId,platform:platform as any,adAccountId,accountName:String(body.accountName||`${platform} ${adAccountId}`).trim().slice(0,160),status:"CONNECTED",createdBy:userId}).onConflictDoUpdate({target:[adPlatformConnections.platform,adPlatformConnections.adAccountId],set:{clientId,status:"CONNECTED",syncError:null,updatedAt:new Date()}}).returning();}
   else if(connection.clientId!==clientId){await db.update(adPlatformConnections).set({clientId,status:"CONNECTED",syncError:null,updatedAt:new Date()}).where(eq(adPlatformConnections.id,connection.id));}
   const [campaign]=await db.insert(adCampaigns).values({clientId,connectionId:connection.id,platform:platform as any,externalId:campaignId,name:String(result.name||`${platform} Campaign ${campaignId}`).slice(0,160),status:String(result.status||"ACTIVE"),campaignUrl:platform==="META"?`https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=${adAccountId}&selected_campaign_ids=${campaignId}`:`https://ads.tiktok.com/i18n/perf/campaign?aadvid=${adAccountId}&campaign_id=${campaignId}`,createdBy:userId,lastSyncAt:new Date()}).onConflictDoUpdate({target:[adCampaigns.platform,adCampaigns.externalId],set:{clientId,connectionId:connection.id,name:String(result.name||`${platform} Campaign ${campaignId}`).slice(0,160),status:String(result.status||"ACTIVE"),lastSyncAt:new Date(),updatedAt:new Date()}}).returning();
-  for(const day of result.days){const date=new Date(`${day.date}T00:00:00Z`);await db.delete(adPerformanceDaily).where(and(eq(adPerformanceDaily.campaignId,campaign.id),eq(adPerformanceDaily.date,date),eq(adPerformanceDaily.breakdownType,"TOTAL"),isNull(adPerformanceDaily.adId)));const cpl=day.results?day.spend/day.results:0,roas=day.spend?day.revenue/day.spend:0;await db.insert(adPerformanceDaily).values({campaignId:campaign.id,date,spend:day.spend,impressions:day.impressions,reach:day.reach,clicks:day.clicks,results:day.results,purchases:day.purchases,revenue:day.revenue,frequency:day.frequency,ctr:day.impressions?day.clicks/day.impressions*100:0,cpc:day.clicks?day.spend/day.clicks:0,cpm:day.impressions?day.spend/day.impressions*1000:0,cpl,roas});await db.execute(sql`update ad_performance_daily set add_to_cart=${Math.max(0,Math.round(day.addToCart||0))} where campaign_id=${campaign.id} and date=${date} and breakdown_type='TOTAL' and ad_id is null`);}
+  for(const day of result.days){
+   const date=new Date(`${day.date}T00:00:00Z`),spend=n(day.spend),results=n(day.results),purchases=n(day.purchases),impressions=n(day.impressions),clicks=n(day.clicks),revenue=n(day.revenue),reach=n(day.reach),frequency=n(day.frequency),addToCart=Math.max(0,Math.round(n(day.addToCart))),ctr=n(day.ctr),cpc=n(day.cpc),cpm=n(day.cpm),costPerResult=n(day.costPerResult),roas=spend?revenue/spend:0;
+   await db.delete(adPerformanceDaily).where(and(eq(adPerformanceDaily.campaignId,campaign.id),eq(adPerformanceDaily.date,date),eq(adPerformanceDaily.breakdownType,"TOTAL"),isNull(adPerformanceDaily.adId)));
+   await db.execute(sql`insert into ad_performance_daily(id,campaign_id,date,breakdown_type,breakdown_value,spend,impressions,reach,clicks,results,qualified_leads,purchases,add_to_cart,revenue,frequency,ctr,cpc,cpm,cpl,cost_per_result,cpa,roas) values(gen_random_uuid()::text,${campaign.id},${date}::timestamp,'TOTAL','ALL',${spend},${impressions},${reach},${clicks},${results},0,${purchases},${addToCart},${revenue},${frequency},${ctr},${cpc},${cpm},${costPerResult},${costPerResult},${purchases?spend/purchases:0},${roas})`);
+  }
+  if(result.summary)await db.execute(sql`update ad_campaigns set reported_metrics=${JSON.stringify(result.summary)}::jsonb,reported_period_start=${startIso}::date,reported_period_end=${endIso}::date,reported_result_type=${result.summary.resultType||null},reported_result_label=${result.summary.resultLabel||null} where id=${campaign.id}`);
   await db.update(adPlatformConnections).set({lastSyncAt:new Date(),syncError:null,status:"CONNECTED",updatedAt:new Date()}).where(eq(adPlatformConnections.id,connection.id));
-  await db.insert(auditLogs).values({userId,action:"campaign_linked_by_id",entity:"ad_campaigns",entityId:campaign.id,newValues:JSON.stringify({platform,adAccountId,campaignId,days:result.days.length})});
-  const totals=result.days.reduce((a,d)=>({atc:a.atc+d.addToCart,purchases:a.purchases+d.purchases}),{atc:0,purchases:0});
-  return NextResponse.json({success:true,campaign:{id:campaign.id,name:campaign.name,status:campaign.status,platform,adAccountId,campaignId},days:result.days.length,atc:totals.atc,purchases:totals.purchases});
- }catch(error:any){const message=String(error?.message||"Campaign could not be loaded from the platform").slice(0,500);if(connection)await db.update(adPlatformConnections).set({syncError:message,status:"ERROR",updatedAt:new Date()}).where(eq(adPlatformConnections.id,connection.id));return NextResponse.json({error:message},{status:400});}
+  await db.insert(auditLogs).values({userId,action:"campaign_linked_by_id",entity:"ad_campaigns",entityId:campaign.id,newValues:JSON.stringify({platform,adAccountId,campaignId,days:result.days.length,metricSource:result.summary?.source||"PLATFORM"})});
+  return NextResponse.json({success:true,campaign:{id:campaign.id,name:campaign.name,status:campaign.status,platform,adAccountId,campaignId},days:result.days.length,summary:result.summary||null});
+ }catch(error:any){const message=String(error?.message||"Campaign could not be loaded from the platform").slice(0,700);if(connection)await db.update(adPlatformConnections).set({syncError:message,status:"ERROR",updatedAt:new Date()}).where(eq(adPlatformConnections.id,connection.id));return NextResponse.json({error:message},{status:400});}
 }

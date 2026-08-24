@@ -1,4 +1,3 @@
-import {MediaControlV2} from "@/components/media/MediaControlV2";
+import {MediaIntelligenceWorkspace} from "@/components/media/MediaIntelligenceWorkspace";
 export const dynamic="force-dynamic";
-// Exact Meta Insights reporting UI: selected date range + live refresh.
-export default function MediaControlCenter(){return <MediaControlV2/>}
+export default function MediaControlCenter(){return <MediaIntelligenceWorkspace/>}

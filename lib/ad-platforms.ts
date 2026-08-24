@@ -1,21 +1,54 @@
 type SyncInput={platform:string;campaignId:string;adAccountId?:string;accessToken?:string;start:string;end:string};
-export type UnifiedDay={date:string;spend:number;impressions:number;reach:number;clicks:number;results:number;addToCart:number;purchases:number;revenue:number;frequency:number};
+export type UnifiedDay={date:string;spend:number;impressions:number;reach:number;clicks:number;results:number;addToCart:number;purchases:number;revenue:number;frequency:number;ctr?:number;cpc?:number;cpm?:number;costPerResult?:number};
+export type UnifiedSummary={spend:number;impressions:number;reach:number;clicks:number;results:number;addToCart:number;purchases:number;revenue:number;frequency:number;ctr:number;cpc:number;cpm:number;costPerResult:number;resultType?:string;resultLabel?:string;source?:string};
 const n=(v:any)=>Number(v||0);
 async function json(url:string,init:RequestInit={}){const r=await fetch(url,{...init,cache:"no-store"});const d=await r.json();if(!r.ok||d?.error||typeof d?.code==="number"&&d.code!==0)throw new Error(d?.error?.message||d?.message||`Platform API error ${r.status}`);return d;}
 const digits=(v?:string)=>String(v||"").replace(/\D/g,"");
 
 export function platformConfigured(platform:string){return platform==="META"?!!process.env.META_ACCESS_TOKEN:platform==="TIKTOK"?!!process.env.TIKTOK_ACCESS_TOKEN:platform==="GOOGLE"?!!(process.env.GOOGLE_ADS_ACCESS_TOKEN&&process.env.GOOGLE_ADS_DEVELOPER_TOKEN):platform==="SNAPCHAT"?!!process.env.SNAPCHAT_ACCESS_TOKEN:platform==="LINKEDIN"?!!process.env.LINKEDIN_ACCESS_TOKEN:false;}
 
-export async function syncCampaign(input:SyncInput):Promise<{name?:string;status?:string;days:UnifiedDay[]}>{switch(input.platform){case"META":return meta(input);case"TIKTOK":return tiktok(input);case"GOOGLE":return google(input);case"SNAPCHAT":return snap(input);case"LINKEDIN":return linkedin(input);default:throw new Error("Unsupported platform");}}
+export async function syncCampaign(input:SyncInput):Promise<{name?:string;status?:string;days:UnifiedDay[];summary?:UnifiedSummary}>{switch(input.platform){case"META":return meta(input);case"TIKTOK":return tiktok(input);case"GOOGLE":return google(input);case"SNAPCHAT":return snap(input);case"LINKEDIN":return linkedin(input);default:throw new Error("Unsupported platform");}}
 
+function metaAction(row:any,type:string){return n(row?.actions?.find((a:any)=>a.action_type===type)?.value)}
+function metaValue(row:any,type:string){return n(row?.action_values?.find((a:any)=>a.action_type===type)?.value)}
+function metaCost(row:any,type:string){return n(row?.cost_per_action_type?.find((a:any)=>a.action_type===type)?.value)}
+function firstAction(row:any,types:string[]){for(const t of types){const v=metaAction(row,t);if(v)return {type:t,value:v,cost:metaCost(row,t)}}return {type:types[0]||"result",value:0,cost:0}}
+function chooseMetaResult(row:any,objective:string,goals:string[]){
+ const gs=new Set(goals.map(String));
+ if(gs.has("REACH"))return {type:"reach",label:"Reach",value:n(row.reach),cost:n(row.reach)?n(row.spend)/n(row.reach):0};
+ if(gs.has("IMPRESSIONS"))return {type:"impressions",label:"Impressions",value:n(row.impressions),cost:n(row.impressions)?n(row.spend)/n(row.impressions):0};
+ if(gs.has("LINK_CLICKS"))return {...firstAction(row,["link_click"]),label:"Link clicks"};
+ if(gs.has("LANDING_PAGE_VIEWS"))return {...firstAction(row,["landing_page_view","link_click"]),label:"Landing page views"};
+ if(gs.has("LEAD_GENERATION"))return {...firstAction(row,["lead","onsite_conversion.lead_grouped"]),label:"Leads"};
+ if([...gs].some(x=>x.includes("CONVERSATION")||x.includes("MESSAGING")))return {...firstAction(row,["onsite_conversion.messaging_conversation_started_7d","onsite_conversion.messaging_first_reply","messaging_conversation_started_7d"]),label:"Messaging conversations"};
+ if([...gs].some(x=>x.includes("PURCHASE")||x.includes("VALUE")||x.includes("OFFSITE_CONVERSIONS")))return {...firstAction(row,["omni_purchase","purchase","offsite_conversion.fb_pixel_purchase"]),label:"Purchases"};
+ if([...gs].some(x=>x.includes("VIDEO")||x.includes("THRUPLAY")))return {...firstAction(row,["video_view","video_thruplay_watched_actions"]),label:"Video views"};
+ const o=String(objective||"").toUpperCase();
+ if(o.includes("LEAD"))return {...firstAction(row,["lead","onsite_conversion.lead_grouped"]),label:"Leads"};
+ if(o.includes("SALES"))return {...firstAction(row,["omni_purchase","purchase","offsite_conversion.fb_pixel_purchase"]),label:"Purchases"};
+ if(o.includes("TRAFFIC"))return {...firstAction(row,["landing_page_view","link_click"]),label:"Landing page views"};
+ if(o.includes("AWARENESS"))return {type:"reach",label:"Reach",value:n(row.reach),cost:n(row.reach)?n(row.spend)/n(row.reach):0};
+ if(o.includes("ENGAGEMENT"))return {...firstAction(row,["post_engagement","onsite_conversion.messaging_conversation_started_7d","video_view"]),label:"Engagements"};
+ return {...firstAction(row,["lead","omni_purchase","purchase","onsite_conversion.messaging_conversation_started_7d","landing_page_view","link_click","post_engagement"]),label:"Results"};
+}
+function metaCommerce(row:any){const atc=metaAction(row,"omni_add_to_cart")||metaAction(row,"add_to_cart")||metaAction(row,"offsite_conversion.fb_pixel_add_to_cart");const purchases=metaAction(row,"omni_purchase")||metaAction(row,"purchase")||metaAction(row,"offsite_conversion.fb_pixel_purchase");const revenue=metaValue(row,"omni_purchase")||metaValue(row,"purchase")||metaValue(row,"offsite_conversion.fb_pixel_purchase");return {atc,purchases,revenue}}
 async function meta(i:SyncInput){
  const token=i.accessToken||process.env.META_ACCESS_TOKEN!;if(!token)throw new Error("Meta access token is not configured");
  const v=process.env.META_GRAPH_VERSION||"v23.0";
- const campaign=await json(`https://graph.facebook.com/${v}/${encodeURIComponent(i.campaignId)}?fields=id,name,status,account_id&access_token=${encodeURIComponent(token)}`);
+ const campaign=await json(`https://graph.facebook.com/${v}/${encodeURIComponent(i.campaignId)}?fields=id,name,status,account_id,objective&access_token=${encodeURIComponent(token)}`);
  if(i.adAccountId){const expected=digits(i.adAccountId),actual=digits(campaign.account_id);if(expected&&actual&&expected!==actual)throw new Error(`Campaign ${i.campaignId} belongs to ad account ${campaign.account_id}, not ${i.adAccountId}`);}
- const fields="date_start,spend,impressions,reach,clicks,frequency,actions,action_values";
- const d=await json(`https://graph.facebook.com/${v}/${encodeURIComponent(i.campaignId)}/insights?fields=${fields}&time_increment=1&time_range=${encodeURIComponent(JSON.stringify({since:i.start,until:i.end}))}&access_token=${encodeURIComponent(token)}`);
- return{name:campaign.name,status:campaign.status,days:(d.data||[]).map((x:any)=>{const action=(type:string)=>n(x.actions?.find((a:any)=>a.action_type===type)?.value);const value=(type:string)=>n(x.action_values?.find((a:any)=>a.action_type===type)?.value);const atc=action("omni_add_to_cart")||action("add_to_cart")||action("offsite_conversion.fb_pixel_add_to_cart");const purchases=action("omni_purchase")||action("purchase")||action("offsite_conversion.fb_pixel_purchase");const revenue=value("omni_purchase")||value("purchase")||value("offsite_conversion.fb_pixel_purchase");return{date:x.date_start,spend:n(x.spend),impressions:n(x.impressions),reach:n(x.reach),clicks:n(x.clicks),frequency:n(x.frequency),results:action("lead")||action("onsite_conversion.messaging_conversation_started_7d")||action("onsite_conversion.messaging_first_reply"),addToCart:atc,purchases,revenue};})};
+ const adsets=await json(`https://graph.facebook.com/${v}/${encodeURIComponent(i.campaignId)}/adsets?fields=optimization_goal&limit=100&access_token=${encodeURIComponent(token)}`).catch(()=>({data:[]}));
+ const goals=[...new Set((adsets.data||[]).map((x:any)=>String(x.optimization_goal||"")).filter(Boolean))];
+ const fields="date_start,date_stop,spend,impressions,reach,clicks,frequency,ctr,cpc,cpm,actions,cost_per_action_type,action_values";
+ const range=encodeURIComponent(JSON.stringify({since:i.start,until:i.end}));
+ const [summaryData,dailyData]=await Promise.all([
+  json(`https://graph.facebook.com/${v}/${encodeURIComponent(i.campaignId)}/insights?fields=${fields}&time_range=${range}&access_token=${encodeURIComponent(token)}`),
+  json(`https://graph.facebook.com/${v}/${encodeURIComponent(i.campaignId)}/insights?fields=${fields}&time_increment=1&time_range=${range}&access_token=${encodeURIComponent(token)}`)
+ ]);
+ const s=summaryData.data?.[0]||{};const sr=chooseMetaResult(s,campaign.objective,goals);const sc=metaCommerce(s);
+ const summary:UnifiedSummary={spend:n(s.spend),impressions:n(s.impressions),reach:n(s.reach),clicks:n(s.clicks),results:n(sr.value),addToCart:sc.atc,purchases:sc.purchases,revenue:sc.revenue,frequency:n(s.frequency),ctr:n(s.ctr),cpc:n(s.cpc),cpm:n(s.cpm),costPerResult:n(sr.cost)||(n(sr.value)?n(s.spend)/n(sr.value):0),resultType:sr.type,resultLabel:sr.label,source:"META_REPORTED"};
+ const days=(dailyData.data||[]).map((x:any)=>{const r=chooseMetaResult(x,campaign.objective,goals),c=metaCommerce(x);return{date:x.date_start,spend:n(x.spend),impressions:n(x.impressions),reach:n(x.reach),clicks:n(x.clicks),frequency:n(x.frequency),ctr:n(x.ctr),cpc:n(x.cpc),cpm:n(x.cpm),costPerResult:n(r.cost)||(n(r.value)?n(x.spend)/n(r.value):0),results:n(r.value),addToCart:c.atc,purchases:c.purchases,revenue:c.revenue};});
+ return{name:campaign.name,status:campaign.status,days,summary};
 }
 async function tiktok(i:SyncInput){
  const token=i.accessToken||process.env.TIKTOK_ACCESS_TOKEN!;if(!token)throw new Error("TikTok access token is not configured");if(!i.adAccountId)throw new Error("TikTok advertiser ID is required");

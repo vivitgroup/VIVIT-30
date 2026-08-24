@@ -1,3 +1,5 @@
-production trigger 2026-08-24T13:01:00+03:00
-force production deploy via merged PR: client portal calendar demo previews
-release main 0c2b967039cf49ba083dbbd620ecef550b2cee53
+production trigger 2026-08-24T18:05:00+03:00
+workflow lanes fixed: urgent, pending, in progress, review, approved, revision, completed
+account manager board unified with super admin and creative image previews enabled
+Moru portal seeded with creatives and invoice demo data
+release main 44d0d8d0a0a4b1a18c7f730b735c9f0652157577

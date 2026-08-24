@@ -47,6 +47,9 @@ check("PDF report contains no dynamic inline script",!pdf.includes("<script>")&&
 check("Monthly summary requires access",monthly.includes("canAccessClient(session,clientId)"));
 check("Monthly summary validates period",monthly.includes("month<1||month>12")&&monthly.includes("year<2020||year>2100"));
 check("Monthly summary requires active workspace client",monthly.includes("eq(clients.workspaceId,WORKSPACE_ID)")&&monthly.includes("eq(clients.isActive,true)"));
+check("Monthly summary media is workspace scoped",monthly.includes("eq(mediaMetrics.workspaceId,WORKSPACE_ID)"));
+check("Monthly summary tasks are workspace scoped",monthly.includes("eq(creativeTasks.workspaceId,WORKSPACE_ID)"));
+check("Monthly summary calendar is workspace scoped",monthly.includes("eq(calendarEvents.workspaceId,WORKSPACE_ID)"));
 check("Monthly summary excludes archived tasks",monthly.includes("creative_tasks where archived_at is null"));
 check("Monthly summary excludes calendar items for archived tasks",monthly.includes("activeCalendar")&&monthly.includes("creative_tasks where archived_at is null"));
 check("Monthly summary finance is workspace scoped",monthly.includes("eq(financeRecords.workspaceId,WORKSPACE_ID)"));

@@ -1,4 +1,5 @@
 import type {ReactNode} from "react";
+import Link from "next/link";
 import {redirect} from "next/navigation";
 import {auth} from "@/lib/auth";
 import {db,clients} from "@/lib/db";
@@ -27,5 +28,9 @@ export default async function ClientDetailGuard({children,params}:{children:Reac
   if(role===Role.ACCOUNT_MANAGER&&client.accountManagerId!==userId)redirect("/dashboard/clients");
   if(role===Role.MEDIA_BUYER&&client.mediaBuyerId!==userId)redirect("/dashboard/clients");
 
-  return children;
+  const canEdit=[Role.SUPER_ADMIN,Role.ACCOUNT_MANAGER].includes(role);
+  return <div style={{display:"flex",flexDirection:"column",gap:12}}>
+    {canEdit&&<div style={{display:"flex",justifyContent:"flex-end"}}><Link href={`/dashboard/clients/${id}/edit`} className="btn btn-secondary btn-sm" style={{textDecoration:"none"}}>Edit client</Link></div>}
+    {children}
+  </div>;
 }

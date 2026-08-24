@@ -45,6 +45,7 @@ export default auth((req) => {
   }
   const pageAccess:[string,string[]][]=[
     ["/dashboard/settings",["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CREATOR","ACCOUNTANT","SALES","CLIENT"]],
+    ["/dashboard/archive",["SUPER_ADMIN","ACCOUNT_MANAGER","SALES"]],
     ["/dashboard/team",["SUPER_ADMIN"]],["/dashboard/workspace",["SUPER_ADMIN"]],["/dashboard/activity",["SUPER_ADMIN"]],["/dashboard/kpis",["SUPER_ADMIN"]],["/dashboard/billing",["SUPER_ADMIN"]],["/dashboard/referrals",["SUPER_ADMIN"]],["/dashboard/saas-analytics",["SUPER_ADMIN"]],["/dashboard/revenue-attribution",["SUPER_ADMIN"]],["/dashboard/nps",["SUPER_ADMIN"]],
     ["/dashboard/onboarding",["SUPER_ADMIN","ACCOUNT_MANAGER"]],["/dashboard/monthly-reports",["SUPER_ADMIN","ACCOUNT_MANAGER"]],["/dashboard/marketplace",["SUPER_ADMIN","ACCOUNT_MANAGER","CREATOR"]],["/dashboard/budget",["SUPER_ADMIN","MEDIA_BUYER","ACCOUNT_MANAGER"]],
     ["/dashboard/contracts",["SUPER_ADMIN","ACCOUNTANT"]],["/dashboard/finance",["SUPER_ADMIN","ACCOUNTANT"]],["/dashboard/forecast",["SUPER_ADMIN","ACCOUNTANT"]],["/dashboard/ltv",["SUPER_ADMIN","ACCOUNTANT"]],

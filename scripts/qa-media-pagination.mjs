@@ -1,6 +1,6 @@
 import fs from 'node:fs';import path from 'node:path';
 const root=process.cwd(),read=f=>fs.readFileSync(path.join(root,f),'utf8'),checks=[],check=(n,o)=>checks.push({n,o:!!o});
-const platforms=read('lib/ad-platforms.ts'),hier=read('app/api/media-hierarchy/[campaignId]/route.ts'),ui=read('components/media/MediaControlV2.tsx'),api=read('app/api/media-control-v2/route.ts');
+const platforms=read('lib/ad-platforms.ts'),hier=read('app/api/media-hierarchy/[campaignId]/route.ts'),ui=read('components/media/MediaIntelligenceWorkspaceV2.tsx'),api=read('app/api/media-control-v2/route.ts');
 check('Campaign Meta daily insights follow paging.next',platforms.includes('async function metaPages')&&platforms.includes('d?.paging?.next'));
 check('Campaign pagination fails closed at safe page cap',platforms.includes('Meta response exceeded the safe pagination limit'));
 check('Campaign daily insights use pagination helper',platforms.includes('metaPages(`https://graph.facebook.com/${v}/${campaignId}/insights?${params("1")}`)'));
@@ -22,10 +22,10 @@ check('Hierarchy uses account attribution and conversion reporting',hier.include
 check('Hierarchy upserts Ad Sets and Ads',hier.includes('insert into ad_sets')&&hier.includes('insert into ads'));
 check('Hierarchy persists Ad Set and Ad entity rows',hier.includes("'ENTITY','AD_SET'")&&hier.includes("'ENTITY','AD'"));
 check('Hierarchy persists ATC purchases revenue',hier.includes('${m.purchases},${m.addToCart},${m.revenue}'));
-check('UI runs paginated hierarchy after campaign sync',ui.includes('fetch(`/api/media-hierarchy/${id}`'));
-check('UI passes selected range to hierarchy sync',ui.includes('body:JSON.stringify({from,to})'));
-check('UI surfaces hierarchy partial failure',ui.includes('Campaign totals synced, but hierarchy failed'));
-check('UI reports hierarchy row counts',ui.includes('h.rows'));
+check('Active intelligence UI runs hierarchy after campaign sync',ui.includes('fetch(`/api/media-hierarchy/${id}`'));
+check('Active intelligence UI passes selected range to hierarchy sync',ui.includes('body:JSON.stringify({from,to})'));
+check('Active intelligence UI surfaces hierarchy failure',ui.includes('if(!hr.ok)throw new Error(h.error||"Hierarchy sync failed")'));
+check('Active intelligence UI reports hierarchy row counts',ui.includes('h.rows'));
 check('Control GET prevents campaign double counting',api.includes('!p.adSetId&&!p.adId'));
 check('Control GET nests Ad Sets and Ads',api.includes('adSets:hierarchy')&&api.includes('ads:adRows.filter'));
 const failed=checks.filter(x=>!x.o);for(const x of checks)console.log(`${x.o?'PASS':'FAIL'}  ${x.n}`);console.log(`\n${checks.length-failed.length}/${checks.length} media pagination/hierarchy checks passed.`);if(failed.length)process.exit(1);

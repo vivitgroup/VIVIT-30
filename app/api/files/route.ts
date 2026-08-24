@@ -11,160 +11,19 @@ const headers=()=>({apikey:process.env.SUPABASE_SERVICE_KEY!,Authorization:`Bear
 const safeName=(name:string)=>name.normalize("NFKD").replace(/[^a-zA-Z0-9._-]/g,"-").replace(/-+/g,"-").slice(-140)||"file";
 const clean=(v:any,n=255)=>String(v||"").trim().slice(0,n);
 
-async function ensureBucket(){
-  const payload={id:BUCKET,name:BUCKET,public:false,file_size_limit:MAX_SIZE,allowed_mime_types:null};
-  const create=await fetch(`${base()}/storage/v1/bucket`,{method:"POST",headers:{...headers(),"Content-Type":"application/json"},body:JSON.stringify(payload)});
-  if(create.ok||create.status===409){
-    await fetch(`${base()}/storage/v1/bucket/${BUCKET}`,{method:"PUT",headers:{...headers(),"Content-Type":"application/json"},body:JSON.stringify({public:false,file_size_limit:MAX_SIZE,allowed_mime_types:null})}).catch(()=>null);
-    return;
-  }
-  try{
-    await db.execute(sql`insert into storage.buckets (id,name,public,file_size_limit) values (${BUCKET},${BUCKET},false,${MAX_SIZE}) on conflict (id) do update set public=false,file_size_limit=${MAX_SIZE}`);
-    return;
-  }catch(e){console.error("Storage bucket provisioning failed",e)}
-  throw new Error("Storage bucket is unavailable");
-}
+async function ensureBucket(){const payload={id:BUCKET,name:BUCKET,public:false,file_size_limit:MAX_SIZE,allowed_mime_types:null};const create=await fetch(`${base()}/storage/v1/bucket`,{method:"POST",headers:{...headers(),"Content-Type":"application/json"},body:JSON.stringify(payload)});if(create.ok||create.status===409){await fetch(`${base()}/storage/v1/bucket/${BUCKET}`,{method:"PUT",headers:{...headers(),"Content-Type":"application/json"},body:JSON.stringify({public:false,file_size_limit:MAX_SIZE,allowed_mime_types:null})}).catch(()=>null);return}try{await db.execute(sql`insert into storage.buckets (id,name,public,file_size_limit) values (${BUCKET},${BUCKET},false,${MAX_SIZE}) on conflict (id) do update set public=false,file_size_limit=${MAX_SIZE}`);return}catch(e){console.error("Storage bucket provisioning failed",e)}throw new Error("Storage bucket is unavailable")}
 
-async function scopeFor(role:string,userId:string){
-  const own:any=eq(fileDocuments.uploadedBy,userId);
-  if(role==="SUPER_ADMIN")return eq(fileDocuments.workspaceId,"default");
-  if(role==="CLIENT"){
-    const rows=await db.select({id:clients.id}).from(clients).where(eq(clients.userId,userId));
-    return rows.length?or(own,inArray(fileDocuments.clientId,rows.map(x=>x.id))):own;
-  }
-  if(role==="ACCOUNT_MANAGER"||role==="MEDIA_BUYER"){
-    const rows=await db.select({id:clients.id}).from(clients).where(and(eq(clients.isActive,true),role==="ACCOUNT_MANAGER"?eq(clients.accountManagerId,userId):eq(clients.mediaBuyerId,userId)));
-    return rows.length?or(own,inArray(fileDocuments.clientId,rows.map(x=>x.id))):own;
-  }
-  if(role==="CREATOR"){
-    const rows=await db.select({id:creativeTasks.id,clientId:creativeTasks.clientId}).from(creativeTasks).where(eq(creativeTasks.assignedToId,userId));
-    if(!rows.length)return own;
-    const taskIds=[...new Set(rows.map(x=>x.id))],clientIds=[...new Set(rows.map(x=>x.clientId).filter(Boolean))];
-    return or(own,inArray(fileDocuments.taskId,taskIds),and(inArray(fileDocuments.clientId,clientIds),inArray(fileDocuments.category,["CONTENT_PLAN","STRATEGY","BRIEF"])));
-  }
-  if(role==="ACCOUNTANT")return or(own,inArray(fileDocuments.category,["CONTRACT","INVOICE","FINANCE","SHEET"]));
-  return own;
-}
+async function scopeFor(role:string,userId:string){const own:any=eq(fileDocuments.uploadedBy,userId);if(role==="SUPER_ADMIN")return eq(fileDocuments.workspaceId,"default");if(role==="CLIENT"){const rows=await db.select({id:clients.id}).from(clients).where(eq(clients.userId,userId));return rows.length?or(own,inArray(fileDocuments.clientId,rows.map(x=>x.id))):own}if(role==="ACCOUNT_MANAGER"||role==="MEDIA_BUYER"){const rows=await db.select({id:clients.id}).from(clients).where(and(eq(clients.isActive,true),role==="ACCOUNT_MANAGER"?eq(clients.accountManagerId,userId):eq(clients.mediaBuyerId,userId)));return rows.length?or(own,inArray(fileDocuments.clientId,rows.map(x=>x.id))):own}if(role==="CREATOR"){const rows=await db.select({id:creativeTasks.id,clientId:creativeTasks.clientId}).from(creativeTasks).where(eq(creativeTasks.assignedToId,userId));if(!rows.length)return own;const taskIds=[...new Set(rows.map(x=>x.id))],clientIds=[...new Set(rows.map(x=>x.clientId).filter(Boolean))];return or(own,inArray(fileDocuments.taskId,taskIds),and(inArray(fileDocuments.clientId,clientIds),inArray(fileDocuments.category,["CONTENT_PLAN","STRATEGY","BRIEF","CREATIVE","SOCIAL_POST"])))}if(role==="ACCOUNTANT")return or(own,inArray(fileDocuments.category,["CONTRACT","INVOICE","FINANCE","SHEET"]));return own}
 
-async function validateLinks(role:string,userId:string,clientId:string|null,taskId:string|null,category:string){
-  if(!clientId&&!taskId)return true;
-  if(role==="SUPER_ADMIN")return true;
-  if(taskId){
-    const [task]=await db.select({clientId:creativeTasks.clientId,assignedToId:creativeTasks.assignedToId}).from(creativeTasks).where(eq(creativeTasks.id,taskId)).limit(1);
-    if(!task||(clientId&&task.clientId!==clientId))return false;
-    if(role==="CREATOR")return task.assignedToId===userId;
-    clientId=task.clientId;
-  }
-  if(!clientId)return false;
-  const [client]=await db.select({userId:clients.userId,accountManagerId:clients.accountManagerId,mediaBuyerId:clients.mediaBuyerId}).from(clients).where(eq(clients.id,clientId)).limit(1);
-  if(!client)return false;
-  if(role==="ACCOUNT_MANAGER")return client.accountManagerId===userId;
-  if(role==="MEDIA_BUYER")return client.mediaBuyerId===userId;
-  if(role==="CLIENT")return client.userId===userId;
-  if(role==="ACCOUNTANT")return ["CONTRACT","INVOICE","FINANCE","SHEET"].includes(category);
-  return false;
-}
+async function validateLinks(role:string,userId:string,clientId:string|null,taskId:string|null,category:string){if(!clientId&&!taskId)return true;if(role==="SUPER_ADMIN")return true;if(taskId){const [task]=await db.select({clientId:creativeTasks.clientId,assignedToId:creativeTasks.assignedToId}).from(creativeTasks).where(eq(creativeTasks.id,taskId)).limit(1);if(!task||(clientId&&task.clientId!==clientId))return false;if(role==="CREATOR")return task.assignedToId===userId;clientId=task.clientId}if(!clientId)return false;if(role==="CREATOR"){const assigned=await db.select({id:creativeTasks.id}).from(creativeTasks).where(and(eq(creativeTasks.clientId,clientId),eq(creativeTasks.assignedToId,userId))).limit(1);return !!assigned[0]}const [client]=await db.select({userId:clients.userId,accountManagerId:clients.accountManagerId,mediaBuyerId:clients.mediaBuyerId}).from(clients).where(eq(clients.id,clientId)).limit(1);if(!client)return false;if(role==="ACCOUNT_MANAGER")return client.accountManagerId===userId;if(role==="MEDIA_BUYER")return client.mediaBuyerId===userId;if(role==="CLIENT")return client.userId===userId;if(role==="ACCOUNTANT")return ["CONTRACT","INVOICE","FINANCE","SHEET"].includes(category);return false}
+async function editableFile(id:string,role:string,userId:string){const [row]=await db.select().from(fileDocuments).where(eq(fileDocuments.id,id)).limit(1);if(!row)return {row:null,allowed:false};return {row,allowed:role==="SUPER_ADMIN"||row.uploadedBy===userId}}
+async function signRead(path:string){const r=await fetch(`${base()}/storage/v1/object/sign/${BUCKET}/${path}`,{method:"POST",headers:{...headers(),"Content-Type":"application/json"},body:JSON.stringify({expiresIn:1800})});const d=await r.json().catch(()=>({}));return d.signedURL?`${base()}/storage/v1${d.signedURL}`:null}
 
-async function editableFile(id:string,role:string,userId:string){
-  const [row]=await db.select().from(fileDocuments).where(eq(fileDocuments.id,id)).limit(1);
-  if(!row)return {row:null,allowed:false};
-  return {row,allowed:role==="SUPER_ADMIN"||row.uploadedBy===userId};
-}
+export async function GET(req:NextRequest){const session=await auth();if(!session?.user)return NextResponse.json({error:"Unauthorized"},{status:401});const role=String((session.user as any).role),userId=String((session.user as any).id),archived=req.nextUrl.searchParams.get("view")==="archived",taskId=clean(req.nextUrl.searchParams.get("taskId"),100),clientId=clean(req.nextUrl.searchParams.get("clientId"),100);const archiveCondition=archived?sql`${fileDocuments.id} in (select id from file_documents where archived_at is not null)`:sql`${fileDocuments.id} in (select id from file_documents where archived_at is null)`;const filters:any[]=[await scopeFor(role,userId),archiveCondition];if(taskId)filters.push(eq(fileDocuments.taskId,taskId));if(clientId)filters.push(eq(fileDocuments.clientId,clientId));const rows=await db.select().from(fileDocuments).where(and(...filters)).orderBy(desc(fileDocuments.createdAt)).limit(150);const files=await Promise.all(rows.map(async f=>({...f,isArchived:archived,canEdit:role==="SUPER_ADMIN"||f.uploadedBy===userId,url:await signRead(f.storagePath)})));return NextResponse.json({files,maxSize:MAX_SIZE,view:archived?"archived":"active"},{headers:{"Cache-Control":"private, no-store"}})}
 
-export async function GET(req:NextRequest){
-  const session=await auth();
-  if(!session?.user)return NextResponse.json({error:"Unauthorized"},{status:401});
-  const role=String((session.user as any).role),userId=String((session.user as any).id);
-  const archived=req.nextUrl.searchParams.get("view")==="archived";
-  const archiveCondition=archived?sql`${fileDocuments.id} in (select id from file_documents where archived_at is not null)`:sql`${fileDocuments.id} in (select id from file_documents where archived_at is null)`;
-  const rows=await db.select().from(fileDocuments).where(and(await scopeFor(role,userId),archiveCondition)).orderBy(desc(fileDocuments.createdAt)).limit(150);
-  const files=await Promise.all(rows.map(async f=>{
-    const r=await fetch(`${base()}/storage/v1/object/sign/${BUCKET}/${f.storagePath}`,{method:"POST",headers:{...headers(),"Content-Type":"application/json"},body:JSON.stringify({expiresIn:900})});
-    const d=await r.json().catch(()=>({}));
-    return {...f,isArchived:archived,canEdit:role==="SUPER_ADMIN"||f.uploadedBy===userId,url:d.signedURL?`${base()}/storage/v1${d.signedURL}`:null};
-  }));
-  return NextResponse.json({files,maxSize:MAX_SIZE,view:archived?"archived":"active"},{headers:{"Cache-Control":"private, no-store"}});
-}
+export async function POST(req:NextRequest){const session=await auth();if(!session?.user)return NextResponse.json({error:"Unauthorized"},{status:401});if(!base()||!process.env.SUPABASE_SERVICE_KEY)return NextResponse.json({error:"Storage is not configured."},{status:503});const body=await req.json().catch(()=>null);if(!body)return NextResponse.json({error:"Invalid request."},{status:400});const userId=String((session.user as any).id);if(body.op==="sign"){const name=clean(body.name),size=Number(body.size||0);if(!name||!Number.isFinite(size)||size<=0)return NextResponse.json({error:"Choose a valid file."},{status:400});if(size>MAX_SIZE)return NextResponse.json({error:"Maximum file size is 500 MB."},{status:413});try{await ensureBucket()}catch{return NextResponse.json({error:"Storage bucket is unavailable."},{status:503})}const path=`${new Date().getFullYear()}/${userId}/${crypto.randomUUID()}-${safeName(name)}`;const signed=await fetch(`${base()}/storage/v1/object/upload/sign/${BUCKET}/${path}`,{method:"POST",headers:{...headers(),"Content-Type":"application/json"},body:"{}"});const data=await signed.json().catch(()=>({}));if(!signed.ok)return NextResponse.json({error:data.message||data.error||"Could not prepare the upload."},{status:502});const relative=data.url||data.signedURL||data.signedUrl;if(!relative)return NextResponse.json({error:"Storage did not return an upload URL."},{status:502});return NextResponse.json({uploadUrl:relative.startsWith("http")?relative:`${base()}/storage/v1${relative}`,token:data.token||null,path,maxSize:MAX_SIZE})}
+ if(body.op==="complete"){const path=clean(body.path,700),size=Number(body.size||0);if(!path.includes(`/${userId}/`)||path.includes(".."))return NextResponse.json({error:"Invalid file path."},{status:403});if(size<=0||size>MAX_SIZE)return NextResponse.json({error:"Invalid file size."},{status:400});const role=String((session.user as any).role),category=clean(body.category,40)||"GENERAL",clientId=body.clientId?clean(body.clientId,100):null,taskId=body.taskId?clean(body.taskId,100):null;if(!(await validateLinks(role,userId,clientId,taskId,category)))return NextResponse.json({error:"You cannot attach this file to the selected client or task."},{status:403});const info=await fetch(`${base()}/storage/v1/object/info/${BUCKET}/${path}`,{headers:headers()});if(!info.ok)return NextResponse.json({error:"Upload reached storage but could not be verified."},{status:409});const existing=await db.select({id:fileDocuments.id}).from(fileDocuments).where(eq(fileDocuments.storagePath,path)).limit(1);if(existing[0])return NextResponse.json({success:true,fileId:existing[0].id});const [row]=await db.insert(fileDocuments).values({uploadedBy:userId,name:clean(body.name)||"File",storagePath:path,mimeType:clean(body.mimeType,120)||"application/octet-stream",sizeBytes:size,category,clientId,taskId}).returning();await db.insert(auditLogs).values({userId,action:"file_uploaded",entity:"file_documents",entityId:row.id,newValues:JSON.stringify({name:row.name,size,category,clientId,taskId})} as any);return NextResponse.json({success:true,file:{...row,canEdit:true,isArchived:false}})}return NextResponse.json({error:"Unsupported operation."},{status:400})}
 
-export async function POST(req:NextRequest){
-  const session=await auth();
-  if(!session?.user)return NextResponse.json({error:"Unauthorized"},{status:401});
-  if(!base()||!process.env.SUPABASE_SERVICE_KEY)return NextResponse.json({error:"Storage is not configured."},{status:503});
-  const body=await req.json().catch(()=>null);
-  if(!body)return NextResponse.json({error:"Invalid request."},{status:400});
-  const userId=String((session.user as any).id);
-  if(body.op==="sign"){
-    const name=clean(body.name),size=Number(body.size||0);
-    if(!name||!Number.isFinite(size)||size<=0)return NextResponse.json({error:"Choose a valid file."},{status:400});
-    if(size>MAX_SIZE)return NextResponse.json({error:"Maximum file size is 500 MB."},{status:413});
-    try{await ensureBucket()}catch{return NextResponse.json({error:"Storage bucket is unavailable."},{status:503})}
-    const path=`${new Date().getFullYear()}/${userId}/${crypto.randomUUID()}-${safeName(name)}`;
-    const signed=await fetch(`${base()}/storage/v1/object/upload/sign/${BUCKET}/${path}`,{method:"POST",headers:{...headers(),"Content-Type":"application/json"},body:JSON.stringify({upsert:false})});
-    const data=await signed.json().catch(()=>({}));
-    if(!signed.ok)return NextResponse.json({error:data.message||data.error||"Could not prepare the upload."},{status:502});
-    const relative=data.url||data.signedURL||data.signedUrl;
-    if(!relative)return NextResponse.json({error:"Storage did not return an upload URL."},{status:502});
-    return NextResponse.json({uploadUrl:relative.startsWith("http")?relative:`${base()}/storage/v1${relative}`,path,maxSize:MAX_SIZE});
-  }
-  if(body.op==="complete"){
-    const path=clean(body.path,700),size=Number(body.size||0);
-    if(!path.includes(`/${userId}/`)||path.includes(".."))return NextResponse.json({error:"Invalid file path."},{status:403});
-    if(size<=0||size>MAX_SIZE)return NextResponse.json({error:"Invalid file size."},{status:400});
-    const role=String((session.user as any).role),category=clean(body.category,40)||"GENERAL",clientId=body.clientId?clean(body.clientId,100):null,taskId=body.taskId?clean(body.taskId,100):null;
-    if(!(await validateLinks(role,userId,clientId,taskId,category)))return NextResponse.json({error:"You cannot attach this file to the selected client or task."},{status:403});
-    const info=await fetch(`${base()}/storage/v1/object/info/${BUCKET}/${path}`,{headers:headers()});
-    if(!info.ok)return NextResponse.json({error:"Upload was not completed."},{status:409});
-    const existing=await db.select({id:fileDocuments.id}).from(fileDocuments).where(eq(fileDocuments.storagePath,path)).limit(1);
-    if(existing[0])return NextResponse.json({success:true,fileId:existing[0].id});
-    const [row]=await db.insert(fileDocuments).values({uploadedBy:userId,name:clean(body.name)||"File",storagePath:path,mimeType:clean(body.mimeType,120)||"application/octet-stream",sizeBytes:size,category,clientId,taskId}).returning();
-    await db.insert(auditLogs).values({userId,action:"file_uploaded",entity:"file_documents",entityId:row.id,newValues:JSON.stringify({name:row.name,size,category,clientId,taskId})} as any);
-    return NextResponse.json({success:true,file:{...row,canEdit:true,isArchived:false}});
-  }
-  return NextResponse.json({error:"Unsupported operation."},{status:400});
-}
+export async function PATCH(req:NextRequest){const session=await auth();if(!session?.user)return NextResponse.json({error:"Unauthorized"},{status:401});const body=await req.json().catch(()=>null);if(!body)return NextResponse.json({error:"Invalid request."},{status:400});const id=clean(body.id,100),userId=String((session.user as any).id),role=String((session.user as any).role),op=clean(body.op,30)||"edit";if(!id)return NextResponse.json({error:"File id is required."},{status:400});const {row,allowed}=await editableFile(id,role,userId);if(!row)return NextResponse.json({error:"File not found."},{status:404});if(!allowed)return NextResponse.json({error:"You can only change files you uploaded."},{status:403});if(op==="archive"){await db.execute(sql`update file_documents set archived_at=now(),archived_by=${userId} where id=${id}`);await db.insert(auditLogs).values({userId,action:"file_archived",entity:"file_documents",entityId:id,newValues:JSON.stringify({name:row.name})} as any);return NextResponse.json({success:true,state:"archived"})}if(op==="restore"){await db.execute(sql`update file_documents set archived_at=null,archived_by=null where id=${id}`);await db.insert(auditLogs).values({userId,action:"file_restored",entity:"file_documents",entityId:id,newValues:JSON.stringify({name:row.name})} as any);return NextResponse.json({success:true,state:"active"})}const name=clean(body.name)||row.name,category=clean(body.category,40)||row.category,clientId=body.clientId?clean(body.clientId,100):null,taskId=body.taskId?clean(body.taskId,100):null;if(!(await validateLinks(role,userId,clientId,taskId,category)))return NextResponse.json({error:"You cannot link this file to the selected client or task."},{status:403});const [updated]=await db.update(fileDocuments).set({name,category,clientId,taskId}).where(eq(fileDocuments.id,id)).returning();await db.insert(auditLogs).values({userId,action:"file_updated",entity:"file_documents",entityId:id,newValues:JSON.stringify({name,category,clientId,taskId})} as any);return NextResponse.json({success:true,file:{...updated,canEdit:true}})}
 
-export async function PATCH(req:NextRequest){
-  const session=await auth();
-  if(!session?.user)return NextResponse.json({error:"Unauthorized"},{status:401});
-  const body=await req.json().catch(()=>null);
-  if(!body)return NextResponse.json({error:"Invalid request."},{status:400});
-  const id=clean(body.id,100),userId=String((session.user as any).id),role=String((session.user as any).role),op=clean(body.op,30)||"edit";
-  if(!id)return NextResponse.json({error:"File id is required."},{status:400});
-  const {row,allowed}=await editableFile(id,role,userId);
-  if(!row)return NextResponse.json({error:"File not found."},{status:404});
-  if(!allowed)return NextResponse.json({error:"You can only change files you uploaded."},{status:403});
-  if(op==="archive"){
-    await db.execute(sql`update file_documents set archived_at=now(),archived_by=${userId} where id=${id}`);
-    await db.insert(auditLogs).values({userId,action:"file_archived",entity:"file_documents",entityId:id,newValues:JSON.stringify({name:row.name})} as any);
-    return NextResponse.json({success:true,state:"archived"});
-  }
-  if(op==="restore"){
-    await db.execute(sql`update file_documents set archived_at=null,archived_by=null where id=${id}`);
-    await db.insert(auditLogs).values({userId,action:"file_restored",entity:"file_documents",entityId:id,newValues:JSON.stringify({name:row.name})} as any);
-    return NextResponse.json({success:true,state:"active"});
-  }
-  const name=clean(body.name)||row.name,category=clean(body.category,40)||row.category,clientId=body.clientId?clean(body.clientId,100):null,taskId=body.taskId?clean(body.taskId,100):null;
-  if(!(await validateLinks(role,userId,clientId,taskId,category)))return NextResponse.json({error:"You cannot link this file to the selected client or task."},{status:403});
-  const [updated]=await db.update(fileDocuments).set({name,category,clientId,taskId}).where(eq(fileDocuments.id,id)).returning();
-  await db.insert(auditLogs).values({userId,action:"file_updated",entity:"file_documents",entityId:id,newValues:JSON.stringify({name,category,clientId,taskId})} as any);
-  return NextResponse.json({success:true,file:{...updated,canEdit:true}});
-}
-
-export async function DELETE(req:NextRequest){
-  const session=await auth();
-  if(!session?.user)return NextResponse.json({error:"Unauthorized"},{status:401});
-  const body=await req.json().catch(()=>null);
-  if(!body)return NextResponse.json({error:"Invalid request."},{status:400});
-  const id=clean(body.id,100),userId=String((session.user as any).id),role=String((session.user as any).role);
-  if(!id)return NextResponse.json({error:"File id is required."},{status:400});
-  const {row,allowed}=await editableFile(id,role,userId);
-  if(!row)return NextResponse.json({error:"File not found."},{status:404});
-  if(!allowed)return NextResponse.json({error:"You can only delete files you uploaded."},{status:403});
-  if(base()&&process.env.SUPABASE_SERVICE_KEY){
-    const removal=await fetch(`${base()}/storage/v1/object/${BUCKET}/${row.storagePath}`,{method:"DELETE",headers:headers()});
-    if(!removal.ok&&removal.status!==404){const d=await removal.json().catch(()=>({}));return NextResponse.json({error:d.message||"Could not delete the stored file."},{status:502})}
-  }
-  await db.delete(fileDocuments).where(eq(fileDocuments.id,id));
-  await db.insert(auditLogs).values({userId,action:"file_deleted",entity:"file_documents",entityId:id,oldValues:JSON.stringify({name:row.name,storagePath:row.storagePath,size:row.sizeBytes})} as any);
-  return NextResponse.json({success:true,state:"deleted"});
-}
+export async function DELETE(req:NextRequest){const session=await auth();if(!session?.user)return NextResponse.json({error:"Unauthorized"},{status:401});const body=await req.json().catch(()=>null);if(!body)return NextResponse.json({error:"Invalid request."},{status:400});const id=clean(body.id,100),userId=String((session.user as any).id),role=String((session.user as any).role);if(!id)return NextResponse.json({error:"File id is required."},{status:400});const {row,allowed}=await editableFile(id,role,userId);if(!row)return NextResponse.json({error:"File not found."},{status:404});if(!allowed)return NextResponse.json({error:"You can only delete files you uploaded."},{status:403});if(base()&&process.env.SUPABASE_SERVICE_KEY){const removal=await fetch(`${base()}/storage/v1/object/${BUCKET}/${row.storagePath}`,{method:"DELETE",headers:headers()});if(!removal.ok&&removal.status!==404){const d=await removal.json().catch(()=>({}));return NextResponse.json({error:d.message||"Could not delete the stored file."},{status:502})}}await db.delete(fileDocuments).where(eq(fileDocuments.id,id));await db.insert(auditLogs).values({userId,action:"file_deleted",entity:"file_documents",entityId:id,oldValues:JSON.stringify({name:row.name,storagePath:row.storagePath,size:row.sizeBytes})} as any);return NextResponse.json({success:true,state:"deleted"})}

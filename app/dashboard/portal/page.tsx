@@ -1,257 +1,35 @@
-// @ts-nocheck -- Drizzle's generated portal shapes are narrower than the live schema.
-export const dynamic = "force-dynamic";
+// @ts-nocheck
+export const dynamic="force-dynamic";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { db, clients, mediaMetrics, financeRecords, creativeTasks, clientFeedback, calendarEvents, mediaPlans, notifications, auditLogs, adCampaigns, fileDocuments } from "@/lib/db";
-import { eq, and, gte, desc, sum, inArray } from "drizzle-orm";
+import { db,clients,creativeTasks,calendarEvents,mediaMetrics,financeRecords,fileDocuments,notifications,auditLogs } from "@/lib/db";
+import { eq,and,gte,desc,sum,inArray } from "drizzle-orm";
 import Link from "next/link";
-import { CreativeGallery } from "@/components/portal/CreativeGallery";
 
-function safeObject(value:string|null|undefined):Record<string,any>{
-  try{const parsed=JSON.parse(value||"{}");return parsed&&typeof parsed==="object"&&!Array.isArray(parsed)?parsed:{};}
-  catch{return {};}
-}
+function isVideo(url:string,type:string){return ["REEL","VIDEO_EDIT","MOTION_GRAPHIC"].includes(type)||/\.(mp4|webm|mov)(\?|$)/i.test(url)}
+async function portalAction(fd:FormData){"use server";const session=await auth();if(!session?.user||(session.user as any).role!=="CLIENT")throw new Error("Unauthorized");const userId=String((session.user as any).id),action=String(fd.get("action")||"");const [client]=await db.select().from(clients).where(eq(clients.userId,userId)).limit(1);if(!client)throw new Error("Client not found");
+ if(action==="task_review"){const taskId=String(fd.get("taskId")||""),decision=String(fd.get("decision")||""),comment=String(fd.get("comment")||"").trim().slice(0,1000);if(!["APPROVED","REVISION"].includes(decision))throw new Error("Invalid decision");const [task]=await db.select().from(creativeTasks).where(and(eq(creativeTasks.id,taskId),eq(creativeTasks.clientId,client.id),inArray(creativeTasks.status,["APPROVED","COMPLETED"]))).limit(1);if(!task)throw new Error("Creative is not available for client review");const now=new Date();if(decision==="APPROVED"){await db.update(creativeTasks).set({approvedByClient:true,clientApprovalAt:now,revisionNotes:null,updatedAt:now}).where(eq(creativeTasks.id,task.id));const existing=await db.select({id:calendarEvents.id}).from(calendarEvents).where(eq(calendarEvents.taskId,task.id)).limit(1);if(!existing.length)await db.insert(calendarEvents).values({clientId:client.id,taskId:task.id,title:task.title,date:task.deadline||now,platform:task.platform||"instagram",caption:task.caption||null,status:"approved"});}else{if(!comment)throw new Error("Please add revision notes");await db.update(creativeTasks).set({approvedByClient:false,status:"REVISION",revisionNotes:comment,revisionCount:(task.revisionCount||0)+1,updatedAt:now}).where(eq(creativeTasks.id,task.id));}
+ if(task.assignedToId)await db.insert(notifications).values({userId:task.assignedToId,type:"CLIENT_REVIEW",title:`Client ${decision.toLowerCase()}: ${task.title}`,message:decision==="APPROVED"?"Client approved the creative and it was added to the calendar.":comment,link:`/dashboard/creative/${task.id}`,priority:decision==="REVISION"?"high":"normal"});await db.insert(auditLogs).values({userId,action:`client_creative_${decision.toLowerCase()}`,entity:"creative_tasks",entityId:task.id,newValues:JSON.stringify({comment})});}
+ else if(action==="logo"){const logo=String(fd.get("logo")||"").trim().slice(0,1200);await db.update(clients).set({logo:logo||null,updatedAt:new Date()}).where(eq(clients.id,client.id));}else throw new Error("Invalid action");const {revalidatePath}=await import("next/cache");revalidatePath("/dashboard/portal");revalidatePath("/dashboard/calendar");}
 
-async function reviewMediaPlan(fd:FormData){"use server";const session=await auth();if(!session?.user)throw new Error("Unauthorized");const userId=(session.user as any).id;const [client]=await db.select({id:clients.id}).from(clients).where(eq(clients.userId,userId)).limit(1);if(!client)throw new Error("Forbidden");const planId=String(fd.get("planId")),decision=String(fd.get("decision")),note=String(fd.get("note")||"").slice(0,500);const [plan]=await db.select().from(mediaPlans).where(and(eq(mediaPlans.id,planId),eq(mediaPlans.clientId,client.id))).limit(1);if(!plan||!["APPROVED","REJECTED"].includes(decision))throw new Error("Invalid request");await db.update(mediaPlans).set({status:decision,clientNote:note||null,approvedBy:userId,approvedAt:decision==="APPROVED"?new Date():null,updatedAt:new Date()}).where(eq(mediaPlans.id,planId));await db.insert(notifications).values({userId:plan.submittedBy,type:"MEDIA_PLAN_REVIEW",title:`Media plan ${decision.toLowerCase()}`,message:`The client ${decision.toLowerCase()} ${plan.name}.${note?` Note: ${note}`:""}`,link:"/dashboard/media/control-center",priority:decision==="APPROVED"?"normal":"high"});await db.insert(auditLogs).values({userId,action:`media_plan_${decision.toLowerCase()}`,entity:"media_plans",entityId:planId,newValues:JSON.stringify({note})});const {revalidatePath}=await import("next/cache");revalidatePath("/dashboard/portal");}
-
-async function portalAction(fd:FormData){"use server";const session=await auth();if(!session?.user)throw new Error("Unauthorized");const userId=(session.user as any).id;const [client]=await db.select().from(clients).where(eq(clients.userId,userId)).limit(1);if(!client)throw new Error("Forbidden");const action=String(fd.get("action")||"");const now=new Date();if(action==="nps"){const score=Number(fd.get("score")),comment=String(fd.get("comment")||"").trim().slice(0,500);if(!Number.isInteger(score)||score<0||score>10)throw new Error("Choose a score from 0 to 10");await db.insert(clientFeedback).values({clientId:client.id,score,comment:comment||null,month:now.getMonth()+1,year:now.getFullYear()});await db.insert(auditLogs).values({userId,action:"client_nps_submitted",entity:"clients",entityId:client.id,newValues:JSON.stringify({score,comment})});}else if(action==="message"){const message=String(fd.get("message")||"").trim().slice(0,1000);if(!message)throw new Error("Message is required");const recipient=client.accountManagerId;if(!recipient)throw new Error("No account manager is assigned yet");await db.insert(notifications).values({userId:recipient,type:"CLIENT_MESSAGE",title:`Message from ${client.companyName}`,message,link:"/dashboard/clients",priority:"high"});await db.insert(auditLogs).values({userId,action:"client_message_sent",entity:"clients",entityId:client.id,newValues:JSON.stringify({message})});}else if(action==="task_review"){const taskId=String(fd.get("taskId")||""),decision=String(fd.get("decision")||""),comment=String(fd.get("comment")||"").trim().slice(0,1000);if(!["APPROVED","REVISION"].includes(decision))throw new Error("Invalid decision");if(decision==="REVISION"&&!comment)throw new Error("Please explain what should be changed before rejecting the design.");const [task]=await db.select().from(creativeTasks).where(and(eq(creativeTasks.id,taskId),eq(creativeTasks.clientId,client.id))).limit(1);if(!task)throw new Error("Task not found");await db.update(creativeTasks).set({status:decision,updatedAt:now,revisionCount:decision==="REVISION"?(task.revisionCount||0)+1:task.revisionCount,revisionNotes:decision==="REVISION"?comment:null}).where(eq(creativeTasks.id,taskId));if(task.assignedToId)await db.insert(notifications).values({userId:task.assignedToId,type:"CLIENT_REVIEW",title:`Client ${decision.toLowerCase()}: ${task.title}`,message:decision==="APPROVED"?"The client approved this creative.":`The client requested changes: ${comment}`,link:`/dashboard/creative/${task.id}`,priority:decision==="REVISION"?"high":"normal"});await db.insert(auditLogs).values({userId,action:`creative_${decision.toLowerCase()}`,entity:"creative_tasks",entityId:task.id,newValues:JSON.stringify({comment})});}else throw new Error("Invalid action");const {revalidatePath}=await import("next/cache");revalidatePath("/dashboard/portal");}
-
-export default async function PortalPage() {
-  const session = await auth();
-  if (!session?.user) redirect("/login");
-  if ((session.user as any).role !== "CLIENT") redirect("/dashboard");
-  const userId = (session.user as any).id as string;
-
-  const [clientRow] = await db.select().from(clients).where(eq(clients.userId, userId)).limit(1);
-  if (!clientRow) {
-    return (
-      <div style={{textAlign:"center",padding:"80px 24px"}}>
-        <p style={{fontSize:"48px",marginBottom:"16px"}}>🏠</p>
-        <h2 style={{fontFamily:"Sora,sans-serif",fontSize:"1.5rem",fontWeight:800,color:"var(--text-primary)",marginBottom:"8px"}}>Welcome to Your Portal</h2>
-        <p style={{color:"var(--text-muted)"}}>Your account manager is setting up your portal. Please check back shortly.</p>
-      </div>
-    );
-  }
-
-  const now     = new Date();
-  const mo      = now.getMonth()+1;
-  const yr      = now.getFullYear();
-  const moStart = new Date(yr, now.getMonth(), 1);
-
-  const [metrics, finance, recentCreatives, upcoming, recentNPS, pendingPlans, latestInvoices, campaigns, assets] = await Promise.all([
-    db.select({ spend:sum(mediaMetrics.adSpend), leads:sum(mediaMetrics.leads),
-      revenue:sum(mediaMetrics.revenue) }).from(mediaMetrics)
-      .where(and(eq(mediaMetrics.clientId,clientRow.id), gte(mediaMetrics.date,moStart))),
-    db.select({ total:sum(financeRecords.totalRevenue), paid:sum(financeRecords.paid),
-      outstanding:sum(financeRecords.outstanding) }).from(financeRecords)
-      .where(and(eq(financeRecords.clientId,clientRow.id), eq(financeRecords.month,mo), eq(financeRecords.year,yr))),
-    db.select({ id:creativeTasks.id,title:creativeTasks.title,type:creativeTasks.type,status:creativeTasks.status,fileUrl:creativeTasks.fileUrl,assignedToId:creativeTasks.assignedToId,revisionCount:creativeTasks.revisionCount })
-      .from(creativeTasks).where(and(eq(creativeTasks.clientId,clientRow.id),inArray(creativeTasks.status,["PENDING","IN_PROGRESS","REVIEW","REVISION","APPROVED","COMPLETED"]))).orderBy(desc(creativeTasks.updatedAt)).limit(8),
-    db.select({ id:calendarEvents.id,title:calendarEvents.title,date:calendarEvents.date,platform:calendarEvents.platform })
-      .from(calendarEvents).where(and(eq(calendarEvents.clientId,clientRow.id),gte(calendarEvents.date,now)))
-      .orderBy(calendarEvents.date).limit(5),
-    db.select({ score:clientFeedback.score,comment:clientFeedback.comment })
-      .from(clientFeedback).where(eq(clientFeedback.clientId,clientRow.id))
-      .orderBy(desc(clientFeedback.createdAt)).limit(1),
-    db.select().from(mediaPlans).where(and(eq(mediaPlans.clientId,clientRow.id),eq(mediaPlans.status,"PENDING_APPROVAL"))).orderBy(desc(mediaPlans.createdAt)),
-    db.select({id:financeRecords.id,invoiceNumber:financeRecords.invoiceNumber,total:financeRecords.totalRevenue,paid:financeRecords.paid,outstanding:financeRecords.outstanding,status:financeRecords.invoiceStatus,dueDate:financeRecords.dueDate}).from(financeRecords).where(eq(financeRecords.clientId,clientRow.id)).orderBy(desc(financeRecords.year),desc(financeRecords.month)).limit(1),
-    db.select({id:adCampaigns.id,name:adCampaigns.name,platform:adCampaigns.platform,status:adCampaigns.status,dailyBudget:adCampaigns.dailyBudget,lastSyncAt:adCampaigns.lastSyncAt}).from(adCampaigns).where(eq(adCampaigns.clientId,clientRow.id)).orderBy(desc(adCampaigns.updatedAt)).limit(6),
-    db.select({id:fileDocuments.id,name:fileDocuments.name,category:fileDocuments.category,createdAt:fileDocuments.createdAt}).from(fileDocuments).where(eq(fileDocuments.clientId,clientRow.id)).orderBy(desc(fileDocuments.createdAt)).limit(6),
-  ]);
-
-  const spend    = Number(metrics[0]?.spend??0);
-  const leads    = Number(metrics[0]?.leads??0);
-  const revenue  = Number(metrics[0]?.revenue??0);
-  const roas     = spend>0?(revenue/spend).toFixed(1):"—";
-  const cpl      = leads>0?(spend/leads).toFixed(0):"—";
-  const outstanding = Number(finance[0]?.outstanding??0);
-  const pendingTasks = recentCreatives.filter(t=>t.status==="REVIEW");
-  const fmt = (n:number) => new Intl.NumberFormat("en-EG",{style:"currency",currency:"EGP",maximumFractionDigits:0}).format(Number(n||0));
-
-  const TYPE_ICONS: Record<string,string> = {REEL:"🎬",GRAPHIC:"🎨",CAROUSEL:"📱",STORY:"📸",UGC:"🎤"};
-  const PLATFORM_ICONS: Record<string,string> = {instagram:"📸",facebook:"👥",tiktok:"🎵",snapchat:"👻",google:"🔍"};
-
-  return (
-    <div style={{display:"flex",flexDirection:"column",gap:"20px",maxWidth:"900px",margin:"0 auto"}}>
-
-      {/* Welcome Banner */}
-      <div style={{
-        background:"var(--vivit-gradient)",borderRadius:"var(--radius-lg)",
-        padding:"24px 28px",color:"#fff",
-        display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:"12px"
-      }}>
-        <div>
-          <p style={{fontSize:"13px",opacity:0.8,fontWeight:600,marginBottom:"4px"}}>Welcome back 👋</p>
-          <h1 style={{fontFamily:"Sora,sans-serif",fontSize:"1.8rem",fontWeight:800,color:"#fff",letterSpacing:"-0.02em"}}>{clientRow.companyName}</h1>
-          <p style={{opacity:0.8,fontSize:"13px",marginTop:"4px"}}>{clientRow.industry} · Client Portal</p>
-        </div>
-        <div style={{display:"flex",gap:"16px",flexWrap:"wrap"}}>
-          <div style={{textAlign:"center",background:"rgba(255,255,255,0.12)",borderRadius:"10px",padding:"12px 20px"}}>
-            <p style={{fontSize:"22px",fontWeight:800,color:"#fff",fontFamily:"Sora,sans-serif"}}>{pendingTasks.length+pendingPlans.length}</p>
-            <p style={{fontSize:"11px",opacity:0.75}}>Pending approvals</p>
-          </div>
-          <div style={{textAlign:"center",background:"rgba(255,255,255,0.12)",borderRadius:"10px",padding:"12px 20px"}}>
-            <p style={{fontSize:"22px",fontWeight:800,color:"#fff",fontFamily:"Sora,sans-serif"}}>{roas}×</p>
-            <p style={{fontSize:"11px",opacity:0.75}}>ROAS</p>
-          </div>
-        </div>
-      </div>
-
-      {latestInvoices[0]&&<div className="card" style={{borderTop:"3px solid var(--green)"}}><div className="card-body" style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:14,flexWrap:"wrap"}}><div><p style={{fontSize:11,fontWeight:800,color:"var(--text-muted)",textTransform:"uppercase"}}>Latest invoice</p><p style={{fontWeight:800,color:"var(--text-primary)",marginTop:4}}>{latestInvoices[0].invoiceNumber||"Current invoice"} · {fmt(Number(latestInvoices[0].total||0))}</p><p style={{fontSize:12,color:"var(--text-muted)",marginTop:3}}>{latestInvoices[0].status} · Outstanding {fmt(Number(latestInvoices[0].outstanding||0))}{latestInvoices[0].dueDate?` · Due ${new Date(latestInvoices[0].dueDate).toLocaleDateString()}`:""}</p></div><a href={`/api/invoice/${latestInvoices[0].id}`} target="_blank" rel="noreferrer" className="btn btn-primary" style={{textDecoration:"none"}}>View / print invoice ↗</a></div></div>}
-
-      <div className="card" style={{borderTop:"3px solid var(--vivit-blue)"}}>
-        <div className="card-header"><div><p className="card-title">🔗 Your Connected Workspace</p><p style={{fontSize:12,color:"var(--text-muted)",marginTop:3}}>Campaigns, calendar posts, creatives and files linked to {clientRow.companyName}</p></div></div>
-        <div className="card-body" style={{display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gap:10}}>
-          {[{label:"Campaigns",value:campaigns.length,icon:"📣"},{label:"Upcoming posts",value:upcoming.length,icon:"📅"},{label:"Creatives",value:recentCreatives.length,icon:"🎨"},{label:"Recent files",value:assets.length,icon:"📁"}].map(item=>item.label==="Creatives"?<a key={item.label} href="#creative-gallery" style={{padding:14,border:"1px solid var(--purple)",borderRadius:10,background:"var(--bg-tertiary)",textDecoration:"none",color:"inherit",cursor:"pointer"}}><div style={{fontSize:20}}>{item.icon}</div><strong style={{fontSize:22,color:"var(--text-primary)"}}>{item.value}</strong><p style={{fontSize:11,color:"var(--text-muted)"}}>{item.label} · Click to view</p></a>:<div key={item.label} style={{padding:14,border:"1px solid var(--card-border)",borderRadius:10,background:"var(--bg-tertiary)"}}><div style={{fontSize:20}}>{item.icon}</div><strong style={{fontSize:22,color:"var(--text-primary)"}}>{item.value}</strong><p style={{fontSize:11,color:"var(--text-muted)"}}>{item.label}</p></div>)}
-        </div>
-        {(campaigns.length>0||assets.length>0||recentCreatives.length>0)&&<div className="card-body" style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:14,paddingTop:0}}>
-          <div><p style={{fontSize:12,fontWeight:800,marginBottom:8}}>Campaigns</p>{campaigns.map(c=><div key={c.id} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--card-border)",fontSize:12}}><span>{c.platform} · {c.name}</span><span className="badge badge-blue">{c.status}</span></div>)}</div>
-          <div><p style={{fontSize:12,fontWeight:800,marginBottom:8}}>Creatives</p>{recentCreatives.map(c=><div key={c.id} style={{padding:"8px 0",borderBottom:"1px solid var(--card-border)",fontSize:12}}>{c.fileUrl&&<img src={c.fileUrl} alt={c.title} style={{width:"100%",height:110,objectFit:"cover",borderRadius:8,marginBottom:6}}/>}<div style={{display:"flex",justifyContent:"space-between",gap:8}}><span>{c.title}</span><span className="badge badge-blue">{c.status}</span></div></div>)}</div>
-          <div><p style={{fontSize:12,fontWeight:800,marginBottom:8}}>Files & designs</p>{assets.map(f=><div key={f.id} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--card-border)",fontSize:12}}><span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>📎 {f.name}</span><span style={{color:"var(--text-muted)"}}>{f.category}</span></div>)}</div>
-        </div>}
-      </div>
-
-      <CreativeGallery items={recentCreatives.map(c=>({id:c.id,title:c.title,type:c.type,status:c.status,fileUrl:c.fileUrl}))}/>
-
-      {pendingPlans.length>0&&<div className="card" style={{borderTop:"3px solid #244D87"}}><div className="card-header"><p className="card-title">📣 Media Plans Awaiting Approval</p><span className="badge badge-blue">{pendingPlans.length}</span></div><div className="card-body" style={{display:"grid",gap:"10px"}}>{pendingPlans.map(p=>{const forecast=safeObject(p.forecast);return <div key={p.id} style={{padding:14,border:"1px solid var(--card-border)",borderRadius:10}}><div style={{display:"flex",justifyContent:"space-between",gap:10}}><div><strong>{p.name}</strong><p style={{fontSize:11,color:"var(--text-muted)",marginTop:4}}>{new Date(p.periodStart).toLocaleDateString()} → {new Date(p.periodEnd).toLocaleDateString()} · Budget {fmt(p.totalBudget)} · Expected leads {forecast.expectedLeads||0}</p></div><span className="badge badge-amber">Review</span></div><div style={{display:"flex",gap:6,marginTop:10}}><form action={reviewMediaPlan}><input type="hidden" name="planId" value={p.id}/><input type="hidden" name="decision" value="APPROVED"/><button className="btn btn-success btn-sm">Approve ✓</button></form><form action={reviewMediaPlan} style={{display:"flex",gap:6,flex:1}}><input type="hidden" name="planId" value={p.id}/><input type="hidden" name="decision" value="REJECTED"/><input name="note" className="form-input" placeholder="Revision note"/><button className="btn btn-danger btn-sm">Request changes</button></form></div></div>})}</div></div>}
-
-      {/* KPIs */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"12px"}}>
-        {[
-          {label:"Ad Spend MTD",  value:fmt(spend),  icon:"💸",color:"blue"},
-          {label:"Leads MTD",     value:String(leads),icon:"👥",color:"purple"},
-          {label:"Revenue MTD",   value:fmt(revenue), icon:"💰",color:"green"},
-          {label:"Outstanding",   value:fmt(outstanding),icon:"⏳",color:outstanding>0?"red":"green"},
-        ].map(k=>(
-          <div key={k.label} className={`kpi-card ${k.color}`}>
-            <div className="kpi-icon">{k.icon}</div>
-            <div className="kpi-label">{k.label}</div>
-            <div className="kpi-value" style={{fontSize:"1.4rem"}}>{k.value}</div>
-          </div>
-        ))}
-      </div>
-
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"16px"}}>
-
-        {/* Pending Approvals */}
-        <div className="card" style={{borderTop:"3px solid var(--amber)"}}>
-          <div className="card-header">
-            <p className="card-title">⏳ Awaiting Your Approval</p>
-            {pendingTasks.length>0&&<span className="badge badge-amber">{pendingTasks.length}</span>}
-          </div>
-          <div className="card-body" style={{display:"flex",flexDirection:"column",gap:"10px"}}>
-            {pendingTasks.length===0 ? (
-              <div style={{textAlign:"center",padding:"24px",color:"var(--text-muted)"}}>
-                <p style={{fontSize:"28px",marginBottom:"8px"}}>✅</p>
-                <p style={{fontSize:"13px"}}>No pending approvals</p>
-              </div>
-            ) : pendingTasks.map(t=>(
-              <div key={t.id} style={{
-                padding:"12px 14px",borderRadius:"10px",
-                border:"1px solid rgba(245,158,11,0.2)",
-                background:"rgba(245,158,11,0.04)"
-              }}>
-                <div style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"10px"}}>
-                  <span style={{fontSize:"18px"}}>{TYPE_ICONS[t.type]??""}</span>
-                  <p style={{fontWeight:700,fontSize:"13px",color:"var(--text-primary)",flex:1}}>{t.title}</p>
-                </div>
-                {t.fileUrl&&(
-                  <div style={{marginBottom:"10px"}}>
-                    <img src={t.fileUrl} alt={t.title} style={{width:"100%",maxHeight:"260px",objectFit:"cover",borderRadius:"10px",border:"1px solid var(--border)"}}/>
-                    <a href={t.fileUrl} target="_blank" rel="noopener"
-                      className="btn btn-ghost btn-sm" style={{textDecoration:"none",fontSize:"12px",marginTop:"8px",display:"inline-flex"}}>
-                      📎 View original
-                    </a>
-                  </div>
-                )}
-                <div className="approval-grid">
-                  <form action={portalAction} className="approval-box approval-box--accept"><input type="hidden" name="action" value="task_review"/><input type="hidden" name="taskId" value={t.id}/><input type="hidden" name="decision" value="APPROVED"/><div><strong>Approve design</strong><p>Everything looks right and is ready to continue.</p></div><button className="btn btn-success">✓ Approve</button></form>
-                  <form action={portalAction} className="approval-box approval-box--reject"><input type="hidden" name="action" value="task_review"/><input type="hidden" name="taskId" value={t.id}/><input type="hidden" name="decision" value="REVISION"/><div><strong>Reject & request changes</strong><p>Tell the creative team exactly what needs to change.</p></div><textarea name="comment" required minLength={3} maxLength={1000} className="form-textarea" rows={3} placeholder="Write your feedback before rejecting…"/><button className="btn btn-danger">✕ Reject with comment</button></form>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Upcoming Posts */}
-        <div className="card" style={{borderTop:"3px solid var(--vivit-blue)"}}>
-          <div className="card-header">
-            <p className="card-title">📅 Upcoming Posts</p>
-          </div>
-          <div className="card-body" style={{display:"flex",flexDirection:"column",gap:"8px"}}>
-            {upcoming.length===0 ? (
-              <div style={{textAlign:"center",padding:"24px",color:"var(--text-muted)"}}>
-                <p style={{fontSize:"28px",marginBottom:"8px"}}>📭</p>
-                <p style={{fontSize:"13px"}}>No upcoming posts scheduled</p>
-              </div>
-            ) : upcoming.map(ev=>(
-              <div key={ev.id} style={{
-                display:"flex",alignItems:"center",gap:"10px",
-                padding:"10px 12px",borderRadius:"8px",
-                background:"var(--bg-tertiary)",border:"1px solid var(--card-border)"
-              }}>
-                <div style={{
-                  width:"40px",height:"40px",borderRadius:"8px",
-                  background:"var(--vivit-gradient)",color:"#fff",
-                  display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
-                  flexShrink:0
-                }}>
-                  <span style={{fontSize:"11px",fontWeight:800}}>{new Date(ev.date).getDate()}</span>
-                  <span style={{fontSize:"9px",opacity:0.8}}>{new Date(ev.date).toLocaleDateString("en",{month:"short"})}</span>
-                </div>
-                <div style={{flex:1,minWidth:0}}>
-                  <p style={{fontWeight:600,fontSize:"13px",color:"var(--text-primary)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ev.title}</p>
-                  <p style={{fontSize:"11.5px",color:"var(--text-muted)"}}>
-                    {PLATFORM_ICONS[ev.platform??""]??""} {ev.platform?.charAt(0).toUpperCase()+(ev.platform?.slice(1)??"")}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* NPS + Message AM */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"16px"}}>
-        <div className="card">
-          <div className="card-header"><p className="card-title">⭐ Rate Your Experience</p></div>
-          <div className="card-body">
-            <p style={{fontSize:"13px",color:"var(--text-secondary)",marginBottom:"16px"}}>How likely are you to recommend us? (0=Not at all, 10=Definitely)</p>
-            <form action={portalAction}><input type="hidden" name="action" value="nps"/><div style={{display:"flex",gap:"6px",flexWrap:"wrap",marginBottom:"12px"}}>
-              {Array.from({length:11},(_,i)=>(
-                <button key={i} type="submit" name="score" value={i} aria-label={`Rate ${i} out of 10`} style={{
-                  width:"36px",height:"36px",borderRadius:"8px",
-                  border:"1.5px solid var(--card-border)",background:"var(--bg-tertiary)",
-                  fontSize:"13px",fontWeight:700,cursor:"pointer",fontFamily:"inherit",
-                  color:i>=9?"var(--green)":i>=7?"var(--amber)":"var(--red)",
-                  transition:"all 0.15s"
-                }}>{i}</button>
-              ))}
-            </div><input name="comment" className="form-input" placeholder="Optional comment" maxLength={500}/></form>
-            {recentNPS[0]&&<p style={{fontSize:"12px",color:"var(--text-muted)"}}>Last rating: {recentNPS[0].score}/10 — {recentNPS[0].comment}</p>}
-          </div>
-        </div>
-
-        <div className="card">
-          <div className="card-header"><p className="card-title">💬 Message Your AM</p></div>
-          <div className="card-body" style={{display:"flex",flexDirection:"column",gap:"12px"}}>
-            <form action={portalAction} style={{display:"grid",gap:12}}><input type="hidden" name="action" value="message"/><textarea name="message" required rows={3} placeholder="Hi! I wanted to ask about..." className="form-input" style={{resize:"none",fontFamily:"inherit"}}/><button className="btn btn-primary w-full">Send Message →</button></form>
-            <div style={{display:"flex",flexDirection:"column",gap:"6px"}}>
-              <p style={{fontSize:"11px",fontWeight:700,color:"var(--text-muted)",textTransform:"uppercase",letterSpacing:"0.06em"}}>Quick WhatsApp Templates</p>
-              {["📊 Request monthly report","✅ Approve all pending","💰 Invoice inquiry","🎯 Campaign update"].map(t=>(
-                <form action={portalAction} key={t}><input type="hidden" name="action" value="message"/><input type="hidden" name="message" value={t}/><button style={{
-                  padding:"8px 12px",borderRadius:"7px",
-                  border:"1px solid var(--card-border)",background:"var(--bg-tertiary)",
-                  fontSize:"12px",fontWeight:600,color:"var(--text-secondary)",
-                  cursor:"pointer",fontFamily:"inherit",textAlign:"left",transition:"all 0.15s",
-                  width:"100%"
-                }}>{t}</button></form>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
-    </div>
-  );
-}
+export default async function PortalPage(){const session=await auth();if(!session?.user)redirect("/login");if((session.user as any).role!=="CLIENT")redirect("/dashboard");const userId=String((session.user as any).id),[client]=await db.select().from(clients).where(eq(clients.userId,userId)).limit(1);if(!client)return <div style={{padding:60,textAlign:"center"}}><h1>Client Portal</h1><p>Your portal is being prepared.</p></div>;
+ const now=new Date(),monthStart=new Date(now.getFullYear(),now.getMonth(),1);const [metrics,creatives,calendar,docs,invoice,allCreative]=await Promise.all([
+ db.select({spend:sum(mediaMetrics.adSpend),leads:sum(mediaMetrics.leads),revenue:sum(mediaMetrics.revenue),impressions:sum(mediaMetrics.impressions),clicks:sum(mediaMetrics.clicks)}).from(mediaMetrics).where(and(eq(mediaMetrics.clientId,client.id),gte(mediaMetrics.date,monthStart))),
+ db.select({id:creativeTasks.id,title:creativeTasks.title,type:creativeTasks.type,fileUrl:creativeTasks.fileUrl,caption:creativeTasks.caption,deadline:creativeTasks.deadline,platform:creativeTasks.platform,approvedByClient:creativeTasks.approvedByClient,status:creativeTasks.status}).from(creativeTasks).where(and(eq(creativeTasks.clientId,client.id),inArray(creativeTasks.status,["APPROVED","COMPLETED"]))).orderBy(desc(creativeTasks.updatedAt)).limit(30),
+ db.select({id:calendarEvents.id,title:calendarEvents.title,date:calendarEvents.date,platform:calendarEvents.platform,caption:calendarEvents.caption,status:calendarEvents.status}).from(calendarEvents).where(and(eq(calendarEvents.clientId,client.id),gte(calendarEvents.date,new Date(now.getFullYear(),now.getMonth()-1,1)))).orderBy(calendarEvents.date).limit(30),
+ db.select({id:fileDocuments.id,name:fileDocuments.name,category:fileDocuments.category,createdAt:fileDocuments.createdAt}).from(fileDocuments).where(eq(fileDocuments.clientId,client.id)).orderBy(desc(fileDocuments.createdAt)).limit(20),
+ db.select({id:financeRecords.id,total:financeRecords.totalRevenue,paid:financeRecords.paid,outstanding:financeRecords.outstanding,status:financeRecords.invoiceStatus,dueDate:financeRecords.dueDate,invoiceNumber:financeRecords.invoiceNumber}).from(financeRecords).where(eq(financeRecords.clientId,client.id)).orderBy(desc(financeRecords.year),desc(financeRecords.month)).limit(1),
+ db.select({type:creativeTasks.type,status:creativeTasks.status}).from(creativeTasks).where(eq(creativeTasks.clientId,client.id))]);
+ const m=metrics[0]||{},spend=Number(m.spend||0),leads=Number(m.leads||0),revenue=Number(m.revenue||0),roas=spend?revenue/spend:0,cpl=leads?spend/leads:0,fmt=(n:number)=>new Intl.NumberFormat("en-EG",{style:"currency",currency:"EGP",maximumFractionDigits:0}).format(n);
+ const countType=(types:string[])=>{const x=allCreative.filter(t=>types.includes(t.type));return {total:x.length,done:x.filter(t=>["APPROVED","COMPLETED"].includes(t.status)).length}};const reels=countType(["REEL","VIDEO_EDIT","MOTION_GRAPHIC"]),statics=countType(["GRAPHIC","STORY"]),carousels=countType(["CAROUSEL"]);
+ const inv=invoice[0],due=inv?.dueDate?new Date(inv.dueDate):null,days=due?Math.ceil((due.getTime()-now.getTime())/86400000):999,unpaid=inv&&Number(inv.outstanding||0)>0&&inv.status!=="PAID",showUpcoming=unpaid&&days<=5&&days>=0,showOverdue=unpaid&&days<=-7;
+ const plans=docs.filter(d=>/CONTENT|PLAN/i.test(d.category)),strategies=docs.filter(d=>/STRATEG/i.test(d.category));
+ return <div style={{maxWidth:1180,margin:"0 auto",display:"flex",flexDirection:"column",gap:20}}><style>{`.portal-hero{background:linear-gradient(135deg,#241934,#7C3AED 45%,#C52A31);border-radius:24px;padding:26px;color:#fff;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;box-shadow:0 22px 55px rgba(72,30,90,.22)}.logo{width:76px;height:76px;border-radius:22px;background:#fff;display:grid;place-items:center;overflow:hidden;box-shadow:0 14px 28px rgba(0,0,0,.2)}.logo img{width:100%;height:100%;object-fit:contain}.metric-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.deliver-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.creative-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:18px}.ig-card{background:var(--card-bg);border:1px solid var(--card-border);border-radius:18px;overflow:hidden;box-shadow:0 12px 28px rgba(15,23,42,.08)}.ig-media{aspect-ratio:4/5;background:#0b1020;overflow:hidden}.ig-media img,.ig-media video{width:100%;height:100%;object-fit:cover}.notice{position:sticky;top:82px;z-index:20;border-radius:16px;padding:14px 16px;font-weight:700;box-shadow:0 10px 30px rgba(0,0,0,.12)}@media(max-width:800px){.metric-grid{grid-template-columns:repeat(2,1fr)}.deliver-grid{grid-template-columns:1fr}.creative-grid{grid-template-columns:1fr 1fr}}@media(max-width:520px){.creative-grid{grid-template-columns:1fr}.portal-hero{padding:18px}}`}</style>
+ {showOverdue&&<div className="notice" style={{background:"#7f1d1d",color:"#fff"}}>Payment is more than 7 days overdue. This notice stays visible until payment is confirmed by your Account Manager or Super Admin.</div>}{showUpcoming&&!showOverdue&&<div className="notice" style={{background:"#fef3c7",color:"#92400e"}}>Payment reminder: your next payment is due in {days} day{days===1?"":"s"}.</div>}
+ <section className="portal-hero"><div style={{display:"flex",alignItems:"center",gap:16}}><div className="logo">{client.logo?<img src={client.logo} alt={client.companyName}/>:<b style={{color:"#7C3AED",fontSize:26}}>{client.companyName.slice(0,2).toUpperCase()}</b>}</div><div><p style={{fontSize:12,opacity:.75}}>Welcome back</p><h1 style={{fontSize:28,margin:"3px 0"}}>{client.companyName}</h1><p style={{fontSize:12,opacity:.75}}>{client.industry||"Client Portal"}</p></div></div><form action={portalAction} style={{display:"flex",gap:6,flexWrap:"wrap"}}><input type="hidden" name="action" value="logo"/><input name="logo" defaultValue={client.logo||""} placeholder="Logo image URL" style={{height:38,borderRadius:10,border:"1px solid rgba(255,255,255,.35)",padding:"0 10px",background:"rgba(255,255,255,.12)",color:"#fff"}}/><button className="btn btn-secondary btn-sm">Save logo</button></form></section>
+ <section className="metric-grid">{[{l:"Ad Spend",v:fmt(spend)},{l:"Leads",v:leads.toLocaleString()},{l:"ROAS",v:`${roas.toFixed(2)}x`},{l:"CPL",v:cpl?fmt(cpl):"—"}].map(x=><div className="card" key={x.l}><div className="card-body"><p style={{fontSize:11,color:"var(--text-muted)",fontWeight:800,textTransform:"uppercase"}}>{x.l}</p><b style={{fontSize:23,color:"var(--text-primary)"}}>{x.v}</b></div></div>)}</section>
+ <section className="deliver-grid">{[{l:"Reels / Video",x:reels,icon:"🎬"},{l:"Statics",x:statics,icon:"🖼️"},{l:"Carousels",x:carousels,icon:"📚"}].map(d=><div className="card" key={d.l}><div className="card-body" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><div><p style={{fontSize:12,color:"var(--text-muted)"}}>{d.l}</p><b style={{fontSize:25}}>{d.x.done} / {d.x.total}</b><p style={{fontSize:11,color:"var(--text-muted)"}}>delivered / assigned</p></div><span style={{fontSize:30}}>{d.icon}</span></div></div>)}</section>
+ <section className="card"><div className="card-header"><div><p className="card-title">Content Plan & Strategy</p><p style={{fontSize:12,color:"var(--text-muted)"}}>Documents uploaded for your account</p></div><Link href="/dashboard/files" className="btn btn-ghost btn-sm" style={{textDecoration:"none"}}>Open files →</Link></div><div className="card-body" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><div><b>Content Plans</b>{plans.length?plans.map(x=><p key={x.id} style={{fontSize:12,marginTop:7}}>📄 {x.name}</p>):<p style={{fontSize:12,color:"var(--text-muted)",marginTop:7}}>No plan uploaded yet.</p>}</div><div><b>Strategies</b>{strategies.length?strategies.map(x=><p key={x.id} style={{fontSize:12,marginTop:7}}>📄 {x.name}</p>):<p style={{fontSize:12,color:"var(--text-muted)",marginTop:7}}>No strategy uploaded yet.</p>}</div></div></section>
+ <section><div style={{display:"flex",justifyContent:"space-between",alignItems:"end",marginBottom:12}}><div><h2 style={{fontSize:20}}>Creative approvals</h2><p style={{fontSize:12,color:"var(--text-muted)"}}>Only creatives cleared by Super Admin appear here.</p></div></div><div className="creative-grid">{creatives.filter(c=>c.fileUrl).map(c=><article className="ig-card" key={c.id}><div className="ig-media">{isVideo(c.fileUrl!,c.type)?<video src={c.fileUrl!} controls playsInline preload="metadata"/>:<img src={c.fileUrl!} alt={c.title}/>}</div><div style={{padding:13}}><div style={{display:"flex",justifyContent:"space-between",gap:8}}><b style={{fontSize:13}}>{c.title}</b><span className="badge badge-blue">{c.type}</span></div><p style={{fontSize:12,lineHeight:1.55,color:"var(--text-secondary)",marginTop:8,whiteSpace:"pre-wrap"}}>{c.caption||"Caption will appear here."}</p><p style={{fontSize:11,color:"var(--text-muted)",marginTop:8}}>📅 {new Date(c.deadline).toLocaleDateString("en-GB")} · {c.platform||"Instagram"}</p>{c.approvedByClient?<div style={{marginTop:10,padding:9,borderRadius:9,background:"var(--green-bg)",color:"var(--green)",fontWeight:800,fontSize:11}}>✓ Approved — added to your calendar</div>:<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7,marginTop:11}}><form action={portalAction}><input type="hidden" name="action" value="task_review"/><input type="hidden" name="taskId" value={c.id}/><input type="hidden" name="decision" value="APPROVED"/><button className="btn btn-success btn-sm" style={{width:"100%"}}>Approve</button></form><details><summary className="btn btn-ghost btn-sm" style={{cursor:"pointer",listStyle:"none",textAlign:"center"}}>Revision</summary><form action={portalAction} style={{marginTop:7}}><input type="hidden" name="action" value="task_review"/><input type="hidden" name="taskId" value={c.id}/><input type="hidden" name="decision" value="REVISION"/><textarea name="comment" required placeholder="What should change?" className="form-input" rows={2}/><button className="btn btn-danger btn-sm" style={{width:"100%",marginTop:5}}>Send revision</button></form></details></div>}</div></article>)}{!creatives.some(c=>c.fileUrl)&&<div className="card"><div className="card-body" style={{color:"var(--text-muted)"}}>No approved creatives are waiting for you.</div></div>}</div></section>
+ <section className="card"><div className="card-header"><p className="card-title">Your Calendar</p><Link href="/dashboard/calendar" className="btn btn-primary btn-sm" style={{textDecoration:"none"}}>Open full calendar →</Link></div><div className="card-body">{calendar.slice(0,8).map(e=><div key={e.id} style={{display:"grid",gridTemplateColumns:"100px 1fr auto",gap:10,padding:"10px 0",borderBottom:"1px solid var(--card-border)",fontSize:12}}><b>{new Date(e.date).toLocaleDateString("en-GB",{day:"2-digit",month:"short"})}</b><div><b>{e.title}</b><p style={{color:"var(--text-muted)",marginTop:2}}>{e.caption||""}</p></div><span className="badge badge-blue">{e.platform||"social"}</span></div>)}{!calendar.length&&<p style={{color:"var(--text-muted)",fontSize:12}}>Your approved content will appear here automatically.</p>}</div></section>
+ </div>}

@@ -26,7 +26,7 @@ export default async function CalendarPage(){
  ]);
  const clientIds=[...new Set([...events.map(e=>e.clientId),...approvedTasks.map(t=>t.clientId)])],clientRows=clientIds.length?await db.select({id:clients.id,companyName:clients.companyName}).from(clients).where(inArray(clients.id,clientIds)):[],clientMap=Object.fromEntries(clientRows.map(c=>[c.id,c.companyName]));
  const eventsWithClients=events.map(e=>({...e,client:{companyName:clientMap[e.clientId]??""}})),tasksWithClients=approvedTasks.map(t=>({...t,client:{companyName:clientMap[t.clientId]??""}}));
- const canManage=[Role.SUPER_ADMIN,Role.ACCOUNT_MANAGER,Role.SALES].includes(role);
+ const canManage=[Role.SUPER_ADMIN,Role.ACCOUNT_MANAGER].includes(role);
  if(role===Role.CLIENT&&eventsWithClients.length===0)return <ClientCalendarDemo companyName={visibleClients[0]?.companyName||"Your Brand"}/>;
- return <CalendarClient events={eventsWithClients} clients={visibleClients} approvedTasks={tasksWithClients} canManage={canManage}/>;
+ return <CalendarClient events={eventsWithClients} clients={canManage?visibleClients:[]} approvedTasks={canManage?tasksWithClients:[]} canManage={canManage}/>;
 }

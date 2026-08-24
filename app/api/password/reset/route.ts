@@ -1,21 +1,8 @@
-// @ts-nocheck -- Drizzle's generated auth shapes are narrower than the live schema.
-export const dynamic = "force-dynamic";
-import { NextRequest, NextResponse } from "next/server";
-import { createHash } from "crypto";
+// @ts-nocheck
+export const dynamic="force-dynamic";
+import {NextRequest,NextResponse} from "next/server";
+import {createHash} from "crypto";
 import bcrypt from "bcryptjs";
-import { db, users, passwordResetTokens, auditLogs } from "@/lib/db";
-import { and, eq, gt, isNull } from "drizzle-orm";
-
-export async function POST(req:NextRequest){
-  const {token,password}=await req.json();
-  if(!token||!password||String(password).length<8)return NextResponse.json({error:"Invalid token or password."},{status:400});
-  const tokenHash=createHash("sha256").update(String(token)).digest("hex");
-  const [record]=await db.select().from(passwordResetTokens).where(and(eq(passwordResetTokens.tokenHash,tokenHash),gt(passwordResetTokens.expiresAt,new Date()),isNull(passwordResetTokens.usedAt))).limit(1);
-  if(!record)return NextResponse.json({error:"This reset link is invalid or expired."},{status:400});
-  await db.transaction(async tx=>{
-    await tx.update(users).set({password:await bcrypt.hash(password,12),updatedAt:new Date()}).where(eq(users.id,record.userId));
-    await tx.update(passwordResetTokens).set({usedAt:new Date()}).where(eq(passwordResetTokens.id,record.id));
-    await tx.insert(auditLogs).values({userId:record.userId,action:"password_changed",entity:"users",entityId:record.userId,newValues:"{}"});
-  });
-  return NextResponse.json({success:true});
-}
+import {db,users,passwordResetTokens,auditLogs} from "@/lib/db";
+import {and,eq,gt,isNull} from "drizzle-orm";
+export async function POST(req:NextRequest){const body=await req.json().catch(()=>null),token=String(body?.token||""),password=String(body?.password||"");if(!/^[a-f0-9]{64}$/i.test(token)||password.length<12||password.length>128)return NextResponse.json({error:"Invalid token or password. Password must be 12–128 characters."},{status:400,headers:{"Cache-Control":"no-store"}});const tokenHash=createHash("sha256").update(token).digest("hex");try{await db.transaction(async tx=>{const now=new Date(),claimed=await tx.update(passwordResetTokens).set({usedAt:now}).where(and(eq(passwordResetTokens.tokenHash,tokenHash),gt(passwordResetTokens.expiresAt,now),isNull(passwordResetTokens.usedAt))).returning({id:passwordResetTokens.id,userId:passwordResetTokens.userId});if(claimed.length!==1)throw new Error("INVALID_RESET");const [user]=await tx.select({id:users.id,workspaceId:users.workspaceId,isActive:users.isActive}).from(users).where(eq(users.id,claimed[0].userId)).limit(1);if(!user?.isActive)throw new Error("INVALID_RESET");await tx.update(users).set({password:await bcrypt.hash(password,12),updatedAt:now}).where(and(eq(users.id,user.id),eq(users.isActive,true)));await tx.insert(auditLogs).values({workspaceId:user.workspaceId,userId:user.id,action:"password_changed",entity:"users",entityId:user.id,newValues:"{}"} as any)});return NextResponse.json({success:true},{headers:{"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}})}catch(error:any){if(error?.message==="INVALID_RESET")return NextResponse.json({error:"This reset link is invalid or expired."},{status:400,headers:{"Cache-Control":"no-store"}});console.error("Password reset failed",error);return NextResponse.json({error:"Password could not be reset."},{status:500,headers:{"Cache-Control":"no-store"}})}}

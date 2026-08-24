@@ -1,0 +1,35 @@
+"use server";
+import {auth} from "@/lib/auth";
+import {db,sql} from "@/lib/db";
+import {updateTaskStatus as baseUpdateTaskStatus,submitTaskFile as baseSubmitTaskFile,updateTaskCaption as baseUpdateTaskCaption} from "@/lib/actions";
+
+async function assertActiveTask(taskId:string){
+  const session=await auth();
+  if(!session?.user)throw new Error("Unauthorized");
+  const role=String((session.user as any).role),userId=String((session.user as any).id);
+  const rows=Array.from(await db.execute(sql`
+    select t.id,t.assigned_to_id,c.account_manager_id,c.is_active as client_active
+    from creative_tasks t
+    left join clients c on c.id=t.client_id
+    where t.id=${taskId} and t.archived_at is null
+    limit 1
+  `)) as any[];
+  const task=rows[0];
+  if(!task)throw new Error("Task is archived or unavailable. Restore it before making changes.");
+  if(task.client_active===false)throw new Error("The client is archived. Restore the client before changing this task.");
+  const allowed=role==="SUPER_ADMIN"||(role==="ACCOUNT_MANAGER"&&task.account_manager_id===userId)||(role==="CREATOR"&&task.assigned_to_id===userId);
+  if(!allowed)throw new Error("Forbidden");
+}
+
+export async function safeUpdateTaskStatus(taskId:string,status:string,revisionNotes?:string){
+  await assertActiveTask(taskId);
+  return baseUpdateTaskStatus(taskId,status,revisionNotes);
+}
+export async function safeSubmitTaskFile(taskId:string,fileName:string,fileUrl:string,notes?:string){
+  await assertActiveTask(taskId);
+  return baseSubmitTaskFile(taskId,fileName,fileUrl,notes);
+}
+export async function safeUpdateTaskCaption(taskId:string,caption:string){
+  await assertActiveTask(taskId);
+  return baseUpdateTaskCaption(taskId,caption);
+}

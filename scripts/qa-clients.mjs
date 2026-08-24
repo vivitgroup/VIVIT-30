@@ -9,6 +9,7 @@ const check=(name,ok)=>checks.push({name,ok:Boolean(ok)});
 const list=read("app/dashboard/clients/page.tsx");
 const detail=read("app/dashboard/clients/[id]/page.tsx");
 const guard=read("app/dashboard/clients/[id]/layout.tsx");
+const edit=read("app/dashboard/clients/[id]/edit/page.tsx");
 const newPage=read("app/dashboard/clients/new/page.tsx");
 const form=read("components/clients/NewClientForm.tsx");
 const api=read("app/api/clients/route.ts");
@@ -31,7 +32,9 @@ check("Archive/restore is ownership scoped",lifecycle.includes("managerOwns")&&l
 check("Permanent client delete is Super Admin only",lifecycle.includes("Only Super Admin can permanently delete a client"));
 check("Permanent delete blocks linked records and portal account",lifecycle.includes("Archive it instead of permanent deletion")&&lifecycle.includes("portalAccount"));
 check("Existing client update validates ownership and assignments",actions.includes("export async function updateClient")&&actions.includes("requireClientAccess(session,clientId,true)")&&actions.includes("Invalid account manager")&&actions.includes("Invalid media buyer"));
-check("Existing client update is exposed in client UI",detail.includes("updateClient")||detail.includes("Edit client")||detail.includes("Edit Client"));
+check("Existing client edit/reassignment is exposed in UI",guard.includes("/edit")&&edit.includes("Save client")&&edit.includes("Role.SUPER_ADMIN")&&edit.includes("Role.ACCOUNT_MANAGER"));
+check("Existing client edit preserves AM ownership and validates admin reassignment",edit.includes("existing.accountManagerId!==userId")&&edit.includes("Choose a valid active account manager")&&edit.includes("Choose a valid active media buyer"));
+check("Existing client edit validates duplicate names and contract date order",edit.includes("already exists")&&edit.includes("Contract end date must be on or after the start date"));
 check("Communication log reads both legacy client-keyed and converted-lead-keyed activity",detail.includes("salesLeads.clientId")&&/activities[\s\S]*(lead\?\.id|leadId|sales_leads)/.test(detail)&&!detail.includes("where(eq(salesActivities.leadId,id))"));
 
 const failed=checks.filter(c=>!c.ok);

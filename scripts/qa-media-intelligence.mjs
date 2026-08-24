@@ -4,7 +4,7 @@ const page=fs.readFileSync("app/dashboard/media/control-center/page.tsx","utf8")
 const api=fs.readFileSync("app/api/media-control-v2/route.ts","utf8");
 const checks=[];const check=(n,v)=>checks.push([n,!!v]);
 check("Media control routes to intelligence workspace",page.includes("MediaIntelligenceWorkspaceV2"));
-check("Account-first portfolio summary exists",ui.includes("Portfolio Summary")&&ui.includes("Ad account health"));
+check("Account-first portfolio summary exists",ui.includes("Portfolio Summary")&&ui.includes("Ad Accounts")&&ui.includes("Open account workspace"));
 check("Account cards open dedicated workspace",ui.includes("Open account workspace")&&ui.includes("setAccountId"));
 check("Account workspace keeps campaigns grouped",ui.includes("Optimization workspace")&&ui.includes("selected.campaigns"));
 check("Current and previous equal-length periods are fetched",ui.includes("previousRange")&&ui.includes("Promise.all")&&ui.includes("compareRange"));

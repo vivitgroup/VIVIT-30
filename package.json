@@ -3,7 +3,9 @@
   "version": "41.0.0",
   "description": "VIVIT ERP — Enterprise Marketing Agency Platform",
   "private": true,
-  "engines": {"node": "22.x"},
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "npm audit --audit-level=high && npm run qa:static && npm run qa:clients && npm run type-check && next build",
@@ -32,7 +34,7 @@
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^22",
     "@types/react": "^19",
-    "@types/react-dom": "^19.2.0",
+    "@types/react-dom": "^19",
     "drizzle-kit": "^0.30.4",
     "eslint": "^9.0.0",
     "eslint-config-next": "16.3.2",

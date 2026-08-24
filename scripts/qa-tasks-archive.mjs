@@ -42,7 +42,7 @@ check("Task comments reject archived or inactive-client tasks",detail.includes("
 check("Safe task actions reject archived tasks",safe.includes("t.archived_at is null")&&safe.includes("Task is archived or unavailable. Restore it before making changes."));
 check("Safe task actions reject archived clients",safe.includes("task.client_active===false"));
 check("Safe task actions enforce AM and Creator ownership",safe.includes("task.account_manager_id===userId")&&safe.includes("task.assigned_to_id===userId"));
-check("Tasks Inbox excludes archived tasks",inbox.includes("where archived_at is null"));
+check("Tasks Inbox excludes archived tasks",inbox.includes("creative_tasks where workspace_id=${WORKSPACE} and archived_at is null")&&inbox.includes("activeOnly"));
 check("Tasks Inbox scopes every role to active clients",inbox.includes("allowedClients")&&inbox.includes("eq(clients.isActive,true)")&&inbox.includes("inArray(creativeTasks.clientId,allowedIds)"));
 check("Bulk approve only transitions REVIEW to APPROVED",inbox.includes('approve:{from:["REVIEW"],status:"APPROVED"}'));
 check("Bulk complete only transitions APPROVED to COMPLETED",inbox.includes('complete:{from:["APPROVED"],status:"COMPLETED"}'));

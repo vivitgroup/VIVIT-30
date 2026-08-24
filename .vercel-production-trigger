@@ -1,6 +1,6 @@
-production trigger 2026-08-24T19:18:00+03:00
-client open page redesigned as task-style workspace with visual creative cards
-client contact, notes, communication log and finance visibility reorganized
-full Media Buying dashboard retained with campaign metrics, sync, archive and delete
-release main 92ade050e9da6b798c158d99c8f8bd5faa33e5cf
+production trigger 2026-08-24T22:55:00Z
+Meta connect and sync embedded in media control center
+OAuth callback returns to control center
+Meta ad account campaign discovery and 30-day sync enabled
+release main 8e66930340c4791240c99b5ba99de35aedf907bf
 force production redeploy

@@ -8,9 +8,16 @@ const allowedEntities=new Set(["client","task","lead"]);
 const allowedActions=new Set(["archive","restore","delete"]);
 const clean=(v:any,n=120)=>String(v||"").trim().slice(0,n);
 const rows=async(q:any)=>Array.from(await db.execute(q)) as any[];
+async function audit(userId:string,action:string,entity:string,id:string,payload:any={}){await db.insert(auditLogs).values({userId,action,entity,entityId:id,newValues:JSON.stringify(payload)} as any)}
 
-async function audit(userId:string,action:string,entity:string,id:string,payload:any={}){
-  await db.insert(auditLogs).values({userId,action,entity,entityId:id,newValues:JSON.stringify(payload)} as any);
+export async function GET(){
+ const session=await auth();
+ if(!session?.user)return NextResponse.json({error:"Unauthorized"},{status:401});
+ const userId=String((session.user as any).id),role=String((session.user as any).role);
+ const clients=role==="SUPER_ADMIN"?await rows(sql`select id,company_name as name,archived_at from clients where archived_at is not null order by archived_at desc limit 100`):role==="ACCOUNT_MANAGER"?await rows(sql`select id,company_name as name,archived_at from clients where archived_at is not null and account_manager_id=${userId} order by archived_at desc limit 100`):[];
+ const tasks=role==="SUPER_ADMIN"?await rows(sql`select id,title as name,archived_at from creative_tasks where archived_at is not null order by archived_at desc limit 150`):await rows(sql`select id,title as name,archived_at from creative_tasks where archived_at is not null and created_by_id=${userId} order by archived_at desc limit 150`);
+ const leads=role==="SUPER_ADMIN"?await rows(sql`select id,company_name as name,archived_at from sales_leads where archived_at is not null order by archived_at desc limit 150`):role==="SALES"?await rows(sql`select id,company_name as name,archived_at from sales_leads where archived_at is not null and sales_rep_id=${userId} order by archived_at desc limit 150`):[];
+ return NextResponse.json({clients,tasks,leads});
 }
 
 export async function POST(req:NextRequest){
@@ -38,12 +45,7 @@ export async function POST(req:NextRequest){
       await audit(userId,"client_restored","clients",id,{companyName:record.company_name});
       return NextResponse.json({success:true,state:"active"});
     }
-    const [deps]=await rows(sql`select
-      (select count(*)::int from creative_tasks where client_id=${id}) as tasks,
-      (select count(*)::int from file_documents where client_id=${id}) as files,
-      (select count(*)::int from calendar_events where client_id=${id}) as calendar,
-      (select count(*)::int from finance_records where client_id=${id}) as finance,
-      (select count(*)::int from ad_campaigns where client_id=${id}) as campaigns`);
+    const [deps]=await rows(sql`select (select count(*)::int from creative_tasks where client_id=${id}) as tasks,(select count(*)::int from file_documents where client_id=${id}) as files,(select count(*)::int from calendar_events where client_id=${id}) as calendar,(select count(*)::int from finance_records where client_id=${id}) as finance,(select count(*)::int from ad_campaigns where client_id=${id}) as campaigns`);
     const dependent=Number(deps?.tasks||0)+Number(deps?.files||0)+Number(deps?.calendar||0)+Number(deps?.finance||0)+Number(deps?.campaigns||0)+(record.user_id?1:0);
     if(dependent>0)return NextResponse.json({error:"This client has linked data or a portal account. Archive it instead of permanent deletion.",dependencies:deps},{status:409});
     await db.execute(sql`delete from clients where id=${id}`);
@@ -66,9 +68,7 @@ export async function POST(req:NextRequest){
       await audit(userId,"task_restored","creative_tasks",id,{title:record.title});
       return NextResponse.json({success:true,state:"active"});
     }
-    const [deps]=await rows(sql`select
-      (select count(*)::int from file_documents where task_id=${id}) as files,
-      (select count(*)::int from calendar_events where task_id=${id}) as calendar`);
+    const [deps]=await rows(sql`select (select count(*)::int from file_documents where task_id=${id}) as files,(select count(*)::int from calendar_events where task_id=${id}) as calendar`);
     const dependent=Number(deps?.files||0)+Number(deps?.calendar||0);
     if(dependent>0)return NextResponse.json({error:"This task has linked files or calendar items. Archive it instead, or remove the linked records first.",dependencies:deps},{status:409});
     await db.execute(sql`delete from creative_tasks where id=${id}`);

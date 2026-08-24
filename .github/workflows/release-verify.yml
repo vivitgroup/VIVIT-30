@@ -27,17 +27,8 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Install dependencies
+      - name: Install locked dependencies
         run: npm ci
 
-      - name: Security audit
-        run: npm audit --audit-level=high
-
-      - name: Static QA
-        run: npm run qa:static
-
-      - name: Type check
-        run: npm run type-check
-
-      - name: Production build
-        run: npx next build
+      - name: Full release build
+        run: npm run build

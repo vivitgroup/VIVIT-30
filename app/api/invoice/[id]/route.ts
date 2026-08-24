@@ -1,41 +1,9 @@
-export const dynamic = "force-dynamic";
-import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import { db, financeRecords, clients, contacts } from "@/lib/db";
-import { eq, and } from "drizzle-orm";
-import { canAccessClient } from "@/lib/client-access";
+export const dynamic="force-dynamic";
+import {NextRequest,NextResponse} from "next/server";
+import {auth} from "@/lib/auth";
+import {db,financeRecords,clients,contacts,workspaces} from "@/lib/db";
+import {eq,and} from "drizzle-orm";
+import {canAccessClient} from "@/lib/client-access";
 
-export async function GET(req: NextRequest, context: { params: Promise<{ id: string }> }) {
-  const session = await auth();
-  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const { id } = await context.params;
-  const [record] = await db.select().from(financeRecords).where(eq(financeRecords.id, id));
-  if (!record) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if(!(await canAccessClient(session,record.clientId,{finance:true})))return NextResponse.json({error:"Forbidden"},{status:403});
-
-  const [client] = await db.select().from(clients).where(eq(clients.id, record.clientId));
-  const [contact] = await db.select().from(contacts).where(and(eq(contacts.clientId, record.clientId), eq(contacts.isPrimary, true)));
-
-  const MONTHS = ["","January","February","March","April","May","June","July","August","September","October","November","December"];
-
-  const invoiceData = {
-    invoiceNumber: record.invoiceNumber ?? `INV-${record.year}-${String(record.month).padStart(2,"0")}-${client?.companyName?.slice(0,3).toUpperCase()}`,
-    date: new Date().toLocaleDateString("en-GB", { day:"2-digit", month:"long", year:"numeric" }),
-    dueDate: record.dueDate ? new Date(record.dueDate).toLocaleDateString("en-GB", { day:"2-digit", month:"long", year:"numeric" }) : "Upon receipt",
-    period: `${MONTHS[record.month]} ${record.year}`,
-    client: { name: client?.companyName ?? "Client", contact: contact?.name ?? "", email: contact?.email ?? "" },
-    items: [
-      { desc: "Monthly Retainer", amount: record.retainer },
-      ...(record.mediaBuyingFee > 0 ? [{ desc: "Media Buying Management Fee (20%)", amount: record.mediaBuyingFee }] : []),
-      ...(record.extraServices > 0 ? [{ desc: "Additional Services", amount: record.extraServices }] : []),
-    ],
-    subtotal: record.totalRevenue,
-    paid: record.paid,
-    outstanding: record.outstanding,
-    status: record.outstanding === 0 ? "PAID" : "OUTSTANDING",
-    notes: record.notes ?? "",
-  };
-
-  return NextResponse.json(invoiceData);
-}
+const WORKSPACE_ID="default";
+export async function GET(req:NextRequest,context:{params:Promise<{id:string}>}){const session=await auth();if(!session?.user)return NextResponse.json({error:"Unauthorized"},{status:401});const {id}=await context.params;const [record]=await db.select().from(financeRecords).where(and(eq(financeRecords.id,id),eq(financeRecords.workspaceId,WORKSPACE_ID))).limit(1);if(!record)return NextResponse.json({error:"Not found"},{status:404});if(!(await canAccessClient(session,record.clientId,{finance:true})))return NextResponse.json({error:"Forbidden"},{status:403});const [[client],[contact],[workspace]]=await Promise.all([db.select().from(clients).where(and(eq(clients.id,record.clientId),eq(clients.workspaceId,WORKSPACE_ID))).limit(1),db.select().from(contacts).where(and(eq(contacts.clientId,record.clientId),eq(contacts.isPrimary,true))).limit(1),db.select({currency:workspaces.currency,agencyFeePercent:workspaces.agencyFeePercent}).from(workspaces).where(eq(workspaces.id,WORKSPACE_ID)).limit(1)]);if(!client)return NextResponse.json({error:"Client not found"},{status:404});const currency=workspace?.currency||"EGP",MONTHS=["","January","February","March","April","May","June","July","August","September","October","November","December"],invoiceData={invoiceNumber:record.invoiceNumber??`INV-${record.year}-${String(record.month).padStart(2,"0")}-${client.companyName.slice(0,3).toUpperCase()}`,date:new Date(record.createdAt||Date.now()).toLocaleDateString("en-GB",{day:"2-digit",month:"long",year:"numeric"}),dueDate:record.dueDate?new Date(record.dueDate).toLocaleDateString("en-GB",{day:"2-digit",month:"long",year:"numeric"}):"Upon receipt",period:`${MONTHS[record.month]} ${record.year}`,currency,client:{name:client.companyName,contact:contact?.name??"",email:contact?.email??""},items:[{desc:"Monthly Retainer",amount:Number(record.retainer||0)},...(Number(record.mediaBuyingFee||0)>0?[{desc:`Media Buying Management Fee (${Number(workspace?.agencyFeePercent??20)}%)`,amount:Number(record.mediaBuyingFee)}]:[]),...(Number(record.extraServices||0)>0?[{desc:"Additional Services",amount:Number(record.extraServices)}]:[])],subtotal:Number(record.totalRevenue||0),paid:Number(record.paid||0),outstanding:Number(record.outstanding||0),status:Number(record.outstanding||0)<=0?"PAID":"OUTSTANDING",paymentMethod:record.paymentMethod||null,paidDate:record.paidDate||null,notes:record.notes??""};return NextResponse.json(invoiceData,{headers:{"Cache-Control":"private, no-store"}})}

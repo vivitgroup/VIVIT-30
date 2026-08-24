@@ -1,6 +1,6 @@
-production trigger 2026-08-24T19:00:00+03:00
-campaign list reset to zero for clean relink
-campaign archive and delete enabled for super admin, media buyer and account manager
-task media uploads notify super admin, account manager and media buyer with high-priority sound toast
-media views restricted to media buying money/performance
-release main 832ac6c6b57d4d2c940ab3a13b9b23071320bcea
+production trigger 2026-08-24T19:35:00+03:00
+restore full Media Buying dashboard with KPI cards
+account-first grouping with campaigns under each ad account
+campaign-level Meta metrics cards restored
+archive, delete and sync controls preserved
+release main c535bd49f0d39fb50e392e888e030a484b2cb546

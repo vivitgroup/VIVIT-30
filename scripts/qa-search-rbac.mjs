@@ -1,0 +1,6 @@
+import fs from "node:fs";const s=fs.readFileSync("app/api/search/route.ts","utf8"),checks=[
+["Sales cannot receive inaccessible Client page results",s.includes('const canSearchClients=["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","ACCOUNTANT"]')&&!s.includes('const canSearchClients=["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","SALES","ACCOUNTANT"]')],
+["Account Manager search scopes clients/tasks/contacts by ownership",s.includes("eq(clients.accountManagerId,userId)")&&s.includes('role==="ACCOUNT_MANAGER"?eq(clients.accountManagerId,userId)')],
+["Creator search only returns assigned active tasks",s.includes('role==="CREATOR"?eq(creativeTasks.assignedToId,userId)')&&s.includes("t.archived_at is null")&&s.includes("c.is_active=true")],
+["Sales search only returns owned active leads",s.includes('role==="SALES"?eq(salesLeads.salesRepId,userId)')&&s.includes("sales_leads where archived_at is null")]
+];let fail=0;for(const [n,o] of checks){console.log(`${o?"PASS":"FAIL"}  ${n}`);if(!o)fail++}console.log(`\n${checks.length-fail}/${checks.length} search RBAC checks passed.`);if(fail)process.exit(1);

@@ -25,6 +25,7 @@
     "qa:search-rbac":"node scripts/qa-search-rbac.mjs",
     "qa:session-security":"node scripts/qa-session-security.mjs",
     "qa:mobile-ux":"node scripts/qa-mobile-ux.mjs",
+    "qa:runtime-smoke":"node scripts/qa-runtime-smoke.mjs",
     "qa":"npm run build"
   },
   "dependencies":{"@auth/drizzle-adapter":"^1.7.4","bcryptjs":"^2.4.3","drizzle-orm":"0.45.2","next":"16.3.2","next-auth":"5.0.0-beta.32","postgres":"^3.4.5","react":"^19.2.0","react-dom":"^19.2.0"},

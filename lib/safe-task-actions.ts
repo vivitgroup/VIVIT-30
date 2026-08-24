@@ -25,7 +25,7 @@ export async function safeUpdateTaskStatus(taskId:string,status:string,revisionN
   await assertActiveTask(taskId);
   return baseUpdateTaskStatus(taskId,status,revisionNotes);
 }
-export async function safeSubmitTaskFile(taskId:string,fileName:string,fileUrl:string,notes?:string){
+export async function safeSubmitTaskFile(taskId:string,fileName:string,fileUrl:string,notes=""){
   await assertActiveTask(taskId);
   return baseSubmitTaskFile(taskId,fileName,fileUrl,notes);
 }

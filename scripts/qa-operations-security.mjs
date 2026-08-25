@@ -17,8 +17,8 @@ check("New files persist workspace id",files.includes("workspaceId:WORKSPACE,upl
 check("Storage object paths are tenant prefixed",files.includes('const path=`${WORKSPACE}/${new Date().getFullYear()}/${userId}/'));
 check("Complete upload rejects wrong tenant prefix",files.includes('!path.startsWith(`${WORKSPACE}/`)'));
 check("File archive/restore/delete SQL stays workspace scoped",files.includes("where id=${id} and workspace_id=${WORKSPACE}")&&files.includes("eq(fileDocuments.workspaceId,WORKSPACE)"));
-check("Assistant active clients are workspace and active scoped",assistant.includes("eq(clients.workspaceId,WORKSPACE)")&&assistant.includes("eq(clients.isActive,true)"));
-check("Assistant Creator scope excludes archived tasks and inactive clients",assistant.includes("t.archived_at is null")&&assistant.includes("c.workspace_id=${WORKSPACE}")&&assistant.includes("c.is_active=true"));
-check("Assistant excludes completed and rejected work",assistant.includes('notInArray(creativeTasks.status,["COMPLETED","REJECTED"])'));
+check("Assistant active clients are workspace and active scoped",assistant.includes("workspace_id=${WORKSPACE} and is_active=true"));
+check("Assistant Creator scope excludes archived tasks and inactive clients",assistant.includes("t.workspace_id=${WORKSPACE}")&&assistant.includes("t.archived_at is null")&&assistant.includes("c.is_active=true")&&assistant.includes("t.assigned_to_id=${userId}"));
+check("Assistant excludes completed and rejected work",assistant.includes("t.status not in ('COMPLETED','REJECTED')"));
 check("Assistant response is private no-store",assistant.includes('"Cache-Control":"private, no-store"'));
 const failed=checks.filter(x=>!x.ok);for(const c of checks)console.log(`${c.ok?"PASS":"FAIL"}  ${c.name}`);console.log(`\n${checks.length-failed.length}/${checks.length} operations security checks passed.`);if(failed.length)process.exit(1);

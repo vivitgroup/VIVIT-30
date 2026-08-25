@@ -8,7 +8,7 @@ check("Account-first portfolio summary exists",ui.includes("Portfolio Summary")&
 check("Account cards open dedicated workspace",ui.includes("Open account workspace")&&ui.includes("setAccountId"));
 check("Account workspace keeps campaigns grouped",ui.includes("Optimization workspace")&&ui.includes("selected.campaigns"));
 check("Current and previous equal-length periods are fetched",ui.includes("previousRange")&&ui.includes("Promise.all")&&ui.includes("compareRange"));
-check("Previous campaign metrics are merged by campaign id",ui.includes("previousMetrics:pc[x.id]")&&ui.includes("Object.fromEntries(campaigns.map"));
+check("Previous campaign metrics are merged by campaign id",ui.includes("pc[x.id]")&&ui.includes("Object.fromEntries((prev.campaigns||[]).map")&&ui.includes("Object.fromEntries(campaigns.map"));
 check("Previous account metrics are merged by account id",ui.includes("previousMetrics:pa[a.id]"));
 check("Campaign AI recommendation is visible",ui.includes("AI Recommendation")&&ui.includes("confidence"));
 check("AI detects critical rising cost",ui.includes("Cost spike — immediate intervention")&&ui.includes("cd>=45"));

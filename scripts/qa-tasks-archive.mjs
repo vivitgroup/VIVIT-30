@@ -38,7 +38,7 @@ check("Task detail guard scopes Account Manager",detailGuard.includes("task.acco
 check("Task detail guard scopes Creator",detailGuard.includes("task.assigned_to_id===userId"));
 check("Task detail guard scopes Client portal user",detailGuard.includes("task.client_user_id===userId"));
 check("Task detail mutations use safe active-task wrappers",detail.includes("safeUpdateTaskStatus")&&detail.includes("safeSubmitTaskFile")&&detail.includes("safeUpdateTaskCaption")&&!detail.includes('from "@/lib/actions"'));
-check("Task comments reject archived or inactive-client tasks",detail.includes("t.archived_at is null and c.is_active=true")&&detail.includes("Task is archived or unavailable."));
+check("Task comments reject archived, deleted or inactive-client tasks",detail.includes("t.archived_at is null")&&detail.includes("t.deleted_at is null")&&detail.includes("c.is_active=true")&&detail.includes("Task is archived or unavailable."));
 check("Safe task actions reject archived tasks",safe.includes("t.archived_at is null")&&safe.includes("Task is archived or unavailable. Restore it before making changes."));
 check("Safe task actions reject archived clients",safe.includes("task.client_active===false"));
 check("Safe task actions enforce AM and Creator ownership",safe.includes("task.account_manager_id===userId")&&safe.includes("task.assigned_to_id===userId"));

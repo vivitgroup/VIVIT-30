@@ -1,0 +1,1 @@
+Do not reapply destructive migrations. This migration is additive and idempotent.

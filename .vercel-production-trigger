@@ -1,6 +1,7 @@
-production trigger 2026-08-24T23:08:00Z
-Finance final 2026 workbook imported and reconciled
-Finance authoritative ledger enabled without double count
-Media connect, OAuth callback and campaign sync merged
-release main 2c12ce23aac45eca2a3b4eb5f5c1104846e1c8ac
+production trigger 2026-08-25T16:41:00Z
+Client Portal now reads ad_campaigns + ad_performance_daily
+Creative review queue exposes REVIEW status and missing asset state
+Role-aware VIVIT assistant: client task scope, super admin ERP + marketing advisor
+Meta semantic result fixes included through main
+release main 6edd13e58f2d6ee03b4038b74db79b621074516e
 force production redeploy

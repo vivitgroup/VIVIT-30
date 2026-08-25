@@ -1,0 +1,5 @@
+export const dynamic="force-dynamic";
+import {NextResponse} from "next/server";
+import {auth} from "@/lib/auth";
+import {db,sql} from "@/lib/db";
+export async function GET(){const s=await auth();if(!s?.user)return NextResponse.json({error:"Unauthorized"},{status:401});const role=String((s.user as any).role||"CLIENT"),userId=String((s.user as any).id||"");let sc=sql`false`;if(role==="SUPER_ADMIN")sc=sql`true`;else if(role==="ACCOUNT_MANAGER")sc=sql`c.account_manager_id=${userId}`;else if(role==="MEDIA_BUYER")sc=sql`c.media_buyer_id=${userId}`;else if(role==="CREATOR")sc=sql`t.assigned_to_id=${userId}`;else if(role==="CLIENT")sc=sql`c.user_id=${userId}`;const rows=Array.from(await db.execute(sql`select t.id,t.title,t.status,t.type,t.deadline,t.file_url,c.company_name from creative_tasks t join clients c on c.id=t.client_id where t.workspace_id='default' and t.archived_at is null and t.deleted_at is null and c.is_active=true and ${sc} order by t.deadline asc limit 120`) as any[]);return NextResponse.json({rows})}

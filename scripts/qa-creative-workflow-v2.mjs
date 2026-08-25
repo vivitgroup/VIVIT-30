@@ -1,0 +1,17 @@
+import fs from "node:fs";
+const read=p=>fs.readFileSync(p,"utf8"),checks=[],check=(n,o)=>checks.push([n,!!o]);
+const safe=read("lib/safe-task-actions.ts"),board=read("app/dashboard/creative/page.tsx"),detail=read("app/dashboard/creative/[id]/page.tsx"),portal=read("app/dashboard/portal/page.tsx");
+check("Creative task mutations are workspace scoped",safe.includes("t.workspace_id=${WORKSPACE}")&&safe.includes("c.workspace_id=${WORKSPACE}"));
+check("Archived/deleted creative tasks cannot mutate",safe.includes("t.archived_at is null")&&safe.includes("t.deleted_at is null"));
+check("Internal approval requires final creative",safe.includes('status==="APPROVED"&&!task.file_url'));
+check("Completion requires client approval",safe.includes('status==="COMPLETED"&&!task.approved_by_client'));
+check("Revision resets client approval",safe.includes('status==="REVISION"||status==="IN_PROGRESS"')&&safe.includes("approved_by_client=false"));
+check("New delivery resets stale client approval",safe.includes("safeSubmitTaskFile")&&safe.includes("client_approval_at=null"));
+check("Board keeps Creator -> Review -> AM approval lifecycle",board.includes('t.status==="IN_PROGRESS"')&&board.includes('status="REVIEW"')&&board.includes('status="APPROVED"'));
+check("Task detail exposes exact revision notes",detail.includes("Latest revision notes")&&detail.includes("revisionNotes"));
+check("Client review is scoped to active client workspace",portal.includes("workspace_id=${WORKSPACE}")&&portal.includes("user_id=${userId}")&&portal.includes("is_active=true"));
+check("Client approval persists approval timestamp",portal.includes("approved_by_client=true")&&portal.includes("client_approval_at=now()"));
+check("Client revision requires notes",portal.includes('decision==="REVISION"&&!comment'));
+check("Client revision returns work to REVISION",portal.includes("status='REVISION'")&&portal.includes("revision_count=coalesce(revision_count,0)+1"));
+check("Client review only shows final delivered creative",portal.includes("reviewQueue")&&portal.includes("file_url")&&portal.includes("approved_by_client"));
+const failed=checks.filter(x=>!x[1]);for(const [n,o] of checks)console.log(`${o?"PASS":"FAIL"}  ${n}`);console.log(`\n${checks.length-failed.length}/${checks.length} Creative Workflow V2 checks passed.`);if(failed.length)process.exit(1);

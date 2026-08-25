@@ -35,7 +35,7 @@ export async function POST(req:NextRequest){
  if(role==="MEDIA_BUYER"&&client.mediaBuyerId!==userId||role==="ACCOUNT_MANAGER"&&client.accountManagerId!==userId)return NextResponse.json({error:"Client access denied"},{status:403});
  let token="";try{token=await connectionAccessToken(connection)}catch(e:any){return NextResponse.json({error:e.message||"Meta authorization is invalid"},{status:409})}if(!token)return NextResponse.json({error:"Connect Meta first to authorize this ad account."},{status:409});
  try{
-  const end=new Date(),start=new Date(Date.now()-30*86400000),from=iso(start),to=iso(end),remote=await listMetaCampaigns(connection.adAccountId,token);let accountRows:any[]=[],accountError="";
+  const end=new Date(),start=new Date(Date.now()-450*86400000),from=iso(start),to=iso(end),remote=await listMetaCampaigns(connection.adAccountId,token);let accountRows:any[]=[],accountError="";
   try{accountRows=await listAccountInsights(connection.adAccountId,token,from,to)}catch(e:any){accountError=String(e.message||"Account insights unavailable").slice(0,300)}
   const rowsByCampaign=new Map<string,any[]>();for(const row of accountRows){const id=String(row.campaign_id||"");if(!id)continue;const list=rowsByCampaign.get(id)||[];list.push(row);rowsByCampaign.set(id,list)}
   let synced=0,failed=0;const failures:any[]=[];
@@ -56,7 +56,7 @@ export async function POST(req:NextRequest){
   }
   const failureSummary=failures.length?failures.slice(0,2).map(x=>`${x.name}: ${x.error}`).join(" | ").slice(0,650):null;
   await db.update(adPlatformConnections).set({status:failed&&synced===0?"ERROR":"CONNECTED",lastSyncAt:synced?new Date():connection.lastSyncAt,syncError:failed?`${failed} campaign(s) failed${failureSummary?` · ${failureSummary}`:""}`:accountError?`Account-level insights fallback used · ${accountError}`:null,updatedAt:new Date()}).where(eq(adPlatformConnections.id,connection.id));
-  await db.insert(auditLogs).values({userId,action:"meta_account_discovered_and_synced",entity:"ad_platform_connections",entityId:connection.id,newValues:JSON.stringify({campaigns:remote.length,synced,failed,mode:accountError?"PER_CAMPAIGN_FALLBACK":"ACCOUNT_INSIGHTS",accountError:accountError||null,failures:failures.slice(0,5)})});
-  return NextResponse.json({success:true,discovered:remote.length,synced,failed,mode:accountError?"PER_CAMPAIGN_FALLBACK":"ACCOUNT_INSIGHTS",accountError:accountError||null,failures:failures.slice(0,10)});
+  await db.insert(auditLogs).values({userId,action:"meta_account_discovered_and_synced",entity:"ad_platform_connections",entityId:connection.id,newValues:JSON.stringify({campaigns:remote.length,synced,failed,mode:accountError?"PER_CAMPAIGN_FALLBACK":"ACCOUNT_INSIGHTS",from,to,accountError:accountError||null,failures:failures.slice(0,5)})});
+  return NextResponse.json({success:true,discovered:remote.length,synced,failed,mode:accountError?"PER_CAMPAIGN_FALLBACK":"ACCOUNT_INSIGHTS",from,to,accountError:accountError||null,failures:failures.slice(0,10)});
  }catch(e:any){const message=String(e.message||"Meta account sync failed").slice(0,700);await db.update(adPlatformConnections).set({status:"ERROR",syncError:message,updatedAt:new Date()}).where(eq(adPlatformConnections.id,connection.id));return NextResponse.json({error:message},{status:400})}
 }

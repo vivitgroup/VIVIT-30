@@ -43,7 +43,7 @@ export default function LoginPage() {
           <h1 style={{fontSize:"2rem",fontWeight:800,color:"#fff",fontFamily:"Sora,sans-serif",letterSpacing:"-0.02em",marginBottom:"12px",lineHeight:1.2}}>Enterprise Marketing<br/>Management Platform</h1>
           <p style={{color:"rgba(255,255,255,0.75)",fontSize:"15px",lineHeight:1.7,marginBottom:"40px"}}>CRM · Media Buying · Creative Workflow · Finance · AI Studio — all in one beautiful platform.</p>
           <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"12px"}}>
-            {[{n:"125+",l:"Features"},{n:"47",l:"DB Tables"},{n:"70",l:"Pages"}].map(s=>(
+            {[{n:"RBAC",l:"Access"},{n:"Live",l:"Data"},{n:"QA",l:"Verified"}].map(s=>(
               <div key={s.l} style={{background:"rgba(255,255,255,0.1)",borderRadius:"12px",padding:"14px",border:"1px solid rgba(255,255,255,0.15)"}}>
                 <p style={{fontSize:"22px",fontWeight:800,color:"#fff",fontFamily:"Sora,sans-serif"}}>{s.n}</p>
                 <p style={{fontSize:"11px",color:"rgba(255,255,255,0.65)",marginTop:"2px"}}>{s.l}</p>

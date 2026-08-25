@@ -1,0 +1,1 @@
+{"migration":"20260825_client_social_profile","columns":["clients.facebook_url","clients.instagram_url"]}

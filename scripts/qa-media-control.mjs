@@ -1,6 +1,6 @@
 import fs from 'node:fs';import path from 'node:path';
 const root=process.cwd(),read=f=>fs.readFileSync(path.join(root,f),'utf8'),checks=[],check=(n,o)=>checks.push({n,o:!!o});
-const api=read('app/api/media-control-v2/route.ts'),ui=read('components/media/MediaIntelligenceWorkspaceV2.tsx'),platforms=read('lib/ad-platforms.ts'),link=read('app/api/media-link/route.ts'),sync=read('app/api/media-sync/[campaignId]/route.ts'),oauthStart=read('app/api/ad-oauth/[platform]/start/route.ts'),oauthCb=read('app/api/ad-oauth/[platform]/callback/route.ts'),syncUi=read('app/dashboard/media/sync/page.tsx'),cron=read('app/api/cron/media-sync/route.ts');
+const api=read('app/api/media-control-v2/route.ts'),ui=read('components/media/MediaIntelligenceWorkspaceV2.tsx'),platforms=read('lib/ad-platforms.ts'),link=read('app/api/media-link/route.ts'),sync=read('app/api/media-sync/[campaignId]/route.ts'),oauthStart=read('app/api/ad-oauth/[platform]/start/route.ts'),oauthCb=read('app/api/ad-oauth/[platform]/callback/route.ts'),syncUi=read('app/dashboard/media/sync/page.tsx'),cron=read('app/api/cron/media-sync/route.ts'),vercel=read('vercel.json');
 check('Media Control is restricted to SA/MB/AM',api.includes('SUPER_ADMIN')&&api.includes('MEDIA_BUYER')&&api.includes('ACCOUNT_MANAGER'));
 check('Client scope requires active clients',api.includes('eq(clients.isActive,true)'));
 check('Media Buyer scope uses assigned clients',api.includes('eq(clients.mediaBuyerId,userId)'));
@@ -34,7 +34,7 @@ check('Meta sync verifies campaign belongs to ad account',platforms.includes('be
 check('Meta uses account attribution setting',platforms.includes('use_account_attribution_setting:"true"'));
 check('Meta uses conversion report time',platforms.includes('action_report_time:"conversion"'));
 check('Meta fetches summary plus paginated daily insights',platforms.includes('summaryData')&&platforms.includes('metaPages(`https://graph.facebook.com/${v}/${campaignId}/insights?${params("1")}`)')&&platforms.includes('time_increment'));
-check('Meta result label follows objective/optimization goal',platforms.includes('chooseMetaResult')&&platforms.includes('optimization_goal'));
+check('Meta result mapping uses promoted conversion event plus optimization',platforms.includes('chooseMetaResult')&&platforms.includes('promoted_object')&&platforms.includes('custom_event_type')&&platforms.includes('optimization_goal'));
 check('Meta commerce reads ATC purchases and revenue',platforms.includes('metaCommerce')&&platforms.includes('action_values'));
 check('Meta hierarchy sync is invoked for Meta campaigns',api.includes('campaign.platform==="META"')&&api.includes('syncMetaHierarchy(campaign,token,r'));
 check('Meta hierarchy fetches Ad Sets and Ads',api.includes('/adsets?fields=')&&api.includes('/ads?fields='));
@@ -80,4 +80,8 @@ check('Automated sync uses campaign connectionId',cron.includes('c.connectionId?
 check('Automated sync validates connection client/platform',cron.includes('connection.clientId!==c.clientId')&&cron.includes('connection.platform!==c.platform'));
 check('Automated sync persists add-to-cart',cron.includes('addToCart')&&cron.includes('addToCart,revenue'));
 check('Automated sync computes frequency from aggregate reach',cron.includes('avgFrequency=reach?impressions/reach:0'));
+check('Automated sync self-heals incomplete month coverage',cron.includes('expectedDays')&&cron.includes('complete?recentStart:monthStart'));
+check('Automated sync backs off Meta rate limits',cron.includes('syncWithRetry')&&cron.includes('isRateLimit')&&cron.includes('sleep('));
+check('Automated TOTAL replacement cannot delete hierarchy rows',cron.includes('isNull(adPerformanceDaily.adSetId)')&&cron.includes('isNull(adPerformanceDaily.adId)'));
+check('Near-live scheduled sync runs every ten minutes',vercel.includes('*/10 * * * *'));
 const failed=checks.filter(x=>!x.o);for(const x of checks)console.log(`${x.o?'PASS':'FAIL'}  ${x.n}`);console.log(`\n${checks.length-failed.length}/${checks.length} media-control checks passed.`);if(failed.length)process.exit(1);

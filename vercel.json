@@ -1,53 +1,22 @@
 {
-  "framework": "nextjs",
-  "buildCommand": "npm run build",
-  "installCommand": "npm install",
-  "outputDirectory": ".next",
-  "regions": [
-    "fra1"
+  "framework":"nextjs","buildCommand":"npm run build","installCommand":"npm install","outputDirectory":".next","regions":["fra1"],
+  "crons":[
+    {"path":"/api/cron?type=morning","schedule":"0 8 * * *"},
+    {"path":"/api/cron?type=evening","schedule":"0 18 * * *"},
+    {"path":"/api/cron?type=monthly","schedule":"0 9 1 * *"},
+    {"path":"/api/cron/media-sync","schedule":"0 * * * *"},
+    {"path":"/api/cron/copilot-watch","schedule":"15 * * * *"}
   ],
-  "crons": [
-    {
-      "path": "/api/cron?type=morning",
-      "schedule": "0 8 * * *"
-    },
-    {
-      "path": "/api/cron?type=evening",
-      "schedule": "0 18 * * *"
-    },
-    {
-      "path": "/api/cron?type=monthly",
-      "schedule": "0 9 1 * *"
-    },
-    {
-      "path": "/api/cron/media-sync",
-      "schedule": "0 5 * * *"
-    }
-  ],
-  "env": {
-    "NODE_ENV": "production"
-  },
-  "functions": {
-    "app/api/ai/route.ts": {
-      "maxDuration": 60
-    },
-    "app/api/cron/route.ts": {
-      "maxDuration": 300
-    },
-    "app/api/cron/media-sync/route.ts": {
-      "maxDuration": 300
-    },
-    "app/api/pdf-report/[clientId]/route.ts": {
-      "maxDuration": 30
-    },
-    "app/api/performance-score/route.ts": {
-      "maxDuration": 30
-    },
-    "app/api/bulk/route.ts": {
-      "maxDuration": 30
-    },
-    "app/api/email/route.ts": {
-      "maxDuration": 30
-    }
+  "env":{"NODE_ENV":"production"},
+  "functions":{
+    "app/api/ai/route.ts":{"maxDuration":60},
+    "app/api/cron/route.ts":{"maxDuration":300},
+    "app/api/cron/media-sync/route.ts":{"maxDuration":300},
+    "app/api/cron/copilot-watch/route.ts":{"maxDuration":120},
+    "app/api/copilot/image/route.ts":{"maxDuration":120},
+    "app/api/pdf-report/[clientId]/route.ts":{"maxDuration":30},
+    "app/api/performance-score/route.ts":{"maxDuration":30},
+    "app/api/bulk/route.ts":{"maxDuration":30},
+    "app/api/email/route.ts":{"maxDuration":30}
   }
 }

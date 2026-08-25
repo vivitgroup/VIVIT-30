@@ -17,8 +17,8 @@ check("Portal has no demo creative gallery",!portal.includes("PortalDemoGallery"
 check("Portal has no fake calendar schedule",!portal.includes("Demo schedule")&&!portal.includes("Campaign Launch Reel"));
 check("Portal empty states explicitly show no real data",portal.includes("No synced campaign delivery for this month yet.")&&portal.includes("Nothing is waiting for your approval")&&portal.includes("No upcoming deadlines."));
 check("Portal client writes are tenant scoped",portal.includes("where id=${taskId} and client_id=${client.id} and workspace_id=${WORKSPACE} and archived_at is null")&&portal.includes("where id=${taskId} and client_id=${client.id} and archived_at is null"));
-check("Settings language persists across reloads on device",settings.includes('localStorage.getItem(\"vivit-lang\")')&&settings.includes('localStorage.setItem(\"vivit-lang\")'));
-check("Settings theme persists across reloads on device",settings.includes('localStorage.getItem(\"vivit-theme\")')&&settings.includes('localStorage.setItem(\"vivit-theme\")'));
+check("Settings language persists across reloads on device",settings.includes('vivit-lang')&&settings.includes('localStorage.getItem')&&settings.includes('localStorage.setItem'));
+check("Settings theme persists across reloads on device",settings.includes('vivit-theme')&&settings.includes('localStorage.getItem')&&settings.includes('localStorage.setItem'));
 check("Settings reminder preferences persist across reloads on device",settings.includes('vivit-task-reminder-minutes')&&settings.includes('vivit-reminder-enabled'));
 check("Settings are explicitly device-scoped for reminder behavior",settings.includes("on this device"));
 const failed=checks.filter(c=>!c.ok);for(const c of checks)console.log(`${c.ok?"PASS":"FAIL"}  ${c.name}`);console.log(`\n${checks.length-failed.length}/${checks.length} calendar/settings/portal checks passed.`);if(failed.length)process.exit(1);

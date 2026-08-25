@@ -1,6 +1,5 @@
 /* Gate 7 — mobile release overrides. Loaded after dashboard polish layers. */
 @media (max-width: 768px) {
-  /* Keep Global Search available on mobile without crowding the header. */
   .app-header .header-search {
     display: flex !important;
     width: 38px !important;
@@ -17,17 +16,22 @@
 
   #app-main,.app-content,.app-content > * { min-width: 0 !important; max-width: 100% !important; }
   .app-content { overflow-x: hidden !important; padding-bottom: calc(96px + env(safe-area-inset-bottom)) !important; }
-  .responsive-table,.table-scroll,.card-body-flush { max-width:100%!important;overflow-x:auto!important;-webkit-overflow-scrolling:touch; }
+  .responsive-table,.table-scroll,.card-body-flush {
+    width: 100%;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  .responsive-table table,.table-scroll table,.card-body-flush table { min-width: max-content; }
   .form-actions { bottom: calc(82px + env(safe-area-inset-bottom)) !important; }
 
-  /* Bottom bar always exposes a full-menu entry. */
   .mobile-nav { gap:2px; }
   .mobile-nav a,.mobile-nav button { flex:1 1 0;min-width:0!important;max-width:76px;height:50px;border:0;background:transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:var(--text-muted);font:inherit;text-decoration:none;cursor:pointer;border-radius:12px;-webkit-tap-highlight-color:transparent; }
   .mobile-nav button span,.mobile-nav a span { font-size:18px;line-height:1; }
   .mobile-nav button small,.mobile-nav a small { font-size:9px;font-weight:800;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
   .mobile-nav a.active,.mobile-nav button.active { color:#C52A31;background:rgba(197,42,49,.07); }
 
-  /* Role-aware full navigation drawer. */
   .mobile-menu-backdrop { position:fixed;inset:0;z-index:1000;background:rgba(15,23,42,.48);backdrop-filter:blur(3px); }
   .mobile-menu-drawer { position:fixed;z-index:1001;top:0;bottom:0;left:0;width:min(88vw,360px);background:var(--card-bg);border-right:1px solid var(--card-border);box-shadow:18px 0 50px rgba(0,0,0,.18);transform:translateX(-105%);transition:transform .22s ease;display:flex;flex-direction:column;padding-bottom:env(safe-area-inset-bottom); }
   html[dir="rtl"] .mobile-menu-drawer { left:auto;right:0;transform:translateX(105%);border-right:0;border-left:1px solid var(--card-border); }

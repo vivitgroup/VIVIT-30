@@ -1,0 +1,9 @@
+export {
+  FAHD_ACADEMY as VIVITO_ACADEMY,
+  FAHD_ACADEMY_CONTEXT as VIVITO_ACADEMY_CONTEXT,
+  FAHD_ACADEMY_TESTS as VIVITO_ACADEMY_TESTS,
+} from "../fahd/academy";
+
+export {
+  FAHD_SOURCE_NOTES_CONTEXT as VIVITO_SOURCE_NOTES_CONTEXT,
+} from "../fahd/source-notes-batch-03";

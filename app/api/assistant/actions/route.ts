@@ -1,8 +1,32 @@
 export const dynamic="force-dynamic";
 import {NextRequest,NextResponse} from "next/server";
 import {auth} from "@/lib/auth";
-import {db,clients,users,creativeTasks,notifications,auditLogs} from "@/lib/db";
-import {and,eq} from "drizzle-orm";
-const TYPES=new Set(["REEL","GRAPHIC","CAROUSEL","MOTION_GRAPHIC","VIDEO_EDIT","PHOTO_SESSION","STORY","UGC"]),PRIORITY=new Set(["URGENT","HIGH","MEDIUM","LOW"]);
-async function ownedClient(role:string,userId:string,clientId:string){const [c]=await db.select({id:clients.id,accountManagerId:clients.accountManagerId,isActive:clients.isActive}).from(clients).where(eq(clients.id,clientId)).limit(1);if(!c?.isActive)return false;return role==="SUPER_ADMIN"||(role==="ACCOUNT_MANAGER"&&c.accountManagerId===userId)}
-export async function POST(req:NextRequest){const s=await auth();if(!s?.user)return NextResponse.json({error:"Unauthorized"},{status:401});const role=String((s.user as any).role||""),userId=String((s.user as any).id||""),b=await req.json().catch(()=>({})),op=String(b.op||"");if(!["SUPER_ADMIN","ACCOUNT_MANAGER"].includes(role))return NextResponse.json({error:"This action requires management approval."},{status:403});if(b.confirm!==true)return NextResponse.json({error:"Explicit confirmation is required before Copilot executes an action.",preview:b},{status:409});if(op==="create_task"){const title=String(b.title||"").trim().slice(0,180),clientId=String(b.clientId||""),type=String(b.type||"GRAPHIC"),priority=String(b.priority||"MEDIUM"),brief=String(b.brief||"").trim().slice(0,5000),creatorId=String(b.assignedToId||"")||null,deadline=new Date(String(b.deadline||""));if(!title||!brief||!TYPES.has(type)||!PRIORITY.has(priority)||Number.isNaN(deadline.getTime())||!await ownedClient(role,userId,clientId))return NextResponse.json({error:"Invalid or unauthorized task action."},{status:400});if(creatorId){const [u]=await db.select({id:users.id}).from(users).where(and(eq(users.id,creatorId),eq(users.role,"CREATOR"),eq(users.isActive,true))).limit(1);if(!u)return NextResponse.json({error:"Invalid creator."},{status:400})}const [task]=await db.insert(creativeTasks).values({title,clientId,type:type as any,brief,priority:priority as any,status:"PENDING",assignedToId:creatorId,deadline,createdById:userId} as any).returning();if(creatorId)await db.insert(notifications).values({userId:creatorId,type:"TASK_ASSIGNED",title:`Copilot assigned: ${title}`,message:`Deadline: ${deadline.toLocaleDateString()}`,link:`/dashboard/creative/${task.id}`,priority:priority==="URGENT"?"high":"normal"} as any);await db.insert(auditLogs).values({userId,action:"copilot_action_create_task",entity:"CreativeTask",entityId:task.id,newValues:JSON.stringify({title,clientId,type,priority,confirmed:true})} as any);return NextResponse.json({success:true,action:"create_task",taskId:task.id,link:`/dashboard/creative/${task.id}`},{headers:{"Cache-Control":"private, no-store"}})}if(op==="remind_me"){const title=String(b.title||"Copilot reminder").slice(0,160),message=String(b.message||"").slice(0,1000),link=String(b.link||"/dashboard/today");await db.insert(notifications).values({userId,type:"COPILOT_REMINDER",title,message,link:link.startsWith("/")&&!link.startsWith("//")?link:"/dashboard/today",priority:"normal"} as any);await db.insert(auditLogs).values({userId,action:"copilot_action_reminder",entity:"Notification",newValues:JSON.stringify({title,confirmed:true})} as any);return NextResponse.json({success:true,action:"remind_me"},{headers:{"Cache-Control":"private, no-store"}})}return NextResponse.json({error:"Unsupported Copilot action."},{status:400})}
+import {db,auditLogs,sql} from "@/lib/db";
+import {executeVivitoAction,VivitoActionError} from "@/lib/vivito/executor";
+import {VIVITO_ACTION_CATALOG,type VivitoActionOp} from "@/lib/vivito/action-engine";
+
+const W="default";
+const clean=(v:any,n=120)=>String(v||"").trim().slice(0,n);
+
+export async function POST(req:NextRequest){
+ const session=await auth();
+ if(!session?.user)return NextResponse.json({error:"Unauthorized"},{status:401});
+ const body=await req.json().catch(()=>null);
+ if(!body)return NextResponse.json({error:"Invalid request."},{status:400});
+ const role=String((session.user as any).role||""),userId=String((session.user as any).id||""),op=clean(body.op,60) as VivitoActionOp,requestId=clean(body.requestId,100);
+ if(!VIVITO_ACTION_CATALOG[op])return NextResponse.json({error:"Unsupported VIVITO action."},{status:400});
+ if(body.confirm!==true)return NextResponse.json({error:"Explicit confirmation is required before VIVITO writes to the ERP.",preview:{op,args:body.args||{}}},{status:409});
+ if(requestId){
+  const done=Array.from(await db.execute(sql`select id,new_values from audit_logs where workspace_id=${W} and user_id=${userId} and action='vivito_action_executed' and new_values::jsonb->>'requestId'=${requestId} order by created_at desc limit 1`)) as any[];
+  if(done[0]){let previous:any={};try{previous=JSON.parse(String(done[0].new_values||"{}"))}catch{}return NextResponse.json({success:true,duplicate:true,action:op,result:previous.result||null},{headers:{"Cache-Control":"private, no-store"}})}
+ }
+ try{
+  const result=await executeVivitoAction(op,body.args||{},role,userId);
+  await db.insert(auditLogs).values({workspaceId:W,userId,action:"vivito_action_executed",entity:"vivito",entityId:String(result?.entityId||requestId||crypto.randomUUID()),newValues:JSON.stringify({requestId:requestId||null,op,result})} as any);
+  return NextResponse.json({success:true,action:op,result},{headers:{"Cache-Control":"private, no-store"}});
+ }catch(error){
+  if(error instanceof VivitoActionError)return NextResponse.json({error:error.message,details:error.details||null},{status:error.status,headers:{"Cache-Control":"private, no-store"}});
+  console.error("VIVITO action execution failed",error);
+  return NextResponse.json({error:"VIVITO could not execute the action safely."},{status:500,headers:{"Cache-Control":"private, no-store"}});
+ }
+}

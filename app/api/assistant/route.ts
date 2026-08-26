@@ -3,8 +3,8 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db, sql } from "@/lib/db";
-import { FAHD_ACADEMY_CONTEXT } from "@/lib/fahd/academy";
-import { FAHD_SOURCE_NOTES_CONTEXT } from "@/lib/fahd/source-notes-batch-03";
+import { VIVITO_ACADEMY_CONTEXT, VIVITO_SOURCE_NOTES_CONTEXT } from "@/lib/vivito/academy";
+import { buildVivitoDecisionProtocol } from "@/lib/vivito/intelligence";
 
 const W = "default";
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
@@ -124,7 +124,7 @@ function taskAnswer(question: string, tasks: any[]) {
   return `${arabic ? `عندك ${tasks.length} تاسك نشطة. أقرب الديدلاينز:` : `You have ${tasks.length} active tasks. Nearest deadlines:`}\n${soon.map(line).join("\n")}`;
 }
 
-const PLAYBOOK = `You are FAHD, VIVIT's senior operating intelligence. Behave like a combined CMO, growth strategist, performance media lead, business-development operator, creative director, content strategist, brand strategist, account director, sales advisor, analytics/CRO specialist and agency operator.
+const PLAYBOOK = `You are VIVITO — VIVIT Operating Intelligence. Behave like a combined CMO, growth strategist, performance media lead, business-development operator, creative director, content strategist, brand strategist, account director, sales advisor, analytics/CRO specialist and agency operator.
 
 KNOWLEDGE GOVERNANCE:
 - Academy content is curated professional guidance. Validated source notes below are higher-confidence, traceable summaries.
@@ -135,11 +135,11 @@ KNOWLEDGE GOVERNANCE:
 - Explicitly distinguish FACT, INFERENCE, HYPOTHESIS and RECOMMENDATION when ambiguity matters.
 - When sources conflict, explain the trade-off and select the recommendation that best fits the evidence and business goal.
 
-FAHD ACADEMY:
-${FAHD_ACADEMY_CONTEXT}
+VIVITO ACADEMY:
+${VIVITO_ACADEMY_CONTEXT}
 
 VALIDATED SOURCE NOTES:
-${FAHD_SOURCE_NOTES_CONTEXT}
+${VIVITO_SOURCE_NOTES_CONTEXT}
 
 VIVIT OPERATING RULES:
 - Messages campaign: primary result = messaging conversations reported by Meta; CPR = spend/messages.
@@ -158,6 +158,8 @@ RESPONSE STANDARD:
 5) Give prioritized next actions and state what evidence would change the recommendation.
 6) For creative/design/content advice, give practitioner-level execution detail.
 7) For analytics questions, verify measurement integrity before optimizing media.
+8) Calibrate confidence to evidence quality; never fake certainty.
+9) Consider cross-functional causes before blaming one department.
 Use Egyptian Arabic when the user writes Arabic, while keeping standard English marketing terms where clearer.`;
 
 export async function POST(req: NextRequest) {
@@ -176,14 +178,14 @@ export async function POST(req: NextRequest) {
 
   if (role === "CLIENT") {
     return NextResponse.json(
-      { answer: taskAnswer(question, tasks), sources: ["Creative Tasks"], mode: "tasks" },
+      { answer: taskAnswer(question, tasks), sources: ["Creative Tasks"], mode: "tasks", intelligence: "VIVITO" },
       { headers: { "Cache-Control": "private, no-store" } }
     );
   }
 
   if (!["SUPER_ADMIN", "ACCOUNT_MANAGER", "MEDIA_BUYER", "CREATOR"].includes(role)) {
     return NextResponse.json(
-      { answer: taskAnswer(question, tasks), sources: ["Creative Tasks"], mode: "tasks" },
+      { answer: taskAnswer(question, tasks), sources: ["Creative Tasks"], mode: "tasks", intelligence: "VIVITO" },
       { headers: { "Cache-Control": "private, no-store" } }
     );
   }
@@ -245,7 +247,8 @@ export async function POST(req: NextRequest) {
     context.billing = billing.slice(0, 20);
   }
 
-  const system = `${PLAYBOOK}\nCurrent role: ${role}. Use only supplied ERP LIVE CONTEXT for current VIVIT facts and metrics.`;
+  const decisionProtocol = buildVivitoDecisionProtocol(question, role);
+  const system = `${PLAYBOOK}\n\n${decisionProtocol}\n\nUse only supplied ERP LIVE CONTEXT for current VIVIT facts and metrics.`;
   const prompt = `QUESTION:\n${question}\n\nERP LIVE CONTEXT:\n${JSON.stringify(context)}`;
 
   try {
@@ -254,9 +257,10 @@ export async function POST(req: NextRequest) {
       {
         answer,
         sources: canSeeFinance
-          ? ["FAHD Academy", "Validated Source Notes", "Creative Tasks", "Media Campaigns", "Client Billing"]
-          : ["FAHD Academy", "Validated Source Notes", "Creative Tasks", "Media Campaigns"],
+          ? ["VIVITO Academy", "Validated Source Notes", "Creative Tasks", "Media Campaigns", "Client Billing"]
+          : ["VIVITO Academy", "Validated Source Notes", "Creative Tasks", "Media Campaigns"],
         mode: "advisor",
+        intelligence: "VIVITO",
       },
       { headers: { "Cache-Control": "private, no-store" } }
     );
@@ -266,7 +270,7 @@ export async function POST(req: NextRequest) {
       ? `\n\nLive media snapshot: ${Math.round(mediaSpend).toLocaleString("en-EG")} EGP spend MTD · ${messages} messages · ${atc} ATC · ${purchases} purchases.`
       : "";
     return NextResponse.json(
-      { answer: `${base}${extra}`, sources: ["Creative Tasks", "Media Campaigns"], mode: "erp-fallback" },
+      { answer: `${base}${extra}`, sources: ["Creative Tasks", "Media Campaigns"], mode: "erp-fallback", intelligence: "VIVITO" },
       { status: 200, headers: { "Cache-Control": "private, no-store" } }
     );
   }

@@ -1,7 +1,11 @@
 import fs from "node:fs";
 const read=p=>fs.readFileSync(p,"utf8"),checks=[],check=(name,ok)=>checks.push({name,ok:Boolean(ok)});
-const intel=read("lib/vivito/intelligence.ts"),bench=read("lib/vivito/benchmark.ts"),evalr=read("lib/vivito/evaluator.ts"),providers=read("lib/vivito/providers.ts"),playbook=read("lib/vivito/playbook.ts"),release=read("lib/vivito/release.ts"),runner=read("scripts/run-vivito-benchmark.ts"),route=read("app/api/assistant/route.ts"),ui=read("components/assistant/SystemAssistant.tsx"),side=read("components/layout/Sidebar.tsx"),studio=read("app/dashboard/ai-studio/page.tsx");
+const intel=read("lib/vivito/intelligence.ts"),bench=read("lib/vivito/benchmark.ts"),evalr=read("lib/vivito/evaluator.ts"),providers=read("lib/vivito/providers.ts"),playbook=read("lib/vivito/playbook.ts"),academy=read("lib/vivito/academy.ts"),release=read("lib/vivito/release.ts"),runner=read("scripts/run-vivito-benchmark.ts"),route=read("app/api/assistant/route.ts"),ui=read("components/assistant/SystemAssistant.tsx"),side=read("components/layout/Sidebar.tsx"),studio=read("app/dashboard/ai-studio/page.tsx");
 check("VIVITO identity is canonical",intel.includes('VIVITO_NAME="VIVITO"')&&intel.includes("VIVIT Operating Intelligence"));
+check("Legacy Fahd knowledge directory is removed",!fs.existsSync("lib/fahd"));
+check("Legacy Fahd QA script is removed",!fs.existsSync("scripts/qa-fahd-academy.mjs"));
+check("Legacy Fahd experience component is removed",!fs.existsSync("components/experience/VivitFahd.tsx"));
+check("VIVITO Academy has no legacy Fahd dependency",!academy.includes("../fahd")&&!academy.includes("FAHD_"));
 check("Intelligence score has ten dimensions",(intel.match(/max:10/g)||[]).length===10);
 check("Evidence hierarchy starts from live ERP",intel.indexOf('"LIVE_ERP_DATA"')<intel.indexOf('"EXPERT_HEURISTICS"'));
 check("Nine expert brains exist",(intel.match(/label:"[^"]+ Brain"/g)||[]).length===9);

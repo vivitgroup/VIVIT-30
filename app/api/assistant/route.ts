@@ -6,7 +6,7 @@ import { db, sql } from "@/lib/db";
 import { FAHD_ACADEMY_CONTEXT } from "@/lib/fahd/academy";
 import { FAHD_SOURCE_NOTES_CONTEXT } from "@/lib/fahd/source-notes-batch-03";
 
-const WORKSPACE = "default";
+const W = "default";
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 const n = (v: unknown) => Number(v || 0);
 const isArabic = (s: string) => /[\u0600-\u06ff]/.test(s);
@@ -76,13 +76,13 @@ async function generate(prompt: string, system: string) {
 async function clientScope(role: string, userId: string): Promise<any[]> {
   let rows: any;
   if (role === "SUPER_ADMIN") {
-    rows = await db.execute(sql`select id,company_name,industry from clients where workspace_id=${WORKSPACE} and is_active=true order by company_name`);
+    rows = await db.execute(sql`select id,company_name,industry from clients where workspace_id=${W} and is_active=true order by company_name`);
   } else if (role === "ACCOUNT_MANAGER") {
-    rows = await db.execute(sql`select id,company_name,industry from clients where workspace_id=${WORKSPACE} and is_active=true and account_manager_id=${userId} order by company_name`);
+    rows = await db.execute(sql`select id,company_name,industry from clients where workspace_id=${W} and is_active=true and account_manager_id=${userId} order by company_name`);
   } else if (role === "MEDIA_BUYER") {
-    rows = await db.execute(sql`select id,company_name,industry from clients where workspace_id=${WORKSPACE} and is_active=true and media_buyer_id=${userId} order by company_name`);
+    rows = await db.execute(sql`select id,company_name,industry from clients where workspace_id=${W} and is_active=true and media_buyer_id=${userId} order by company_name`);
   } else if (role === "CLIENT") {
-    rows = await db.execute(sql`select id,company_name,industry from clients where workspace_id=${WORKSPACE} and is_active=true and user_id=${userId} limit 1`);
+    rows = await db.execute(sql`select id,company_name,industry from clients where workspace_id=${W} and is_active=true and user_id=${userId} limit 1`);
   } else return [];
   return Array.from(rows as any) as any[];
 }
@@ -90,9 +90,9 @@ async function clientScope(role: string, userId: string): Promise<any[]> {
 async function taskContext(role: string, userId: string, ids: string[]): Promise<any[]> {
   let rows: any;
   if (role === "CREATOR") {
-    rows = await db.execute(sql`select t.id,t.title,t.status,t.priority,t.deadline,t.client_id,c.company_name from creative_tasks t join clients c on c.id=t.client_id where t.workspace_id=${WORKSPACE} and t.archived_at is null and t.deleted_at is null and c.is_active=true and t.assigned_to_id=${userId} and t.status not in ('COMPLETED','REJECTED') order by t.deadline asc limit 120`);
+    rows = await db.execute(sql`select t.id,t.title,t.status,t.priority,t.deadline,t.client_id,c.company_name from creative_tasks t join clients c on c.id=t.client_id where t.workspace_id=${W} and t.archived_at is null and t.deleted_at is null and c.is_active=true and t.assigned_to_id=${userId} and t.status not in ('COMPLETED','REJECTED') order by t.deadline asc limit 120`);
   } else if (ids.length) {
-    rows = await db.execute(sql`select t.id,t.title,t.status,t.priority,t.deadline,t.client_id,c.company_name from creative_tasks t join clients c on c.id=t.client_id where t.workspace_id=${WORKSPACE} and t.archived_at is null and t.deleted_at is null and c.is_active=true and t.client_id in (${sql.join(ids.map((id) => sql`${id}`), sql`,`)}) and t.status not in ('COMPLETED','REJECTED') order by t.deadline asc limit 120`);
+    rows = await db.execute(sql`select t.id,t.title,t.status,t.priority,t.deadline,t.client_id,c.company_name from creative_tasks t join clients c on c.id=t.client_id where t.workspace_id=${W} and t.archived_at is null and t.deleted_at is null and c.is_active=true and t.client_id in (${sql.join(ids.map((id) => sql`${id}`), sql`,`)}) and t.status not in ('COMPLETED','REJECTED') order by t.deadline asc limit 120`);
   } else return [];
   return Array.from(rows as any) as any[];
 }

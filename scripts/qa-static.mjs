@@ -13,7 +13,7 @@ const proxy=read("proxy.ts"),sidebar=read("components/layout/Sidebar.tsx"),mobil
 for(const route of ["/dashboard/revenue-attribution","/dashboard/nps","/dashboard/onboarding","/dashboard/monthly-reports","/dashboard/marketplace","/dashboard/budget","/dashboard/archive"])pass(`Proxy protects ${route}`,proxy.includes(route));
 pass("Next 16 proxy convention is used",fs.existsSync(path.join(root,"proxy.ts"))&&!fs.existsSync(path.join(root,"middleware.ts")));
 pass("Calendar navigation and proxy agree for CLIENT",sidebar.includes('label:"Calendar"')&&proxy.includes('"/dashboard/calendar"')&&proxy.includes('"SALES","CLIENT"'));
-pass("AI Studio navigation and proxy agree",sidebar.includes('label:"AI Assistant"')&&proxy.includes('"/dashboard/ai-studio"')&&proxy.includes('"CREATOR","SALES","ACCOUNTANT","CLIENT"'));
+pass("FAHD navigation and proxy agree",sidebar.includes('label:"FAHD"')&&sidebar.includes('href:"/dashboard/ai-studio"')&&proxy.includes('"/dashboard/ai-studio"')&&proxy.includes('"CREATOR","SALES","ACCOUNTANT","CLIENT"'));
 pass("Archive navigation and proxy agree",sidebar.includes('label:"Archive"')&&proxy.includes('"/dashboard/archive"')&&proxy.includes('"SUPER_ADMIN","ACCOUNT_MANAGER","SALES"'));
 pass("Mobile CLIENT calendar is not dead navigation",mobile.includes('href:"/dashboard/calendar"')&&proxy.includes('"/dashboard/calendar"'));
 pass("Calendar page allows CLIENT and SALES read access",calendarPage.includes("Role.CLIENT")&&calendarPage.includes("Role.SALES"));

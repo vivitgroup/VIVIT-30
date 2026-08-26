@@ -1,6 +1,7 @@
 import { FAHD_INGESTED_BATCH_01_CONTEXT } from "./ingested-batch-01";
 import { FAHD_INGESTED_BATCH_02_CONTEXT } from "./ingested-batch-02";
 import { FAHD_SOURCE_NOTES_BATCH_04_CONTEXT } from "./source-notes-batch-04";
+import { FAHD_SOURCE_NOTES_BATCH_05_CONTEXT } from "./source-notes-batch-05";
 
 export type FahdDomain={name:string;sources:string[];principles:string[]};
 
@@ -31,6 +32,8 @@ export const FAHD_ACADEMY_CONTEXT=[
   FAHD_INGESTED_BATCH_02_CONTEXT,
   "# VERIFIED PLATFORM NOTES — BATCH 04",
   FAHD_SOURCE_NOTES_BATCH_04_CONTEXT,
+  "# META SPECIALIST NOTES — BATCH 05",
+  FAHD_SOURCE_NOTES_BATCH_05_CONTEXT,
 ].join("\n\n");
 
 export const FAHD_ACADEMY_TESTS=[

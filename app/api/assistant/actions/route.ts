@@ -3,6 +3,7 @@ import {NextRequest,NextResponse} from "next/server";
 import {auth} from "@/lib/auth";
 import {db,auditLogs,sql} from "@/lib/db";
 import {executeVivitoAction,VivitoActionError} from "@/lib/vivito/executor";
+import {executeVivitoExtendedAction,isVivitoExtendedAction} from "@/lib/vivito/executor-extended";
 import {VIVITO_ACTION_CATALOG,type VivitoActionOp} from "@/lib/vivito/action-engine";
 
 const W="default";
@@ -21,7 +22,9 @@ export async function POST(req:NextRequest){
   if(done[0]){let previous:any={};try{previous=JSON.parse(String(done[0].new_values||"{}"))}catch{}return NextResponse.json({success:true,duplicate:true,action:op,result:previous.result||null},{headers:{"Cache-Control":"private, no-store"}})}
  }
  try{
-  const result=await executeVivitoAction(op,body.args||{},role,userId);
+  const result=isVivitoExtendedAction(op)
+   ?await executeVivitoExtendedAction(op,body.args||{},role,userId)
+   :await executeVivitoAction(op,body.args||{},role,userId);
   await db.insert(auditLogs).values({workspaceId:W,userId,action:"vivito_action_executed",entity:"vivito",entityId:String(result?.entityId||requestId||crypto.randomUUID()),newValues:JSON.stringify({requestId:requestId||null,op,result})} as any);
   return NextResponse.json({success:true,action:op,result},{headers:{"Cache-Control":"private, no-store"}});
  }catch(error){

@@ -7,7 +7,8 @@
   "regions": ["fra1"],
   "git": {
     "deploymentEnabled": {
-      "fix/v5-client-media-fahd": false
+      "fix/v5-client-media-fahd": false,
+      "qa/100-percent-release": false
     }
   },
   "crons": [

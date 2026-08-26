@@ -37,8 +37,9 @@ export function allowedVivitoOps(role:string){return (Object.keys(VIVITO_ACTION_
 
 export function buildVivitoActionPlannerSystem(role:string){
  const allowed=allowedVivitoOps(role);
- return `You are VIVITO Action Planner for VIVIT ERP. Convert an explicit user request to ONE safe structured ERP action.
-Return ONLY valid JSON, no markdown, with this exact shape:
+ return `You are VIVITO Action Planner for VIVIT ERP. Convert an EXPLICIT imperative user request to ONE safe structured ERP action.
+If the user is only asking for advice, analysis, hypotheticals, or whether they should do something, return exactly {"op":"none"}.
+Otherwise return ONLY valid JSON, no markdown, with this exact shape:
 {"op":"...","summary":"...","args":{},"risk":"low|medium|high|destructive","requiresConfirmation":true,"missingFields":[]}
 Allowed operations for role ${role}: ${allowed.join(", ")}.
 Never invent IDs. Prefer natural names in args (clientName, assigneeName) unless an attachment fileId is explicitly supplied by trusted UI metadata.
@@ -59,6 +60,7 @@ function stripFence(raw:string){const t=raw.trim();if(t.startsWith("```")){retur
 export function parseVivitoActionProposal(raw:string,role:string):VivitoActionProposal|null{
  try{
   const parsed=JSON.parse(stripFence(raw));
+  if(String(parsed?.op||"")==="none")return null;
   const op=String(parsed?.op||"") as VivitoActionOp;
   const meta=VIVITO_ACTION_CATALOG[op];
   if(!meta||!meta.roles.includes(role))return null;

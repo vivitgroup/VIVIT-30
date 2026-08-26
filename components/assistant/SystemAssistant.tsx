@@ -6,8 +6,11 @@ const CLIENT_QUICK=["تاسكاتي الحالية","إيه اللي في الر
 const ADMIN_QUICK=["Executive pulse","أهم مشاكل الميديا","التاسكات المتأخرة","ضيف عميل جديد","سجل مصروف","5 قرارات بالأولوية"];
 const TEAM_QUICK=["تاسكاتي الحالية","إيه المتأخر؟","Recommendation لعملاي","ساعدني في content strategy","راجع media performance"];
 
-type ActionProposal={op:string;summary:string;args:Record<string,unknown>;risk:"low"|"medium"|"high"|"destructive";requiresConfirmation:true;missingFields:string[]};
-type ChatMsg={id:string;who:"you"|"vivito";text:string;sources?:string[];action?:ActionProposal;actionRequestId?:string;actionState?:"ready"|"running"|"done"|"failed";actionResult?:string};
+type Risk="low"|"medium"|"high"|"destructive";
+type ActionProposal={op:string;summary:string;args:Record<string,unknown>;risk:Risk;requiresConfirmation:true;missingFields:string[]};
+type ActionPlan={summary:string;steps:ActionProposal[];risk:Risk;requiresConfirmation:true;missingFields:string[]};
+type RunState="ready"|"running"|"done"|"failed";
+type ChatMsg={id:string;who:"you"|"vivito";text:string;sources?:string[];action?:ActionProposal;plan?:ActionPlan;actionRequestId?:string;actionState?:RunState;actionResult?:string;planRequestId?:string;planState?:RunState;planResult?:string};
 type Attachment={fileId:string;name:string;mimeType:string};
 const mid=()=>crypto.randomUUID();
 
@@ -15,74 +18,45 @@ export function SystemAssistant({role}:{role:string}){
  const [open,setOpen]=useState(false),[q,setQ]=useState(""),[busy,setBusy]=useState(false),[uploading,setUploading]=useState(false),[attachments,setAttachments]=useState<Attachment[]>([]),[msgs,setMsgs]=useState<ChatMsg[]>([]);
  const fileRef=useRef<HTMLInputElement>(null),isClient=role==="CLIENT",isAdmin=role==="SUPER_ADMIN",quick=useMemo(()=>isClient?CLIENT_QUICK:isAdmin?ADMIN_QUICK:TEAM_QUICK,[isClient,isAdmin]);
 
- async function ask(v:string,atts:Attachment[],attempt=0):Promise<any>{
-  try{const r=await fetch("/api/assistant",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({question:v,attachments:atts}),cache:"no-store"}),d=await r.json().catch(()=>({}));if(!r.ok&&attempt<1)return ask(v,atts,attempt+1);return{ok:r.ok,data:d}}
-  catch{if(attempt<1)return ask(v,atts,attempt+1);return{ok:false,data:{error:"Connection interrupted. Try again."}}}
- }
+ async function ask(v:string,atts:Attachment[],attempt=0):Promise<any>{try{const r=await fetch("/api/assistant",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({question:v,attachments:atts}),cache:"no-store"}),d=await r.json().catch(()=>({}));if(!r.ok&&attempt<1)return ask(v,atts,attempt+1);return{ok:r.ok,data:d}}catch{if(attempt<1)return ask(v,atts,attempt+1);return{ok:false,data:{error:"Connection interrupted. Try again."}}}}
 
  async function executeAction(messageId:string,action:ActionProposal,requestId?:string){
-  const id=requestId||crypto.randomUUID();
-  setMsgs(m=>m.map(x=>x.id===messageId?{...x,actionRequestId:id,actionState:"running"}:x));
-  try{
-   const r=await fetch("/api/assistant/actions",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({op:action.op,args:action.args,confirm:true,requestId:id}),cache:"no-store"}),d=await r.json().catch(()=>({}));
-   if(!r.ok)throw new Error(d.error||"Action failed");
-   const text=d?.result?.message||"Action completed.";
-   setMsgs(m=>m.map(x=>x.id===messageId?{...x,actionState:"done",actionResult:text}:x));
-  }catch(e:any){setMsgs(m=>m.map(x=>x.id===messageId?{...x,actionState:"failed",actionResult:e?.message||"Action failed safely."}:x))}
+  const id=requestId||crypto.randomUUID();setMsgs(m=>m.map(x=>x.id===messageId?{...x,actionRequestId:id,actionState:"running"}:x));
+  try{const r=await fetch("/api/assistant/actions",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({op:action.op,args:action.args,confirm:true,requestId:id}),cache:"no-store"}),d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||"Action failed");const text=d?.result?.message||"Action completed.";setMsgs(m=>m.map(x=>x.id===messageId?{...x,actionState:"done",actionResult:text}:x))}
+  catch(e:any){setMsgs(m=>m.map(x=>x.id===messageId?{...x,actionState:"failed",actionResult:e?.message||"Action failed safely."}:x))}
+ }
+
+ async function executePlan(messageId:string,plan:ActionPlan,requestId?:string){
+  const id=requestId||crypto.randomUUID();setMsgs(m=>m.map(x=>x.id===messageId?{...x,planRequestId:id,planState:"running"}:x));
+  try{const r=await fetch("/api/assistant/actions",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({plan:plan.steps.map(s=>({op:s.op,args:s.args,summary:s.summary})),confirm:true,requestId:id}),cache:"no-store"}),d=await r.json().catch(()=>({}));if(!r.ok){const completed=Array.isArray(d.completedSteps)?d.completedSteps.length:0;throw new Error(`${d.error||"Plan stopped safely."}${completed?` · ${completed} step(s) completed`:""}`)}const text=`${Array.isArray(d.results)?d.results.length:plan.steps.length} step(s) completed successfully.`;setMsgs(m=>m.map(x=>x.id===messageId?{...x,planState:"done",planResult:text}:x))}
+  catch(e:any){setMsgs(m=>m.map(x=>x.id===messageId?{...x,planState:"failed",planResult:e?.message||"Plan stopped safely."}:x))}
  }
 
  async function send(text=q){
-  const v=text.trim();if(!v||busy||uploading)return;
-  const currentAttachments=[...attachments],userId=mid();
-  setQ("");setAttachments([]);
-  setMsgs(m=>[...m,{id:userId,who:"you",text:v+(currentAttachments.length?`\n📎 ${currentAttachments.map(a=>a.name).join(", ")}`:"")}]);
-  setBusy(true);
-  const out=await ask(v,currentAttachments),d=out.data||{},botId=mid();
-  const msg:ChatMsg={id:botId,who:"vivito",text:d.answer||d.error||"Connection interrupted. Try again.",sources:Array.isArray(d.sources)?d.sources:[],action:d.actionProposal,actionState:d.actionProposal?"ready":undefined};
-  setMsgs(m=>[...m,msg]);setBusy(false);
-  if(d.actionProposal&&!d.actionProposal.missingFields?.length&&["low","medium"].includes(d.actionProposal.risk))setTimeout(()=>executeAction(botId,d.actionProposal),0);
+  const v=text.trim();if(!v||busy||uploading)return;const currentAttachments=[...attachments],userId=mid();setQ("");setAttachments([]);setMsgs(m=>[...m,{id:userId,who:"you",text:v+(currentAttachments.length?`\n📎 ${currentAttachments.map(a=>a.name).join(", ")}`:"")}]);setBusy(true);
+  const out=await ask(v,currentAttachments),d=out.data||{},botId=mid();const msg:ChatMsg={id:botId,who:"vivito",text:d.answer||d.error||"Connection interrupted. Try again.",sources:Array.isArray(d.sources)?d.sources:[],action:d.actionProposal,plan:d.actionPlan,actionState:d.actionProposal?"ready":undefined,planState:d.actionPlan?"ready":undefined};setMsgs(m=>[...m,msg]);setBusy(false);
+  if(d.actionPlan&&!d.actionPlan.missingFields?.length&&["low","medium"].includes(d.actionPlan.risk))setTimeout(()=>executePlan(botId,d.actionPlan),0);
+  else if(d.actionProposal&&!d.actionProposal.missingFields?.length&&["low","medium"].includes(d.actionProposal.risk))setTimeout(()=>executeAction(botId,d.actionProposal),0);
  }
 
- async function uploadFile(file:File){
-  if(file.size>500*1024*1024)throw new Error("Maximum file size is 500 MB.");
-  const sign=await fetch("/api/files",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({op:"sign",name:file.name,size:file.size,mimeType:file.type})}),signed=await sign.json().catch(()=>({}));
-  if(!sign.ok)throw new Error(signed.error||"Could not prepare upload");
-  await new Promise<void>((resolve,reject)=>{const xhr=new XMLHttpRequest();xhr.open("PUT",signed.uploadUrl);xhr.setRequestHeader("x-upsert","false");xhr.onerror=()=>reject(new Error("Network error while uploading."));xhr.onload=()=>xhr.status>=200&&xhr.status<300?resolve():reject(new Error(`Storage rejected the file (${xhr.status}).`));const body=new FormData();body.append("cacheControl","3600");body.append("",file,file.name);xhr.send(body)});
-  const complete=await fetch("/api/files",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({op:"complete",path:signed.path,name:file.name,size:file.size,mimeType:file.type,category:"GENERAL",clientId:null,taskId:null})}),done=await complete.json().catch(()=>({}));
-  if(!complete.ok)throw new Error(done.error||"Could not save file details");
-  return{fileId:String(done.file?.id||done.fileId||""),name:file.name,mimeType:file.type||"application/octet-stream"};
- }
+ async function uploadFile(file:File){if(file.size>500*1024*1024)throw new Error("Maximum file size is 500 MB.");const sign=await fetch("/api/files",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({op:"sign",name:file.name,size:file.size,mimeType:file.type})}),signed=await sign.json().catch(()=>({}));if(!sign.ok)throw new Error(signed.error||"Could not prepare upload");await new Promise<void>((resolve,reject)=>{const xhr=new XMLHttpRequest();xhr.open("PUT",signed.uploadUrl);xhr.setRequestHeader("x-upsert","false");xhr.onerror=()=>reject(new Error("Network error while uploading."));xhr.onload=()=>xhr.status>=200&&xhr.status<300?resolve():reject(new Error(`Storage rejected the file (${xhr.status}).`));const body=new FormData();body.append("cacheControl","3600");body.append("",file,file.name);xhr.send(body)});const complete=await fetch("/api/files",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({op:"complete",path:signed.path,name:file.name,size:file.size,mimeType:file.type,category:"GENERAL",clientId:null,taskId:null})}),done=await complete.json().catch(()=>({}));if(!complete.ok)throw new Error(done.error||"Could not save file details");return{fileId:String(done.file?.id||done.fileId||""),name:file.name,mimeType:file.type||"application/octet-stream"}}
+ async function chooseFile(e:ChangeEvent<HTMLInputElement>){const file=e.target.files?.[0];e.target.value="";if(!file)return;setUploading(true);try{const a=await uploadFile(file);if(!a.fileId)throw new Error("Upload completed without a file reference.");setAttachments([a])}catch(err:any){setMsgs(m=>[...m,{id:mid(),who:"vivito",text:err?.message||"File upload failed."}])}finally{setUploading(false)}}
 
- async function chooseFile(e:ChangeEvent<HTMLInputElement>){
-  const file=e.target.files?.[0];e.target.value="";if(!file)return;setUploading(true);
-  try{const a=await uploadFile(file);if(!a.fileId)throw new Error("Upload completed without a file reference.");setAttachments([a])}
-  catch(err:any){setMsgs(m=>[...m,{id:mid(),who:"vivito",text:err?.message||"File upload failed."}])}
-  finally{setUploading(false)}
- }
-
- const intro=isClient?"أنا VIVITO. شايف حسابك والتاسكات والريفيو والديدلاينز المسموح لك بيها.":isAdmin?"أنا VIVITO — VIVIT Operating Intelligence. بقرأ التشغيل والميديا والعملاء، وبقدر أنفّذ أوامر حقيقية داخل السيستم بصلاحياتك.":"أنا VIVITO. هربط سؤالك بالشغل والداتا، وأنفّذ العمليات المسموح بها لدورك.";
- return <>
-  <button onClick={()=>setOpen(v=>!v)} aria-label="Open VIVITO" className={`va-fab ${open?"active":""}`}><VivitVivito mood={busy||uploading?"thinking":msgs.length?"insight":"calm"} compact/></button>
-  {open&&<aside className="va-panel" aria-label="VIVITO conversation">
-   <header className="va-head"><div className="va-identity"><VivitVivito mood={busy||uploading?"thinking":"calm"} compact/><div><b>VIVITO</b><small>{isAdmin?"VIVIT OPERATING INTELLIGENCE + ACTION ENGINE":isClient?"CLIENT OPERATING CONTEXT":"OPERATING INTELLIGENCE"} · LIVE</small></div></div><button onClick={()=>setOpen(false)} aria-label="Close">×</button></header>
-   <div className="va-context"><span className="va-live"/> {intro}</div>
-   <div className="va-quick">{quick.map(x=><button key={x} onClick={()=>send(x)} disabled={busy||uploading}>{x}<span>↗</span></button>)}</div>
-   <div className="va-chat">
-    {msgs.length===0&&<div className="va-empty"><strong>Ask or command VIVITO</strong><span>مثال: “اعمل تاسك يوسف لعميل Cinnamon”، “سجل مصروف 2500 إنتاج”، أو ارفع صورة وقل “حط دي لعميل X”.</span></div>}
-    {msgs.map(m=><div key={m.id} className={`va-row ${m.who}`}><div className="va-speaker">{m.who==="vivito"?"VIVITO":"YOU"}</div><div className={`va-msg ${m.who==="vivito"?"ai":"you"}`}><div>{m.text}</div>
-     {m.action&&<div className={`va-action risk-${m.action.risk}`}><div className="va-action-top"><b>{m.action.op.replaceAll("_"," ")}</b><span>{m.action.risk}</span></div><div>{m.action.summary}</div>{m.action.missingFields?.length?<div className="va-action-missing">Missing: {m.action.missingFields.join(", ")}</div>:null}
-      {m.actionState==="running"?<button disabled>Executing…</button>:m.actionState==="done"?<div className="va-action-ok">✓ {m.actionResult}</div>:m.actionState==="failed"?<><div className="va-action-error">{m.actionResult}</div><button onClick={()=>executeAction(m.id,m.action!,m.actionRequestId)}>Retry safely</button></>:m.action.missingFields?.length?null:["high","destructive"].includes(m.action.risk)?<button className={m.action.risk==="destructive"?"danger":""} onClick={()=>executeAction(m.id,m.action!)}>Confirm & execute</button>:<div className="va-action-auto">Executing authorized command…</div>}
-     </div>}
-     {m.who==="vivito"&&m.sources?.length?<div className="va-sources">{m.sources.map(s=><span key={s}>{s}</span>)}</div>:null}
-    </div></div>)}
-    {(busy||uploading)&&<div className="va-thinking"><span/><span/><span/> {uploading?"Uploading securely":"Reading live operating context"}</div>}
-   </div>
-   {attachments.length>0&&<div className="va-attachments">{attachments.map(a=><span key={a.fileId}>📎 {a.name}<button onClick={()=>setAttachments([])}>×</button></span>)}</div>}
-   <div className="va-input"><input ref={fileRef} type="file" hidden onChange={chooseFile}/><button className="va-attach" onClick={()=>fileRef.current?.click()} disabled={busy||uploading} aria-label="Attach file">＋</button><textarea value={q} onChange={e=>setQ(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send()}}} placeholder="Ask or command VIVITO…"/><button onClick={()=>send()} disabled={busy||uploading||!q.trim()} aria-label="Send">↑</button></div>
-   <footer className="va-foot">VIVIT OS · role-scoped execution · audited writes · destructive actions require confirmation</footer>
-  </aside>}
-  <style>{CSS}</style>
- </>;
+ const intro=isClient?"أنا VIVITO. شايف حسابك والتاسكات والريفيو والديدلاينز المسموح لك بيها.":isAdmin?"أنا VIVITO — VIVIT Operating Intelligence. بفهم، بفتكر القواعد المصرّح بها، وبنفّذ workflows حقيقية جوه السيستم بصلاحياتك.":"أنا VIVITO. هربط سؤالك بالداتا، أفتكر قواعدك المصرّح بها، وأنفّذ العمليات المسموح بها لدورك.";
+ return <><button onClick={()=>setOpen(v=>!v)} aria-label="Open VIVITO" className={`va-fab ${open?"active":""}`}><VivitVivito mood={busy||uploading?"thinking":msgs.length?"insight":"calm"} compact/></button>{open&&<aside className="va-panel" aria-label="VIVITO conversation">
+  <header className="va-head"><div className="va-identity"><VivitVivito mood={busy||uploading?"thinking":"calm"} compact/><div><b>VIVITO</b><small>{isAdmin?"INTELLIGENCE · MEMORY · ACTIONS · ORCHESTRATION":isClient?"CLIENT OPERATING CONTEXT":"OPERATING INTELLIGENCE"} · LIVE</small></div></div><button onClick={()=>setOpen(false)} aria-label="Close">×</button></header>
+  <div className="va-context"><span className="va-live"/> {intro}</div><div className="va-quick">{quick.map(x=><button key={x} onClick={()=>send(x)} disabled={busy||uploading}>{x}<span>↗</span></button>)}</div>
+  <div className="va-chat">{msgs.length===0&&<div className="va-empty"><strong>Ask, teach, or command VIVITO</strong><span>مثال: “افتكر إن العميل X لازم الـcontent عربي”، أو “ضيف عميل X، اعمله تاسك ليوسف، واربط الصورة دي عليه”.</span></div>}
+   {msgs.map(m=><div key={m.id} className={`va-row ${m.who}`}><div className="va-speaker">{m.who==="vivito"?"VIVITO":"YOU"}</div><div className={`va-msg ${m.who==="vivito"?"ai":"you"}`}><div>{m.text}</div>
+    {m.plan&&<div className={`va-action va-plan risk-${m.plan.risk}`}><div className="va-action-top"><b>MULTI-STEP PLAN · {m.plan.steps.length}</b><span>{m.plan.risk}</span></div><div>{m.plan.summary}</div><ol className="va-plan-steps">{m.plan.steps.map((s,i)=><li key={`${s.op}-${i}`}><b>{s.op.replaceAll("_"," ")}</b><span>{s.summary}</span></li>)}</ol>{m.plan.missingFields?.length?<div className="va-action-missing">Missing: {m.plan.missingFields.join(", ")}</div>:null}
+     {m.planState==="running"?<button disabled>Executing plan…</button>:m.planState==="done"?<div className="va-action-ok">✓ {m.planResult}</div>:m.planState==="failed"?<><div className="va-action-error">{m.planResult}</div><button onClick={()=>executePlan(m.id,m.plan!,m.planRequestId)}>Resume safely</button></>:m.plan.missingFields?.length?null:["high","destructive"].includes(m.plan.risk)?<button className={m.plan.risk==="destructive"?"danger":""} onClick={()=>executePlan(m.id,m.plan!)}>Confirm entire plan</button>:<div className="va-action-auto">Executing authorized plan…</div>}
+    </div>}
+    {m.action&&<div className={`va-action risk-${m.action.risk}`}><div className="va-action-top"><b>{m.action.op.replaceAll("_"," ")}</b><span>{m.action.risk}</span></div><div>{m.action.summary}</div>{m.action.missingFields?.length?<div className="va-action-missing">Missing: {m.action.missingFields.join(", ")}</div>:null}{m.actionState==="running"?<button disabled>Executing…</button>:m.actionState==="done"?<div className="va-action-ok">✓ {m.actionResult}</div>:m.actionState==="failed"?<><div className="va-action-error">{m.actionResult}</div><button onClick={()=>executeAction(m.id,m.action!,m.actionRequestId)}>Retry safely</button></>:m.action.missingFields?.length?null:["high","destructive"].includes(m.action.risk)?<button className={m.action.risk==="destructive"?"danger":""} onClick={()=>executeAction(m.id,m.action!)}>Confirm & execute</button>:<div className="va-action-auto">Executing authorized command…</div>}</div>}
+    {m.who==="vivito"&&m.sources?.length?<div className="va-sources">{m.sources.map(s=><span key={s}>{s}</span>)}</div>:null}</div></div>)}
+   {(busy||uploading)&&<div className="va-thinking"><span/><span/><span/> {uploading?"Uploading securely":"Reading live operating context"}</div>}
+  </div>{attachments.length>0&&<div className="va-attachments">{attachments.map(a=><span key={a.fileId}>📎 {a.name}<button onClick={()=>setAttachments([])}>×</button></span>)}</div>}
+  <div className="va-input"><input ref={fileRef} type="file" hidden onChange={chooseFile}/><button className="va-attach" onClick={()=>fileRef.current?.click()} disabled={busy||uploading} aria-label="Attach file">＋</button><textarea value={q} onChange={e=>setQ(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send()}}} placeholder="Ask, teach, or command VIVITO…"/><button onClick={()=>send()} disabled={busy||uploading||!q.trim()} aria-label="Send">↑</button></div><footer className="va-foot">VIVIT OS · scoped memory · role-scoped execution · audited plans · destructive actions require confirmation</footer>
+ </aside>}<style>{CSS}</style></>;
 }
 
 const CSS=`
@@ -91,7 +65,7 @@ const CSS=`
 .va-head{position:relative;padding:14px 16px 10px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,.08)}.va-identity{display:flex;align-items:center;gap:3px}.va-head b{font-size:13px;letter-spacing:.14em}.va-head small{display:block;font-size:7.5px;letter-spacing:.1em;color:#bcaec3;margin-top:3px}.va-head>button{border:1px solid rgba(255,255,255,.1);width:30px;height:30px;border-radius:10px;background:rgba(255,255,255,.04);color:#fff;font-size:18px;cursor:pointer}
 .va-context{position:relative;padding:11px 15px;font-size:10.5px;line-height:1.55;color:#c9bdcf;border-bottom:1px solid rgba(255,255,255,.07)}.va-live{display:inline-block;width:6px;height:6px;border-radius:50%;background:#77df9a;box-shadow:0 0 10px rgba(119,223,154,.7);margin-right:5px}.va-quick{position:relative;display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:10px;border-bottom:1px solid rgba(255,255,255,.07)}.va-quick button{display:flex;justify-content:space-between;gap:8px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.035);color:#eee7f1;border-radius:11px;padding:8px 9px;font-size:9.5px;font-weight:700;cursor:pointer;text-align:left}
 .va-chat{position:relative;flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:12px}.va-empty{margin:auto 0;padding:18px;border:1px solid rgba(255,255,255,.07);background:linear-gradient(135deg,rgba(255,255,255,.045),rgba(255,255,255,.015));border-radius:18px}.va-empty strong{display:block;font-size:17px;margin-bottom:7px}.va-empty span{display:block;color:#a99dad;font-size:11px;line-height:1.65}.va-row{display:flex;flex-direction:column;gap:4px;max-width:94%}.va-row.you{align-self:flex-end;align-items:flex-end}.va-speaker{font-size:7px;letter-spacing:.16em;color:#756b7a}.va-msg{padding:10px 12px;border-radius:15px;font-size:11.5px;line-height:1.62;white-space:pre-wrap;overflow-wrap:anywhere}.va-msg.you{background:linear-gradient(135deg,#6f2e79,#a93248);color:#fff;border-bottom-right-radius:5px}.va-msg.ai{background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.07);color:#eee8f0;border-bottom-left-radius:5px}
-.va-sources{display:flex;gap:4px;flex-wrap:wrap;margin-top:8px;padding-top:7px;border-top:1px solid rgba(255,255,255,.08)}.va-sources span{font-size:8px;padding:3px 6px;border-radius:999px;background:rgba(244,195,92,.08);color:#e1bd69}.va-action{margin-top:9px;padding:10px;border:1px solid rgba(255,255,255,.12);border-radius:12px;background:rgba(255,255,255,.035);white-space:normal}.va-action-top{display:flex;justify-content:space-between;gap:8px;text-transform:uppercase;font-size:8px;letter-spacing:.08em;margin-bottom:6px}.va-action-top span{opacity:.72}.va-action button{margin-top:9px;width:100%;border:0;border-radius:9px;padding:8px 10px;font-size:10px;font-weight:900;background:#d7ad4f;color:#1a1208;cursor:pointer}.va-action button.danger{background:#dc5050;color:#fff}.va-action-missing,.va-action-error{margin-top:7px;color:#ff9b9b;font-size:9px}.va-action-ok{margin-top:8px;color:#8de3ab;font-weight:800}.va-action-auto{margin-top:7px;color:#d9bc71;font-size:9px}.risk-destructive{border-color:rgba(255,79,79,.35)}
+.va-sources{display:flex;gap:4px;flex-wrap:wrap;margin-top:8px;padding-top:7px;border-top:1px solid rgba(255,255,255,.08)}.va-sources span{font-size:8px;padding:3px 6px;border-radius:999px;background:rgba(244,195,92,.08);color:#e1bd69}.va-action{margin-top:9px;padding:10px;border:1px solid rgba(255,255,255,.12);border-radius:12px;background:rgba(255,255,255,.035);white-space:normal}.va-action-top{display:flex;justify-content:space-between;gap:8px;text-transform:uppercase;font-size:8px;letter-spacing:.08em;margin-bottom:6px}.va-action-top span{opacity:.72}.va-action button{margin-top:9px;width:100%;border:0;border-radius:9px;padding:8px 10px;font-size:10px;font-weight:900;background:#d7ad4f;color:#1a1208;cursor:pointer}.va-action button.danger{background:#dc5050;color:#fff}.va-action-missing,.va-action-error{margin-top:7px;color:#ff9b9b;font-size:9px}.va-action-ok{margin-top:8px;color:#8de3ab;font-weight:800}.va-action-auto{margin-top:7px;color:#d9bc71;font-size:9px}.risk-destructive{border-color:rgba(255,79,79,.35)}.va-plan{background:linear-gradient(145deg,rgba(132,89,255,.08),rgba(255,255,255,.025))}.va-plan-steps{margin:8px 0 0;padding-left:20px;display:grid;gap:6px}.va-plan-steps li{font-size:9px;color:#cfc4d4}.va-plan-steps b{display:block;color:#fff;text-transform:uppercase;font-size:8px;letter-spacing:.06em}.va-plan-steps span{display:block;margin-top:2px}
 .va-thinking{font-size:9px;color:#a99dad;display:flex;align-items:center;gap:4px}.va-thinking span{width:4px;height:4px;border-radius:50%;background:#d8a943;animation:vaDot 1s infinite}.va-attachments{position:relative;padding:0 10px 7px;display:flex;gap:6px;flex-wrap:wrap}.va-attachments span{font-size:9px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.08);border-radius:999px;padding:5px 8px}.va-attachments button{border:0;background:transparent;color:#fff;margin-left:5px;cursor:pointer}.va-input{position:relative;margin:0 10px 8px;padding:7px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.045);border-radius:16px;display:flex;gap:7px;align-items:end}.va-input textarea{flex:1;min-height:38px;max-height:100px;resize:none;border:0;background:transparent;color:#fff;padding:9px 2px;font:inherit;font-size:11.5px;outline:none}.va-input>button{border:0;width:38px;height:38px;border-radius:12px;background:linear-gradient(145deg,#e0b34f,#b97b28);color:#20150b;font-size:18px;font-weight:900;cursor:pointer}.va-input .va-attach{background:rgba(255,255,255,.07);color:#fff;font-size:20px}.va-foot{position:relative;text-align:center;padding:0 10px 10px;color:#5f5663;font-size:7.5px;letter-spacing:.08em;text-transform:uppercase}
 @keyframes vaDot{50%{opacity:.25;transform:translateY(-2px)}}@media(max-width:560px){.va-fab{right:14px;bottom:76px;width:60px;height:60px}.va-panel{right:10px;bottom:144px;width:calc(100vw - 20px);height:min(620px,72vh);border-radius:22px}.va-quick{grid-template-columns:1fr 1fr}}
 `;

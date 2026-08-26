@@ -10,8 +10,8 @@ check("Root error is mobile width safe",globalError.includes('width:"min(560px,1
 check("404 page gives dashboard recovery",notFound.includes("Page not found")&&notFound.includes('href="/dashboard"'));
 check("404 page gives login recovery",notFound.includes('href="/login"'));
 check("Dashboard loading uses skeleton rather than fake values",loading.includes("skeleton")&&!/EGP \d|\$\d/.test(loading));
-check("Client Portal has real empty creative state",portal.includes("No uploaded creatives are ready for your review yet."));
-check("Client Portal has real empty calendar state",portal.includes("No approved calendar items are scheduled yet."));
+check("Client Portal has real empty creative state",portal.includes("Nothing is waiting for your approval"));
+check("Client Portal has real empty calendar state",portal.includes("No upcoming deadlines."));
 check("Sales has real no-leads state",sales.includes("No active leads in your scope."));
 check("Payroll has real period empty state",payroll.includes("No payroll rows for this period."));
 check("Forecast has explicit no-evidence state",forecast.includes("no evidence to forecast"));

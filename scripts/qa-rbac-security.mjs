@@ -44,9 +44,9 @@ check("Bulk completed transition records completedAt",bulk.includes('target==="C
 check("Bulk client export is active workspace scoped",bulk.includes("eq(clients.workspaceId,WORKSPACE),eq(clients.isActive,true)"));
 check("Bulk task export and notification reuse active task scope",bulk.includes('case"tasks.export"')&&bulk.includes('case"tasks.notify"')&&bulk.includes("taskScope(ids,role,owned,userId)"));
 check("Bulk overdue invoices are workspace scoped",bulk.includes("eq(financeRecords.workspaceId,WORKSPACE)")&&bulk.includes("overdue_marked"));
-check("Assistant client scope is active and workspace scoped",assistant.includes("eq(clients.workspaceId,WORKSPACE)")&&assistant.includes("eq(clients.isActive,true)"));
+check("Assistant client scope is active and workspace scoped",assistant.includes("workspace_id=${WORKSPACE}")&&assistant.includes("is_active=true"));
 check("Assistant Creator scope requires assignment unarchived task and active client",assistant.includes("t.assigned_to_id=${userId}")&&assistant.includes("t.archived_at is null")&&assistant.includes("c.is_active=true"));
-check("Assistant active task source is workspace scoped",assistant.includes("c.workspace_id=${WORKSPACE}"));
+check("Assistant active task source is workspace scoped",assistant.includes("t.workspace_id=${WORKSPACE}")&&assistant.includes("c.is_active=true"));
 check("Notification poll requires authentication",poll.includes('error:"Unauthorized"')&&poll.includes("status:401"));
 check("Notification poll preserves user ownership",poll.includes("eq(notifications.userId,String(session.user.id))"));
 check("Notification poll validates cursor and bounds lookback/results",poll.includes("Number.isNaN(parsed.getTime())")&&poll.includes("24*60*60*1000")&&poll.includes(".limit(100)"));

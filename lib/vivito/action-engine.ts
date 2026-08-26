@@ -4,74 +4,47 @@ export type VivitoActionOp=
  |"create_task"|"update_task"|"reassign_task"|"archive_task"|"restore_task"|"delete_task"
  |"schedule_post"|"mark_posted"
  |"create_lead"|"update_lead"|"move_lead"|"archive_lead"
- |"log_expense"|"record_payment"|"create_invoice"
- |"attach_file"|"remind_me";
+ |"log_expense"|"record_payment"|"create_invoice"|"attach_file"|"remind_me"
+ |"create_user"|"update_user"|"set_user_active"|"create_leave_request"|"decide_leave"|"upsert_payroll"|"set_payroll_status"
+ |"create_contract"|"update_contract"|"update_workspace_settings"|"send_email"|"send_whatsapp"
+ |"create_api_key"|"revoke_api_key"|"create_webhook"|"revoke_webhook"
+ |"sync_campaign"|"update_campaign"|"start_integration"|"disconnect_integration"
+ |"export_data"|"generate_report"|"update_onboarding"|"record_nps"|"create_referral"
+ |"bulk_update_tasks"|"bulk_remind_clients";
 
 export type VivitoActionProposal={op:VivitoActionOp;summary:string;args:Record<string,unknown>;risk:VivitoActionRisk;requiresConfirmation:true;missingFields:string[]};
-
+const SA=["SUPER_ADMIN"],MGT=["SUPER_ADMIN","ACCOUNT_MANAGER"],FIN=["SUPER_ADMIN","ACCOUNTANT"],MEDIA=["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"],SALES=["SUPER_ADMIN","SALES"];
 export const VIVITO_ACTION_CATALOG:Record<VivitoActionOp,{roles:string[];risk:VivitoActionRisk;description:string}>={
- create_client:{roles:["SUPER_ADMIN","ACCOUNT_MANAGER","ACCOUNTANT"],risk:"medium",description:"Create a real client record."},
- update_client:{roles:["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"],risk:"medium",description:"Update an authorized client profile or ownership."},
- add_client_contact:{roles:["SUPER_ADMIN","ACCOUNT_MANAGER"],risk:"medium",description:"Add a real contact to an authorized client."},
- archive_client:{roles:["SUPER_ADMIN","ACCOUNT_MANAGER"],risk:"high",description:"Archive/deactivate a client without deleting history."},
- restore_client:{roles:["SUPER_ADMIN","ACCOUNT_MANAGER"],risk:"medium",description:"Restore an archived client."},
- delete_client:{roles:["SUPER_ADMIN"],risk:"destructive",description:"Permanently delete an already archived client only when no linked records exist."},
- create_task:{roles:["SUPER_ADMIN","ACCOUNT_MANAGER"],risk:"medium",description:"Create and optionally assign a creative task for a client."},
- update_task:{roles:["SUPER_ADMIN","ACCOUNT_MANAGER"],risk:"medium",description:"Update task brief, deadline, priority, type, or allowed status."},
- reassign_task:{roles:["SUPER_ADMIN","ACCOUNT_MANAGER"],risk:"medium",description:"Assign or reassign a task to an active Creator."},
- archive_task:{roles:["SUPER_ADMIN","ACCOUNT_MANAGER"],risk:"high",description:"Archive a task."},
- restore_task:{roles:["SUPER_ADMIN","ACCOUNT_MANAGER"],risk:"medium",description:"Restore an archived task."},
- delete_task:{roles:["SUPER_ADMIN"],risk:"destructive",description:"Permanently delete an archived task only when no linked records exist."},
- schedule_post:{roles:["SUPER_ADMIN","ACCOUNT_MANAGER"],risk:"high",description:"Schedule an image/video post on the content calendar using an uploaded client asset."},
- mark_posted:{roles:["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"],risk:"medium",description:"Mark an authorized scheduled calendar post as posted."},
- create_lead:{roles:["SUPER_ADMIN","SALES"],risk:"medium",description:"Create a real Sales CRM lead."},
- update_lead:{roles:["SUPER_ADMIN","SALES"],risk:"medium",description:"Update an authorized lead contact, notes, follow-up, or value."},
- move_lead:{roles:["SUPER_ADMIN","SALES"],risk:"high",description:"Advance an authorized lead through the allowed Sales CRM state machine."},
- archive_lead:{roles:["SUPER_ADMIN","SALES"],risk:"high",description:"Archive an authorized Sales CRM lead."},
- log_expense:{roles:["SUPER_ADMIN","ACCOUNTANT"],risk:"medium",description:"Log a company expense and finance-ledger entry."},
- record_payment:{roles:["SUPER_ADMIN","ACCOUNTANT"],risk:"high",description:"Record a real client payment against outstanding invoices."},
- create_invoice:{roles:["SUPER_ADMIN","ACCOUNTANT"],risk:"high",description:"Create an invoice for a client and period."},
- attach_file:{roles:["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CREATOR","ACCOUNTANT","CLIENT"],risk:"medium",description:"Link an uploaded file to an authorized client/task."},
- remind_me:{roles:["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CREATOR","ACCOUNTANT","SALES","CLIENT"],risk:"low",description:"Create an in-system reminder notification."},
+ create_client:{roles:["SUPER_ADMIN","ACCOUNT_MANAGER","ACCOUNTANT"],risk:"medium",description:"Create a real client record."},update_client:{roles:MEDIA,risk:"medium",description:"Update an authorized client profile."},add_client_contact:{roles:MGT,risk:"medium",description:"Add a client contact."},archive_client:{roles:MGT,risk:"high",description:"Archive a client."},restore_client:{roles:MGT,risk:"medium",description:"Restore a client."},delete_client:{roles:SA,risk:"destructive",description:"Permanently delete an archived client when safe."},
+ create_task:{roles:MGT,risk:"medium",description:"Create and assign a creative task."},update_task:{roles:MGT,risk:"medium",description:"Update a task."},reassign_task:{roles:MGT,risk:"medium",description:"Reassign a task."},archive_task:{roles:MGT,risk:"high",description:"Archive a task."},restore_task:{roles:MGT,risk:"medium",description:"Restore a task."},delete_task:{roles:SA,risk:"destructive",description:"Permanently delete an archived task when safe."},
+ schedule_post:{roles:MGT,risk:"high",description:"Schedule an uploaded image/video on the calendar."},mark_posted:{roles:MEDIA,risk:"medium",description:"Mark a scheduled post as posted."},
+ create_lead:{roles:SALES,risk:"medium",description:"Create a Sales CRM lead."},update_lead:{roles:SALES,risk:"medium",description:"Update a Sales lead."},move_lead:{roles:SALES,risk:"high",description:"Advance a lead through the Sales state machine."},archive_lead:{roles:SALES,risk:"high",description:"Archive a Sales lead."},
+ log_expense:{roles:FIN,risk:"medium",description:"Log a company expense."},record_payment:{roles:FIN,risk:"high",description:"Record a client payment."},create_invoice:{roles:FIN,risk:"high",description:"Create a client invoice."},attach_file:{roles:["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CREATOR","ACCOUNTANT","CLIENT"],risk:"medium",description:"Attach an uploaded file to a client/task."},remind_me:{roles:["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CREATOR","ACCOUNTANT","SALES","CLIENT"],risk:"low",description:"Create an in-system reminder."},
+ create_user:{roles:SA,risk:"high",description:"Create an ERP user account with a one-time temporary password."},update_user:{roles:SA,risk:"high",description:"Update a user's name, phone, or role."},set_user_active:{roles:SA,risk:"high",description:"Activate or deactivate a user."},
+ create_leave_request:{roles:["SUPER_ADMIN","ACCOUNTANT","ACCOUNT_MANAGER","MEDIA_BUYER","CREATOR","SALES"],risk:"medium",description:"Create a leave request."},decide_leave:{roles:SA,risk:"high",description:"Approve or reject a leave request."},upsert_payroll:{roles:FIN,risk:"high",description:"Create or update payroll for a staff member."},set_payroll_status:{roles:FIN,risk:"high",description:"Approve or mark payroll paid."},
+ create_contract:{roles:MGT,risk:"high",description:"Create a client contract."},update_contract:{roles:MGT,risk:"high",description:"Update a client contract or status."},update_workspace_settings:{roles:SA,risk:"high",description:"Update workspace branding and operating settings."},
+ send_email:{roles:["SUPER_ADMIN","ACCOUNT_MANAGER","ACCOUNTANT","SALES"],risk:"high",description:"Send a real email through the configured provider."},send_whatsapp:{roles:["SUPER_ADMIN","ACCOUNT_MANAGER","SALES"],risk:"high",description:"Send a real WhatsApp Cloud API message."},
+ create_api_key:{roles:SA,risk:"high",description:"Create a workspace API key and reveal it once."},revoke_api_key:{roles:SA,risk:"destructive",description:"Revoke an API key."},create_webhook:{roles:SA,risk:"high",description:"Create an HTTPS webhook and secret."},revoke_webhook:{roles:SA,risk:"destructive",description:"Disable a webhook."},
+ sync_campaign:{roles:MEDIA,risk:"medium",description:"Sync a campaign from its connected ad platform."},update_campaign:{roles:MEDIA,risk:"high",description:"Update VIVIT campaign control values."},start_integration:{roles:MEDIA,risk:"high",description:"Start OAuth authorization for an ad-platform integration."},disconnect_integration:{roles:MEDIA,risk:"destructive",description:"Disconnect a client's ad-platform integration."},
+ export_data:{roles:["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","ACCOUNTANT","SALES"],risk:"medium",description:"Prepare an authorized ERP export."},generate_report:{roles:["SUPER_ADMIN","ACCOUNT_MANAGER","ACCOUNTANT"],risk:"medium",description:"Open an authorized report workspace."},update_onboarding:{roles:MGT,risk:"medium",description:"Update a client onboarding step."},record_nps:{roles:MGT,risk:"medium",description:"Record client NPS feedback."},create_referral:{roles:SA,risk:"medium",description:"Create a referral record."},bulk_update_tasks:{roles:MGT,risk:"high",description:"Bulk update an authorized task set."},bulk_remind_clients:{roles:FIN,risk:"high",description:"Create payment follow-up reminders for clients with balances."},
 };
 
-const ACTION_RE=/(ضيف|اضف|أضف|اعمل|أنشئ|انشئ|سجل|سجّل|احذف|امسح|ارش[فف]|أرشف|رجع|استرجع|عيّن|عين|خلي|اربط|ارفع|حط|دفع|دفعت|دفعة|مصروف|فاتور[هة]|عدّل|عدل|غيّر|غير|انقل|حوّل|حول|جدول|انشر|بوست|ليد|عميل محتمل|create|add|assign|reassign|update|edit|delete|remove|archive|restore|record|log|attach|upload|invoice|paid|payment|expense|schedule|post|lead|move|remind)/i;
+const ACTION_RE=/(ضيف|اضف|أضف|اعمل|أنشئ|انشئ|سجل|سجّل|احذف|امسح|ارش[فف]|أرشف|رجع|استرجع|عيّن|عين|خلي|اربط|ارفع|حط|دفع|دفعت|دفعة|مصروف|فاتور[هة]|عدّل|عدل|غيّر|غير|انقل|حوّل|حول|جدول|انشر|بوست|ليد|عميل محتمل|يوزر|مستخدم|موظف|راتب|مرتب|اجاز[هة]|كونتراكت|عقد|واتساب|ايميل|إيميل|ويبهوك|api key|كامبين|حمله|حملة|تقرير|اكسل|اكسبورت|nps|اونبورد|bulk|كل التاسكات|create|add|assign|reassign|update|edit|delete|remove|archive|restore|record|log|attach|upload|invoice|paid|payment|expense|schedule|post|lead|move|remind|user|payroll|leave|contract|whatsapp|email|webhook|campaign|integration|export|report|onboarding|referral)/i;
 export function likelyVivitoActionIntent(question:string,attachmentCount=0){return attachmentCount>0||ACTION_RE.test(question)}
 export function allowedVivitoOps(role:string){return (Object.keys(VIVITO_ACTION_CATALOG) as VivitoActionOp[]).filter(op=>VIVITO_ACTION_CATALOG[op].roles.includes(role))}
 
-export function buildVivitoActionPlannerSystem(role:string){
- const allowed=allowedVivitoOps(role);
- return `You are VIVITO Action Planner for VIVIT ERP. Convert an EXPLICIT imperative user request to ONE safe structured ERP action.
-If the user is only asking for advice, analysis, hypotheticals, or whether they should do something, return exactly {"op":"none"}.
-Otherwise return ONLY valid JSON, no markdown, with this exact shape:
-{"op":"...","summary":"...","args":{},"risk":"low|medium|high|destructive","requiresConfirmation":true,"missingFields":[]}
-Allowed operations for role ${role}: ${allowed.join(", ")}.
-Never invent IDs. Prefer natural names in args (clientName, assigneeName, leadCompanyName) unless an attachment fileId is explicitly supplied by trusted UI metadata.
-Never guess an ambiguous person/client/lead/task. If a required value is absent, put its field name in missingFields and keep it absent from args.
-For create_client require companyName only; optional industry, website, monthlyRetainer, mediaBudget, contractValue, contractStart, contractEnd, accountManagerName, mediaBuyerName, contactName, contactEmail, contactPhone.
-For update_client require clientName and include ONLY fields the user explicitly asked to change: companyName, industry, website, facebookUrl, instagramUrl, metaAdsLink, googleAdsLink, tiktokAdsLink, snapchatAdsLink, internalNotes, monthlyRetainer, mediaBudget, contractValue, contractStart, contractEnd, accountManagerName, mediaBuyerName. Never blank unspecified fields.
-For add_client_contact require clientName and contactName; optional title, email, phone, whatsapp, isPrimary.
-For create_task require clientName, title, brief, deadline; assigneeName optional. type defaults GRAPHIC and priority defaults MEDIUM.
-For update_task require taskId OR taskTitle+clientName and include ONLY requested changes: title, brief, deadline, priority, type, status. Never invent a status transition.
-For reassign_task require taskId OR taskTitle+clientName plus assigneeName.
-For schedule_post require clientName, title, date, platform, and fileId from ATTACHMENTS metadata. Optional caption and taskTitle. Only image/video attachments qualify.
-For mark_posted require eventId OR eventTitle+clientName.
-For create_lead require companyName, contactPerson, estimatedValue; optional phone,email,source,industry,notes.
-For update_lead require leadCompanyName and include ONLY requested changes: contactPerson,phone,email,estimatedValue,industry,notes,nextFollowUp,expectedClose.
-For move_lead require leadCompanyName and stage. Allowed stages are CONTACTED, QUALIFIED, PROPOSAL_SENT, NEGOTIATION, WON, LOST. Do not skip stages.
-For archive_lead require leadCompanyName.
-For log_expense require amount, description; category should be one of Salaries, Freelancers, Tools, Office, Production, Advertising, Travel, Other. If unclear use Other.
-For record_payment require clientName and amount; method may be bank, cash, stripe, paymob, paytabs and defaults bank. Never claim payment is executed in the planner.
-For create_invoice require clientName, month, year, retainer. adSpend and extraServices default 0.
-For archive/restore/delete client require clientName. For archive/restore/delete task require either taskId or taskTitle+clientName.
-For attach_file require clientName and fileId from ATTACHMENTS metadata; category defaults CREATIVE. If user says task, include taskTitle when known.
-For remind_me require title/message; link defaults /dashboard/today.
-Deletion is always destructive. Archiving, payment, invoice, scheduling, and sales-stage moves are high risk. Creation, edits, assignment, attachment, expense, mark-posted are medium except reminder low.
-The summary must be concise and in the user's language. Do not execute anything and do not claim success.`;
-}
-
+export function buildVivitoActionPlannerSystem(role:string){const allowed=allowedVivitoOps(role);return `You are VIVITO Action Planner for VIVIT ERP. Convert an EXPLICIT imperative request to ONE safe structured ERP action. If it is advice/analysis/hypothetical, return exactly {"op":"none"}. Return ONLY JSON: {"op":"...","summary":"...","args":{},"risk":"low|medium|high|destructive","requiresConfirmation":true,"missingFields":[]}.
+Allowed operations for ${role}: ${allowed.join(", ")}.
+Never invent IDs or ambiguous records. Prefer natural names. Put absent required values in missingFields. Never claim execution in the planner.
+Core clients/tasks/files/finance/sales rules: create_client requires companyName; create_task requires clientName,title,brief,deadline; update/reassign/archive/delete task uses taskId OR taskTitle+clientName; record_payment requires clientName,amount; create_invoice requires clientName,month,year,retainer; attach_file requires clientName,fileId from trusted ATTACHMENTS; schedule_post requires clientName,title,date,platform,fileId; sales stages only CONTACTED,QUALIFIED,PROPOSAL_SENT,NEGOTIATION,WON,LOST and do not skip stages.
+Users: create_user requires name,email,role; update_user requires userName plus only explicit name/phone/role; set_user_active requires userName and active boolean.
+HR: create_leave_request requires fromDate,toDate,type and optional reason/userName; decide_leave requires leaveId,decision APPROVED|REJECTED. Payroll requires userName,month,year; upsert_payroll also baseSalary and optional bonus/deductions/notes; set_payroll_status also status DRAFT|APPROVED|PAID.
+Contracts: create_contract requires clientName,title,value,startDate,endDate; update_contract requires clientName,contractId and explicit fields.
+Workspace settings: include ONLY requested name,primaryColor,logoUrl,faviconUrl,customDomain,currency,agencyFeePercent,timezone,billingEmail.
+Messaging: send_email requires to,subject,body; send_whatsapp requires to,body and optional clientName.
+API/webhooks: create_api_key optional name/permissions; revoke_api_key requires apiKeyId; create_webhook requires url and events array; revoke_webhook requires webhookId.
+Media: sync_campaign requires campaignName or campaignId; update_campaign requires campaignName/campaignId and explicit status/dailyBudget/lifetimeBudget/targetCpl/targetCpa/targetRoas; start_integration requires platform; disconnect_integration requires platform and clientName.
+Reporting/ops: export_data requires entity clients|tasks|finance|media|sales; generate_report optionally clientName,period; update_onboarding requires clientName,stepId,completed; record_nps requires clientName,score; create_referral requires email; bulk_update_tasks requires at least status or priority and optional clientName/overdue; bulk_remind_clients optional minimumOutstanding.
+Destructive actions always require explicit confirmation. Financial changes, user/role changes, messaging, contracts, workspace settings, campaign controls, integrations, payroll, bulk actions and external sends are high risk. The summary must match the user's language.`}
 function stripFence(raw:string){const t=raw.trim();if(t.startsWith("```"))return t.replace(/^```(?:json)?\s*/i,"").replace(/\s*```$/i,"").trim();return t}
-export function parseVivitoActionProposal(raw:string,role:string):VivitoActionProposal|null{
- try{const parsed=JSON.parse(stripFence(raw));if(String(parsed?.op||"")==="none")return null;const op=String(parsed?.op||"") as VivitoActionOp,meta=VIVITO_ACTION_CATALOG[op];if(!meta||!meta.roles.includes(role))return null;const missingFields=Array.isArray(parsed.missingFields)?parsed.missingFields.map((x:any)=>String(x).slice(0,80)).slice(0,12):[],args=parsed.args&&typeof parsed.args==="object"&&!Array.isArray(parsed.args)?parsed.args:{};return{op,summary:String(parsed.summary||meta.description).trim().slice(0,500),args,risk:meta.risk,requiresConfirmation:true,missingFields}}
- catch{return null}
-}
+export function parseVivitoActionProposal(raw:string,role:string):VivitoActionProposal|null{try{const p=JSON.parse(stripFence(raw));if(String(p?.op||"")==="none")return null;const op=String(p?.op||"") as VivitoActionOp,meta=VIVITO_ACTION_CATALOG[op];if(!meta||!meta.roles.includes(role))return null;return{op,summary:String(p.summary||meta.description).trim().slice(0,500),args:p.args&&typeof p.args==="object"&&!Array.isArray(p.args)?p.args:{},risk:meta.risk,requiresConfirmation:true,missingFields:Array.isArray(p.missingFields)?p.missingFields.map((x:any)=>String(x).slice(0,80)).slice(0,12):[]}}catch{return null}}

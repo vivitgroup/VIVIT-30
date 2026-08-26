@@ -29,7 +29,7 @@ check("Mark paid updates paid date and method",finance.includes("paidDate:now,pa
 check("Mark paid writes audit history",finance.includes('action:"invoice_paid"'));
 check("Finance page shows recent payment history",finance.includes("Recent payments")&&finance.includes("recentPayments"));
 check("Workspace currency drives finance display",finance.includes("workspaces.currency")&&finance.includes("currency=workspace?.currency||\"EGP\""));
-check("Accounts Payment only includes active clients for AM",accounts.includes("c.is_active=true and c.account_manager_id=${userId}"));
+check("Accounts Payment rejects Account Manager and Media Buyer",accounts.includes("Role.SUPER_ADMIN,Role.ACCOUNTANT")&&accounts.includes('redirect("/dashboard/universe")'));
 check("Accounts Payment only includes active clients for admin/accountant",accounts.includes("where c.workspace_id='default' and c.is_active=true"));
 check("Invoice API is workspace scoped",invoice.includes("eq(financeRecords.workspaceId,WORKSPACE_ID)"));
 check("Invoice API validates finance client access",invoice.includes("canAccessClient(session,record.clientId,{finance:true})"));

@@ -1,14 +1,16 @@
 import {allowedVivitoOps,VIVITO_ACTION_CATALOG,type VivitoActionOp,type VivitoActionProposal} from "./action-engine";
+import {normalizeVivitoLanguage} from "./language";
 
 export type VivitoActionPlan={summary:string;steps:VivitoActionProposal[];risk:"low"|"medium"|"high"|"destructive";requiresConfirmation:true;missingFields:string[]};
 const MULTI_JOIN=/(وبعدين|وبعد كده|وكمان|بعدها|ثم|و اعمل|واعمل|و ضيف|وضيف|و سجل|وسجل|و اربط|واربط|و حط|وحط|و جد[وو]ل|وجد[وو]ل|and then|then|also|and add|and create|and assign|and record|and attach|and schedule)/i;
 const ACTION_WORD=/(ضيف|اضف|أضف|اعمل|أنشئ|انشئ|سجل|سجّل|احذف|امسح|أرشف|ارش[فف]|رجع|استرجع|عيّن|عين|اربط|ارفع|حط|دفع|مصروف|فاتور[هة]|عدّل|عدل|غيّر|غير|انقل|حوّل|حول|جدول|انشر|ليد|create|add|assign|update|delete|archive|restore|record|attach|upload|invoice|payment|expense|schedule|lead|move)/ig;
-export function likelyVivitoMultiStepIntent(text:string){return MULTI_JOIN.test(text)||(text.match(ACTION_WORD)||[]).length>=2}
+export function likelyVivitoMultiStepIntent(text:string){const n=normalizeVivitoLanguage(text).normalized;return MULTI_JOIN.test(text)||MULTI_JOIN.test(n)||(text.match(ACTION_WORD)||[]).length>=2||(n.match(ACTION_WORD)||[]).length>=2}
 
 export function buildVivitoOrchestratorSystem(role:string){const allowed=allowedVivitoOps(role);return `You are VIVITO Operating Orchestrator. Convert an explicit user request containing TWO OR MORE ERP actions into one safe ordered plan.
 Return ONLY JSON with this exact shape:
 {"summary":"...","steps":[{"op":"...","summary":"...","args":{},"missingFields":[]}],"requiresConfirmation":true}
 Allowed operations for role ${role}: ${allowed.join(", ")}.
+LANGUAGE: Understand Arabic, Egyptian slang, Arabic-English mixes, Gen Z shorthand, and Franco/Arabizi. Examples: 3ayez/3awez=عايز, 5aly=خلي, 2fel=اقفل, 3del=عدل, msh=مش, 7ot=حط, emsa7=امسح, w ba3den=وبعدين. Preserve entity names, amounts, dates, IDs, emails and file references exactly. Keep summaries in the user's style.
 Use 2 to 8 steps only. If there is only one real operation return {"steps":[]} so the single-action planner can handle it.
 Never invent IDs or hidden facts. Use natural client/staff/lead/task names from the request and trusted directories. A later step may refer by the same natural name to an entity created by an earlier step.
 Order dependencies correctly: create client before contact/task/file/calendar; create lead before updating/moving it; attach or schedule only after an upload fileId exists in trusted attachment metadata.

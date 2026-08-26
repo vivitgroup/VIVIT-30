@@ -1,3 +1,5 @@
+import {normalizeVivitoLanguage} from "./language";
+
 export type VivitoActionRisk="low"|"medium"|"high"|"destructive";
 export type VivitoActionOp=
  |"create_client"|"update_client"|"add_client_contact"|"archive_client"|"restore_client"|"delete_client"
@@ -30,11 +32,12 @@ export const VIVITO_ACTION_CATALOG:Record<VivitoActionOp,{roles:string[];risk:Vi
 };
 
 const ACTION_RE=/(ضيف|اضف|أضف|اعمل|أنشئ|انشئ|سجل|سجّل|احذف|امسح|ارش[فف]|أرشف|رجع|استرجع|عيّن|عين|خلي|اربط|ارفع|حط|دفع|دفعت|دفعة|مصروف|فاتور[هة]|عدّل|عدل|غيّر|غير|انقل|حوّل|حول|جدول|انشر|بوست|ليد|عميل محتمل|يوزر|مستخدم|موظف|راتب|مرتب|اجاز[هة]|كونتراكت|عقد|واتساب|ايميل|إيميل|ويبهوك|api key|كامبين|حمله|حملة|تقرير|اكسل|اكسبورت|nps|اونبورد|bulk|كل التاسكات|create|add|assign|reassign|update|edit|delete|remove|archive|restore|record|log|attach|upload|invoice|paid|payment|expense|schedule|post|lead|move|remind|user|payroll|leave|contract|whatsapp|email|webhook|campaign|integration|export|report|onboarding|referral)/i;
-export function likelyVivitoActionIntent(question:string,attachmentCount=0){return attachmentCount>0||ACTION_RE.test(question)}
+export function likelyVivitoActionIntent(question:string,attachmentCount=0){const q=normalizeVivitoLanguage(question).normalized;return attachmentCount>0||ACTION_RE.test(question)||ACTION_RE.test(q)}
 export function allowedVivitoOps(role:string){return (Object.keys(VIVITO_ACTION_CATALOG) as VivitoActionOp[]).filter(op=>VIVITO_ACTION_CATALOG[op].roles.includes(role))}
 
 export function buildVivitoActionPlannerSystem(role:string){const allowed=allowedVivitoOps(role);return `You are VIVITO Action Planner for VIVIT ERP. Convert an EXPLICIT imperative request to ONE safe structured ERP action. If it is advice/analysis/hypothetical, return exactly {"op":"none"}. Return ONLY JSON: {"op":"...","summary":"...","args":{},"risk":"low|medium|high|destructive","requiresConfirmation":true,"missingFields":[]}.
 Allowed operations for ${role}: ${allowed.join(", ")}.
+LANGUAGE: Understand Arabic, Egyptian colloquial Arabic, Arabic-English code-switching, Gen Z shorthand, and Franco/Arabizi. Interpret forms like 3ayez/3awez=عايز, 5aly=خلي, 2fel=اقفل, 3del=عدل, msh=مش, 7ot=حط, emsa7=امسح. Preserve client/staff/entity names, amounts, dates, IDs, emails and file references exactly. Write the summary in the user's own language/style.
 Never invent IDs or ambiguous records. Prefer natural names. Put absent required values in missingFields. Never claim execution in the planner.
 Core clients/tasks/files/finance/sales rules: create_client requires companyName; create_task requires clientName,title,brief,deadline; update/reassign/archive/delete task uses taskId OR taskTitle+clientName; record_payment requires clientName,amount; create_invoice requires clientName,month,year,retainer; attach_file requires clientName,fileId from trusted ATTACHMENTS; schedule_post requires clientName,title,date,platform,fileId; sales stages only CONTACTED,QUALIFIED,PROPOSAL_SENT,NEGOTIATION,WON,LOST and do not skip stages.
 Users: create_user requires name,email,role; update_user requires userName plus only explicit name/phone/role; set_user_active requires userName and active boolean.

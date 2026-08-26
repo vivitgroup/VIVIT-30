@@ -6,6 +6,7 @@ import { db,sql } from "@/lib/db";
 import { buildVivitoCriticPrompt,detectVivitoModules } from "@/lib/vivito/intelligence";
 import { buildVivitoSystem } from "@/lib/vivito/playbook";
 import { generateVivito } from "@/lib/vivito/providers";
+import {buildVivitoActionPlannerSystem,likelyVivitoActionIntent,parseVivitoActionProposal} from "@/lib/vivito/action-engine";
 
 const W="default";
 const n=(v:unknown)=>Number(v||0);
@@ -98,6 +99,11 @@ async function financeContext(role:string,ids:string[]):Promise<{billing:any[];e
   return{billing,expenses};
 }
 
+async function actionStaff(role:string){
+  if(!["SUPER_ADMIN","ACCOUNT_MANAGER"].includes(role))return[];
+  return rows(await db.execute(sql`select id,name,role from users where workspace_id=${W} and is_active=true and role in ('CREATOR','ACCOUNT_MANAGER','MEDIA_BUYER') order by name limit 120`));
+}
+
 function taskAnswer(question:string,tasks:any[]){
   const arabic=isArabic(question),q=question.toLowerCase(),today=cairoDay(new Date());
   const todayTasks=tasks.filter(t=>cairoDay(new Date(t.deadline))===today);
@@ -139,11 +145,28 @@ export async function POST(req:NextRequest){
 
   const role=String((session.user as any).role||"");
   const userId=String((session.user as any).id||"");
+  const attachments=Array.isArray(body.attachments)?body.attachments.slice(0,5).map((x:any)=>({fileId:String(x?.fileId||"").slice(0,100),name:String(x?.name||"").slice(0,255),mimeType:String(x?.mimeType||"").slice(0,120)})).filter((x:any)=>x.fileId):[];
   const clients=await clientScope(role,userId);
   const ids=clients.map((c:any)=>String(c.id));
   const [tasks,campaigns,tracking,clientHealth,sales,finance]=await Promise.all([
     taskContext(role,userId,ids),mediaContext(role,ids),trackingContext(role,ids),clientHealthContext(role,ids),salesContext(role,userId),financeContext(role,ids),
   ]);
+
+  if(likelyVivitoActionIntent(question,attachments.length)){
+    try{
+      const staff=await actionStaff(role);
+      const actionPrompt=`USER REQUEST:\n${question}\n\nAUTHORIZED ACTIVE CLIENT DIRECTORY:\n${JSON.stringify(clients.map((c:any)=>({name:c.company_name,id:c.id})))}\n\nAUTHORIZED STAFF DIRECTORY:\n${JSON.stringify(staff)}\n\nATTACHMENTS FROM TRUSTED UI METADATA:\n${JSON.stringify(attachments)}`;
+      const planned=await generateVivito(actionPrompt,buildVivitoActionPlannerSystem(role),{temperature:0,maxTokens:1000});
+      const actionProposal=parseVivitoActionProposal(planned.text,role);
+      if(actionProposal){
+        const arabic=isArabic(question);
+        const answer=actionProposal.missingFields.length
+          ?(arabic?`أقدر أنفّذ ده، بس ناقص: ${actionProposal.missingFields.join("، ")}.`:`I can execute this, but I still need: ${actionProposal.missingFields.join(", ")}.`)
+          :(arabic?`جاهز للتنفيذ: ${actionProposal.summary}`:`Ready to execute: ${actionProposal.summary}`);
+        return NextResponse.json({answer,sources:["VIVITO Action Engine","ERP Authorization Scope"],mode:"action-proposal",intelligence:"VIVITO",actionProposal,intelligenceMeta:{provider:planned.provider,providerAttempts:planned.attempted,liveContext:true,actionPlanning:true}},{headers:{"Cache-Control":"private, no-store"}});
+      }
+    }catch{}
+  }
 
   const canSeeFinance=["SUPER_ADMIN","ACCOUNTANT"].includes(role);
   const context:any={

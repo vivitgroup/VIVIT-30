@@ -22,5 +22,5 @@ const assistantTaskWorkspace=assistant.includes("t.workspace_id=${WORKSPACE}")||
 check("Assistant active clients are workspace and active scoped",assistantWorkspace&&assistant.includes("is_active=true"));
 check("Assistant Creator scope excludes archived tasks and inactive clients",assistantTaskWorkspace&&assistant.includes("t.archived_at is null")&&assistant.includes("c.is_active=true")&&assistant.includes("t.assigned_to_id=${userId}"));
 check("Assistant excludes completed and rejected work",assistant.includes("t.status not in ('COMPLETED','REJECTED')"));
-check("Assistant response is private no-store",assistant.includes('"Cache-Control":"private, no-store"'));
+check("Assistant response is private no-store",/["']Cache-Control["']\s*:\s*["']private, no-store["']/.test(assistant));
 const failed=checks.filter(x=>!x.ok);for(const c of checks)console.log(`${c.ok?"PASS":"FAIL"}  ${c.name}`);console.log(`\n${checks.length-failed.length}/${checks.length} operations security checks passed.`);if(failed.length)process.exit(1);

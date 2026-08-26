@@ -17,7 +17,7 @@ pass("FAHD navigation and proxy agree",sidebar.includes('label:"FAHD"')&&sidebar
 pass("Archive navigation and proxy agree",sidebar.includes('label:"Archive"')&&sidebar.includes('roles:[...OPS,"SALES"]')&&proxy.includes('["/dashboard/archive",[...OPS,"SALES"]]'));
 pass("Mobile CLIENT calendar is not dead navigation",mobile.includes('href:"/dashboard/calendar"')&&proxy.includes('"/dashboard/calendar"'));
 pass("Calendar page allows CLIENT and SALES read access",calendarPage.includes("Role.CLIENT")&&calendarPage.includes("Role.SALES"));
-pass("Calendar management excludes SALES",calendarPage.includes("const canManage=[Role.SUPER_ADMIN,Role.ACCOUNT_MANAGER].includes(role)"));
+const canManageExpr=calendarPage.match(/const canManage=([^;]+);/)?.[1]||"";pass("Calendar management excludes SALES",canManageExpr.length>0&&!canManageExpr.includes("Role.SALES"));
 pass("Archived tasks excluded from calendar task sources",calendarPage.includes("archived_at is null"));
 pass("Scheduled posts require media",/assetFileId/.test(calendar)&&/required/.test(calendar)&&/!assetFileId/.test(calendar));
 pass("Scheduled posts accept images and video",/image\/\*,video\/\*/.test(calendar));

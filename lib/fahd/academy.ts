@@ -1,3 +1,6 @@
+import { FAHD_INGESTED_BATCH_01_CONTEXT } from "./ingested-batch-01";
+import { FAHD_INGESTED_BATCH_02_CONTEXT } from "./ingested-batch-02";
+
 export type FahdDomain={name:string;sources:string[];principles:string[]};
 
 export const FAHD_ACADEMY: FahdDomain[]=[
@@ -17,7 +20,15 @@ export const FAHD_ACADEMY: FahdDomain[]=[
 {name:"Consumer Psychology & Creative Strategy",sources:["The Futur","CXL","Nielsen Norman Group","HubSpot","Dara Denney","Meta for Business","Think Media","Film Booth","Harvard Business Review","Google Ads"],principles:["Attention is earned through relevance and contrast, then retained through clarity and payoff.","Use social proof only when credible and specific.","Reduce cognitive load: fewer competing messages and clearer choices generally improve comprehension.","Price anchoring, framing and scarcity must be truthful; never fabricate urgency.","Creative testing should vary meaningful hypotheses such as hook, angle, proof, format or offer—not random cosmetic changes.","A winning creative insight should be translated into new variants before fatigue, not endlessly duplicated."]}
 ];
 
-export const FAHD_ACADEMY_CONTEXT=FAHD_ACADEMY.map(d=>`## ${d.name}\nSources: ${d.sources.join(", ")}\n${d.principles.map(x=>`- ${x}`).join("\n")}`).join("\n\n");
+const FAHD_FOUNDATION_CONTEXT=FAHD_ACADEMY.map(d=>`## ${d.name}\nSources: ${d.sources.join(", ")}\n${d.principles.map(x=>`- ${x}`).join("\n")}`).join("\n\n");
+
+export const FAHD_ACADEMY_CONTEXT=[
+  FAHD_FOUNDATION_CONTEXT,
+  "# INGESTED LESSONS — BATCH 01",
+  FAHD_INGESTED_BATCH_01_CONTEXT,
+  "# INGESTED LESSONS — BATCH 02",
+  FAHD_INGESTED_BATCH_02_CONTEXT,
+].join("\n\n");
 
 export const FAHD_ACADEMY_TESTS=[
  {domain:"Media Buying",question:"A Meta messaging campaign spent 4,000 EGP and generated 200 messaging conversations. What is the primary result and CPR?",mustInclude:["200","20","messag"]},

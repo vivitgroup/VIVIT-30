@@ -1,0 +1,7 @@
+export const dynamic="force-dynamic";
+import {NextRequest,NextResponse} from "next/server";
+import {auth} from "@/lib/auth";
+import {renderVivitoXlsx} from "@/lib/vivito/xlsx-renderer";
+import {contentPlanToWorkbook,type VivitoContentPlan,type VivitoWorkbook} from "@/lib/vivito/artifact-intelligence";
+const safe=(s:string)=>String(s||"vivito-workbook").replace(/[^a-zA-Z0-9._-]/g,"-").replace(/-+/g,"-").slice(0,80)||"vivito-workbook";
+export async function POST(req:NextRequest){const session=await auth();if(!session?.user)return NextResponse.json({error:"Unauthorized"},{status:401});const body=await req.json().catch(()=>null);if(!body)return NextResponse.json({error:"Workbook or content plan is required."},{status:400});try{const workbook:VivitoWorkbook=body.contentPlan?contentPlanToWorkbook(body.contentPlan as VivitoContentPlan):body.workbook;if(!workbook?.sheets?.length)return NextResponse.json({error:"Workbook requires at least one sheet."},{status:400});const bytes=renderVivitoXlsx(workbook),name=safe(body.fileName||workbook.title)+".xlsx";return new NextResponse(bytes,{headers:{"Content-Type":"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet","Content-Disposition":`attachment; filename="${name}"`,"Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff"}})}catch(e){const m=e instanceof Error?e.message:"XLSX rendering failed.";return NextResponse.json({error:m},{status:422})}}

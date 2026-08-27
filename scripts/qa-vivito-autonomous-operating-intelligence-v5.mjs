@@ -38,3 +38,5 @@ for (const [name, re] of checks) {
 
 console.log(`\n${passed}/${checks.length} VIVITO Autonomous Operating Intelligence V5 checks passed.`);
 if (passed !== checks.length) process.exit(1);
+
+await import("./qa-vivito-cognitive-execution-intelligence-v6.mjs");

@@ -11,6 +11,7 @@
       "fix/vivito-artifacts-v2": false,
       "fix/vivito-competitive-intel": false,
       "fix/vivito-certification-100": false,
+      "fix/vivito-certification-final": false,
       "qa/100-percent-release": false
     }
   },

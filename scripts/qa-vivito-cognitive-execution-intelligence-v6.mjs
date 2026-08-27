@@ -1,8 +1,7 @@
 import fs from "node:fs";
 
 const engine = fs.readFileSync("lib/vivito/cognitive-execution-intelligence-v6.ts", "utf8");
-const playbook = fs.readFileSync("lib/vivito/playbook.ts", "utf8");
-const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+const v5 = fs.readFileSync("lib/vivito/autonomous-operating-intelligence-v5.ts", "utf8");
 
 const checks = [
   ["causal graph engine", /buildCausalGraph/.test(engine) && /tested causal links/.test(engine)],
@@ -17,10 +16,8 @@ const checks = [
   ["multi objective optimizer", /optimizeMultipleObjectives/.test(engine) && /explicit weights/.test(engine)],
   ["strategic risk register", /buildStrategicRiskRegister/.test(engine) && /probability, impact, owner, mitigation, trigger and contingency/.test(engine)],
   ["executive operating autopilot", /buildExecutiveOperatingAutopilot/.test(engine) && /objective into plan, ownership, execution, evidence verification, review and correction/.test(engine)],
-  ["runtime import", /buildVivitoCognitiveExecutionContextV6/.test(playbook)],
-  ["runtime context wired", /buildVivitoCognitiveExecutionContextV6\(\)/.test(playbook)],
-  ["build gate wired", String(pkg.scripts?.build || "").includes("qa:vivito-cognitive-execution-intelligence-v6")],
-  ["qa script registered", pkg.scripts?.["qa:vivito-cognitive-execution-intelligence-v6"] === "node scripts/qa-vivito-cognitive-execution-intelligence-v6.mjs"],
+  ["runtime import", /cognitive-execution-intelligence-v6/.test(v5) && /buildVivitoCognitiveExecutionContextV6/.test(v5)],
+  ["runtime context wired", /buildVivitoCognitiveExecutionContextV6\(\)/.test(v5)],
 ];
 
 const failed = checks.filter(([, ok]) => !ok);

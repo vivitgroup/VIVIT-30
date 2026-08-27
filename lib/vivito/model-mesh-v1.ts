@@ -1,3 +1,5 @@
+import {VIVITO_DEFAULT_MODEL_POOL,VIVITO_DEFAULT_MODEL_POOL_META} from "./model-mesh-pool-v1";
+
 export type VivitoMeshTask="general"|"reasoning"|"creative"|"research"|"finance"|"coding"|"arabic";
 export type VivitoMeshModel={
   id:string;
@@ -30,21 +32,29 @@ function clamp(v:number,min:number,max:number){return Math.max(min,Math.min(max,
 function env(name:string){return String(process.env[name]||"").trim()}
 function stateFor(id:string){return healthLedger.get(id)||{health:"HEALTHY" as VivitoMeshHealth,cooldownUntil:0,failures:0,successes:0}}
 function sanitizeErrorCode(code:string){return code.replace(/[^a-z0-9_-]/gi,"-").slice(0,48).toLowerCase()}
+function defaultPoolEnabled(){return env("VIVITO_DEFAULT_MODEL_POOL")!=="0"}
+
+function normalizeModel(m:any):VivitoMeshModel|null{
+  if(!m||typeof m.id!=="string"||typeof m.provider!=="string"||typeof m.model!=="string"||typeof m.baseUrl!=="string"||typeof m.apiKeyEnv!=="string")return null;
+  const tasks=Array.isArray(m.tasks)?m.tasks.filter((t:any)=>["general","reasoning","creative","research","finance","coding","arabic"].includes(String(t))):undefined;
+  const normalized:VivitoMeshModel={
+    id:m.id.trim(),provider:m.provider.trim(),model:m.model.trim(),baseUrl:m.baseUrl.replace(/\/+$/,"").trim(),apiKeyEnv:m.apiKeyEnv.trim(),enabled:m.enabled!==false,
+    quality:clamp(Number(m.quality??70),0,100),cost:clamp(Number(m.cost??50),0,100),latency:clamp(Number(m.latency??50),0,100),tasks,
+    maxTokens:Number.isFinite(Number(m.maxTokens))?Math.max(1,Number(m.maxTokens)):undefined,
+  };
+  return normalized.id&&normalized.provider&&normalized.model&&normalized.baseUrl&&normalized.apiKeyEnv?normalized:null;
+}
+
+function customMeshModels():VivitoMeshModel[]{
+  const raw=env("VIVITO_MODEL_MESH_JSON");if(!raw)return [];
+  try{const parsed=JSON.parse(raw);if(!Array.isArray(parsed))return [];return parsed.map(normalizeModel).filter(Boolean) as VivitoMeshModel[]}catch{return []}
+}
 
 export function loadVivitoModelMesh():VivitoMeshModel[]{
-  const raw=env("VIVITO_MODEL_MESH_JSON");
-  if(!raw)return [];
-  try{
-    const parsed=JSON.parse(raw);
-    if(!Array.isArray(parsed))return [];
-    const seen=new Set<string>();
-    return parsed.filter((m:any)=>m&&typeof m.id==="string"&&typeof m.provider==="string"&&typeof m.model==="string"&&typeof m.baseUrl==="string"&&typeof m.apiKeyEnv==="string").map((m:any)=>({
-      id:m.id.trim(),provider:m.provider.trim(),model:m.model.trim(),baseUrl:m.baseUrl.replace(/\/+$/,"").trim(),apiKeyEnv:m.apiKeyEnv.trim(),enabled:m.enabled!==false,
-      quality:clamp(Number(m.quality??70),0,100),cost:clamp(Number(m.cost??50),0,100),latency:clamp(Number(m.latency??50),0,100),
-      tasks:Array.isArray(m.tasks)?m.tasks.filter((t:any)=>["general","reasoning","creative","research","finance","coding","arabic"].includes(String(t))):undefined,
-      maxTokens:Number.isFinite(Number(m.maxTokens))?Math.max(1,Number(m.maxTokens)):undefined,
-    })).filter((m:VivitoMeshModel)=>Boolean(m.id&&m.provider&&m.model&&m.baseUrl&&m.apiKeyEnv)&&!seen.has(m.id)&&(seen.add(m.id),true));
-  }catch{return []}
+  const merged=[...(defaultPoolEnabled()?VIVITO_DEFAULT_MODEL_POOL:[]),...customMeshModels()];
+  const byId=new Map<string,VivitoMeshModel>();
+  for(const item of merged){const model=normalizeModel(item);if(model)byId.set(model.id,model)}
+  return [...byId.values()];
 }
 
 export function vivitoMeshHealth(id:string,now=Date.now()){
@@ -99,5 +109,5 @@ export async function generateViaVivitoMesh(prompt:string,system:string,options:
 export function vivitoMeshSummary(){
   const all=loadVivitoModelMesh();const configured=all.filter(m=>m.enabled!==false&&Boolean(env(m.apiKeyEnv)));
   const health=Object.fromEntries(configured.map(m=>[m.id,vivitoMeshHealth(m.id)]));
-  return {registered:all.length,configured:configured.length,providers:new Set(configured.map(m=>m.provider)).size,models:configured.map(m=>m.id),health};
+  return {registered:all.length,configured:configured.length,providers:new Set(configured.map(m=>m.provider)).size,models:configured.map(m=>m.id),health,defaultPool:{enabled:defaultPoolEnabled(),...VIVITO_DEFAULT_MODEL_POOL_META}};
 }

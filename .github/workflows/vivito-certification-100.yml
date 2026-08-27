@@ -42,6 +42,8 @@ jobs:
         run: npx tsx scripts/certify-vivito-execution-e2e.ts
       - name: Run adversarial RBAC certification
         run: npx tsx scripts/certify-vivito-security-e2e.ts
+      - name: Run multi-step reliability certification
+        run: npx tsx scripts/certify-vivito-reliability-e2e.ts
       - name: Generate artifact binary evidence
         run: npx tsx scripts/certify-vivito-artifacts-e2e.ts
       - name: Run provider-backed 100-case intelligence exam when keys exist

@@ -8,7 +8,16 @@ const MIN_TIMEOUT_MS=2000;
 const DEFAULT_TIMEOUT_MS=25000;
 const MAX_TIMEOUT_MS=45000;
 const DEFAULT_GEMINI_MODEL=process.env.GEMINI_MODEL||"gemini-3.7-flash";
-const DEFAULT_GEMINI_FREE_MODEL_CHAIN=["gemini-2.5-flash-lite","gemini-2.5-flash",DEFAULT_GEMINI_MODEL] as const;
+// Keep only current Gemini 3.x text models with Free Tier availability. Legacy 2.5
+// models may be unavailable to newly-created API users even when older accounts
+// can still call them.
+const DEFAULT_GEMINI_FREE_MODEL_CHAIN=[
+  "gemini-3.5-flash-lite",
+  "gemini-3.6-flash",
+  "gemini-3.7-flash",
+  "gemini-3.5-flash",
+  "gemini-3.1-flash-lite",
+] as const;
 
 function boundedTimeout(options:GenerateOptions){
   const requested=Number(options.timeoutMs??process.env.VIVITO_PROVIDER_TIMEOUT_MS??DEFAULT_TIMEOUT_MS);
@@ -49,7 +58,18 @@ function geminiModelChain(){
   const explicit=String(process.env.GEMINI_MODEL||"").trim();
   const configured=String(process.env.GEMINI_FREE_MODEL_CHAIN||"").split(",").map(x=>x.trim()).filter(Boolean);
   const chain=explicit?[explicit,...configured,...DEFAULT_GEMINI_FREE_MODEL_CHAIN]:[...configured,...DEFAULT_GEMINI_FREE_MODEL_CHAIN];
-  return [...new Set(chain)].filter(model=>model&&model!=="gemini-2.0-flash");
+  return [...new Set(chain)].filter(model=>model&&model!=="gemini-2.0-flash"&&!model.startsWith("gemini-2.5-"));
+}
+
+function geminiGenerationConfig(model:string,options:GenerateOptions){
+  const generationConfig:any={maxOutputTokens:options.maxTokens||3200};
+  // Gemini 3.x sampling parameters are deprecated and Google recommends the
+  // model defaults. Constrain thinking instead so the benchmark's output token
+  // budget remains available for the final answer.
+  if(model.includes("flash-lite"))generationConfig.thinkingConfig={thinkingLevel:"minimal"};
+  else if(/^gemini-3\./.test(model))generationConfig.thinkingConfig={thinkingLevel:"low"};
+  else generationConfig.temperature=options.temperature??0.18;
+  return generationConfig;
 }
 
 function geminiError(model:string,d:any,status:number){
@@ -69,12 +89,12 @@ async function callGemini(prompt:string,system:string,options:GenerateOptions){
         body:JSON.stringify({
           systemInstruction:{parts:[{text:system}]},
           contents:[{role:"user",parts:[{text:prompt}]}],
-          generationConfig:{temperature:options.temperature??0.18,maxOutputTokens:options.maxTokens||3200},
+          generationConfig:geminiGenerationConfig(model,options),
         }),
       });
       const d=await safeJson(r);
       if(!r.ok){errors.push(geminiError(model,d,r.status));continue;}
-      const text=String(d?.candidates?.[0]?.content?.parts?.map((p:any)=>p.text).join("\n")||"").trim();
+      const text=String(d?.candidates?.[0]?.content?.parts?.filter((p:any)=>!p.thought).map((p:any)=>p.text).join("\n")||"").trim();
       if(!text){errors.push(`${model}:empty-response`);continue;}
       return text;
     }catch(error){

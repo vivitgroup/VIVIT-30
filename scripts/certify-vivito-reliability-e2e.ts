@@ -24,7 +24,6 @@ async function main(){
    if(!replay.success||replay.duplicateSteps!==2){idempotencyPassed=false;knownCriticalDefects++;failures.push({case:i,phase:'replay',replay});}
    else replayCases++;
  }
- // Stop-on-failure + safe resume: step 1 commits once, step 2 fails, then the same request resumes without repeating step 1.
  const failureId='cert-recovery-1';
  const badSteps:VivitoPlanStep[]=[
    {op:'update_user',args:{userName:'Cert User 1',phone:'+201399999991'},summary:'Committed first step'},
@@ -40,7 +39,7 @@ async function main(){
    rollbackRecoveryPassed=!!resumed.success&&resumed.duplicateSteps===1;
    if(!rollbackRecoveryPassed){knownCriticalDefects++;failures.push({phase:'resume',resumed});}
  }
- const duplicateAudit=Array.from(await db.execute(sql`select count(*)::int count from audit_logs where workspace_id='default' and user_id=${userId} and action='vivito_plan_step_executed' and new_values::jsonb->>'requestId' like 'cert-reliability-%'`) as any)[0]?.count??0;
+ const duplicateAudit=Array.from(await db.execute(sql`select count(*)::int count from audit_logs where workspace_id='default' and user_id=${userId} and action='vivito_plan_step_executed' and ((new_values::jsonb->>'requestId') like 'cert-reliability-%' or (new_values::jsonb->>'requestId')=${failureId})`) as any)[0]?.count??0;
  const passed=multiStepCases===50&&replayCases===50&&idempotencyPassed&&rollbackRecoveryPassed&&knownCriticalDefects===0&&Number(duplicateAudit)===101;
  const report={passed,multiStepCases,replayCases,idempotencyPassed,rollbackRecoveryPassed,knownCriticalDefects,uniqueExecutedSteps:Number(duplicateAudit),failures:failures.slice(0,20),database:'ephemeral-postgres',productionDataUsed:false};
  fs.writeFileSync('.vivito/production-reliability-e2e.json',JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));if(!passed)process.exitCode=1;

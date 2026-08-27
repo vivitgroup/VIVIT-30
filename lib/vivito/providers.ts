@@ -8,7 +8,7 @@ const MIN_TIMEOUT_MS=2000;
 const DEFAULT_TIMEOUT_MS=25000;
 const MAX_TIMEOUT_MS=45000;
 const DEFAULT_GEMINI_MODEL=process.env.GEMINI_MODEL||"gemini-3.7-flash";
-const DEFAULT_GEMINI_FREE_MODEL_CHAIN=["gemini-2.5-flash-lite","gemini-2.5-flash",DEFAULT_GEMINI_MODEL] as const;
+const DEFAULT_GEMINI_FREE_MODEL_CHAIN=["gemini-3.6-flash","gemini-3.5-flash","gemini-3.5-flash-lite",DEFAULT_GEMINI_MODEL] as const;
 
 function boundedTimeout(options:GenerateOptions){
   const requested=Number(options.timeoutMs??process.env.VIVITO_PROVIDER_TIMEOUT_MS??DEFAULT_TIMEOUT_MS);
@@ -53,8 +53,9 @@ function geminiModelChain(){
 }
 
 function geminiError(model:string,d:any,status:number){
-  const message=String(d?.error?.message||`gemini-${status}`).replace(/[\r\n\t]+/g," ").slice(0,220);
-  return `${model}:${message}`;
+  const code=String(d?.error?.status||"error").replace(/[^A-Za-z0-9_-]/g,"").slice(0,40)||"error";
+  const message=String(d?.error?.message||`gemini-${status}`).replace(/[\r\n\t]+/g," ").replace(/\s+/g," ").slice(0,90);
+  return `${model}:http-${status}:${code}:${message}`;
 }
 
 async function callGemini(prompt:string,system:string,options:GenerateOptions){
@@ -78,7 +79,7 @@ async function callGemini(prompt:string,system:string,options:GenerateOptions){
       if(!text){errors.push(`${model}:empty-response`);continue;}
       return text;
     }catch(error){
-      const raw=String((error as any)?.name==="TimeoutError"?"timeout":(error as any)?.message||error).replace(/[\r\n\t]+/g," ").slice(0,180);
+      const raw=String((error as any)?.name==="TimeoutError"?"timeout":(error as any)?.message||error).replace(/[\r\n\t]+/g," ").slice(0,120);
       errors.push(`${model}:${raw}`);
     }
   }

@@ -4,6 +4,7 @@ import { VIVITO_INGESTED_BATCH_02_CONTEXT } from "./ingested-batch-02";
 import { VIVITO_SOURCE_NOTES_CONTEXT,VIVITO_SOURCE_NOTES_BATCH_03 } from "./source-notes-batch-03";
 import { VIVITO_SOURCE_NOTES_BATCH_04_CONTEXT } from "./source-notes-batch-04";
 import { VIVITO_SOURCE_NOTES_BATCH_05_CONTEXT } from "./source-notes-batch-05";
+import { VIVITO_TRAINING_BATCH_06_CONTEXT } from "./training-batch-06";
 
 const VIVITO_FOUNDATION_CONTEXT=VIVITO_ACADEMY.map(d=>`## ${d.name}\nSources: ${d.sources.join(", ")}\n${d.principles.map(x=>`- ${x}`).join("\n")}`).join("\n\n");
 
@@ -17,6 +18,8 @@ export const VIVITO_ACADEMY_CONTEXT=[
   VIVITO_SOURCE_NOTES_BATCH_04_CONTEXT,
   "# META SPECIALIST NOTES — BATCH 05",
   VIVITO_SOURCE_NOTES_BATCH_05_CONTEXT,
+  "# AGENCY OPERATING MASTERY — BATCH 06",
+  VIVITO_TRAINING_BATCH_06_CONTEXT,
 ].join("\n\n");
 
 export { VIVITO_ACADEMY,VIVITO_SOURCE_NOTES_CONTEXT,VIVITO_SOURCE_NOTES_BATCH_03 as VIVITO_SOURCE_NOTES };

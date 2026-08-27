@@ -9,6 +9,7 @@ import {VIVITO_ACTION_CATALOG,type VivitoActionOp} from "@/lib/vivito/action-eng
 import {buildVivitoDryRun,decideVivitoApproval} from "@/lib/vivito/approval-policy";
 import {connectionAccessToken} from "@/lib/ad-oauth";
 import {mutateExternalCampaign} from "@/lib/vivito/ad-platform-writes";
+import {executeVivitoPlanRuntime} from "@/lib/vivito/plan-runtime";
 
 const W="default";
 const clean=(v:any,n=120)=>String(v||"").trim().slice(0,n);
@@ -33,9 +34,10 @@ export async function POST(req:NextRequest){
   if(decisions.some(d=>d.approval.mode==="BLOCK"))return NextResponse.json({error:"One or more VIVITO plan steps are not authorized for your role.",steps:decisions},{status:403,headers:noStore});
   if(decisions.some(d=>d.missingFields.length))return NextResponse.json({error:"One or more VIVITO plan steps are missing required fields.",steps:decisions},{status:400,headers:noStore});
   const requiresConfirmation=decisions.some(d=>d.approval.requiresConfirmation);if(requiresConfirmation&&body.confirm!==true)return NextResponse.json({error:"Explicit confirmation is required before VIVITO executes this plan.",steps:decisions},{status:409,headers:noStore});
-  const rootId=requestId||crypto.randomUUID(),results:VivitoExecutionResult[]=[];
-  for(let i=0;i<normalized.length;i++){const step=normalized[i],stepKey=`${rootId}:${i}`;const previous=Array.from(await db.execute(sql`select new_values from audit_logs where workspace_id=${W} and user_id=${userId} and action='vivito_plan_step_executed' and new_values::jsonb->>'stepKey'=${stepKey} order by created_at desc limit 1`)) as any[];if(previous[0]){let saved:any={};try{saved=JSON.parse(String(previous[0].new_values||"{}"))}catch{}results.push(saved.result||{success:true,duplicate:true});continue}try{const result=await execute(step.op,step.args,role,userId),external=await applyExternalCampaignWrite(step.op,step.args,result,userId),combined=external?{...result,external}:result;results.push(combined);await db.insert(auditLogs).values({workspaceId:W,userId,action:"vivito_plan_step_executed",entity:"vivito_plan",entityId:rootId,newValues:JSON.stringify({requestId:rootId,stepKey,stepIndex:i,op:step.op,summary:step.summary,result:combined,approval:decisions[i].approval})} as any)}catch(error){const status=error instanceof VivitoActionError?error.status:500,message=error instanceof Error?error.message:"VIVITO stopped the plan safely.";await db.insert(auditLogs).values({workspaceId:W,userId,action:"vivito_plan_stopped",entity:"vivito_plan",entityId:rootId,newValues:JSON.stringify({requestId:rootId,stepIndex:i,op:step.op,args:step.args,message,completedSteps:results.length})} as any);return NextResponse.json({success:false,partial:results.length>0,requestId:rootId,completedSteps:results,stoppedAt:i,error:message,details:error instanceof VivitoActionError?error.details||null:null},{status,headers:noStore})}}
-  await db.insert(auditLogs).values({workspaceId:W,userId,action:"vivito_plan_executed",entity:"vivito_plan",entityId:rootId,newValues:JSON.stringify({requestId:rootId,stepCount:results.length,results})} as any);return NextResponse.json({success:true,requestId:rootId,plan:true,results},{headers:noStore})
+  const rootId=requestId||crypto.randomUUID();
+  const execution=await executeVivitoPlanRuntime({steps:normalized,decisions,role,userId,requestId:rootId,executeStep:execute,applyExternal:applyExternalCampaignWrite});
+  if(!execution.success)return NextResponse.json({success:false,partial:execution.partial,requestId:execution.requestId,completedSteps:execution.completedSteps,stoppedAt:execution.stoppedAt,error:execution.error,details:execution.details,duplicateSteps:execution.duplicateSteps},{status:execution.status,headers:noStore});
+  return NextResponse.json(execution,{headers:noStore})
  }
  const op=clean(body.op,60) as VivitoActionOp;if(!VIVITO_ACTION_CATALOG[op])return NextResponse.json({error:"Unsupported VIVITO action."},{status:400,headers:noStore});
  const args=body.args&&typeof body.args==="object"&&!Array.isArray(body.args)?body.args:{};const dry=buildVivitoDryRun(op,args,role);if(body.dryRun===true)return NextResponse.json({success:true,...dry},{headers:noStore});

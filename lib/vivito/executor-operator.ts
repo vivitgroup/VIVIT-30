@@ -1,4 +1,3 @@
-// @ts-nocheck
 import {createHash,randomBytes} from "node:crypto";
 import {db,auditLogs,sql} from "@/lib/db";
 import {VivitoActionError} from "./executor";

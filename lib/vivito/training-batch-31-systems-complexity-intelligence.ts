@@ -1,4 +1,5 @@
 import { VIVITO_MARKETING_PARITY_CONTEXT } from "./training-batches-32-41-marketing-parity";
+import { VIVITO_SUPER_OPERATOR_CONTEXT } from "./training-batches-42-47-super-operator";
 
 export type SystemsComplexityModule={name:string;principle:string;checks:string[];outputs:string[]};
 const M=(name:string,principle:string,checks:string[],outputs:string[]):SystemsComplexityModule=>({name,principle,checks,outputs});
@@ -45,4 +46,4 @@ Systems Thinking & Complex Adaptive Intelligence doctrine:
 12. Final recommendations must state system objective, constraint, key feedback loops, intervention, expected delay, guardrails, failure modes and evidence that would change the decision.
 `;
 const VIVITO_BATCH_31_BASE_CONTEXT=[VIVITO_SYSTEMS_COMPLEXITY_INTELLIGENCE_DOCTRINE,...VIVITO_SYSTEMS_COMPLEXITY_MODULES.map((m,i)=>`## SYSTEMS ${String(i+1).padStart(2,"0")} — ${m.name}\nPrinciple: ${m.principle}\nChecks:\n${m.checks.map(q=>`- ${q}`).join("\n")}\nOutputs: ${m.outputs.join(", ")}`)].join("\n\n");
-export const VIVITO_TRAINING_BATCH_31_CONTEXT=[VIVITO_BATCH_31_BASE_CONTEXT,"# MARKETING PARITY INTELLIGENCE — BATCHES 32-41",VIVITO_MARKETING_PARITY_CONTEXT].join("\n\n");
+export const VIVITO_TRAINING_BATCH_31_CONTEXT=[VIVITO_BATCH_31_BASE_CONTEXT,"# MARKETING PARITY INTELLIGENCE — BATCHES 32-41",VIVITO_MARKETING_PARITY_CONTEXT,"# SUPER OPERATOR INTELLIGENCE — BATCHES 42-47",VIVITO_SUPER_OPERATOR_CONTEXT].join("\n\n");

@@ -13,6 +13,7 @@ on:
       - "scripts/run-vivito-super-benchmark-v2.ts"
       - "scripts/run-vivito-head-to-head.ts"
       - "scripts/qa-vivito-red-team-v2.ts"
+      - "scripts/qa-vivito-digital-twin-learning.ts"
       - ".github/workflows/vivito-super-operator-ci.yml"
 jobs:
   qa:
@@ -29,6 +30,8 @@ jobs:
         run: npm run qa:vivito-systems-complexity-intelligence
       - name: Red Team V2 behavioral gate
         run: npm run qa:vivito-red-team-v2
+      - name: Client Digital Twin + Learning Loop gate
+        run: npx tsx scripts/qa-vivito-digital-twin-learning.ts
       - name: Artifact Runtime V3 gate
         run: npx tsx scripts/qa-vivito-artifact-runtime-v3.ts
       - name: Artifact Quality V3 certification

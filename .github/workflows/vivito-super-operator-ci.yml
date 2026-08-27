@@ -8,6 +8,7 @@ on:
       - "app/api/assistant/artifacts/**"
       - "components/assistant/**"
       - "scripts/qa-vivito-artifact-runtime-v3.ts"
+      - "scripts/certify-vivito-artifact-quality-v3.ts"
       - "scripts/qa-vivito-super-benchmark-v2.ts"
       - "scripts/run-vivito-super-benchmark-v2.ts"
       - "scripts/run-vivito-head-to-head.ts"
@@ -27,6 +28,16 @@ jobs:
         run: npm run qa:vivito-systems-complexity-intelligence
       - name: Artifact Runtime V3 gate
         run: npx tsx scripts/qa-vivito-artifact-runtime-v3.ts
+      - name: Artifact Quality V3 certification
+        run: npx tsx scripts/certify-vivito-artifact-quality-v3.ts
+      - name: Upload artifact quality evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vivito-artifact-quality-v3
+          path: .vivito/artifact-quality-v3/
+          if-no-files-found: error
+          retention-days: 14
       - name: Super Benchmark V2 structural gate
         run: npx tsx scripts/qa-vivito-super-benchmark-v2.ts
       - name: TypeScript gate

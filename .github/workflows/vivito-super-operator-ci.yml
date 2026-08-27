@@ -1,13 +1,15 @@
 name: VIVITO Super Operator CI
 on:
   push:
-    branches: ["feat/vivito-super-operator-42-47", "feat/vivito-model-mesh-v1"]
+    branches: ["feat/vivito-super-operator-42-47", "feat/vivito-model-mesh-v1", "feat/vivito-ui-motion-v1"]
   pull_request:
     paths:
       - "lib/vivito/**"
       - "app/api/assistant/artifacts/**"
       - "app/api/cron/vivito-knowledge/**"
       - "components/assistant/**"
+      - "components/experience/**"
+      - "app/dashboard/**"
       - "scripts/qa-vivito-artifact-runtime-v3.ts"
       - "scripts/certify-vivito-artifact-quality-v3.ts"
       - "scripts/qa-vivito-super-benchmark-v2.ts"
@@ -19,6 +21,7 @@ on:
       - "scripts/qa-vivito-ceo-cfo-quota-v2.ts"
       - "scripts/qa-vivito-capability-pack-v4.ts"
       - "scripts/qa-vivito-model-mesh-v1.ts"
+      - "scripts/qa-vivito-ui-motion-v1.ts"
       - "vercel.json"
       - ".github/workflows/vivito-super-operator-ci.yml"
 jobs:
@@ -46,6 +49,8 @@ jobs:
         run: npx tsx scripts/qa-vivito-capability-pack-v4.ts
       - name: Model Mesh V1 behavioral gate
         run: npx tsx scripts/qa-vivito-model-mesh-v1.ts
+      - name: VIVITO UI Motion V1 gate
+        run: npx tsx scripts/qa-vivito-ui-motion-v1.ts
       - name: Artifact Runtime V3 gate
         run: npx tsx scripts/qa-vivito-artifact-runtime-v3.ts
       - name: Artifact Quality V3 certification

@@ -18,7 +18,6 @@
   --vivito-depth-shadow-hover: 0 30px 76px rgba(0,0,0,.62), 0 12px 28px rgba(0,0,0,.42), inset 0 1px rgba(255,255,255,.075);
 }
 
-/* All ERP card surfaces: 3D without changing layout or business logic. */
 .card,
 .card-vivit,
 .kpi-card,
@@ -72,27 +71,24 @@
   box-shadow: var(--vivito-depth-shadow-hover) !important;
 }
 
-/* Very light ambient motion: visible, but never distracts from work. */
 .card-vivit,
 .kpi-card,
 .metric-grid > *,
 .cw-kpis > * {
   animation: vivitoCardBreath 7.2s ease-in-out infinite;
 }
-
 .metric-grid > *:nth-child(2n),
 .cw-kpis > *:nth-child(2n) { animation-delay: -2.4s; }
 .metric-grid > *:nth-child(3n),
 .cw-kpis > *:nth-child(3n) { animation-delay: -4.8s; }
-
 @keyframes vivitoCardBreath {
   0%,100% { filter: brightness(1); }
   50% { filter: brightness(1.018); }
 }
 
-/* Client-profile quote — mounted at runtime for AM/MB client workspace and Client Portal. */
 .cw-hero,
-.portal-hero { position: relative; overflow: hidden; }
+.portal-hero,
+.ct-head { position: relative; overflow: hidden; }
 
 .vivito-marketing-quote {
   position: absolute;
@@ -110,7 +106,6 @@
   z-index: 2;
   pointer-events: none;
 }
-
 .vivito-quote-prefix {
   display: block;
   font: 800 8px/1.2 "Sora", sans-serif;
@@ -122,12 +117,10 @@
   background-clip: text;
   color: transparent;
 }
-
 .vivito-marketing-quote strong {
   font: 650 clamp(10px, 1vw, 13px)/1.45 "Plus Jakarta Sans", sans-serif;
   letter-spacing: -.01em;
 }
-
 .vivito-marketing-quote i {
   display: inline-block;
   width: 2px;
@@ -138,10 +131,8 @@
   box-shadow: 0 0 10px var(--vivito-social-cyan);
   animation: vivitoCursor .82s steps(1,end) infinite;
 }
-
 @keyframes vivitoCursor { 50% { opacity: 0; } }
 
-/* Campaign cards become visual status instruments. */
 .campaign-card,
 [data-campaign-card],
 .media-campaign-card,
@@ -150,35 +141,30 @@
   --campaign-signal-strong: rgba(24,119,242,.48);
   border-color: color-mix(in srgb, var(--campaign-signal-strong) 48%, transparent) !important;
 }
-
 .vivito-campaign-good {
   --campaign-signal: rgba(34,197,94,.18);
   --campaign-signal-strong: rgba(34,197,94,.44);
   box-shadow: var(--vivito-depth-shadow), 0 0 22px var(--campaign-signal) !important;
   animation: vivitoGoodGlow 4.2s ease-in-out infinite;
 }
-
 .vivito-campaign-excellent {
   --campaign-signal: rgba(16,185,129,.30);
   --campaign-signal-strong: rgba(16,185,129,.68);
   box-shadow: var(--vivito-depth-shadow), 0 0 30px var(--campaign-signal) !important;
   animation: vivitoExcellentGlow 2.25s ease-in-out infinite;
 }
-
 .vivito-campaign-warning {
   --campaign-signal: rgba(245,158,11,.25);
   --campaign-signal-strong: rgba(245,158,11,.62);
   box-shadow: var(--vivito-depth-shadow), 0 0 26px var(--campaign-signal) !important;
-  animation: vivitoWarningGlow 2.65s ease-in-out infinite;
+  animation: vivitoWarningGlow 3.2s ease-in-out infinite;
 }
-
 .vivito-campaign-critical {
   --campaign-signal: rgba(239,68,68,.29);
   --campaign-signal-strong: rgba(239,68,68,.72);
   box-shadow: var(--vivito-depth-shadow), 0 0 34px var(--campaign-signal) !important;
   animation: vivitoCriticalGlow 1.45s ease-in-out infinite;
 }
-
 @keyframes vivitoGoodGlow {
   0%,100% { box-shadow: var(--vivito-depth-shadow), 0 0 12px rgba(34,197,94,.10); }
   50% { box-shadow: var(--vivito-depth-shadow), 0 0 25px rgba(34,197,94,.22); }
@@ -188,8 +174,9 @@
   50% { box-shadow: var(--vivito-depth-shadow), 0 0 42px rgba(16,185,129,.43); filter: brightness(1.035); }
 }
 @keyframes vivitoWarningGlow {
-  0%,100% { box-shadow: var(--vivito-depth-shadow), 0 0 14px rgba(245,158,11,.12); }
-  50% { box-shadow: var(--vivito-depth-shadow), 0 0 35px rgba(245,158,11,.38); }
+  0%,18%,100% { border-color: rgba(245,158,11,.52) !important; box-shadow: var(--vivito-depth-shadow), 0 0 16px rgba(245,158,11,.18); }
+  48% { border-color: rgba(245,158,11,.78) !important; box-shadow: var(--vivito-depth-shadow), 0 0 36px rgba(245,158,11,.42); }
+  76% { border-color: rgba(239,68,68,.56) !important; box-shadow: var(--vivito-depth-shadow), 0 0 30px rgba(239,68,68,.24); }
 }
 @keyframes vivitoCriticalGlow {
   0%,100% { box-shadow: var(--vivito-depth-shadow), 0 0 14px rgba(239,68,68,.14); filter: saturate(1); }
@@ -205,7 +192,8 @@
     margin-top: 14px;
   }
   .cw-hero,
-  .portal-hero { overflow: visible; }
+  .portal-hero,
+  .ct-head { overflow: visible; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -217,9 +205,7 @@
   .vivito-campaign-excellent,
   .vivito-campaign-warning,
   .vivito-campaign-critical,
-  .vivito-marketing-quote i {
-    animation: none !important;
-  }
+  .vivito-marketing-quote i { animation: none !important; }
   .card:hover,
   .card-vivit:hover,
   .kpi-card:hover,

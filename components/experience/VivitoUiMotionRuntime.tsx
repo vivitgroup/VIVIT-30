@@ -111,7 +111,7 @@ export default function VivitoUiMotionRuntime() {
     const cleanups = new Map<HTMLElement, () => void>();
 
     const sync = () => {
-      document.querySelectorAll<HTMLElement>(".cw-hero, .portal-hero").forEach((hero) => {
+      document.querySelectorAll<HTMLElement>(".cw-hero, .portal-hero, .ct-head").forEach((hero) => {
         if (!cleanups.has(hero)) cleanups.set(hero, mountQuote(hero));
       });
       decorateCampaigns();

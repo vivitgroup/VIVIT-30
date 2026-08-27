@@ -12,3 +12,4 @@ The strict 100-case intelligence benchmark can run without paid API billing.
 - The benchmark critic is disabled for strict free-tier certification so each case uses one primary provider call instead of two.
 - A code SHA change starts a fresh checkpoint scope, so results from an older implementation cannot certify newer code.
 - Re-running the same failed job increments `github.run_attempt` while keeping the same SHA; the workflow restores the most recent cache for that SHA and saves a new immutable checkpoint key.
+- Production/Main and Vercel are not involved in this certification workflow.

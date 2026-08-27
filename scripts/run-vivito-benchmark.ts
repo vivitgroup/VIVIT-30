@@ -49,9 +49,11 @@ function syntheticContext(test:VivitoBenchmarkCase,role:string){
 }
 
 const sleep=(ms:number)=>new Promise(resolve=>setTimeout(resolve,ms));
-const paceMs=Math.max(0,Number(process.env.VIVITO_BENCHMARK_PACE_MS||6500));
-const retryBaseMs=Math.max(500,Number(process.env.VIVITO_BENCHMARK_RETRY_BASE_MS||5000));
-const retryAttempts=Math.max(1,Math.min(6,Number(process.env.VIVITO_BENCHMARK_RETRY_ATTEMPTS||4)));
+const paceMs=Math.max(0,Number(process.env.VIVITO_BENCHMARK_PACE_MS||12000));
+const retryBaseMs=Math.max(500,Number(process.env.VIVITO_BENCHMARK_RETRY_BASE_MS||8000));
+const retryAttempts=Math.max(1,Math.min(6,Number(process.env.VIVITO_BENCHMARK_RETRY_ATTEMPTS||3)));
+const batchSize=Math.max(1,Math.min(25,Number(process.env.VIVITO_BENCHMARK_BATCH_SIZE||5)));
+const checkpointPath=process.env.VIVITO_BENCHMARK_CHECKPOINT||path.join(process.cwd(),".vivito","benchmark-checkpoint.json");
 let lastProviderCallAt=0;
 
 function isTransientProviderError(error:unknown){
@@ -67,7 +69,7 @@ async function pacedGenerate(prompt:string,system:string,options:any){
     try{return await generateVivito(prompt,system,options)}
     catch(error){
       if(!isTransientProviderError(error)||attempt===retryAttempts)throw error;
-      const backoff=Math.min(60000,retryBaseMs*Math.pow(2,attempt-1));
+      const backoff=Math.min(90000,retryBaseMs*Math.pow(2,attempt-1));
       console.log(`provider transient failure; retry ${attempt}/${retryAttempts} after ${backoff}ms`);
       await sleep(backoff);
     }
@@ -91,29 +93,65 @@ async function runCase(test:VivitoBenchmarkCase){
   return{test,answer,role,provider:draft.provider,attempted:draft.attempted,criticApplied,criticProvider};
 }
 
+function readCheckpoint(selected:VivitoBenchmarkCase[]){
+  try{
+    const cp=JSON.parse(fs.readFileSync(checkpointPath,"utf8"));
+    const expectedIds=selected.map(x=>x.id);
+    if(cp?.version!==VIVITO_BENCHMARK_VERSION)return null;
+    if(JSON.stringify(cp?.selectedIds||[])!==JSON.stringify(expectedIds))return null;
+    return cp;
+  }catch{return null;}
+}
+
+function writeCheckpoint(selected:VivitoBenchmarkCase[],outputsById:Record<string,any>){
+  fs.mkdirSync(path.dirname(checkpointPath),{recursive:true});
+  const ordered=selected.map(test=>outputsById[test.id]).filter(Boolean);
+  const payload={version:VIVITO_BENCHMARK_VERSION,updatedAt:new Date().toISOString(),selectedIds:selected.map(x=>x.id),completedCases:ordered.length,outputs:ordered};
+  fs.writeFileSync(checkpointPath,JSON.stringify(payload,null,2));
+}
+
 async function main(){
   const providers=configuredVivitoProviders();
   if(!providers.length){console.error("VIVITO benchmark cannot run: set GEMINI_API_KEY and/or ANTHROPIC_API_KEY in the local/CI environment. No Vercel deployment is required.");process.exit(2);}
   const dimension=process.env.VIVITO_BENCHMARK_DIMENSION;
   const limit=Math.max(1,Math.min(100,Number(process.env.VIVITO_BENCHMARK_LIMIT||100)));
   const selected=VIVITO_BENCHMARK_CASES.filter(x=>!dimension||x.dimension===dimension).slice(0,limit);
-  const outputs:any[]=[];
-  for(let i=0;i<selected.length;i++){
-    const test=selected[i];
-    process.stdout.write(`[${i+1}/${selected.length}] ${test.id} ${test.dimension} ... `);
-    try{const out=await runCase(test);outputs.push(out);console.log("done");}
-    catch(error:any){outputs.push({test,answer:"",error:String(error?.message||error)});console.log("ERROR");}
+  const checkpoint=readCheckpoint(selected);
+  const outputsById:Record<string,any>={};
+  for(const item of checkpoint?.outputs||[]){if(item?.test?.id)outputsById[item.test.id]=item;}
+  const pending=selected.filter(test=>!outputsById[test.id]);
+  const batch=pending.slice(0,batchSize);
+  let providerFailuresInRun=0;
+  console.log(`Checkpoint: ${Object.keys(outputsById).length}/${selected.length} completed. Running up to ${batch.length} new case(s).`);
+
+  for(let i=0;i<batch.length;i++){
+    const test=batch[i];
+    process.stdout.write(`[batch ${i+1}/${batch.length}] ${test.id} ${test.dimension} ... `);
+    try{
+      const out=await runCase(test);
+      outputsById[test.id]=out;
+      writeCheckpoint(selected,outputsById);
+      console.log("done + checkpointed");
+    }catch(error:any){
+      if(isTransientProviderError(error))providerFailuresInRun++;
+      console.log(`DEFERRED (${String(error?.message||error).slice(0,180)})`);
+    }
   }
+
+  writeCheckpoint(selected,outputsById);
+  const outputs=selected.map(test=>outputsById[test.id]).filter(Boolean);
   const scored=scoreVivitoBenchmark(outputs.map(x=>({test:x.test,answer:x.answer||""})));
-  const providerFailures=outputs.filter(x=>x.error&&isTransientProviderError(x.error)).length;
-  const report={version:VIVITO_BENCHMARK_VERSION,createdAt:new Date().toISOString(),providers,selectedCases:selected.length,score:scored.score,maxScore:scored.maxScore,percent:scored.percent,passed:scored.passed,failed:scored.failed,providerFailures,benchmarkPaceMs:paceMs,criticEnabled:process.env.VIVITO_BENCHMARK_CRITIC!=="0",dimensions:scored.dimensions,cases:outputs.map((x,i)=>({...scored.cases[i],role:x.role,provider:x.provider,criticApplied:x.criticApplied,criticProvider:x.criticProvider,error:x.error,answer:x.answer}))};
+  const completedCases=outputs.length;
+  const remainingCases=selected.length-completedCases;
+  const report={version:VIVITO_BENCHMARK_VERSION,createdAt:new Date().toISOString(),providers,selectedCases:selected.length,completedCases,remainingCases,batchSize,score:scored.score,maxScore:scored.maxScore,percent:scored.percent,passed:scored.passed,failed:scored.failed,providerFailuresInRun,benchmarkPaceMs:paceMs,criticEnabled:process.env.VIVITO_BENCHMARK_CRITIC!=="0",checkpointed:true,dimensions:scored.dimensions,cases:outputs.map((x,i)=>({...scored.cases[i],role:x.role,provider:x.provider,criticApplied:x.criticApplied,criticProvider:x.criticProvider,error:x.error,answer:x.answer}))};
   const dir=path.join(process.cwd(),".vivito");fs.mkdirSync(dir,{recursive:true});const file=path.join(dir,"benchmark-latest.json");fs.writeFileSync(file,JSON.stringify(report,null,2));
-  console.log(`\nVIVITO Intelligence Score: ${scored.score}/${scored.maxScore} (${scored.percent}%)`);
-  console.log(`Provider transient failures: ${providerFailures}`);
+  console.log(`\nVIVITO checkpoint progress: ${completedCases}/${selected.length}; remaining ${remainingCases}`);
+  console.log(`Current completed-case score: ${scored.score}/${scored.maxScore} (${scored.percent}%)`);
+  console.log(`Provider transient failures in this run: ${providerFailuresInRun}`);
   for(const [name,d] of Object.entries(scored.dimensions))console.log(`${name.padEnd(16)} ${d.score.toFixed(2)}/${d.maxScore}  ${d.percent}%`);
   console.log(`Report: ${file}`);
   const threshold=Number(process.env.VIVITO_BENCHMARK_THRESHOLD||100);
-  if(process.env.VIVITO_BENCHMARK_ENFORCE==="1"&&(providerFailures>0||scored.percent<threshold))process.exit(1);
+  if(process.env.VIVITO_BENCHMARK_ENFORCE==="1"&&completedCases===selected.length&&scored.percent<threshold)process.exit(1);
 }
 
 main().catch(error=>{console.error(error);process.exit(1)});

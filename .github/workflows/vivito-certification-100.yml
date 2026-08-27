@@ -5,6 +5,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+  actions: read
 jobs:
   certify:
     runs-on: ubuntu-latest
@@ -75,18 +76,27 @@ jobs:
           VIVITO_CERT_LINKEDIN_ACCOUNT_ID: ${{ secrets.VIVITO_CERT_LINKEDIN_ACCOUNT_ID }}
           VIVITO_CERT_LINKEDIN_CURRENT_STATUS: ${{ secrets.VIVITO_CERT_LINKEDIN_CURRENT_STATUS }}
         run: npx tsx scripts/certify-vivito-provider-live.ts
-      - name: Run provider-backed 100-case intelligence exam when keys exist
+      - name: Restore free-tier intelligence checkpoint
+        uses: actions/cache/restore@v4
+        with:
+          path: .vivito/benchmark-checkpoint.json
+          key: vivito-benchmark-${{ github.sha }}-${{ github.run_attempt }}
+          restore-keys: |
+            vivito-benchmark-${{ github.sha }}-
+      - name: Run checkpointed provider-backed intelligence batch
         continue-on-error: true
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           VIVITO_BENCHMARK_LIMIT: '100'
+          VIVITO_BENCHMARK_BATCH_SIZE: '5'
           VIVITO_BENCHMARK_THRESHOLD: '100'
           VIVITO_BENCHMARK_ENFORCE: '1'
           VIVITO_BENCHMARK_CRITIC: '0'
-          VIVITO_BENCHMARK_PACE_MS: '6500'
-          VIVITO_BENCHMARK_RETRY_ATTEMPTS: '4'
-          VIVITO_BENCHMARK_RETRY_BASE_MS: '5000'
+          VIVITO_BENCHMARK_PACE_MS: '12000'
+          VIVITO_BENCHMARK_RETRY_ATTEMPTS: '3'
+          VIVITO_BENCHMARK_RETRY_BASE_MS: '8000'
+          VIVITO_BENCHMARK_CHECKPOINT: '.vivito/benchmark-checkpoint.json'
         run: |
           mkdir -p .vivito
           if [ -n "$GEMINI_API_KEY" ] || [ -n "$ANTHROPIC_API_KEY" ]; then
@@ -94,6 +104,12 @@ jobs:
           else
             echo '{"blocked":true,"reason":"No GEMINI_API_KEY or ANTHROPIC_API_KEY in GitHub Actions"}' > .vivito/benchmark-blocked.json
           fi
+      - name: Save free-tier intelligence checkpoint
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .vivito/benchmark-checkpoint.json
+          key: vivito-benchmark-${{ github.sha }}-${{ github.run_attempt }}
       - name: Strict certification decision
         id: certify
         continue-on-error: true
@@ -109,5 +125,5 @@ jobs:
       - name: Enforce certification
         if: steps.certify.outcome != 'success'
         run: |
-          echo 'VIVITO is not 100/100 certified. See certification evidence artifact for blockers.'
+          echo 'VIVITO is not 100/100 certified yet. Re-run the failed certification job to resume from the saved free-tier checkpoint.'
           exit 1

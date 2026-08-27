@@ -9,6 +9,8 @@ import {generateVivito} from "@/lib/vivito/providers";
 import {buildVivitoActionPlannerSystem,likelyVivitoActionIntent,parseVivitoActionProposal} from "@/lib/vivito/action-engine";
 import {buildVivitoOrchestratorSystem,likelyVivitoMultiStepIntent,parseVivitoActionPlan} from "@/lib/vivito/orchestrator";
 import {buildVivitoMemoryPlannerSystem,forgetVivitoMemory,likelyVivitoMemoryIntent,loadVivitoMemories,memoryContext,parseVivitoMemoryPlan,saveVivitoMemory} from "@/lib/vivito/memory";
+import {analyzeVivitoImage,groundedVivitoResearch} from "@/lib/vivito/multimodal";
+import {buildVivitoArtifactPlannerSystem,likelyVivitoArtifactIntent,likelyVivitoResearchIntent,likelyVivitoVisionIntent,parseVivitoArtifactProposal,requestedArtifactKind} from "@/lib/vivito/artifact-router";
 
 const W="default";
 const n=(v:unknown)=>Number(v||0);
@@ -70,12 +72,38 @@ function buildOperations(tasks:any[]){const now=Date.now(),overdue=tasks.filter(
 function buildSalesSummary(leads:any[]){const byStage=leads.reduce((acc:Record<string,number>,lead:any)=>{const key=String(lead.stage||"UNKNOWN");acc[key]=(acc[key]||0)+1;return acc},{}),weightedPipeline=leads.reduce((sum,lead)=>sum+n(lead.estimated_value)*(n(lead.probability)/100),0),overdueFollowUps=leads.filter(l=>l.next_follow_up&&new Date(l.next_follow_up).getTime()<Date.now()).length;return{leadCount:leads.length,byStage,weightedPipeline,overdueFollowUps}}
 function buildMediaSummary(campaigns:any[]){const totals=campaigns.reduce((a:any,x:any)=>{a.spend+=n(x.spend);a.results+=n(x.results);a.atc+=n(x.atc);a.purchases+=n(x.purchases);a.revenue+=n(x.revenue);a.previousSpend+=n(x.previousSpend);a.previousResults+=n(x.previousResults);a.previousPurchases+=n(x.previousPurchases);a.previousRevenue+=n(x.previousRevenue);return a},{spend:0,results:0,atc:0,purchases:0,revenue:0,previousSpend:0,previousResults:0,previousPurchases:0,previousRevenue:0});return{...totals,periodComparison:"month-to-date vs same elapsed portion of previous month",roas:totals.spend?totals.revenue/totals.spend:0,previousRoas:totals.previousSpend?totals.previousRevenue/totals.previousSpend:0}}
 
+async function readUploadedImageForVivito(userId:string,attachment:any){
+ const found=rows(await db.execute(sql`select storage_path,mime_type,size_bytes,name from file_documents where id=${String(attachment?.fileId||"")} and workspace_id=${W} and uploaded_by=${userId} and archived_at is null and mime_type like 'image/%' limit 1`));
+ const row=found[0];if(!row)throw new Error("image-not-accessible");if(Number(row.size_bytes||0)>12*1024*1024)throw new Error("image-too-large-for-vision");
+ const base=String(process.env.SUPABASE_URL||"").replace(/\/$/,"");const key=String(process.env.SUPABASE_SERVICE_KEY||"");if(!base||!key)throw new Error("storage-not-configured");
+ const r=await fetch(base+"/storage/v1/object/vivit-files/"+row.storage_path,{headers:{apikey:key,Authorization:"Bearer "+key},signal:AbortSignal.timeout(20000)});if(!r.ok)throw new Error("image-fetch-failed");
+ const bytes=Buffer.from(await r.arrayBuffer());return{mimeType:String(row.mime_type||attachment?.mimeType||"image/png"),base64:bytes.toString("base64"),name:String(row.name||attachment?.name||"image")}
+}
 export async function POST(req:NextRequest){
  const session=await auth();if(!session?.user)return NextResponse.json({error:"Unauthorized"},{status:401});
  const body=await req.json().catch(()=>({})),question=String(body.question||"").trim().slice(0,1600);if(!question)return NextResponse.json({error:"Ask a question first."},{status:400});
  const role=String((session.user as any).role||""),userId=String((session.user as any).id||""),attachments=Array.isArray(body.attachments)?body.attachments.slice(0,5).map((x:any)=>({fileId:String(x?.fileId||"").slice(0,100),name:String(x?.name||"").slice(0,255),mimeType:String(x?.mimeType||"").slice(0,120)})).filter((x:any)=>x.fileId):[];
  const clients=await clientScope(role,userId),ids=clients.map((c:any)=>String(c.id));
  const [tasks,campaigns,tracking,clientHealth,sales,finance,memories]=await Promise.all([taskContext(role,userId,ids),mediaContext(role,ids),trackingContext(role,ids),clientHealthContext(role,ids),salesContext(role,userId),financeContext(role,ids),loadVivitoMemories(userId,role,ids)]);
+
+ if(likelyVivitoArtifactIntent(question)){
+  try{
+   const kind=requestedArtifactKind(question);let research:any=null,visionText="";
+   if(likelyVivitoResearchIntent(question)){try{research=await groundedVivitoResearch(question)}catch{research={text:"Current web research was unavailable; do not invent current facts.",queries:[],sources:[]}}}
+   const image=attachments.find((a:any)=>String(a.mimeType||"").startsWith("image/"));
+   if(image){try{const input=await readUploadedImageForVivito(userId,image),vision=await analyzeVivitoImage({mimeType:input.mimeType,base64:input.base64,prompt:"Analyze this reference for the requested artifact: "+question});visionText=vision.text}catch{}}
+   const evidence=[research?.text?"CURRENT RESEARCH:\n"+research.text:"",visionText?"IMAGE ANALYSIS:\n"+visionText:""].filter(Boolean).join("\n\n");
+   const artifactPrompt="USER REQUEST:\n"+question+"\n\nAUTHORIZED CLIENTS:\n"+JSON.stringify(clients.map((c:any)=>c.company_name))+(evidence?"\n\nEVIDENCE:\n"+evidence:"");
+   const planned=await generateVivito(artifactPrompt,buildVivitoArtifactPlannerSystem(kind),{temperature:.08,maxTokens:6500}),artifactProposal=parseVivitoArtifactProposal(planned.text,kind);
+   if(artifactProposal){const sources=["VIVITO Artifact Architect"];if(research?.sources?.length)sources.push(...research.sources.map((s:any)=>s.title).slice(0,8));if(visionText)sources.push("VIVITO Visual Intelligence");return NextResponse.json({answer:isArabic(question)?"جهزت هيكل "+artifactProposal.title+". تقدر تولّد الملف من الكارت تحت.":artifactProposal.title+" is structured and ready to generate.",mode:"artifact-proposal",intelligence:"VIVITO",artifactProposal,sources,intelligenceMeta:{provider:planned.provider,artifactKind:kind,groundedResearch:!!research?.sources?.length,visionUsed:!!visionText}},{headers:{"Cache-Control":"private, no-store"}})}
+  }catch(error){console.error("VIVITO artifact planning failed",error)}
+ }
+ if(likelyVivitoVisionIntent(question,attachments)){
+  try{const image=attachments.find((a:any)=>String(a.mimeType||"").startsWith("image/"));if(image){const input=await readUploadedImageForVivito(userId,image),vision=await analyzeVivitoImage({mimeType:input.mimeType,base64:input.base64,prompt:question});return NextResponse.json({answer:vision.text,sources:["Visual: "+input.name,"VIVITO Visual Intelligence"],mode:"vision",intelligence:"VIVITO",intelligenceMeta:{vision:true,model:vision.model}},{headers:{"Cache-Control":"private, no-store"}})}}catch(error){return NextResponse.json({answer:isArabic(question)?"مش قادر أقرأ الصورة دي بأمان دلوقتي. تأكد إنها PNG/JPG/WebP وأقل من 12MB.":"I could not analyze that image safely. Use PNG/JPG/WebP under 12MB.",mode:"vision-error",intelligence:"VIVITO"},{headers:{"Cache-Control":"private, no-store"}})}
+ }
+ if(likelyVivitoResearchIntent(question)){
+  try{const research=await groundedVivitoResearch(question);return NextResponse.json({answer:research.text,sources:research.sources.map(s=>s.title).slice(0,12),sourceLinks:research.sources.slice(0,12),mode:"grounded-research",intelligence:"VIVITO",intelligenceMeta:{groundedResearch:true,queries:research.queries}},{headers:{"Cache-Control":"private, no-store"}})}catch{}
+ }
 
  if(likelyVivitoMemoryIntent(question)){
   try{

@@ -9,8 +9,9 @@ const TEAM_QUICK=["تاسكاتي الحالية","إيه المتأخر؟","Rec
 type Risk="low"|"medium"|"high"|"destructive";
 type ActionProposal={op:string;summary:string;args:Record<string,unknown>;risk:Risk;requiresConfirmation:true;missingFields:string[]};
 type ActionPlan={summary:string;steps:ActionProposal[];risk:Risk;requiresConfirmation:true;missingFields:string[]};
+type ArtifactProposal={kind:"pdf"|"xlsx"|"content-plan";title:string;fileName:string;summary:string;pdf?:any;workbook?:any;contentPlan?:any};
 type RunState="ready"|"running"|"done"|"failed";
-type ChatMsg={id:string;who:"you"|"vivito";text:string;sources?:string[];action?:ActionProposal;plan?:ActionPlan;actionRequestId?:string;actionState?:RunState;actionResult?:string;planRequestId?:string;planState?:RunState;planResult?:string};
+type ChatMsg={id:string;who:"you"|"vivito";text:string;sources?:string[];action?:ActionProposal;plan?:ActionPlan;artifact?:ArtifactProposal;artifactState?:RunState;artifactResult?:string;actionRequestId?:string;actionState?:RunState;actionResult?:string;planRequestId?:string;planState?:RunState;planResult?:string};
 type Attachment={fileId:string;name:string;mimeType:string};
 const mid=()=>crypto.randomUUID();
 
@@ -32,9 +33,18 @@ export function SystemAssistant({role}:{role:string}){
   catch(e:any){setMsgs(m=>m.map(x=>x.id===messageId?{...x,planState:"failed",planResult:e?.message||"Plan stopped safely."}:x))}
  }
 
+ async function generateArtifact(messageId:string,a:ArtifactProposal){
+  setMsgs(m=>m.map(x=>x.id===messageId?{...x,artifactState:"running"}:x));const isPdf=a.kind==="pdf",preview=isPdf?window.open("about:blank","_blank"):null;
+  try{const endpoint=isPdf?"/api/assistant/artifacts/pdf":"/api/assistant/artifacts/xlsx",payload=isPdf?{spec:a.pdf,fileName:a.fileName}:a.kind==="content-plan"?{contentPlan:a.contentPlan,fileName:a.fileName}:{workbook:a.workbook,fileName:a.fileName};
+   const r=await fetch(endpoint,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload),cache:"no-store"});if(!r.ok){const d=await r.json().catch(()=>({}));throw new Error(d.error||"Artifact generation failed")};const ct=String(r.headers.get("content-type")||"");
+   if(isPdf&&ct.includes("text/html")){const html=await r.text();if(!preview)throw new Error("Popup was blocked. Allow popups to print this PDF.");preview.document.open();preview.document.write(html);preview.document.close();setTimeout(()=>{preview.focus();preview.print()},450);setMsgs(m=>m.map(x=>x.id===messageId?{...x,artifactState:"done",artifactResult:"Print-ready PDF opened with professional RTL/browser rendering."}:x));return}
+   preview?.close();const blob=await r.blob(),url=URL.createObjectURL(blob),link=document.createElement("a");link.href=url;link.download=(a.fileName||"vivito-artifact")+"."+(isPdf?"pdf":"xlsx");document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);setMsgs(m=>m.map(x=>x.id===messageId?{...x,artifactState:"done",artifactResult:(isPdf?"PDF":"Excel workbook")+" generated."}:x))
+  }catch(e:any){preview?.close();setMsgs(m=>m.map(x=>x.id===messageId?{...x,artifactState:"failed",artifactResult:e?.message||"Artifact generation failed safely."}:x))}
+ }
+
  async function send(text=q){
   const v=text.trim();if(!v||busy||uploading)return;const currentAttachments=[...attachments],userId=mid();setQ("");setAttachments([]);setMsgs(m=>[...m,{id:userId,who:"you",text:v+(currentAttachments.length?`\n📎 ${currentAttachments.map(a=>a.name).join(", ")}`:"")}]);setBusy(true);
-  const out=await ask(v,currentAttachments),d=out.data||{},botId=mid();const msg:ChatMsg={id:botId,who:"vivito",text:d.answer||d.error||"Connection interrupted. Try again.",sources:Array.isArray(d.sources)?d.sources:[],action:d.actionProposal,plan:d.actionPlan,actionState:d.actionProposal?"ready":undefined,planState:d.actionPlan?"ready":undefined};setMsgs(m=>[...m,msg]);setBusy(false);
+  const out=await ask(v,currentAttachments),d=out.data||{},botId=mid();const msg:ChatMsg={id:botId,who:"vivito",text:d.answer||d.error||"Connection interrupted. Try again.",sources:Array.isArray(d.sources)?d.sources:[],action:d.actionProposal,plan:d.actionPlan,artifact:d.artifactProposal,artifactState:d.artifactProposal?"ready":undefined,actionState:d.actionProposal?"ready":undefined,planState:d.actionPlan?"ready":undefined};setMsgs(m=>[...m,msg]);setBusy(false);
   if(d.actionPlan&&!d.actionPlan.missingFields?.length&&["low","medium"].includes(d.actionPlan.risk))setTimeout(()=>executePlan(botId,d.actionPlan),0);
   else if(d.actionProposal&&!d.actionProposal.missingFields?.length&&["low","medium"].includes(d.actionProposal.risk))setTimeout(()=>executeAction(botId,d.actionProposal),0);
  }
@@ -48,6 +58,7 @@ export function SystemAssistant({role}:{role:string}){
   <div className="va-context"><span className="va-live"/> {intro}</div><div className="va-quick">{quick.map(x=><button key={x} onClick={()=>send(x)} disabled={busy||uploading}>{x}<span>↗</span></button>)}</div>
   <div className="va-chat">{msgs.length===0&&<div className="va-empty"><strong>Ask, teach, or command VIVITO</strong><span>مثال: “افتكر إن العميل X لازم الـcontent عربي”، أو “ضيف عميل X، اعمله تاسك ليوسف، واربط الصورة دي عليه”.</span></div>}
    {msgs.map(m=><div key={m.id} className={`va-row ${m.who}`}><div className="va-speaker">{m.who==="vivito"?"VIVITO":"YOU"}</div><div className={`va-msg ${m.who==="vivito"?"ai":"you"}`}><div>{m.text}</div>
+    {m.artifact&&<div className="va-action"><div className="va-action-top"><b>{m.artifact.kind==="pdf"?"PROFESSIONAL PDF":m.artifact.kind==="content-plan"?"CONTENT PLAN · XLSX":"EXCEL WORKBOOK"}</b><span>artifact</span></div><div>{m.artifact.summary||m.artifact.title}</div>{m.artifactState==="running"?<button disabled>Generating…</button>:m.artifactState==="done"?<div className="va-action-ok">✓ {m.artifactResult}</div>:m.artifactState==="failed"?<><div className="va-action-error">{m.artifactResult}</div><button onClick={()=>generateArtifact(m.id,m.artifact!)}>Retry generation</button></>:<button onClick={()=>generateArtifact(m.id,m.artifact!)}>Generate {m.artifact.kind==="pdf"?"PDF":"Excel"}</button>}</div>}
     {m.plan&&<div className={`va-action va-plan risk-${m.plan.risk}`}><div className="va-action-top"><b>MULTI-STEP PLAN · {m.plan.steps.length}</b><span>{m.plan.risk}</span></div><div>{m.plan.summary}</div><ol className="va-plan-steps">{m.plan.steps.map((s,i)=><li key={`${s.op}-${i}`}><b>{s.op.replaceAll("_"," ")}</b><span>{s.summary}</span></li>)}</ol>{m.plan.missingFields?.length?<div className="va-action-missing">Missing: {m.plan.missingFields.join(", ")}</div>:null}
      {m.planState==="running"?<button disabled>Executing plan…</button>:m.planState==="done"?<div className="va-action-ok">✓ {m.planResult}</div>:m.planState==="failed"?<><div className="va-action-error">{m.planResult}</div><button onClick={()=>executePlan(m.id,m.plan!,m.planRequestId)}>Resume safely</button></>:m.plan.missingFields?.length?null:["high","destructive"].includes(m.plan.risk)?<button className={m.plan.risk==="destructive"?"danger":""} onClick={()=>executePlan(m.id,m.plan!)}>Confirm entire plan</button>:<div className="va-action-auto">Executing authorized plan…</div>}
     </div>}

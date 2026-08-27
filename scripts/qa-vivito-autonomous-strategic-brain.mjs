@@ -7,7 +7,7 @@ const checks=[
  ["Goal decomposition",src.includes("driver tree")],
  ["Unknowns mapping",src.includes("unknowns register")],
  ["Information gain",src.includes("Information Gain")],
- ["Research planning",src.includes("plan retrieval before searching")],
+ ["Research planning",src.includes("Plan retrieval before searching")],
  ["Competing hypotheses",src.includes("competing hypotheses")],
  ["Alternative generation",src.includes("Generate alternatives")],
  ["Decision matrix",src.includes("Decision Matrix")],

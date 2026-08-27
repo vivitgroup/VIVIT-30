@@ -6,6 +6,7 @@ on:
       - fix/vivito-certification-final
     paths:
       - lib/vivito/providers.ts
+      - lib/vivito/intelligence.ts
       - scripts/run-vivito-benchmark.ts
       - lib/vivito/benchmark.ts
       - lib/vivito/evaluator.ts

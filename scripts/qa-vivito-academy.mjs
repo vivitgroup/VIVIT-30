@@ -61,7 +61,7 @@ check("Academy wires Batch 06 into live runtime context",/VIVITO_TRAINING_BATCH_
 check("Batch 07 contains at least forty advanced judgment cases",batch07Cards>=40);
 check("Batch 07 trains cross-functional diagnosis and executive prioritization",/Cross-Functional Diagnosis/.test(batch07)&&/Executive Judgment/.test(batch07)&&/highest-leverage bottleneck/.test(batch07));
 check("Batch 07 trains pricing retention and cash-flow judgment",/Pricing/.test(batch07)&&/Retention/.test(batch07)&&/cash flow worsens/.test(batch07));
-check("Batch 07 trains uncertainty and self-correction",/two plausible root causes/.test(batch07)&&/new evidence contradicts VIVITO/.test(batch07)&&/Prefer correction over consistency/.test(batch07));
+check("Batch 07 trains uncertainty and self-correction",/two plausible root causes/i.test(batch07)&&/new evidence contradicts VIVITO/i.test(batch07)&&/Prefer correction over consistency/.test(batch07));
 check("Batch 07 trains partial external failure truthfulness",/provider rejects a campaign mutation/.test(batch07)&&/do not claim the external change succeeded/.test(batch07));
 check("Batch 07 includes current Google Ads and LinkedIn source anchors",/Google Ads Help/.test(batch07)&&/LinkedIn Marketing Solutions/.test(batch07));
 check("Academy wires Batch 07 into live runtime context",/VIVITO_TRAINING_BATCH_07_CONTEXT/.test(academy)&&/ADVANCED JUDGMENT & CROSS-FUNCTIONAL MASTERY — BATCH 07/.test(academy));

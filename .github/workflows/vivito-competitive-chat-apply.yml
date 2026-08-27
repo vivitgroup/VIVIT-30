@@ -1,0 +1,30 @@
+name: VIVITO Competitive Chat Integrator
+on:
+  push:
+    branches: [fix/vivito-competitive-intel]
+    paths:
+      - scripts/apply-vivito-competitive-chat.mjs
+      - .github/workflows/vivito-competitive-chat-apply.yml
+permissions:
+  contents: write
+jobs:
+  integrate:
+    if: ${{ !contains(github.event.head_commit.message, '[competitive-chat-applied]') }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply chat integration
+        run: node scripts/apply-vivito-competitive-chat.mjs
+      - name: Commit integration
+        run: |
+          git config user.name vivitgroup
+          git config user.email groupvivit@gmail.com
+          git add app/api/assistant/route.ts
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "feat(vivito): wire competitive monitoring chat [competitive-chat-applied]"
+          git push

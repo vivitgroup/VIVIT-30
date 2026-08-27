@@ -1,0 +1,7 @@
+export const dynamic="force-dynamic";
+import {NextRequest,NextResponse} from "next/server";
+import {auth} from "@/lib/auth";
+import {renderVivitoPptx} from "@/lib/vivito/pptx-renderer";
+import type {VivitoPresentation} from "@/lib/vivito/artifact-intelligence";
+const safe=(s:string)=>String(s||"vivito-presentation").replace(/[^a-zA-Z0-9._-]/g,"-").replace(/-+/g,"-").slice(0,80)||"vivito-presentation";
+export async function POST(req:NextRequest){const session=await auth();if(!session?.user)return NextResponse.json({error:"Unauthorized"},{status:401});const body=await req.json().catch(()=>null);if(!body?.presentation)return NextResponse.json({error:"Presentation specification is required."},{status:400});try{const presentation=body.presentation as VivitoPresentation;if(!presentation?.slides?.length)return NextResponse.json({error:"Presentation requires at least one slide."},{status:400});const bytes=renderVivitoPptx(presentation),name=safe(body.fileName||presentation.title)+".pptx",payload=bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength) as ArrayBuffer;return new NextResponse(payload,{headers:{"Content-Type":"application/vnd.openxmlformats-officedocument.presentationml.presentation","Content-Disposition":`attachment; filename="${name}"`,"Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff"}})}catch(e){const m=e instanceof Error?e.message:"PPTX rendering failed.";return NextResponse.json({error:m},{status:422})}}

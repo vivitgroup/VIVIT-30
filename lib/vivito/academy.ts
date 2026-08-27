@@ -6,6 +6,7 @@ import { VIVITO_SOURCE_NOTES_BATCH_04_CONTEXT } from "./source-notes-batch-04";
 import { VIVITO_SOURCE_NOTES_BATCH_05_CONTEXT } from "./source-notes-batch-05";
 import { VIVITO_TRAINING_BATCH_06_CONTEXT } from "./training-batch-06";
 import { VIVITO_TRAINING_BATCH_07_CONTEXT } from "./training-batch-07";
+import { VIVITO_TRAINING_BATCH_08_CONTEXT,VIVITO_MBA_DBA_OPERATING_DOCTRINE } from "./training-batch-08-mba-dba";
 
 const VIVITO_FOUNDATION_CONTEXT=VIVITO_ACADEMY.map(d=>`## ${d.name}\nSources: ${d.sources.join(", ")}\n${d.principles.map(x=>`- ${x}`).join("\n")}`).join("\n\n");
 
@@ -23,6 +24,9 @@ export const VIVITO_ACADEMY_CONTEXT=[
   VIVITO_TRAINING_BATCH_06_CONTEXT,
   "# ADVANCED JUDGMENT & CROSS-FUNCTIONAL MASTERY — BATCH 07",
   VIVITO_TRAINING_BATCH_07_CONTEXT,
+  "# MBA + DBA BUSINESS & MARKETING MASTERY — BATCH 08",
+  VIVITO_MBA_DBA_OPERATING_DOCTRINE,
+  VIVITO_TRAINING_BATCH_08_CONTEXT,
 ].join("\n\n");
 
 export { VIVITO_ACADEMY,VIVITO_SOURCE_NOTES_CONTEXT,VIVITO_SOURCE_NOTES_BATCH_03 as VIVITO_SOURCE_NOTES };

@@ -5,7 +5,6 @@ on:
     branches:
       - fix/vivito-certification-final
     paths:
-      - .github/workflows/vivito-intelligence-smoke.yml
       - lib/vivito/providers.ts
       - scripts/run-vivito-benchmark.ts
       - lib/vivito/benchmark.ts
@@ -47,30 +46,34 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GEMINI_FREE_MODEL_CHAIN: gemini-3.6-flash,gemini-3.5-flash,gemini-3.5-flash-lite,gemini-3.7-flash
+          GEMINI_THINKING_LEVEL: low
           VIVITO_BENCHMARK_LIMIT: "100"
           VIVITO_BENCHMARK_BATCH_SIZE: "5"
           VIVITO_BENCHMARK_THRESHOLD: "100"
           VIVITO_BENCHMARK_ENFORCE: "0"
           VIVITO_BENCHMARK_CRITIC: "0"
           VIVITO_BENCHMARK_PACE_MS: "12000"
-          VIVITO_PROVIDER_RETRIES: "1"
-          VIVITO_PROVIDER_BACKOFF_MS: "3000"
+          VIVITO_BENCHMARK_RETRY_ATTEMPTS: "1"
+          VIVITO_BENCHMARK_RETRY_BASE_MS: "3000"
         run: npm run eval:vivito
 
-      - name: Verify checkpoint advanced
+      - name: Verify checkpoint advanced at certification quality
         shell: bash
         run: |
           node <<'NODE'
           const fs = require("fs");
-          const path = ".vivito/benchmark-checkpoint.json";
-          if (!fs.existsSync(path)) {
-            console.error("No intelligence checkpoint was created");
+          const checkpointPath = ".vivito/benchmark-checkpoint.json";
+          const reportPath = ".vivito/benchmark-latest.json";
+          if (!fs.existsSync(checkpointPath) || !fs.existsSync(reportPath)) {
+            console.error("Missing VIVITO smoke evidence");
             process.exit(1);
           }
-          const data = JSON.parse(fs.readFileSync(path, "utf8"));
-          const completed = Array.isArray(data.completed) ? data.completed.length : Object.keys(data.completed || {}).length;
-          console.log(`checkpoint_completed=${completed}/100`);
-          if (completed < 1) process.exit(1);
+          const checkpoint = JSON.parse(fs.readFileSync(checkpointPath, "utf8"));
+          const report = JSON.parse(fs.readFileSync(reportPath, "utf8"));
+          const completed = Number(checkpoint.completedCases || 0);
+          const percent = Number(report.percent || 0);
+          console.log(`checkpoint_completed=${completed}/100 score=${percent}%`);
+          if (completed < 5 || percent < 100) process.exit(1);
           NODE
 
       - name: Save rolling intelligence checkpoint

@@ -7,6 +7,8 @@ const ANTHROPIC_URL="https://api.anthropic.com/v1/messages";
 const MIN_TIMEOUT_MS=2000;
 const DEFAULT_TIMEOUT_MS=25000;
 const MAX_TIMEOUT_MS=45000;
+const DEFAULT_GEMINI_MODEL="gemini-3.7-flash";
+const DEFAULT_GEMINI_FREE_MODEL_CHAIN=["gemini-2.5-flash-lite","gemini-2.5-flash",DEFAULT_GEMINI_MODEL] as const;
 
 function boundedTimeout(options:GenerateOptions){
   const requested=Number(options.timeoutMs??process.env.VIVITO_PROVIDER_TIMEOUT_MS??DEFAULT_TIMEOUT_MS);
@@ -43,25 +45,44 @@ async function callClaude(prompt:string,system:string,options:GenerateOptions){
   return text;
 }
 
+function geminiModelChain(){
+  const explicit=String(process.env.GEMINI_MODEL||"").trim();
+  const configured=String(process.env.GEMINI_FREE_MODEL_CHAIN||"").split(",").map(x=>x.trim()).filter(Boolean);
+  const chain=explicit?[explicit,...configured,...DEFAULT_GEMINI_FREE_MODEL_CHAIN]:[...configured,...DEFAULT_GEMINI_FREE_MODEL_CHAIN];
+  return [...new Set(chain)].filter(model=>model&&model!=="gemini-2.0-flash");
+}
+
+function geminiError(model:string,d:any,status:number){
+  const message=String(d?.error?.message||`gemini-${status}`).replace(/[\r\n\t]+/g," ").slice(0,220);
+  return `${model}:${message}`;
+}
+
 async function callGemini(prompt:string,system:string,options:GenerateOptions){
   if(!process.env.GEMINI_API_KEY)throw new Error("gemini-not-configured");
-  // gemini-2.0-flash was shut down in 2026. Keep an env override, but default to a current GA reasoning model.
-  const model=process.env.GEMINI_MODEL||"gemini-3.7-flash";
-  const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`,{
-    method:"POST",
-    signal:requestSignal(options),
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({
-      systemInstruction:{parts:[{text:system}]},
-      contents:[{role:"user",parts:[{text:prompt}]}],
-      generationConfig:{temperature:options.temperature??0.18,maxOutputTokens:options.maxTokens||3200},
-    }),
-  });
-  const d=await safeJson(r);
-  if(!r.ok)throw new Error(d?.error?.message||`gemini-${r.status}`);
-  const text=String(d?.candidates?.[0]?.content?.parts?.map((p:any)=>p.text).join("\n")||"").trim();
-  if(!text)throw new Error("gemini-empty-response");
-  return text;
+  const errors:string[]=[];
+  for(const model of geminiModelChain()){
+    try{
+      const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`,{
+        method:"POST",
+        signal:requestSignal(options),
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+          systemInstruction:{parts:[{text:system}]},
+          contents:[{role:"user",parts:[{text:prompt}]}],
+          generationConfig:{temperature:options.temperature??0.18,maxOutputTokens:options.maxTokens||3200},
+        }),
+      });
+      const d=await safeJson(r);
+      if(!r.ok){errors.push(geminiError(model,d,r.status));continue;}
+      const text=String(d?.candidates?.[0]?.content?.parts?.map((p:any)=>p.text).join("\n")||"").trim();
+      if(!text){errors.push(`${model}:empty-response`);continue;}
+      return text;
+    }catch(error){
+      const raw=String((error as any)?.name==="TimeoutError"?"timeout":(error as any)?.message||error).replace(/[\r\n\t]+/g," ").slice(0,180);
+      errors.push(`${model}:${raw}`);
+    }
+  }
+  throw new Error(`gemini-model-chain-failed:${errors.join(" | ")}`);
 }
 
 export function configuredVivitoProviders():VivitoProviderName[]{

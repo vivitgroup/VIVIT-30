@@ -1,6 +1,6 @@
 import fs from "node:fs";
 const read=p=>fs.readFileSync(p,"utf8"),checks=[],check=(n,v)=>checks.push({name:n,ok:Boolean(v)});
-const engine=read("lib/vivito/action-engine.ts"),operator=read("lib/vivito/executor-operator.ts"),route=read("app/api/assistant/actions/route.ts");
+const engine=read("lib/vivito/action-engine.ts"),operator=read("lib/vivito/executor-operator.ts"),route=read("app/api/assistant/actions/route.ts"),planRuntime=read("lib/vivito/plan-runtime.ts");
 const ops=["create_user","update_user","set_user_active","create_leave_request","decide_leave","upsert_payroll","set_payroll_status","create_contract","update_contract","update_workspace_settings","send_email","send_whatsapp","create_api_key","revoke_api_key","create_webhook","revoke_webhook","sync_campaign","update_campaign","start_integration","disconnect_integration","export_data","generate_report","update_onboarding","record_nps","create_referral","bulk_update_tasks","bulk_remind_clients"];
 check("Full Operator catalog exposes all new ERP actions",ops.every(x=>engine.includes(`\"${x}\"`)));
 check("User creation is Super Admin only",engine.includes('create_user:{roles:SA,risk:"high"'));
@@ -40,6 +40,6 @@ check("Every Full Operator mutation has audit infrastructure",operator.includes(
 check("Route imports Full Operator executor",route.includes("executeVivitoOperatorAction")&&route.includes("isVivitoOperatorAction"));
 check("Route dispatches Full Operator before legacy layers",route.includes("if(isVivitoOperatorAction(op))return executeVivitoOperatorAction"));
 check("Full Operator remains behind explicit confirmation",route.includes("Explicit confirmation is required before VIVITO writes to the ERP"));
-check("Full Operator participates in plan idempotency",route.includes("vivito_plan_step_executed")&&route.includes("stepKey"));
+check("Full Operator participates in shared plan idempotency",route.includes('executeVivitoPlanRuntime')&&planRuntime.includes("vivito_plan_step_executed")&&planRuntime.includes("stepKey")&&planRuntime.includes("duplicateSteps"));
 check("Planner recognizes user HR payroll contracts messaging campaign integration report bulk intents",["يوزر","راتب","اجاز","عقد","واتساب","كامبين","تقرير","bulk"].every(x=>engine.includes(x)));
 const failed=checks.filter(x=>!x.ok);for(const c of checks)console.log(`${c.ok?"PASS":"FAIL"}  ${c.name}`);console.log(`\n${checks.length-failed.length}/${checks.length} VIVITO Full Operator checks passed.`);if(failed.length)process.exit(1);

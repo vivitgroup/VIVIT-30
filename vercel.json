@@ -10,6 +10,7 @@
       "fix/v5-client-media-fahd": false,
       "fix/vivito-artifacts-v2": false,
       "fix/vivito-competitive-intel": false,
+      "fix/vivito-certification-100": false,
       "qa/100-percent-release": false
     }
   },

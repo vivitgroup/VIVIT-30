@@ -1,0 +1,51 @@
+name: VIVITO Strict 100 Certification
+on:
+  push:
+    branches: [qa/100-percent-release]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Full release build
+        run: npm run build
+      - name: Run provider-backed 100-case intelligence exam when keys exist
+        continue-on-error: true
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          VIVITO_BENCHMARK_LIMIT: '100'
+          VIVITO_BENCHMARK_THRESHOLD: '100'
+          VIVITO_BENCHMARK_ENFORCE: '1'
+        run: |
+          mkdir -p .vivito
+          if [ -n "$GEMINI_API_KEY" ] || [ -n "$ANTHROPIC_API_KEY" ]; then
+            npm run eval:vivito
+          else
+            echo '{"blocked":true,"reason":"No GEMINI_API_KEY or ANTHROPIC_API_KEY in GitHub Actions"}' > .vivito/benchmark-blocked.json
+          fi
+      - name: Strict certification decision
+        id: certify
+        continue-on-error: true
+        run: node scripts/certify-vivito-100.mjs
+      - name: Upload certification evidence
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vivito-certification-evidence
+          path: .vivito/
+          if-no-files-found: warn
+      - name: Enforce certification
+        if: steps.certify.outcome != 'success'
+        run: |
+          echo 'VIVITO is not 100/100 certified. See certification evidence artifact for blockers.'
+          exit 1

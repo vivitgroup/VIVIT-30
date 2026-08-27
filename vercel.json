@@ -8,6 +8,7 @@
   "git": {
     "deploymentEnabled": {
       "fix/v5-client-media-fahd": false,
+      "fix/vivito-artifacts-v2": false,
       "qa/100-percent-release": false
     }
   },

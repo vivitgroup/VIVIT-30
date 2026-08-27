@@ -11,6 +11,10 @@ const beforeReferral=`values(\${id},\${W},\${referred},\${code},'PENDING',\${non
 const afterReferral=`values(\${id},\${userId},\${referred},\${code},'PENDING',\${nonneg(args.discountPct??20)},now())`;
 if(s.includes(beforeReferral)) s=s.replace(beforeReferral,afterReferral);
 if(!s.includes(afterReferral)) throw new Error('referral user attribution hardening missing');
+const oldBcrypt='const temp=randomBytes(24).toString("base64url"),hash=await import("bcryptjs").then(m=>m.hash(temp,12));';
+const newBcrypt='const temp=randomBytes(24).toString("base64url"),bcryptMod:any=await import("bcryptjs"),bcrypt:any=bcryptMod.default??bcryptMod,hash=await bcrypt.hash(temp,12);';
+if(s.includes(oldBcrypt)) s=s.replace(oldBcrypt,newBcrypt);
+if(!s.includes('bcryptMod.default??bcryptMod')||!s.includes('hash=await bcrypt.hash(temp,12)')) throw new Error('bcrypt runtime normalization missing');
 s=s.replace(/^\/\/ @ts-nocheck\s*/,'');
 fs.writeFileSync(p,s);
 console.log('VIVITO certification hardening patch applied.');

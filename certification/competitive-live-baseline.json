@@ -1,0 +1,12 @@
+{
+  "capturedAt": "2026-08-27T11:47:48.602Z",
+  "day": "2026-08-27",
+  "profiles": [
+    {"name":"Huda Beauty","profileUrl":"https://www.youtube.com/@hudabeauty","platform":"YOUTUBE","followers":null,"following":null,"totalPosts":null,"totalLikes":null,"source":"PUBLIC_HTML","confidence":"observed"},
+    {"name":"Sephora","profileUrl":"https://www.youtube.com/@sephora","platform":"YOUTUBE","followers":null,"following":null,"totalPosts":null,"totalLikes":null,"source":"PUBLIC_HTML","confidence":"observed"},
+    {"name":"Fenty Beauty","profileUrl":"https://www.youtube.com/@fentybeauty","platform":"YOUTUBE","followers":1110000,"following":null,"totalPosts":null,"totalLikes":null,"source":"PUBLIC_HTML","confidence":"observed"},
+    {"name":"Maybelline NY Middle East","profileUrl":"https://www.youtube.com/@maybellinenyme","platform":"YOUTUBE","followers":643000,"following":null,"totalPosts":null,"totalLikes":null,"source":"PUBLIC_HTML","confidence":"observed"},
+    {"name":"L'Oreal Paris Middle East","profileUrl":"https://www.youtube.com/@lorealparisme","platform":"YOUTUBE","followers":63900,"following":null,"totalPosts":null,"totalLikes":null,"source":"PUBLIC_HTML","confidence":"observed"}
+  ],
+  "evidence": {"competitorProfiles":5,"numericProfiles":3,"citationAccuracy":100,"runId":33068805544,"headSha":"c100d245d73772294bbe0278e00184c4462bf1fa"}
+}

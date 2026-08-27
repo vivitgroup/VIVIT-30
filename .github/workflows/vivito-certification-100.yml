@@ -47,7 +47,34 @@ jobs:
       - name: Generate artifact binary evidence
         run: npx tsx scripts/certify-vivito-artifacts-e2e.ts
       - name: Collect live public competitive snapshot
+        continue-on-error: true
         run: npx tsx scripts/certify-vivito-competitive-live.ts
+      - name: Run live ad-provider certification when test credentials exist
+        continue-on-error: true
+        env:
+          VIVITO_CERT_META_TOKEN: ${{ secrets.VIVITO_CERT_META_TOKEN }}
+          VIVITO_CERT_META_CAMPAIGN_ID: ${{ secrets.VIVITO_CERT_META_CAMPAIGN_ID }}
+          VIVITO_CERT_META_ACCOUNT_ID: ${{ secrets.VIVITO_CERT_META_ACCOUNT_ID }}
+          VIVITO_CERT_META_CURRENT_STATUS: ${{ secrets.VIVITO_CERT_META_CURRENT_STATUS }}
+          VIVITO_CERT_GOOGLE_TOKEN: ${{ secrets.VIVITO_CERT_GOOGLE_TOKEN }}
+          VIVITO_CERT_GOOGLE_CAMPAIGN_ID: ${{ secrets.VIVITO_CERT_GOOGLE_CAMPAIGN_ID }}
+          VIVITO_CERT_GOOGLE_ACCOUNT_ID: ${{ secrets.VIVITO_CERT_GOOGLE_ACCOUNT_ID }}
+          VIVITO_CERT_GOOGLE_CURRENT_STATUS: ${{ secrets.VIVITO_CERT_GOOGLE_CURRENT_STATUS }}
+          GOOGLE_ADS_DEVELOPER_TOKEN: ${{ secrets.GOOGLE_ADS_DEVELOPER_TOKEN }}
+          GOOGLE_ADS_LOGIN_CUSTOMER_ID: ${{ secrets.GOOGLE_ADS_LOGIN_CUSTOMER_ID }}
+          VIVITO_CERT_TIKTOK_TOKEN: ${{ secrets.VIVITO_CERT_TIKTOK_TOKEN }}
+          VIVITO_CERT_TIKTOK_CAMPAIGN_ID: ${{ secrets.VIVITO_CERT_TIKTOK_CAMPAIGN_ID }}
+          VIVITO_CERT_TIKTOK_ACCOUNT_ID: ${{ secrets.VIVITO_CERT_TIKTOK_ACCOUNT_ID }}
+          VIVITO_CERT_TIKTOK_CURRENT_STATUS: ${{ secrets.VIVITO_CERT_TIKTOK_CURRENT_STATUS }}
+          VIVITO_CERT_SNAPCHAT_TOKEN: ${{ secrets.VIVITO_CERT_SNAPCHAT_TOKEN }}
+          VIVITO_CERT_SNAPCHAT_CAMPAIGN_ID: ${{ secrets.VIVITO_CERT_SNAPCHAT_CAMPAIGN_ID }}
+          VIVITO_CERT_SNAPCHAT_ACCOUNT_ID: ${{ secrets.VIVITO_CERT_SNAPCHAT_ACCOUNT_ID }}
+          VIVITO_CERT_SNAPCHAT_CURRENT_STATUS: ${{ secrets.VIVITO_CERT_SNAPCHAT_CURRENT_STATUS }}
+          VIVITO_CERT_LINKEDIN_TOKEN: ${{ secrets.VIVITO_CERT_LINKEDIN_TOKEN }}
+          VIVITO_CERT_LINKEDIN_CAMPAIGN_ID: ${{ secrets.VIVITO_CERT_LINKEDIN_CAMPAIGN_ID }}
+          VIVITO_CERT_LINKEDIN_ACCOUNT_ID: ${{ secrets.VIVITO_CERT_LINKEDIN_ACCOUNT_ID }}
+          VIVITO_CERT_LINKEDIN_CURRENT_STATUS: ${{ secrets.VIVITO_CERT_LINKEDIN_CURRENT_STATUS }}
+        run: npx tsx scripts/certify-vivito-provider-live.ts
       - name: Run provider-backed 100-case intelligence exam when keys exist
         continue-on-error: true
         env:

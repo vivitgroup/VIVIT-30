@@ -45,7 +45,8 @@ async function callClaude(prompt:string,system:string,options:GenerateOptions){
 
 async function callGemini(prompt:string,system:string,options:GenerateOptions){
   if(!process.env.GEMINI_API_KEY)throw new Error("gemini-not-configured");
-  const model=process.env.GEMINI_MODEL||"gemini-2.0-flash";
+  // gemini-2.0-flash was shut down in 2026. Keep an env override, but default to a current GA reasoning model.
+  const model=process.env.GEMINI_MODEL||"gemini-3.7-flash";
   const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`,{
     method:"POST",
     signal:requestSignal(options),

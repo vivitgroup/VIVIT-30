@@ -1,3 +1,5 @@
+import {buildLiveKnowledgeResearchPolicy} from "./live-knowledge-fabric";
+
 type VisionInput={mimeType:string;base64:string;prompt:string};
 export type VivitoResearchSource={title:string;uri:string};
 export type VivitoGroundedResearch={text:string;queries:string[];sources:VivitoResearchSource[]};
@@ -16,6 +18,6 @@ export async function analyzeVivitoImage(input:VisionInput){
 
 export async function groundedVivitoResearch(prompt:string):Promise<VivitoGroundedResearch>{
  if(!process.env.GEMINI_API_KEY)throw new Error("gemini-not-configured");
- const system="You are VIVITO Research Intelligence. Search when necessary. Prefer official/first-party and primary sources. State dates, geography, metric definitions and limitations. Distinguish fact, inference and recommendation. Never fabricate a citation or market statistic.";
+ const system=`You are VIVITO Research Intelligence. Search when necessary. Prefer official/first-party and primary sources. State dates, geography, metric definitions and limitations. Distinguish fact, inference and recommendation. Never fabricate a citation or market statistic.\n\n${buildLiveKnowledgeResearchPolicy(prompt)}`;
  const r=await fetch(endpoint(model()),{method:"POST",signal:timeout(),headers:{"Content-Type":"application/json"},body:JSON.stringify({systemInstruction:{parts:[{text:system}]},contents:[{role:"user",parts:[{text:prompt}]}],tools:[{google_search:{}}],generationConfig:{temperature:.12,maxOutputTokens:6000}})});const d=await safeJson(r);if(!r.ok)throw new Error(d?.error?.message||`gemini-search-${r.status}`);const c=d?.candidates?.[0],text=String(c?.content?.parts?.map((p:any)=>p.text).filter(Boolean).join("\n")||"").trim(),gm=c?.groundingMetadata||{};if(!text)throw new Error("research-empty-response");const sources=(Array.isArray(gm.groundingChunks)?gm.groundingChunks:[]).map((x:any)=>x?.web).filter((x:any)=>x?.uri).map((x:any)=>({title:String(x.title||"Source"),uri:String(x.uri)}));return{text,queries:Array.isArray(gm.webSearchQueries)?gm.webSearchQueries.map(String):[],sources}
 }

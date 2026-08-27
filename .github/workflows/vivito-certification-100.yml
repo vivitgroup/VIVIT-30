@@ -83,6 +83,10 @@ jobs:
           VIVITO_BENCHMARK_LIMIT: '100'
           VIVITO_BENCHMARK_THRESHOLD: '100'
           VIVITO_BENCHMARK_ENFORCE: '1'
+          VIVITO_BENCHMARK_CRITIC: '0'
+          VIVITO_BENCHMARK_PACE_MS: '6500'
+          VIVITO_BENCHMARK_RETRY_ATTEMPTS: '4'
+          VIVITO_BENCHMARK_RETRY_BASE_MS: '5000'
         run: |
           mkdir -p .vivito
           if [ -n "$GEMINI_API_KEY" ] || [ -n "$ANTHROPIC_API_KEY" ]; then

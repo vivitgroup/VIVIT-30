@@ -36,7 +36,7 @@ export async function POST(req:NextRequest){
   const requiresConfirmation=decisions.some(d=>d.approval.requiresConfirmation);if(requiresConfirmation&&body.confirm!==true)return NextResponse.json({error:"Explicit confirmation is required before VIVITO executes this plan.",steps:decisions},{status:409,headers:noStore});
   const rootId=requestId||crypto.randomUUID();
   const execution=await executeVivitoPlanRuntime({steps:normalized,decisions,role,userId,requestId:rootId,executeStep:execute,applyExternal:applyExternalCampaignWrite});
-  if(!execution.success)return NextResponse.json({success:false,partial:execution.partial,requestId:execution.requestId,completedSteps:execution.completedSteps,stoppedAt:execution.stoppedAt,error:execution.error,details:execution.details,duplicateSteps:execution.duplicateSteps},{status:execution.status,headers:noStore});
+  if(execution.success===false)return NextResponse.json({success:false,partial:execution.partial,requestId:execution.requestId,completedSteps:execution.completedSteps,stoppedAt:execution.stoppedAt,error:execution.error,details:execution.details,duplicateSteps:execution.duplicateSteps},{status:execution.status,headers:noStore});
   return NextResponse.json(execution,{headers:noStore})
  }
  const op=clean(body.op,60) as VivitoActionOp;if(!VIVITO_ACTION_CATALOG[op])return NextResponse.json({error:"Unsupported VIVITO action."},{status:400,headers:noStore});

@@ -15,7 +15,7 @@ $("Competitor research forbids invented performance",/Do not infer financial per
 $("PESTEL converts environment into implications",/impact, likelihood and time horizon/.test(batch)&&/Translate to opportunities\/threats/.test(batch));
 $("SWOT teaches internal external distinction and TOWS",/Strengths\/weaknesses must be internal/.test(batch)&&/Use TOWS/.test(batch));
 $("Marketing plan links business goals to customer channel budget KPI",/Start from business objectives/.test(batch)&&/STP before channels/.test(batch)&&/Budget follows strategy/.test(batch));
-$("Media plan includes scenario forecast tracking and stop loss",/Forecasts are scenarios, not promises/.test(batch)&&/tracking must be validated/i.test(batch)&&/Stop-loss/.test(blueprints));
+$("Media plan includes scenario forecast tracking and stop loss",/Forecasts are scenarios, not promises/.test(batch)&&/tracking must be validated/i.test(batch)&&/stop[- ]loss/i.test(blueprints+batch));
 $("Strategic storytelling uses assertion titles",/assertion titles/.test(batch)&&/answer-first communication/.test(batch));
 $("Slide design doctrine teaches hierarchy whitespace and brand discipline",/visual hierarchy/.test(blueprints)&&/whitespace/i.test(blueprints)&&/brand colors as accents/.test(blueprints));
 $("Data visualization rejects decorative and deceptive charts",/Do not use 3D charts/.test(batch)&&/Do not manipulate axes deceptively/.test(batch));

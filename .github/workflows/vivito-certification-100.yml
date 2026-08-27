@@ -18,6 +18,8 @@ jobs:
         run: npm ci
       - name: Full release build
         run: npm run build
+      - name: Generate artifact binary evidence
+        run: npx tsx scripts/certify-vivito-artifacts-e2e.ts
       - name: Run provider-backed 100-case intelligence exam when keys exist
         continue-on-error: true
         env:
@@ -44,6 +46,7 @@ jobs:
           name: vivito-certification-evidence
           path: .vivito/
           if-no-files-found: warn
+          include-hidden-files: true
       - name: Enforce certification
         if: steps.certify.outcome != 'success'
         run: |

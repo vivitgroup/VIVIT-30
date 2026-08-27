@@ -40,8 +40,9 @@ async function main(){
    if(!rollbackRecoveryPassed){knownCriticalDefects++;failures.push({phase:'resume',resumed});}
  }
  const duplicateAudit=Array.from(await db.execute(sql`select count(*)::int count from audit_logs where workspace_id='default' and user_id=${userId} and action='vivito_plan_step_executed' and ((new_values::jsonb->>'requestId') like 'cert-reliability-%' or (new_values::jsonb->>'requestId')=${failureId})`) as any)[0]?.count??0;
- const passed=multiStepCases===50&&replayCases===50&&idempotencyPassed&&rollbackRecoveryPassed&&knownCriticalDefects===0&&Number(duplicateAudit)===101;
- const report={passed,multiStepCases,replayCases,idempotencyPassed,rollbackRecoveryPassed,knownCriticalDefects,uniqueExecutedSteps:Number(duplicateAudit),failures:failures.slice(0,20),database:'ephemeral-postgres',productionDataUsed:false};
+ // 50 plans x 2 unique steps = 100, plus two unique recovery steps (one before failure, one after resume) = 102.
+ const passed=multiStepCases===50&&replayCases===50&&idempotencyPassed&&rollbackRecoveryPassed&&knownCriticalDefects===0&&Number(duplicateAudit)===102;
+ const report={passed,multiStepCases,replayCases,idempotencyPassed,rollbackRecoveryPassed,knownCriticalDefects,uniqueExecutedSteps:Number(duplicateAudit),expectedUniqueExecutedSteps:102,failures:failures.slice(0,20),database:'ephemeral-postgres',productionDataUsed:false};
  fs.writeFileSync('.vivito/production-reliability-e2e.json',JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));if(!passed)process.exitCode=1;
 }
 main().catch(e=>{console.error(e);process.exit(1)});

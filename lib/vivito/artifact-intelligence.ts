@@ -1,6 +1,11 @@
-export type VivitoPdfBlock={type:"title"|"subtitle"|"body"|"bullet"|"metric"|"callout";text:string};
+export type VivitoPdfBlock=
+ |{type:"title"|"subtitle"|"body"|"bullet"|"metric"|"callout"|"quote";text:string}
+ |{type:"divider";text?:string}
+ |{type:"table";headers:string[];rows:(string|number)[][];text?:string}
+ |{type:"chart";title?:string;data:{label:string;value:number}[];text?:string}
+ |{type:"image";src:string;alt?:string;caption?:string;text?:string};
 export type VivitoPdfPage={title:string;eyebrow?:string;blocks:VivitoPdfBlock[];footer?:string};
-export type VivitoPdfSpec={title:string;subtitle?:string;author?:string;pages:VivitoPdfPage[];theme?:{accent?:[number,number,number];dark?:boolean}};
+export type VivitoPdfSpec={title:string;subtitle?:string;author?:string;pages:VivitoPdfPage[];theme?:{accent?:[number,number,number];dark?:boolean;brandName?:string}};
 
 export type VivitoContentPlanRow={date:string;platform:string;pillar:string;format:string;objective:string;topic:string;hook:string;captionDirection:string;cta:string;kpi:string;owner?:string;status?:string};
 export type VivitoContentPlan={brand:string;period:string;objectives:string[];audiences:string[];pillars:{name:string;role:string;share:number}[];rows:VivitoContentPlanRow[]};
@@ -12,7 +17,7 @@ export type VivitoReelScript={title:string;objective:string;audience:string;dura
 
 export const VIVITO_ARTIFACT_DOCTRINE=`
 VIVITO ARTIFACT INTELLIGENCE
-PDF: build a decision narrative before layout. Every page has one dominant message, assertion title, evidence and implication. Never dump chat prose into pages. Use a consistent grid, typography hierarchy, whitespace, sources and appendix. Render, then inspect the actual PDF before claiming quality.
+PDF: build a decision narrative before layout. Every page has one dominant message, assertion title, evidence and implication. Never dump chat prose into pages. Use a consistent grid, typography hierarchy, whitespace, sources and appendix. Use tables/charts only when they clarify a decision. Arabic/RTL output must use a renderer that preserves shaping and reading order. Render, then inspect the actual output before claiming quality.
 IMAGE UNDERSTANDING: describe only visible evidence; separate observation from inference. Read composition, hierarchy, palette, typography, product integrity, lighting, perspective, whitespace, brand cues and likely use-case. Never invent hidden text, logos or product details. When OCR/legibility is uncertain, say so.
 WEB RESEARCH: search when facts are current, competitive, regulatory, pricing, market-size, trend or platform-dependent. Prefer first-party/official sources, then primary research, reputable industry sources and only then commentary. Capture title, URL, date, geography, metric definition and limitations. Triangulate material claims.
 DESIGN: start from communication goal and hierarchy, not decoration. Define grid, focal point, typography, color roles, image treatment and information density. Preserve supplied product/logo geometry unless explicitly asked to alter it. One hero idea beats many equal boxes.

@@ -27,6 +27,7 @@ jobs:
       DATABASE_URL: postgres://vivito:vivito@127.0.0.1:5432/vivito_cert
       DRIZZLE_DATABASE_URL: postgres://vivito:vivito@127.0.0.1:5432/vivito_cert
       DATABASE_SSL_DISABLED: '1'
+      VIVITO_BENCHMARK_SCOPE: 'v1-checkpoint-free-tier'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -80,9 +81,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .vivito/benchmark-checkpoint.json
-          key: vivito-benchmark-${{ github.sha }}-${{ github.run_attempt }}
+          key: vivito-benchmark-${{ env.VIVITO_BENCHMARK_SCOPE }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
-            vivito-benchmark-${{ github.sha }}-
+            vivito-benchmark-${{ env.VIVITO_BENCHMARK_SCOPE }}-
       - name: Run checkpointed provider-backed intelligence batch
         continue-on-error: true
         env:
@@ -109,7 +110,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: .vivito/benchmark-checkpoint.json
-          key: vivito-benchmark-${{ github.sha }}-${{ github.run_attempt }}
+          key: vivito-benchmark-${{ env.VIVITO_BENCHMARK_SCOPE }}-${{ github.run_id }}-${{ github.run_attempt }}
       - name: Strict certification decision
         id: certify
         continue-on-error: true

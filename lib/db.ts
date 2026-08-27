@@ -13,8 +13,11 @@ const globalForDb = globalThis as unknown as {
 };
 
 function createClient() {
+  const ssl = process.env.DATABASE_SSL_DISABLED === "1"
+    ? false
+    : { rejectUnauthorized: false };
   return postgres(process.env.DATABASE_URL!, {
-    ssl:             { rejectUnauthorized: false },
+    ssl,
     max:             3,
     idle_timeout:    20,
     connect_timeout: 10,

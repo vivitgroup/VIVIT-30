@@ -1,6 +1,6 @@
 import fs from"node:fs";
 const r=p=>fs.readFileSync(p,"utf8"),c=[],$=(n,v)=>c.push([n,!!v]);
-const lang=r("lib/vivito/language.ts"),actions=r("lib/vivito/action-engine.ts"),orch=r("lib/vivito/orchestrator.ts"),play=r("lib/vivito/playbook.ts"),intel=r("lib/vivito/intelligence.ts");
+const lang=r("lib/vivito/language.ts"),actions=r("lib/vivito/action-engine.ts"),orch=r("lib/vivito/orchestrator.ts"),play=r("lib/vivito/playbook.ts"),intel=r("lib/vivito/intelligence.ts"),red=r("lib/vivito/red-team.ts");
 $("Language layer detects Franco",lang.includes('return "FRANCO"')&&lang.includes("FRANCO_HINT"));
 $("Language layer detects Egyptian slang",lang.includes('return "EGYPTIAN"')&&lang.includes("EGYPTIAN_HINT"));
 $("Language layer detects mixed Arabic English",lang.includes('return "MIXED"'));
@@ -22,7 +22,7 @@ $("Orchestrator explicitly supports Franco",orch.includes("Franco/Arabizi")&&orc
 $("Playbook injects per-question language profile",play.includes("vivitoLanguageInstruction(question)"));
 $("Intelligence routing consumes normalized language",intel.includes("normalizeVivitoLanguage(s).normalized"));
 $("Decision engine names Gen Z and Franco",intel.includes("Gen Z shorthand")&&intel.includes("Franco/Arabizi"));
-$("Critic preserves detected style",intel.includes("Preserve the user's detected language style"));
+$("Critic preserves detected style",intel.includes("buildVivitoRedTeamCriticPrompt")&&red.includes("Preserve supported facts and the user's language/style"));
 $("Franco response style is explicitly supported",lang.includes("Reply in natural Egyptian Franco/Arabizi"));
 $("Gen Z response style avoids forced slang",lang.includes("without sounding forced"));
 $("Mixed style mirrors Arabic English naturally",lang.includes("same natural Arabic-English mix"));

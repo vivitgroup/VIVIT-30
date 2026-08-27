@@ -17,6 +17,7 @@ on:
       - "scripts/qa-vivito-digital-twin-learning.ts"
       - "scripts/qa-vivito-live-knowledge-fabric.ts"
       - "scripts/qa-vivito-ceo-cfo-quota-v2.ts"
+      - "scripts/qa-vivito-capability-pack-v4.ts"
       - "vercel.json"
       - ".github/workflows/vivito-super-operator-ci.yml"
 jobs:
@@ -40,6 +41,8 @@ jobs:
         run: npx tsx scripts/qa-vivito-live-knowledge-fabric.ts
       - name: CEO CFO + Quota Resilience V2 gate
         run: npx tsx scripts/qa-vivito-ceo-cfo-quota-v2.ts
+      - name: Capability Pack V4 gate
+        run: npx tsx scripts/qa-vivito-capability-pack-v4.ts
       - name: Artifact Runtime V3 gate
         run: npx tsx scripts/qa-vivito-artifact-runtime-v3.ts
       - name: Artifact Quality V3 certification

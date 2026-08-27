@@ -1,0 +1,92 @@
+name: VIVITO Intelligence Checkpoint Smoke
+
+on:
+  push:
+    branches:
+      - fix/vivito-certification-final
+    paths:
+      - .github/workflows/vivito-intelligence-smoke.yml
+      - lib/vivito/providers.ts
+      - scripts/run-vivito-benchmark.ts
+      - lib/vivito/benchmark.ts
+      - lib/vivito/evaluator.ts
+      - lib/vivito/playbook.ts
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "22"
+
+jobs:
+  intelligence-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Restore rolling intelligence checkpoint
+        uses: actions/cache/restore@v4
+        with:
+          path: .vivito/benchmark-checkpoint.json
+          key: vivito-intelligence-smoke-${{ github.sha }}-${{ github.run_attempt }}
+          restore-keys: |
+            vivito-intelligence-smoke-${{ github.sha }}-
+
+      - name: Run focused VIVITO intelligence batch
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_FREE_MODEL_CHAIN: gemini-3.6-flash,gemini-3.5-flash,gemini-3.5-flash-lite,gemini-3.7-flash
+          VIVITO_BENCHMARK_LIMIT: "100"
+          VIVITO_BENCHMARK_BATCH_SIZE: "5"
+          VIVITO_BENCHMARK_THRESHOLD: "100"
+          VIVITO_BENCHMARK_ENFORCE: "0"
+          VIVITO_BENCHMARK_CRITIC: "0"
+          VIVITO_BENCHMARK_PACE_MS: "12000"
+          VIVITO_PROVIDER_RETRIES: "1"
+          VIVITO_PROVIDER_BACKOFF_MS: "3000"
+        run: npm run eval:vivito
+
+      - name: Verify checkpoint advanced
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require("fs");
+          const path = ".vivito/benchmark-checkpoint.json";
+          if (!fs.existsSync(path)) {
+            console.error("No intelligence checkpoint was created");
+            process.exit(1);
+          }
+          const data = JSON.parse(fs.readFileSync(path, "utf8"));
+          const completed = Array.isArray(data.completed) ? data.completed.length : Object.keys(data.completed || {}).length;
+          console.log(`checkpoint_completed=${completed}/100`);
+          if (completed < 1) process.exit(1);
+          NODE
+
+      - name: Save rolling intelligence checkpoint
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .vivito/benchmark-checkpoint.json
+          key: vivito-intelligence-smoke-${{ github.sha }}-${{ github.run_attempt }}
+
+      - name: Upload smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vivito-intelligence-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            .vivito/benchmark-checkpoint.json
+            .vivito/benchmark-latest.json
+          if-no-files-found: warn
+          retention-days: 7

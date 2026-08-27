@@ -17,4 +17,18 @@ if(s.includes(oldBcrypt)) s=s.replace(oldBcrypt,newBcrypt);
 if(!s.includes('bcryptMod.default??bcryptMod')||!s.includes('hash=await bcrypt.hash(temp,12)')) throw new Error('bcrypt runtime normalization missing');
 s=s.replace(/^\/\/ @ts-nocheck\s*/,'');
 fs.writeFileSync(p,s);
+
+const routePath='app/api/assistant/actions/route.ts';
+let r=fs.readFileSync(routePath,'utf8');
+const importLine='import {executeVivitoPlanRuntime} from "@/lib/vivito/plan-runtime";';
+if(!r.includes(importLine)) r=r.replace('import {mutateExternalCampaign} from "@/lib/vivito/ad-platform-writes";','import {mutateExternalCampaign} from "@/lib/vivito/ad-platform-writes";\n'+importLine);
+const start='  const rootId=requestId||crypto.randomUUID(),results:VivitoExecutionResult[]=[];';
+const end='  await db.insert(auditLogs).values({workspaceId:W,userId,action:"vivito_plan_executed",entity:"vivito_plan",entityId:rootId,newValues:JSON.stringify({requestId:rootId,stepCount:results.length,results})} as any);return NextResponse.json({success:true,requestId:rootId,plan:true,results},{headers:noStore})';
+if(r.includes(start)&&r.includes(end)){
+  const a=r.indexOf(start),b=r.indexOf(end,a)+end.length;
+  const replacement=`  const rootId=requestId||crypto.randomUUID();\n  const execution=await executeVivitoPlanRuntime({steps:normalized,decisions,role,userId,requestId:rootId,executeStep:execute,applyExternal:applyExternalCampaignWrite});\n  if(!execution.success)return NextResponse.json({success:false,partial:execution.partial,requestId:execution.requestId,completedSteps:execution.completedSteps,stoppedAt:execution.stoppedAt,error:execution.error,details:execution.details,duplicateSteps:execution.duplicateSteps},{status:execution.status,headers:noStore});\n  return NextResponse.json(execution,{headers:noStore})`;
+  r=r.slice(0,a)+replacement+r.slice(b);
+}
+if(!r.includes(importLine)||!r.includes('executeVivitoPlanRuntime({steps:normalized')) throw new Error('plan runtime route wiring missing');
+fs.writeFileSync(routePath,r);
 console.log('VIVITO certification hardening patch applied.');

@@ -1,3 +1,5 @@
+import { buildVivitoAutonomousOperatingContext } from "./autonomous-operating-intelligence-v4";
+
 export type VivitoOperatingSystemV3Id=
   | "strategic-memory-graph-v3"
   | "counterfactual-reasoning-v2"
@@ -58,8 +60,9 @@ export function detectVivitoOperatingSystemV3(question:string){
 
 export function buildVivitoOperatingSystemV3Context(question:string){
   const active=detectVivitoOperatingSystemV3(question);
-  if(!active.length)return "";
-  return `VIVITO OPERATING SYSTEM V3 — ACTIVE\n${active.map(c=>`[${c.label}]\n- ${c.doctrine.join("\n- ")}`).join("\n\n")}`;
+  const v3=active.length?`VIVITO OPERATING SYSTEM V3 — ACTIVE\n${active.map(c=>`[${c.label}]\n- ${c.doctrine.join("\n- ")}`).join("\n\n")}`:"";
+  const v4=buildVivitoAutonomousOperatingContext();
+  return [v3,v4].filter(Boolean).join("\n\n");
 }
 
 export type PortfolioCandidate={id:string;expectedContribution:number;confidence:number;capacityCost:number;strategicWeight?:number;riskPenalty?:number;minimumAllocation?:number};

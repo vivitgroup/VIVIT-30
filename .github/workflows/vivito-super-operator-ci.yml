@@ -6,6 +6,7 @@ on:
     paths:
       - "lib/vivito/**"
       - "app/api/assistant/artifacts/**"
+      - "app/api/cron/vivito-knowledge/**"
       - "components/assistant/**"
       - "scripts/qa-vivito-artifact-runtime-v3.ts"
       - "scripts/certify-vivito-artifact-quality-v3.ts"
@@ -14,6 +15,8 @@ on:
       - "scripts/run-vivito-head-to-head.ts"
       - "scripts/qa-vivito-red-team-v2.ts"
       - "scripts/qa-vivito-digital-twin-learning.ts"
+      - "scripts/qa-vivito-live-knowledge-fabric.ts"
+      - "vercel.json"
       - ".github/workflows/vivito-super-operator-ci.yml"
 jobs:
   qa:
@@ -32,6 +35,8 @@ jobs:
         run: npm run qa:vivito-red-team-v2
       - name: Client Digital Twin + Learning Loop gate
         run: npx tsx scripts/qa-vivito-digital-twin-learning.ts
+      - name: Live Knowledge Fabric gate
+        run: npx tsx scripts/qa-vivito-live-knowledge-fabric.ts
       - name: Artifact Runtime V3 gate
         run: npx tsx scripts/qa-vivito-artifact-runtime-v3.ts
       - name: Artifact Quality V3 certification

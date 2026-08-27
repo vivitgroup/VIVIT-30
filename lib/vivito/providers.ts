@@ -52,6 +52,21 @@ function geminiModelChain(){
   return [...new Set(chain)].filter(model=>model&&model!=="gemini-2.0-flash");
 }
 
+function geminiThinkingLevel(){
+  const requested=String(process.env.GEMINI_THINKING_LEVEL||"low").trim().toLowerCase();
+  return (["minimal","low","medium","high"] as const).includes(requested as any)?requested:"low";
+}
+
+function geminiGenerationConfig(model:string,options:GenerateOptions){
+  const config:any={maxOutputTokens:options.maxTokens||3200};
+  if(/^gemini-3(?:\.|-)/.test(model)){
+    config.thinkingConfig={thinkingLevel:geminiThinkingLevel()};
+  }else{
+    config.temperature=options.temperature??0.18;
+  }
+  return config;
+}
+
 function geminiError(model:string,d:any,status:number){
   const code=String(d?.error?.status||"error").replace(/[^A-Za-z0-9_-]/g,"").slice(0,40)||"error";
   const message=String(d?.error?.message||`gemini-${status}`).replace(/[\r\n\t]+/g," ").replace(/\s+/g," ").slice(0,90);
@@ -70,7 +85,7 @@ async function callGemini(prompt:string,system:string,options:GenerateOptions){
         body:JSON.stringify({
           systemInstruction:{parts:[{text:system}]},
           contents:[{role:"user",parts:[{text:prompt}]}],
-          generationConfig:{temperature:options.temperature??0.18,maxOutputTokens:options.maxTokens||3200},
+          generationConfig:geminiGenerationConfig(model,options),
         }),
       });
       const d=await safeJson(r);

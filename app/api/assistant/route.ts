@@ -11,6 +11,8 @@ import {buildVivitoOrchestratorSystem,likelyVivitoMultiStepIntent,parseVivitoAct
 import {buildVivitoMemoryPlannerSystem,forgetVivitoMemory,likelyVivitoMemoryIntent,loadVivitoMemories,memoryContext,parseVivitoMemoryPlan,saveVivitoMemory} from "@/lib/vivito/memory";
 import {analyzeVivitoImage,groundedVivitoResearch} from "@/lib/vivito/multimodal";
 import {buildVivitoArtifactPlannerSystem,likelyVivitoArtifactIntent,likelyVivitoResearchIntent,likelyVivitoVisionIntent,parseVivitoArtifactProposal,requestedArtifactKind} from "@/lib/vivito/artifact-router";
+import {buildCompetitivePlannerSystem,likelyCompetitiveChatIntent,parseCompetitiveChatPlan} from "@/lib/vivito/competitive-chat";
+import {buildDailyCompetitiveReport,platformFromUrl} from "@/lib/vivito/competitive-intelligence";
 
 const W="default";
 const n=(v:unknown)=>Number(v||0);
@@ -85,6 +87,18 @@ export async function POST(req:NextRequest){
  const role=String((session.user as any).role||""),userId=String((session.user as any).id||""),attachments=Array.isArray(body.attachments)?body.attachments.slice(0,5).map((x:any)=>({fileId:String(x?.fileId||"").slice(0,100),name:String(x?.name||"").slice(0,255),mimeType:String(x?.mimeType||"").slice(0,120)})).filter((x:any)=>x.fileId):[];
  const clients=await clientScope(role,userId),ids=clients.map((c:any)=>String(c.id));
  const [tasks,campaigns,tracking,clientHealth,sales,finance,memories]=await Promise.all([taskContext(role,userId,ids),mediaContext(role,ids),trackingContext(role,ids),clientHealthContext(role,ids),salesContext(role,userId),financeContext(role,ids),loadVivitoMemories(userId,role,ids)]);
+
+ if(likelyCompetitiveChatIntent(question)){
+  try{
+   const planned=await generateVivito(question+"\n\nAUTHORIZED CLIENTS: "+JSON.stringify(clients.map((c:any)=>c.company_name)),buildCompetitivePlannerSystem(),{temperature:0,maxTokens:1400});
+   const cp=parseCompetitiveChatPlan(planned.text);
+   if(cp){const client=resolveAuthorizedClient(clients,cp.clientName);if(!client)return NextResponse.json({answer:isArabic(question)?"حدد اسم العميل/البراند اللي هنراقب المنافسين بتوعه بوضوح.":"Specify the client/brand whose competitors should be monitored.",mode:"competitive-clarification",intelligence:"VIVITO"},{headers:{"Cache-Control":"private, no-store"}});
+    if(cp.op==="report"){const report=await buildDailyCompetitiveReport(String(client.id));return NextResponse.json({answer:report.summary,mode:"competitive-report",intelligence:"VIVITO",competitiveReport:report,sources:["VIVITO Competitive Intelligence","Public social snapshots"]},{headers:{"Cache-Control":"private, no-store"}})}
+    let added=0;for(const comp of cp.competitors){if(!comp.urls.length)continue;const w=Array.from(await db.execute(sql`insert into competitor_watchlists(workspace_id,client_id,competitor_name,created_by) values(${W},${String(client.id)},${comp.name||"Competitor"},${userId}) returning id`) as any)[0] as any;for(const url of comp.urls){const platform=platformFromUrl(url);await db.execute(sql`insert into competitor_social_profiles(watchlist_id,platform,profile_url) values(${String(w.id)},${platform},${url}) on conflict do nothing`);added++}}
+    return NextResponse.json({answer:isArabic(question)?"تم تفعيل مراقبة المنافسين: "+added+" حساب/رابط. VIVITO هيخزن snapshots يومية ويطلع التغييرات والتقرير.":"Competitive monitoring enabled for "+added+" social profile(s). Daily snapshots and deltas are now configured.",mode:"competitive-setup",intelligence:"VIVITO",sources:["VIVITO Competitive Intelligence"]},{headers:{"Cache-Control":"private, no-store"}})
+   }
+  }catch(error:any){return NextResponse.json({answer:isArabic(question)?"مش قادر أفعّل المراقبة بالروابط دي. اتأكد إن الروابط عامة وصحيحة.":"I could not configure monitoring from those links. Use valid public social URLs.",mode:"competitive-error",intelligence:"VIVITO"},{headers:{"Cache-Control":"private, no-store"}})}
+ }
 
  if(likelyVivitoArtifactIntent(question)){
   try{

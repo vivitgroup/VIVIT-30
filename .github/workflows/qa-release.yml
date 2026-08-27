@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - qa/100-percent-release
+      - release/vivito-rc1-2026-08-27
   pull_request:
     branches:
       - main

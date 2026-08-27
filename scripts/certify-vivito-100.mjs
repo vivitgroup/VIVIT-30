@@ -8,7 +8,9 @@ const add=(id,name,checks)=>{const failed=checks.filter(x=>!x.pass);domains.push
 const benchmark=evidence('benchmark-latest.json');
 add('INTELLIGENCE','Intelligence 100/100',[
  {pass:!!benchmark,detail:'Provider-backed 100-case benchmark evidence is missing.'},
- {pass:benchmark?.selectedCases===100,detail:`Benchmark must execute exactly 100 cases; got ${benchmark?.selectedCases??'none'}.`},
+ {pass:benchmark?.selectedCases===100,detail:`Benchmark must target exactly 100 cases; got ${benchmark?.selectedCases??'none'}.`},
+ {pass:benchmark?.completedCases===100,detail:`Benchmark checkpoint must contain 100 completed provider-backed cases; got ${benchmark?.completedCases??'none'}.`},
+ {pass:benchmark?.remainingCases===0,detail:`Benchmark has ${benchmark?.remainingCases??'unknown'} case(s) remaining.`},
  {pass:benchmark?.percent===100,detail:`Intelligence benchmark must be 100%; got ${benchmark?.percent??'none'}%.`},
  {pass:benchmark&&Object.keys(benchmark.dimensions||{}).length>=10&&Object.values(benchmark.dimensions||{}).every(d=>Number(d.percent)===100),detail:'Every intelligence dimension must score 100%.'},
 ]);

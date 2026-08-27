@@ -7,13 +7,13 @@ const SUPER_ADMIN_ONLY_CONFIRM=new Set<VivitoActionOp>([
   "delete_client","delete_task","revoke_api_key","revoke_webhook","disconnect_integration","update_workspace_settings"
 ]);
 const ALWAYS_CONFIRM=new Set<VivitoActionOp>([
-  "archive_client","archive_task","move_lead","schedule_post","record_payment","create_invoice","create_user","update_user","set_user_active",
+  "archive_client","archive_task","move_lead","schedule_post","log_expense","record_payment","create_invoice","create_user","update_user","set_user_active",
   "decide_leave","upsert_payroll","set_payroll_status","create_contract","update_contract","send_email","send_whatsapp","create_api_key","create_webhook",
   "update_campaign","start_integration","bulk_update_tasks","bulk_remind_clients"
 ]);
 const SAFE_AUTO=new Set<VivitoActionOp>([
   "remind_me","restore_client","restore_task","create_task","update_task","reassign_task","create_client","update_client","add_client_contact","attach_file",
-  "create_lead","update_lead","log_expense","sync_campaign","export_data","generate_report","update_onboarding","record_nps","create_referral","create_leave_request"
+  "create_lead","update_lead","sync_campaign","export_data","generate_report","update_onboarding","record_nps","create_referral","create_leave_request"
 ]);
 
 export function decideVivitoApproval(op:VivitoActionOp,role:string):VivitoApprovalDecision{

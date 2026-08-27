@@ -1,0 +1,233 @@
+/* VIVITO UI MOTION V1 — system-wide 3D depth, living assistant identity and campaign health signals */
+
+:root {
+  --vivito-social-blue: #1877f2;
+  --vivito-social-cyan: #25f4ee;
+  --vivito-social-pink: #fe2c55;
+  --vivito-social-purple: #833ab4;
+  --vivito-social-orange: #fd7e14;
+  --vivito-social-red: #ff0033;
+  --vivito-social-green: #25d366;
+  --vivito-social-yellow: #ffd800;
+  --vivito-depth-shadow: 0 18px 45px rgba(16,24,40,.11), 0 5px 14px rgba(16,24,40,.08), inset 0 1px rgba(255,255,255,.74);
+  --vivito-depth-shadow-hover: 0 28px 68px rgba(16,24,40,.16), 0 9px 22px rgba(16,24,40,.10), inset 0 1px rgba(255,255,255,.82);
+}
+
+.dark {
+  --vivito-depth-shadow: 0 20px 52px rgba(0,0,0,.46), 0 6px 18px rgba(0,0,0,.34), inset 0 1px rgba(255,255,255,.055);
+  --vivito-depth-shadow-hover: 0 30px 76px rgba(0,0,0,.62), 0 12px 28px rgba(0,0,0,.42), inset 0 1px rgba(255,255,255,.075);
+}
+
+/* All ERP card surfaces: 3D without changing layout or business logic. */
+.card,
+.card-vivit,
+.kpi-card,
+.metric-card,
+.stat-card,
+.campaign-card,
+.creative-card,
+.attention,
+.metric-grid > *,
+.cw-kpis > *,
+.dashboard-skeleton .skeleton {
+  position: relative;
+  transform: perspective(1100px) translateZ(0);
+  transform-style: preserve-3d;
+  box-shadow: var(--vivito-depth-shadow) !important;
+  transition: transform .34s cubic-bezier(.16,1,.3,1), box-shadow .34s cubic-bezier(.16,1,.3,1), border-color .28s ease, filter .28s ease !important;
+  isolation: isolate;
+}
+
+.card::before,
+.card-vivit::before,
+.kpi-card::before,
+.metric-card::before,
+.stat-card::before,
+.campaign-card::before,
+.creative-card::before,
+.attention::before,
+.metric-grid > *::before,
+.cw-kpis > *::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: -1;
+  background: linear-gradient(118deg, rgba(255,255,255,.34), transparent 24%, transparent 72%, rgba(24,119,242,.055));
+  opacity: .72;
+}
+
+.card:hover,
+.card-vivit:hover,
+.kpi-card:hover,
+.metric-card:hover,
+.stat-card:hover,
+.campaign-card:hover,
+.creative-card:hover,
+.attention:hover,
+.metric-grid > *:hover,
+.cw-kpis > *:hover {
+  transform: perspective(1100px) translateY(-5px) rotateX(.55deg) rotateY(-.45deg) translateZ(8px);
+  box-shadow: var(--vivito-depth-shadow-hover) !important;
+}
+
+/* Very light ambient motion: visible, but never distracts from work. */
+.card-vivit,
+.kpi-card,
+.metric-grid > *,
+.cw-kpis > * {
+  animation: vivitoCardBreath 7.2s ease-in-out infinite;
+}
+
+.metric-grid > *:nth-child(2n),
+.cw-kpis > *:nth-child(2n) { animation-delay: -2.4s; }
+.metric-grid > *:nth-child(3n),
+.cw-kpis > *:nth-child(3n) { animation-delay: -4.8s; }
+
+@keyframes vivitoCardBreath {
+  0%,100% { filter: brightness(1); }
+  50% { filter: brightness(1.018); }
+}
+
+/* Client-profile quote — mounted at runtime for AM/MB client workspace and Client Portal. */
+.cw-hero,
+.portal-hero { position: relative; overflow: hidden; }
+
+.vivito-marketing-quote {
+  position: absolute;
+  right: clamp(18px, 5vw, 72px);
+  bottom: 14px;
+  width: min(46vw, 620px);
+  min-height: 48px;
+  padding: 9px 15px 10px;
+  border-radius: 15px;
+  background: linear-gradient(110deg, rgba(13,19,32,.84), rgba(22,26,48,.72));
+  border: 1px solid rgba(255,255,255,.13);
+  box-shadow: 0 14px 34px rgba(0,0,0,.18), inset 0 1px rgba(255,255,255,.08);
+  backdrop-filter: blur(18px) saturate(145%);
+  color: #fff;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.vivito-quote-prefix {
+  display: block;
+  font: 800 8px/1.2 "Sora", sans-serif;
+  letter-spacing: .16em;
+  opacity: .58;
+  margin-bottom: 5px;
+  background: linear-gradient(90deg, var(--vivito-social-blue), var(--vivito-social-cyan), var(--vivito-social-pink), var(--vivito-social-yellow));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.vivito-marketing-quote strong {
+  font: 650 clamp(10px, 1vw, 13px)/1.45 "Plus Jakarta Sans", sans-serif;
+  letter-spacing: -.01em;
+}
+
+.vivito-marketing-quote i {
+  display: inline-block;
+  width: 2px;
+  height: 14px;
+  margin-left: 4px;
+  vertical-align: -2px;
+  background: var(--vivito-social-cyan);
+  box-shadow: 0 0 10px var(--vivito-social-cyan);
+  animation: vivitoCursor .82s steps(1,end) infinite;
+}
+
+@keyframes vivitoCursor { 50% { opacity: 0; } }
+
+/* Campaign cards become visual status instruments. */
+.campaign-card,
+[data-campaign-card],
+.media-campaign-card,
+.campaign-row {
+  --campaign-signal: rgba(24,119,242,.24);
+  --campaign-signal-strong: rgba(24,119,242,.48);
+  border-color: color-mix(in srgb, var(--campaign-signal-strong) 48%, transparent) !important;
+}
+
+.vivito-campaign-good {
+  --campaign-signal: rgba(34,197,94,.18);
+  --campaign-signal-strong: rgba(34,197,94,.44);
+  box-shadow: var(--vivito-depth-shadow), 0 0 22px var(--campaign-signal) !important;
+  animation: vivitoGoodGlow 4.2s ease-in-out infinite;
+}
+
+.vivito-campaign-excellent {
+  --campaign-signal: rgba(16,185,129,.30);
+  --campaign-signal-strong: rgba(16,185,129,.68);
+  box-shadow: var(--vivito-depth-shadow), 0 0 30px var(--campaign-signal) !important;
+  animation: vivitoExcellentGlow 2.25s ease-in-out infinite;
+}
+
+.vivito-campaign-warning {
+  --campaign-signal: rgba(245,158,11,.25);
+  --campaign-signal-strong: rgba(245,158,11,.62);
+  box-shadow: var(--vivito-depth-shadow), 0 0 26px var(--campaign-signal) !important;
+  animation: vivitoWarningGlow 2.65s ease-in-out infinite;
+}
+
+.vivito-campaign-critical {
+  --campaign-signal: rgba(239,68,68,.29);
+  --campaign-signal-strong: rgba(239,68,68,.72);
+  box-shadow: var(--vivito-depth-shadow), 0 0 34px var(--campaign-signal) !important;
+  animation: vivitoCriticalGlow 1.45s ease-in-out infinite;
+}
+
+@keyframes vivitoGoodGlow {
+  0%,100% { box-shadow: var(--vivito-depth-shadow), 0 0 12px rgba(34,197,94,.10); }
+  50% { box-shadow: var(--vivito-depth-shadow), 0 0 25px rgba(34,197,94,.22); }
+}
+@keyframes vivitoExcellentGlow {
+  0%,100% { box-shadow: var(--vivito-depth-shadow), 0 0 14px rgba(16,185,129,.16); filter: brightness(1); }
+  50% { box-shadow: var(--vivito-depth-shadow), 0 0 42px rgba(16,185,129,.43); filter: brightness(1.035); }
+}
+@keyframes vivitoWarningGlow {
+  0%,100% { box-shadow: var(--vivito-depth-shadow), 0 0 14px rgba(245,158,11,.12); }
+  50% { box-shadow: var(--vivito-depth-shadow), 0 0 35px rgba(245,158,11,.38); }
+}
+@keyframes vivitoCriticalGlow {
+  0%,100% { box-shadow: var(--vivito-depth-shadow), 0 0 14px rgba(239,68,68,.14); filter: saturate(1); }
+  50% { box-shadow: var(--vivito-depth-shadow), 0 0 40px rgba(239,68,68,.46); filter: saturate(1.12) brightness(1.025); }
+}
+
+@media (max-width: 900px) {
+  .vivito-marketing-quote {
+    position: relative;
+    right: auto;
+    bottom: auto;
+    width: 100%;
+    margin-top: 14px;
+  }
+  .cw-hero,
+  .portal-hero { overflow: visible; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-vivit,
+  .kpi-card,
+  .metric-grid > *,
+  .cw-kpis > *,
+  .vivito-campaign-good,
+  .vivito-campaign-excellent,
+  .vivito-campaign-warning,
+  .vivito-campaign-critical,
+  .vivito-marketing-quote i {
+    animation: none !important;
+  }
+  .card:hover,
+  .card-vivit:hover,
+  .kpi-card:hover,
+  .metric-card:hover,
+  .stat-card:hover,
+  .campaign-card:hover,
+  .creative-card:hover,
+  .attention:hover,
+  .metric-grid > *:hover,
+  .cw-kpis > *:hover { transform: none !important; }
+}

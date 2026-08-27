@@ -1,9 +1,10 @@
 import {classifyVivitoProviderFailure,clearVivitoProviderCooldown,markVivitoProviderCooldown,vivitoProviderCooldownRemaining} from "./quota-resilience";
+import {generateViaVivitoMesh,vivitoMeshSummary,type VivitoMeshTask} from "./model-mesh-v1";
 
-export type VivitoProviderName="gemini"|"claude";
-export type VivitoGeneration={text:string;provider:VivitoProviderName;attempted:VivitoProviderName[];errors:string[];latencyMs:number};
+export type VivitoProviderName="gemini"|"claude"|"mesh";
+export type VivitoGeneration={text:string;provider:VivitoProviderName;attempted:VivitoProviderName[];errors:string[];latencyMs:number;modelId?:string};
 
-type GenerateOptions={temperature?:number;maxTokens?:number;preferred?:VivitoProviderName[];timeoutMs?:number};
+type GenerateOptions={temperature?:number;maxTokens?:number;preferred?:VivitoProviderName[];timeoutMs?:number;task?:VivitoMeshTask};
 
 const ANTHROPIC_URL="https://api.anthropic.com/v1/messages";
 const MIN_TIMEOUT_MS=2000;
@@ -32,19 +33,21 @@ async function callGemini(prompt:string,system:string,options:GenerateOptions){
   const e:any=new Error(`gemini-model-chain-failed:${errors.join(" | ")}`);e.status=lastStatus;throw e;
 }
 
-export function configuredVivitoProviders():VivitoProviderName[]{const providers:VivitoProviderName[]=[];if(process.env.GEMINI_API_KEY)providers.push("gemini");if(process.env.ANTHROPIC_API_KEY)providers.push("claude");return providers}
+export function configuredVivitoProviders():VivitoProviderName[]{const providers:VivitoProviderName[]=[];if(process.env.GEMINI_API_KEY)providers.push("gemini");if(vivitoMeshSummary().configured>0)providers.push("mesh");if(process.env.ANTHROPIC_API_KEY)providers.push("claude");return providers}
 function safeError(provider:VivitoProviderName,error:unknown){const failure=classifyVivitoProviderFailure(error,(error as any)?.status);return `${provider}:${failure.safeCode}`}
 
 export async function generateVivito(prompt:string,system:string,options:GenerateOptions={}):Promise<VivitoGeneration>{
   const configured=configuredVivitoProviders();if(!configured.length)throw new Error("provider-not-configured");
-  const preferred=(options.preferred||["gemini","claude"]).filter(p=>configured.includes(p));const baseOrder=[...preferred,...configured.filter(p=>!preferred.includes(p))];
+  const preferred=(options.preferred||["gemini","mesh","claude"]).filter(p=>configured.includes(p));const baseOrder=[...preferred,...configured.filter(p=>!preferred.includes(p))];
   const order=[...baseOrder.filter(p=>vivitoProviderCooldownRemaining(p)===0),...baseOrder.filter(p=>vivitoProviderCooldownRemaining(p)>0)];
   const attempted:VivitoProviderName[]=[];const errors:string[]=[];const started=Date.now();
   for(const provider of order){
     if(vivitoProviderCooldownRemaining(provider)>0&&order.some(p=>p!==provider&&vivitoProviderCooldownRemaining(p)===0)){errors.push(`${provider}:provider-cooldown-active`);continue}
     attempted.push(provider);
-    try{const text=provider==="gemini"?await callGemini(prompt,system,options):await callClaude(prompt,system,options);clearVivitoProviderCooldown(provider);return{text,provider,attempted,errors,latencyMs:Date.now()-started}}
-    catch(error){const failure=classifyVivitoProviderFailure(error,(error as any)?.status);markVivitoProviderCooldown(provider,failure);errors.push(safeError(provider,error))}
+    try{
+      if(provider==="mesh"){const result=await generateViaVivitoMesh(prompt,system,options);clearVivitoProviderCooldown(provider);return{text:result.text,provider,attempted,errors:[...errors,...result.errors],latencyMs:Date.now()-started,modelId:result.modelId}}
+      const text=provider==="gemini"?await callGemini(prompt,system,options):await callClaude(prompt,system,options);clearVivitoProviderCooldown(provider);return{text,provider,attempted,errors,latencyMs:Date.now()-started};
+    }catch(error){const failure=classifyVivitoProviderFailure(error,(error as any)?.status);markVivitoProviderCooldown(provider,failure);errors.push(safeError(provider,error))}
   }
   throw new Error(`all-providers-failed:${errors.join(" | ")}`);
 }

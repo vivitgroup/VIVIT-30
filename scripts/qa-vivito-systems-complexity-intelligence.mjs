@@ -3,8 +3,9 @@ const src=fs.readFileSync("lib/vivito/training-batch-31-systems-complexity-intel
 const parity=fs.readFileSync("lib/vivito/training-batches-32-41-marketing-parity.ts","utf8");
 const superOps=fs.readFileSync("lib/vivito/training-batches-42-47-super-operator.ts","utf8");
 const academy=fs.readFileSync("lib/vivito/academy.ts","utf8");
-const parityMarkers=Array.from({length:10},(_,i)=>`BATCH ${i+32}`);
-const superMarkers=Array.from({length:6},(_,i)=>`BATCH ${i+42}`);
+const parityBatchIds=Array.from({length:10},(_,i)=>i+32);
+const superBatchIds=Array.from({length:6},(_,i)=>i+42);
+const hasBatch=(text,id)=>new RegExp(`M\\(${id},`).test(text);
 const checks=[
 ["25 systems complexity modules",(src.match(/M\("/g)||[]).length>=25],
 ["system boundary",src.includes("System Boundary")],
@@ -20,7 +21,7 @@ const checks=[
 ["Academy wires Batch 31",academy.includes("VIVITO_TRAINING_BATCH_31_CONTEXT")&&academy.includes("SYSTEMS THINKING & COMPLEX ADAPTIVE INTELLIGENCE")],
 ["Batch 31 imports marketing parity context",src.includes("VIVITO_MARKETING_PARITY_CONTEXT")&&src.includes("MARKETING PARITY INTELLIGENCE")],
 ["Marketing parity has at least 120 modules",(parity.match(/M\(/g)||[]).length>=120],
-["All Batches 32-41 are declared",parityMarkers.every(x=>parity.includes(x))],
+["All Batches 32-41 are declared",parityBatchIds.every(id=>hasBatch(parity,id))],
 ["Batch 32 causal intelligence",parity.includes("Marketing Causal Intelligence")&&parity.includes("Incrementality Discipline")&&parity.includes("Counterfactual Reasoning")],
 ["Batch 33 psychology and JTBD",parity.includes("Consumer Psychology & JTBD")&&parity.includes("Jobs-to-be-Done")&&parity.includes("Ethical Persuasion Guardrail")],
 ["Batch 34 positioning offer messaging",parity.includes("Positioning Offer Messaging")&&parity.includes("Value Proposition")&&parity.includes("Offer Architecture")],
@@ -34,7 +35,7 @@ const checks=[
 ["No fake-data doctrine",parity.includes("never invents live data")],
 ["High-risk actions stay approval gated",parity.includes("approval-gated")],
 ["Batch 31 imports super operator context",src.includes("VIVITO_SUPER_OPERATOR_CONTEXT")&&src.includes("SUPER OPERATOR INTELLIGENCE")],
-["All Batches 42-47 are declared",superMarkers.every(x=>superOps.includes(x))],
+["All Batches 42-47 are declared",superBatchIds.every(id=>hasBatch(superOps,id))],
 ["Batch 42 sales director",superOps.includes("Sales Director Intelligence V2")&&superOps.includes("Pipeline Diagnosis")&&superOps.includes("Marketing Sales Closed Loop")],
 ["Batch 43 CEO CFO",superOps.includes("Business CEO CFO Intelligence")&&superOps.includes("P&L Reasoning")&&superOps.includes("Capital Allocation")&&superOps.includes("CEO Synthesis")],
 ["Batch 44 artifact engine",superOps.includes("Consulting Artifact Engine V3")&&superOps.includes("Executive Storyline")&&superOps.includes("Excel Model Architecture")&&superOps.includes("Board Ready PDF")],

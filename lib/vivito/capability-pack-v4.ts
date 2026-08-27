@@ -1,7 +1,10 @@
 export type VivitoCapabilityId=
   |"sales-v3"|"ceo-cfo-v2"|"real-estate-egypt-v2"|"hr-people-v2"|"simulation-v2"
   |"artifact-studio-v4"|"research-v3"|"client-twin-v2"|"learning-loop-v2"|"creative-director-v2"
-  |"marketing-scientist-v2"|"decision-engine-v3"|"red-team-v3"|"live-knowledge-v2"|"blind-head-to-head-v2";
+  |"marketing-scientist-v2"|"decision-engine-v3"|"red-team-v3"|"live-knowledge-v2"|"blind-head-to-head-v2"
+  |"decision-memory-v2"|"autonomous-research-v2"|"executive-war-room-v2"|"experimentation-os-v2"
+  |"financial-digital-twin-v2"|"client-brand-twin-v3"|"creative-intelligence-v2"|"media-buyer-copilot-v2"
+  |"sales-conversation-intelligence-v2"|"meeting-intelligence-v2"|"forecasting-engine-v2"|"self-improvement-engine-v2";
 
 export type VivitoCapability={
   id:VivitoCapabilityId;
@@ -27,6 +30,19 @@ export const VIVITO_CAPABILITY_PACK_V4:VivitoCapability[]=[
   {id:"red-team-v3",label:"Red Team V3",runtime:true,doctrine:["Check stale data, source mismatch, financial contradiction, over-generalization, false certainty and risky automation.","Block unsupported live claims and fabricated execution.","Force explicit validation and rollback for high-impact recommendations."]},
   {id:"live-knowledge-v2",label:"Live Knowledge Fabric V2",runtime:true,doctrine:["Prefer first-party APIs/data feeds where available, then official pages, then trusted secondary sources.","Track fetched-at, effective date, freshness SLA, source authority and supersession.","Egypt real-estate queries prioritize Egyptian official sources."]},
   {id:"blind-head-to-head-v2",label:"Blind Head-to-Head V2",runtime:true,externalEvidenceRequired:true,doctrine:["Use identical prompts, anonymized A/B outputs and frozen rubric.","Do not reveal model identity before scoring.","Never claim superiority before completed blind judgments and joined results."]},
+
+  {id:"decision-memory-v2",label:"Persistent Decision Memory V2",runtime:true,doctrine:["Store decision, assumptions, evidence snapshot, owner, expected outcome, review date and actual outcome as separate fields.","On a repeated decision, retrieve relevant prior outcomes and explicitly state what transferred and what did not.","Never let stale memory override fresher ERP or source evidence; supersede corrected assumptions instead of silently mutating history."]},
+  {id:"autonomous-research-v2",label:"Autonomous Research Agent V2",runtime:true,externalEvidenceRequired:true,doctrine:["Decompose a research question into claims, source plan, contradiction checks and decision criteria before synthesis.","Maintain a claim ledger with source, date, authority, locality, confidence and contradictory evidence.","Do not turn search summaries into facts; finish with verified findings, unresolved gaps and the recommendation that the evidence can actually support."]},
+  {id:"executive-war-room-v2",label:"Executive War Room V2",runtime:true,doctrine:["Simulate distinct CEO, CFO, CMO, Sales, Operations, Creative and Data lenses without averaging them into fake consensus.","Each lens must state objective, evidence, constraint, downside and veto condition.","Arbitrate to one enterprise decision with dissent, trade-offs, owner, trigger to revisit and evidence that would reverse the choice."]},
+  {id:"experimentation-os-v2",label:"Marketing Experimentation OS V2",runtime:true,doctrine:["Convert uncertain optimization into Hypothesis -> Treatment -> Control/comparator -> Primary metric -> Guardrail metric -> Duration/sample rule -> Scale/Kill rule -> Learning.","Pre-register success criteria before reading the result when practical.","Never call a test a winner when tracking, sample sufficiency, seasonality or operational confounds make the conclusion unreliable."]},
+  {id:"financial-digital-twin-v2",label:"Financial Digital Twin V2",runtime:true,doctrine:["Model revenue, gross margin, contribution margin, payroll, media spend, CAC, LTV, payback, collections, cash burn, runway and capacity with explicit formulas and dates.","Separate invoiced revenue, collected cash, pass-through spend and recognized agency revenue.","For a proposed decision, show base/upside/downside effect on profit, cash and constraint bottlenecks before recommending scale."]},
+  {id:"client-brand-twin-v3",label:"Client & Brand Twin V3",runtime:true,doctrine:["Maintain brand voice, visual codes, ICP, jobs-to-be-done, offers, pricing, objections, journey, winning/failed creatives, channel history, competitors, constraints and business objectives.","Treat the twin as scoped memory, never as global truth; client isolation is mandatory.","When a brief conflicts with verified brand or business constraints, surface the conflict rather than silently following the latest text."]},
+  {id:"creative-intelligence-v2",label:"Creative Intelligence V2",runtime:true,doctrine:["Score concepts before production on hook, stopping power, message clarity, product fidelity, brand fit, emotional mechanism, offer strength, platform fit, novelty and fatigue risk.","Separate predicted creative quality from observed performance; a high pre-score is a hypothesis, not proof.","Translate learning into testable creative variables such as hook, first frame, proof, format, CTA, angle and offer rather than vague style judgments."]},
+  {id:"media-buyer-copilot-v2",label:"Media Buyer Copilot V2",runtime:true,doctrine:["Diagnose account -> campaign -> ad set -> ad hierarchy and distinguish zero-results, rising-cost, tracking-break, audience-fatigue, creative-fatigue, learning-limited, healthy and scaling-opportunity states.","Budget reallocation must consider marginal efficiency, conversion quality, saturation, delivery stability, cash constraints and downstream sales capacity.","All external writes remain approval-gated and reversible with verification plus rollback criteria."]},
+  {id:"sales-conversation-intelligence-v2",label:"Sales Conversation Intelligence V2",runtime:true,doctrine:["Extract stakeholder, role, need, urgency, budget signal, objections, buying signals, competitor mentions, commitment, next step and deal risk from calls, notes or emails.","Do not infer a commitment that was not stated; distinguish explicit promise, soft signal and analyst inference.","Recommend next-best action with owner, deadline, proof needed and CRM field updates while respecting role permissions."]},
+  {id:"meeting-intelligence-v2",label:"Meeting Intelligence V2",runtime:true,doctrine:["Convert meetings into Decisions, Actions, Owners, Deadlines, Risks, Open Questions and Dependencies.","Separate agreed decisions from suggestions, debate and background context.","Flag missing owner/deadline and contradictory commitments; never fabricate them to make minutes look complete."]},
+  {id:"forecasting-engine-v2",label:"Forecasting Engine V2",runtime:true,doctrine:["Produce a distribution or Base/Upside/Downside forecast with explicit drivers, assumptions, confidence and forecast horizon.","Identify leading indicators, break conditions and trigger points that would move the forecast materially.","Use sensitivity ranges instead of point precision when the input quality cannot support a narrow estimate."]},
+  {id:"self-improvement-engine-v2",label:"Self-Improvement Engine V2",runtime:true,doctrine:["Convert validated failures into error taxonomy, generalized lesson, remediation rule and regression test without exposing or gaming a frozen benchmark.","Require evidence that a lesson generalizes across paraphrases or adjacent cases before promoting it to a durable rule.","Never weaken evaluator, threshold, safety, authorization or evidence standards to manufacture improvement."]},
 ];
 
 const patterns:Record<VivitoCapabilityId,RegExp>={
@@ -45,6 +61,18 @@ const patterns:Record<VivitoCapabilityId,RegExp>={
   "red-team-v3":/(risk|validate|rollback|audit|check|مخاطر|تحقق|راجع|رول باك)/i,
   "live-knowledge-v2":/(latest|current|today|live|update|احدث|حالي|دلوقتي|لايف|تحديث)/i,
   "blind-head-to-head-v2":/(claude|head.?to.?head|benchmark|blind|كلود|مقارنة|امتحان)/i,
+  "decision-memory-v2":/(remember|history|previous decision|last time|decision memory|افتكر|المرة اللي فاتت|قرار سابق|ذاكرة)/i,
+  "autonomous-research-v2":/(deep research|research agent|evidence|claim ledger|sources|بحث عميق|مصادر|دليل|تحقق)/i,
+  "executive-war-room-v2":/(war room|ceo|cfo|cmo|executive team|board decision|ادارة عليا|مجلس|سي اي او|سي اف او)/i,
+  "experimentation-os-v2":/(experiment|a\/b|test plan|hypothesis|holdout|تجربة|اختبار|فرضية)/i,
+  "financial-digital-twin-v2":/(financial model|digital twin|cash flow|runway|contribution margin|payback|نموذج مالي|تدفق نقدي|هامش مساهمة)/i,
+  "client-brand-twin-v3":/(brand voice|brand twin|client twin|brand codes|audience|offer|هوية|براند|عميل|جمهور|عرض)/i,
+  "creative-intelligence-v2":/(creative score|creative fatigue|hook|first frame|scroll stop|كريتيف|هوك|فاتيغ|اول فريم)/i,
+  "media-buyer-copilot-v2":/(media buyer|campaign|ad set|budget reallocation|cpa|roas|frequency|ميديا باير|كامبين|اد سيت|ميزانية اعلان)/i,
+  "sales-conversation-intelligence-v2":/(sales call|call notes|objection|buying signal|crm|مكالمة مبيعات|اعتراض|اشارة شراء|سي ار ام)/i,
+  "meeting-intelligence-v2":/(meeting|minutes|action items|owners|deadline|اجتماع|محضر|اكشن ايتم|مسؤول|موعد نهائي)/i,
+  "forecasting-engine-v2":/(forecast|projection|upside|downside|confidence interval|توقع|تنبؤ|سيناريو صاعد|سيناريو هابط)/i,
+  "self-improvement-engine-v2":/(self improve|regression|failure taxonomy|benchmark failure|تحسين ذاتي|ريجريشن|فشل الامتحان|درس)/i,
 };
 
 export function detectVivitoCapabilities(question:string):VivitoCapability[]{
@@ -57,7 +85,7 @@ export function detectVivitoCapabilities(question:string):VivitoCapability[]{
 export function buildVivitoCapabilityContext(question:string){
   const active=detectVivitoCapabilities(question);
   if(!active.length)return "";
-  return `VIVITO CAPABILITY PACK V4 — ACTIVE\n${active.map(c=>`[${c.label}]\n- ${c.doctrine.join("\n- ")}`).join("\n\n")}`;
+  return `VIVITO CAPABILITY PACK V5 — ACTIVE\n${active.map(c=>`[${c.label}]\n- ${c.doctrine.join("\n- ")}`).join("\n\n")}`;
 }
 
 export type ScenarioInput={base:number;bestPct?:number;worstPct?:number;fixedCost?:number;unitContribution?:number};
@@ -105,6 +133,50 @@ export function scoreCreativeDirectorV2(e:CreativeEvidence){
 export type ClaimLedgerEntry={claim:string;status:"OBSERVED"|"REPORTED"|"INFERRED"|"ESTIMATED"|"ASSUMED";source?:string;effectiveDate?:string;fetchedAt?:string};
 export function validateClaimLedger(entries:ClaimLedgerEntry[]){
   return entries.map(e=>({...e,requiresSource:e.status==="OBSERVED"||e.status==="REPORTED",valid:!(e.status==="OBSERVED"||e.status==="REPORTED")||Boolean(e.source)}));
+}
+
+export type DecisionMemoryRecord={decision:string;assumptions:string[];evidence:string[];owner?:string;expectedOutcome?:string;reviewAt?:string;actualOutcome?:string;superseded?:boolean};
+export function summarizeDecisionMemory(records:DecisionMemoryRecord[]){
+  const active=records.filter(r=>!r.superseded);
+  return {activeCount:active.length,completed:active.filter(r=>Boolean(r.actualOutcome)).length,pendingReview:active.filter(r=>!r.actualOutcome).length,records:active};
+}
+
+export type ExperimentPlan={hypothesis:string;primaryMetric:string;guardrailMetric:string;durationDays:number;minimumSample?:number;scaleRule:string;killRule:string};
+export function validateExperimentPlan(plan:ExperimentPlan){
+  const issues:string[]=[];
+  if(!plan.hypothesis.trim())issues.push("missing-hypothesis");
+  if(!plan.primaryMetric.trim())issues.push("missing-primary-metric");
+  if(!plan.guardrailMetric.trim())issues.push("missing-guardrail-metric");
+  if(plan.durationDays<=0)issues.push("invalid-duration");
+  if(!plan.scaleRule.trim()||!plan.killRule.trim())issues.push("missing-decision-rule");
+  return {valid:issues.length===0,issues,preRegistered:issues.length===0};
+}
+
+export type FinancialTwinInput={revenue:number;cogs:number;payroll:number;mediaSpend:number;otherVariableCost?:number;cash:number;monthlyFixedCost?:number;newCustomers?:number;ltvGrossProfit?:number};
+export function calculateFinancialDigitalTwin(input:FinancialTwinInput){
+  const other=input.otherVariableCost??0;
+  const grossProfit=input.revenue-input.cogs;
+  const contributionMargin=grossProfit-input.mediaSpend-other;
+  const operatingContribution=contributionMargin-input.payroll-(input.monthlyFixedCost??0);
+  const cac=input.newCustomers&&input.newCustomers>0?input.mediaSpend/input.newCustomers:null;
+  const paybackMonths=cac!=null&&input.ltvGrossProfit!=null&&input.ltvGrossProfit>0?cac/(input.ltvGrossProfit/12):null;
+  const monthlyBurn=operatingContribution<0?Math.abs(operatingContribution):0;
+  const runwayMonths=monthlyBurn>0?input.cash/monthlyBurn:null;
+  return {grossProfit,contributionMargin,operatingContribution,cac,paybackMonths,runwayMonths};
+}
+
+export type CreativeIntelligenceInput={hook:number;clarity:number;productFidelity:number;brandFit:number;emotion:number;offer:number;platformFit:number;novelty:number;fatigueRisk:number};
+export function scoreCreativeIntelligence(input:CreativeIntelligenceInput){
+  const positive=[input.hook,input.clarity,input.productFidelity,input.brandFit,input.emotion,input.offer,input.platformFit,input.novelty];
+  const bounded=positive.map(v=>Math.max(0,Math.min(100,v)));
+  const base=bounded.reduce((a,b)=>a+b,0)/bounded.length;
+  const fatiguePenalty=Math.max(0,Math.min(100,input.fatigueRisk))*0.2;
+  return {preTestScore:Math.max(0,Math.round(base-fatiguePenalty)),classification:"HYPOTHESIS_NOT_PERFORMANCE_PROOF" as const};
+}
+
+export type ForecastInput={base:number;upsidePct:number;downsidePct:number;confidence:"LOW"|"MEDIUM"|"HIGH";drivers:string[];breakConditions:string[]};
+export function buildForecastV2(input:ForecastInput){
+  return {base:input.base,upside:input.base*(1+input.upsidePct/100),downside:input.base*(1-input.downsidePct/100),confidence:input.confidence,drivers:input.drivers,breakConditions:input.breakConditions,classification:"FORECAST_WITH_ASSUMPTIONS" as const};
 }
 
 export function blindBenchmarkPolicy(){

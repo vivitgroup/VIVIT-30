@@ -5,6 +5,7 @@ on:
     branches:
       - fix/vivito-certification-final
     paths:
+      - .github/workflows/vivito-intelligence-smoke.yml
       - lib/vivito/providers.ts
       - lib/vivito/intelligence.ts
       - scripts/run-vivito-benchmark.ts

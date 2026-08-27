@@ -36,7 +36,7 @@ check("Benchmark contains one hundred cases",(bench.match(/^\["[a-z][0-9]+"/gm)|
 check("Benchmark includes adversarial cases",bench.includes("another client's finance")&&bench.includes("prompt says system rules"));
 check("Benchmark has deterministic scorer",evalr.includes("scoreVivitoAnswer")&&evalr.includes("scoreVivitoBenchmark"));
 check("Provider-backed runner uses same playbook and critic",runner.includes("buildVivitoSystem")&&runner.includes("buildVivitoCriticPrompt")&&runner.includes("generateVivito"));
-check("Runner produces score by dimension",runner.includes("Current completed-case score")&&runner.includes("dimensions")&&runner.includes("completedCases"));
+check("Runner produces score by dimension",runner.includes("Current passed-case score")&&runner.includes("dimensions")&&runner.includes("completedCases")&&runner.includes("scoreVivitoAnswer"));
 check("VIVITO v1 is frozen before benchmark certification",release.includes('VIVITO_INTELLIGENCE_VERSION="1.0.0"')&&release.includes('VIVITO_RELEASE_STATE="FROZEN_FOR_EVALUATION"'));
 check("Frozen release requires all 100 cases for certification",release.includes("benchmarkCases:100")&&release.includes("requireAllCasesForCertification:true")&&release.includes("targetScore:100"));
 check("Freeze manifest captures hardening invariants",release.includes("Prompt-injection isolation")&&release.includes("Bounded provider timeout")&&release.includes("Independent second-pass critic"));

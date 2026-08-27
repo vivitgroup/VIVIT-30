@@ -1,0 +1,30 @@
+name: VIVITO Super Operator CI
+on:
+  push:
+    branches: ["feat/vivito-super-operator-42-47"]
+  pull_request:
+    paths:
+      - "lib/vivito/**"
+      - "app/api/assistant/artifacts/**"
+      - "components/assistant/**"
+      - "scripts/qa-vivito-artifact-runtime-v3.ts"
+      - "scripts/run-vivito-super-benchmark-v2.ts"
+      - "scripts/run-vivito-head-to-head.ts"
+      - ".github/workflows/vivito-super-operator-ci.yml"
+jobs:
+  qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Systems and marketing intelligence gate
+        run: npm run qa:vivito-systems-complexity-intelligence
+      - name: Artifact Runtime V3 gate
+        run: npx tsx scripts/qa-vivito-artifact-runtime-v3.ts
+      - name: TypeScript gate
+        run: npm run type-check

@@ -6,11 +6,11 @@ const migration=fs.readFileSync("db/migrations/20260828_vivito_direct_operator.s
 const migrationV2=fs.readFileSync("db/migrations/20260828_vivito_direct_operator_v2.sql","utf8");
 const vercel=fs.readFileSync("vercel.json","utf8");
 const checks=[];const check=(n,ok)=>checks.push([n,Boolean(ok)]);
-check("Direct runtime validates persistent schema",runtime.includes("vivito-direct-schema-v2-not-ready")&&runtime.includes("vivito_approval_events")&&runtime.includes("vivito_decision_journal")&&runtime.includes("vivito_escalations"));
+check("Direct runtime validates persistent schema",runtime.includes("vivito-direct-schema-v3-not-ready")&&runtime.includes("vivito_approval_events")&&runtime.includes("vivito_decision_journal")&&runtime.includes("vivito_escalations")&&runtime.includes("vivito_governance_controls")&&runtime.includes("vivito_resource_usage")&&runtime.includes("vivito_knowledge_provenance"));
 check("Autonomy actor is explicit and fail-closed",runtime.includes("VIVITO_AUTONOMY_ACTOR_ID")&&runtime.includes("vivito-autonomy-actor-invalid"));
 check("Autonomy actor must be active approved Super Admin",runtime.includes("role='SUPER_ADMIN'")&&runtime.includes("approval_status='APPROVED'"));
 check("Existing approval policy is reused",runtime.includes("decideVivitoApproval"));
-check("Only AUTO mode executes without confirmation",runtime.includes('approval.mode!=="AUTO"')&&runtime.includes('approval.mode==="AUTO"'));
+check("Only AUTO mode executes without confirmation",runtime.includes("const status=mode==='AUTO'?'EXECUTING'")&&runtime.includes("if(mode!=='AUTO')")&&runtime.includes("assertAutonomyAllowed")&&runtime.includes("consumeResource(workspaceId,'ACTION',1)"));
 check("High/destructive policy is not bypassed",!runtime.includes("requiresConfirmation=false")&&!runtime.includes("SAFE_AUTO.add"));
 check("Existing action executors are reused",runtime.includes("executeVivitoAction")&&runtime.includes("executeVivitoOperatorAction"));
 check("Idempotency is persistent and tenant scoped",runtime.includes("idempotency_key")&&migrationV2.includes("workspace_id,idempotency_key"));

@@ -100,7 +100,7 @@ export default async function MonthlyReportsPage() {
         </div>
         <div className="flex gap-3 flex-wrap">
           <button id="gen-btn" className="btn btn-primary">📊 Generate Report →</button>
-          <a id="pdf-link" href="#" target="_blank" style={{display:"none"}}
+          <a id="pdf-link" href="/dashboard/monthly-reports" target="_blank" style={{display:"none"}}
             className="inline-flex items-center gap-2 text-sm px-4 py-2.5 rounded-xl border border-[#244D87]/25 text-[#244D87] font-semibold hover:bg-[#244D87]/10 transition-colors">
             🖨️ Open PDF Report
           </a>

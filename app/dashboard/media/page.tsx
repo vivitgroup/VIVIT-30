@@ -15,21 +15,20 @@ async function addMetrics(fd: FormData) {
   const { eq, and } = await import("drizzle-orm");
   const role=(session.user as any).role as Role;
   const userId=String((session.user as any).id||"");
+  const workspaceId=String((session.user as any).workspaceId||"");if(!workspaceId)throw new Error("Workspace unavailable");
   const clientId = String(fd.get("clientId")||"");
   const platform = String(fd.get("platform")||"");
   const allowedPlatforms=["meta","instagram","tiktok","google","snapchat","linkedin","twitter"];
   if(!clientId||!allowedPlatforms.includes(platform)) throw new Error("Invalid client or platform");
-  if(role!==Role.SUPER_ADMIN){
-    const [owned]=await db.select({id:clients.id}).from(clients).where(and(eq(clients.id,clientId),eq(clients.isActive,true),role===Role.MEDIA_BUYER?eq(clients.mediaBuyerId,userId):eq(clients.accountManagerId,userId))).limit(1);
-    if(!owned) throw new Error("Forbidden");
-  }
+  const [owned]=await db.select({id:clients.id}).from(clients).where(and(eq(clients.id,clientId),eq(clients.workspaceId,workspaceId),eq(clients.isActive,true),role===Role.MEDIA_BUYER?eq(clients.mediaBuyerId,userId):role===Role.ACCOUNT_MANAGER?eq(clients.accountManagerId,userId):eq(clients.workspaceId,workspaceId))).limit(1);
+  if(!owned) throw new Error("Forbidden");
   const adSpend=Number(fd.get("adSpend")||0),leads=Number(fd.get("leads")||0),revenue=Number(fd.get("revenue")||0),budget=Number(fd.get("budget")||0);
   if(![adSpend,leads,revenue,budget].every(Number.isFinite)||adSpend<0||leads<0||!Number.isInteger(leads)||revenue<0||budget<0) throw new Error("Metrics must be valid non-negative numbers");
   const roas     = adSpend>0 ? revenue/adSpend : 0;
   const cpl      = leads>0   ? adSpend/leads   : 0;
   const agencyFee= adSpend*0.2;
   await db.insert(mediaMetrics).values({
-    clientId, platform, date:new Date(),
+    workspaceId, clientId, platform, date:new Date(),
     adSpend, leads, revenue, roas:parseFloat(roas.toFixed(2)),
     cpl:parseFloat(cpl.toFixed(2)), agencyFee,
     remainingBudget:budget,
@@ -44,6 +43,7 @@ export default async function MediaPage() {
   if (!session?.user) redirect("/login");
   const role = (session.user as any).role as Role;
   const userId = (session.user as any).id as string;
+  const workspaceId=String((session.user as any).workspaceId||"");if(!workspaceId)redirect("/login");
   if (![Role.SUPER_ADMIN,Role.MEDIA_BUYER,Role.ACCOUNT_MANAGER].includes(role)) redirect("/dashboard");
 
   const now     = new Date();
@@ -52,21 +52,21 @@ export default async function MediaPage() {
 
   const [allClients, thisMonth, lastMonth, platformMetrics] = await Promise.all([
     db.select({id:clients.id, companyName:clients.companyName, mediaBudget:clients.mediaBudget})
-      .from(clients).where(and(eq(clients.isActive,true),role===Role.MEDIA_BUYER?eq(clients.mediaBuyerId,userId):role===Role.ACCOUNT_MANAGER?eq(clients.accountManagerId,userId):eq(clients.workspaceId,"default"))),
+      .from(clients).where(and(eq(clients.workspaceId,workspaceId),eq(clients.isActive,true),role===Role.MEDIA_BUYER?eq(clients.mediaBuyerId,userId):role===Role.ACCOUNT_MANAGER?eq(clients.accountManagerId,userId):eq(clients.workspaceId,workspaceId))),
     db.select({
       clientId:mediaMetrics.clientId, platform:mediaMetrics.platform,
       spend:sum(mediaMetrics.adSpend), leads:sum(mediaMetrics.leads),
       revenue:sum(mediaMetrics.revenue), fee:sum(mediaMetrics.agencyFee),
-    }).from(mediaMetrics).where(gte(mediaMetrics.date, moStart))
+    }).from(mediaMetrics).where(and(eq(mediaMetrics.workspaceId,workspaceId),gte(mediaMetrics.date, moStart)))
       .groupBy(mediaMetrics.clientId, mediaMetrics.platform),
     db.select({
       spend:sum(mediaMetrics.adSpend), leads:sum(mediaMetrics.leads), revenue:sum(mediaMetrics.revenue),
-    }).from(mediaMetrics).where(and(gte(mediaMetrics.date,mo1),
+    }).from(mediaMetrics).where(and(eq(mediaMetrics.workspaceId,workspaceId),gte(mediaMetrics.date,mo1),
       eq(mediaMetrics.date, new Date(now.getFullYear(), now.getMonth()-1, now.getDate())))),
     db.select({
       platform:mediaMetrics.platform,
       spend:sum(mediaMetrics.adSpend), leads:sum(mediaMetrics.leads), revenue:sum(mediaMetrics.revenue),
-    }).from(mediaMetrics).where(gte(mediaMetrics.date, moStart))
+    }).from(mediaMetrics).where(and(eq(mediaMetrics.workspaceId,workspaceId),gte(mediaMetrics.date, moStart)))
       .groupBy(mediaMetrics.platform),
   ]);
 

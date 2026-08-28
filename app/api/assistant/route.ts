@@ -86,7 +86,7 @@ export async function POST(req:NextRequest){
  const role=String((session.user as any).role||""),userId=String((session.user as any).id||""),workspaceId=String((session.user as any).workspaceId||"");if(!workspaceId)return NextResponse.json({error:"Workspace unavailable"},{status:403});
  const attachments=Array.isArray(body.attachments)?body.attachments.slice(0,5).map((x:any)=>({fileId:String(x?.fileId||"").slice(0,100),name:String(x?.name||"").slice(0,255),mimeType:String(x?.mimeType||"").slice(0,120)})).filter((x:any)=>x.fileId):[];
  const clients=await clientScope(role,userId,workspaceId),ids=clients.map((c:any)=>String(c.id));
- const [tasks,campaigns,tracking,clientHealth,sales,finance,memories]=await Promise.all([taskContext(role,userId,ids,workspaceId),mediaContext(role,ids,workspaceId),trackingContext(role,ids,workspaceId),clientHealthContext(role,ids,workspaceId),salesContext(role,userId,workspaceId),financeContext(role,ids,workspaceId),loadVivitoMemories(userId,role,ids)]);
+ const [tasks,campaigns,tracking,clientHealth,sales,finance,memories]=await Promise.all([taskContext(role,userId,ids,workspaceId),mediaContext(role,ids,workspaceId),trackingContext(role,ids,workspaceId),clientHealthContext(role,ids,workspaceId),salesContext(role,userId,workspaceId),financeContext(role,ids,workspaceId),loadVivitoMemories(userId,role,ids,workspaceId)]);
 
  if(likelyCompetitiveChatIntent(question)){
   try{
@@ -124,9 +124,9 @@ export async function POST(req:NextRequest){
    const planned=await generateVivito(question,buildVivitoMemoryPlannerSystem(role),{temperature:0,maxTokens:600}),memoryPlan=parseVivitoMemoryPlan(planned.text,role),arabic=isArabic(question);
    if(memoryPlan?.op==="save"){
     let scopeId:string|null=null;if(memoryPlan.scopeType==="CLIENT"){const c=resolveAuthorizedClient(clients,memoryPlan.clientName||"");if(!c)return NextResponse.json({answer:arabic?"مش قادر أحدد العميل المقصود بشكل آمن. اكتب اسم العميل بوضوح.":"I cannot resolve that client safely. Use the exact client name.",mode:"memory-clarification",intelligence:"VIVITO"},{headers:{"Cache-Control":"private, no-store"}});scopeId=String(c.id)}
-    const saved=await saveVivitoMemory({kind:memoryPlan.kind,scopeType:memoryPlan.scopeType,scopeId,text:memoryPlan.text},userId,role);return NextResponse.json({answer:arabic?`اتحفظت في ذاكرة VIVITO: ${saved.text}`:`Saved to VIVITO memory: ${saved.text}`,mode:"memory-saved",intelligence:"VIVITO",memory:{id:saved.id,kind:saved.kind,scopeType:saved.scopeType}},{headers:{"Cache-Control":"private, no-store"}})
+    const saved=await saveVivitoMemory({kind:memoryPlan.kind,scopeType:memoryPlan.scopeType,scopeId,text:memoryPlan.text},userId,role,workspaceId);return NextResponse.json({answer:arabic?`اتحفظت في ذاكرة VIVITO: ${saved.text}`:`Saved to VIVITO memory: ${saved.text}`,mode:"memory-saved",intelligence:"VIVITO",memory:{id:saved.id,kind:saved.kind,scopeType:saved.scopeType}},{headers:{"Cache-Control":"private, no-store"}})
    }
-   if(memoryPlan?.op==="forget"){const result=await forgetVivitoMemory(memoryPlan.query,userId,role,ids);return NextResponse.json({answer:arabic?`تم حذف ${result.forgotten} عنصر من ذاكرة VIVITO.`:`Removed ${result.forgotten} VIVITO memory item(s).`,mode:"memory-forgotten",intelligence:"VIVITO"},{headers:{"Cache-Control":"private, no-store"}})}
+   if(memoryPlan?.op==="forget"){const result=await forgetVivitoMemory(memoryPlan.query,userId,role,ids,workspaceId);return NextResponse.json({answer:arabic?`تم حذف ${result.forgotten} عنصر من ذاكرة VIVITO.`:`Removed ${result.forgotten} VIVITO memory item(s).`,mode:"memory-forgotten",intelligence:"VIVITO"},{headers:{"Cache-Control":"private, no-store"}})}
   }catch(error:any){return NextResponse.json({answer:String(error?.message||"VIVITO could not update memory safely."),mode:"memory-rejected",intelligence:"VIVITO"},{headers:{"Cache-Control":"private, no-store"}})}
  }
 

@@ -12,46 +12,74 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: feat/vivito-internal-100
-      - name: Harden workspace-scoped server pages
+      - name: Harden remaining release blockers
         run: |
           python <<'PY'
           from pathlib import Path
-          import re
 
-          targets={
-            'app/dashboard/creative/quality/page.tsx':'W',
-            'app/dashboard/executive/page.tsx':'W',
-            'app/dashboard/finance/payroll/page.tsx':'WORKSPACE',
-            'app/dashboard/forecast/page.tsx':'WORKSPACE',
-            'app/dashboard/kpis/page.tsx':'WORKSPACE',
-            'app/dashboard/ltv/page.tsx':'WORKSPACE',
-            'app/dashboard/operations/page.tsx':'W',
-            'app/dashboard/sales/page.tsx':'WORKSPACE',
-            'app/dashboard/team/page.tsx':'WORKSPACE',
-            'app/dashboard/universe/page.tsx':'W',
-          }
-          auth_re=re.compile(r'const\s+(\w+)=await auth\(\);if\(!\1\?\.user\)redirect\("/login"\);')
-          for path,symbol in targets.items():
-              p=Path(path); s=p.read_text()
-              before=s
-              s=s.replace(f'const {symbol}="default",','const ')
-              s=s.replace(f'const {symbol}="default";','')
-              s=re.sub(rf'\b{re.escape(symbol)}\b','workspaceId',s)
-              if 'const workspaceId=String(' not in s:
-                  m=auth_re.search(s)
-                  if not m: raise SystemExit(f'auth pattern not found: {path}')
-                  session=m.group(1)
-                  inject=f'const workspaceId=String(({session}.user as any).workspaceId||"");if(!workspaceId)redirect("/login");'
-                  s=s[:m.end()]+inject+s[m.end():]
+          def patch(path, replacements):
+              p=Path(path); s=p.read_text(); before=s
+              for old,new in replacements:
+                  if old not in s:
+                      raise SystemExit(f'pattern not found in {path}: {old[:100]}')
+                  s=s.replace(old,new)
               if s==before: raise SystemExit(f'no change: {path}')
-              if '"default"' in s and ('workspace' in s.lower()):
-                  print(f'warning: residual default in {path}')
               p.write_text(s)
+
+          patch('app/dashboard/clients/accounts-payment/page.tsx',[
+            ('const role=(session.user as any).role as Role;if(![Role.SUPER_ADMIN,Role.ACCOUNTANT].includes(role))redirect("/dashboard/universe");const rows:any[]=Array.from(await db.execute(sql`select c.id,c.company_name,p.payment_day,p.responsible_name,p.currency,p.amount_due,p.amount_paid,p.amount_remaining,p.payment_ratio,p.payment_status,p.notes,am.name account_manager_name,mb.name media_buyer_name from clients c join client_payment_profiles p on p.client_id=c.id and p.workspace_id=\'default\' left join users am on am.id=c.account_manager_id left join users mb on mb.id=c.media_buyer_id where c.workspace_id=\'default\' and c.is_active=true order by p.amount_remaining desc,c.company_name asc`));',
+             'const role=(session.user as any).role as Role;if(![Role.SUPER_ADMIN,Role.ACCOUNTANT].includes(role))redirect("/dashboard/universe");const workspaceId=String((session.user as any).workspaceId||"");if(!workspaceId)redirect("/login");const rows:any[]=Array.from(await db.execute(sql`select c.id,c.company_name,p.payment_day,p.responsible_name,p.currency,p.amount_due,p.amount_paid,p.amount_remaining,p.payment_ratio,p.payment_status,p.notes,am.name account_manager_name,mb.name media_buyer_name from clients c join client_payment_profiles p on p.client_id=c.id and p.workspace_id=${workspaceId} left join users am on am.id=c.account_manager_id left join users mb on mb.id=c.media_buyer_id where c.workspace_id=${workspaceId} and c.is_active=true order by p.amount_remaining desc,c.company_name asc`));')
+          ])
+
+          patch('app/dashboard/media/page.tsx',[
+            ('const userId=String((session.user as any).id||"");\n  const clientId = String(fd.get("clientId")||"");',
+             'const userId=String((session.user as any).id||"");\n  const workspaceId=String((session.user as any).workspaceId||"");if(!workspaceId)throw new Error("Workspace unavailable");\n  const clientId = String(fd.get("clientId")||"");'),
+            ('  if(role!==Role.SUPER_ADMIN){\n    const [owned]=await db.select({id:clients.id}).from(clients).where(and(eq(clients.id,clientId),eq(clients.isActive,true),role===Role.MEDIA_BUYER?eq(clients.mediaBuyerId,userId):eq(clients.accountManagerId,userId))).limit(1);\n    if(!owned) throw new Error("Forbidden");\n  }',
+             '  const [owned]=await db.select({id:clients.id}).from(clients).where(and(eq(clients.id,clientId),eq(clients.workspaceId,workspaceId),eq(clients.isActive,true),role===Role.MEDIA_BUYER?eq(clients.mediaBuyerId,userId):role===Role.ACCOUNT_MANAGER?eq(clients.accountManagerId,userId):eq(clients.workspaceId,workspaceId))).limit(1);\n  if(!owned) throw new Error("Forbidden");'),
+            ('    clientId, platform, date:new Date(),', '    workspaceId, clientId, platform, date:new Date(),'),
+            ('  const userId = (session.user as any).id as string;\n  if (![Role.SUPER_ADMIN,Role.MEDIA_BUYER,Role.ACCOUNT_MANAGER].includes(role)) redirect("/dashboard");',
+             '  const userId = (session.user as any).id as string;\n  const workspaceId=String((session.user as any).workspaceId||"");if(!workspaceId)redirect("/login");\n  if (![Role.SUPER_ADMIN,Role.MEDIA_BUYER,Role.ACCOUNT_MANAGER].includes(role)) redirect("/dashboard");'),
+            ('.from(clients).where(and(eq(clients.isActive,true),role===Role.MEDIA_BUYER?eq(clients.mediaBuyerId,userId):role===Role.ACCOUNT_MANAGER?eq(clients.accountManagerId,userId):eq(clients.workspaceId,"default")))',
+             '.from(clients).where(and(eq(clients.workspaceId,workspaceId),eq(clients.isActive,true),role===Role.MEDIA_BUYER?eq(clients.mediaBuyerId,userId):role===Role.ACCOUNT_MANAGER?eq(clients.accountManagerId,userId):eq(clients.workspaceId,workspaceId)))'),
+            (']).from(mediaMetrics).where(gte(mediaMetrics.date, moStart))', ']).from(mediaMetrics).where(and(eq(mediaMetrics.workspaceId,workspaceId),gte(mediaMetrics.date, moStart)))'),
+            (']).from(mediaMetrics).where(and(gte(mediaMetrics.date,mo1),', ']).from(mediaMetrics).where(and(eq(mediaMetrics.workspaceId,workspaceId),gte(mediaMetrics.date,mo1),'),
+            (']).from(mediaMetrics).where(gte(mediaMetrics.date, moStart))\n      .groupBy(mediaMetrics.platform)', ']).from(mediaMetrics).where(and(eq(mediaMetrics.workspaceId,workspaceId),gte(mediaMetrics.date, moStart)))\n      .groupBy(mediaMetrics.platform)')
+          ])
+
+          patch('app/dashboard/page.tsx',[
+            ('  const userId = (session.user as any).id as string;\n  const roleHomes:', '  const userId = (session.user as any).id as string;\n  const workspaceId=String((session.user as any).workspaceId||"");if(!workspaceId)redirect("/login");\n  const roleHomes:'),
+            ('.from(clients).where(and(eq(clients.isActive,true),role===Role.ACCOUNT_MANAGER?eq(clients.accountManagerId,userId):role===Role.MEDIA_BUYER?eq(clients.mediaBuyerId,userId):eq(clients.workspaceId,"default")))', '.from(clients).where(and(eq(clients.workspaceId,workspaceId),eq(clients.isActive,true),role===Role.ACCOUNT_MANAGER?eq(clients.accountManagerId,userId):role===Role.MEDIA_BUYER?eq(clients.mediaBuyerId,userId):eq(clients.workspaceId,workspaceId)))'),
+            ('.from(financeRecords).where(and(eq(financeRecords.month as any,month),eq(financeRecords.year as any,year)))', '.from(financeRecords).where(and(eq(financeRecords.workspaceId,workspaceId),eq(financeRecords.month as any,month),eq(financeRecords.year as any,year)))'),
+            ('.from(financeRecords).where(and(eq(financeRecords.month as any,month===1?12:month-1),eq(financeRecords.year as any,month===1?year-1:year)))', '.from(financeRecords).where(and(eq(financeRecords.workspaceId,workspaceId),eq(financeRecords.month as any,month===1?12:month-1),eq(financeRecords.year as any,month===1?year-1:year)))'),
+            ('.from(financeRecords).where(gte(financeRecords.createdAt,yrStart))', '.from(financeRecords).where(and(eq(financeRecords.workspaceId,workspaceId),gte(financeRecords.createdAt,yrStart)))'),
+            ('.from(mediaMetrics).where(gte(mediaMetrics.date,moStart))', '.from(mediaMetrics).where(and(eq(mediaMetrics.workspaceId,workspaceId),gte(mediaMetrics.date,moStart)))'),
+            ('.from(creativeTasks).where(notInArray(creativeTasks.status,["COMPLETED","REJECTED"]))', '.from(creativeTasks).where(and(eq(creativeTasks.workspaceId,workspaceId),notInArray(creativeTasks.status,["COMPLETED","REJECTED"])))'),
+            ('.from(creativeTasks).where(eq(creativeTasks.status,"REVIEW"))', '.from(creativeTasks).where(and(eq(creativeTasks.workspaceId,workspaceId),eq(creativeTasks.status,"REVIEW")))'),
+            ('.from(creativeTasks).where(and(lt(creativeTasks.deadline,today),notInArray(creativeTasks.status,["COMPLETED","REJECTED","APPROVED"])))', '.from(creativeTasks).where(and(eq(creativeTasks.workspaceId,workspaceId),lt(creativeTasks.deadline,today),notInArray(creativeTasks.status,["COMPLETED","REJECTED","APPROVED"])))'),
+            ('.from(salesLeads).where(eq(salesLeads.stage,"WON"))', '.from(salesLeads).where(and(eq(salesLeads.workspaceId,workspaceId),eq(salesLeads.stage,"WON")))'),
+            ('.from(salesLeads).where(and(lte(salesLeads.updatedAt,new Date(today.getTime()-5*86400000)),notInArray(salesLeads.stage,["WON","LOST"])))', '.from(salesLeads).where(and(eq(salesLeads.workspaceId,workspaceId),lte(salesLeads.updatedAt,new Date(today.getTime()-5*86400000)),notInArray(salesLeads.stage,["WON","LOST"])))'),
+            ('.from(companyExpenses).where(gte(companyExpenses.date,moStart))', '.from(companyExpenses).where(and(eq(companyExpenses.workspaceId,workspaceId),gte(companyExpenses.date,moStart)))'),
+            ('db.select().from(agencyHealthScores).orderBy(desc(agencyHealthScores.calculatedAt)).limit(1)', 'db.select().from(agencyHealthScores).where(eq(agencyHealthScores.workspaceId,workspaceId)).orderBy(desc(agencyHealthScores.calculatedAt)).limit(1)'),
+            ('.from(creativeTasks).where(notInArray(creativeTasks.status,["COMPLETED","REJECTED"])).orderBy(desc(creativeTasks.createdAt)).limit(6)', '.from(creativeTasks).where(and(eq(creativeTasks.workspaceId,workspaceId),notInArray(creativeTasks.status,["COMPLETED","REJECTED"]))).orderBy(desc(creativeTasks.createdAt)).limit(6)'),
+            ('db.select().from(payrollLocks).where(eq(payrollLocks.period,period)).limit(1)', 'db.select().from(payrollLocks).where(and(eq(payrollLocks.workspaceId,workspaceId),eq(payrollLocks.period,period))).limit(1)')
+          ])
+
+          patch('components/assistant/SystemAssistant.tsx',[
+            ('<button disabled>Generating…</button>', '<div className="va-action-progress" role="status">Generating…</div>'),
+            ('<button disabled>Executing plan…</button>', '<div className="va-action-progress" role="status">Executing plan…</div>'),
+            ('<button disabled>Executing…</button>', '<div className="va-action-progress" role="status">Executing…</div>'),
+            ('.va-action-ok{margin-top:8px;color:#8de3ab;font-weight:800}', '.va-action-ok{margin-top:8px;color:#8de3ab;font-weight:800}.va-action-progress{margin-top:9px;padding:8px 10px;border-radius:9px;background:rgba(255,255,255,.06);color:#cfc4d3;font-size:10px;font-weight:800;text-align:center}')
+          ])
+
+          patch('app/dashboard/monthly-reports/page.tsx',[
+            ('<a id="pdf-link" href="#" target="_blank"', '<a id="pdf-link" href="/dashboard/monthly-reports" target="_blank"')
+          ])
           PY
-      - name: Commit dashboard workspace fixes
+      - name: Commit release blocker fixes
         run: |
           git config user.name 'vivitgroup'
           git config user.email 'groupvivit@gmail.com'
-          git add app/dashboard/creative/quality/page.tsx app/dashboard/executive/page.tsx app/dashboard/finance/payroll/page.tsx app/dashboard/forecast/page.tsx app/dashboard/kpis/page.tsx app/dashboard/ltv/page.tsx app/dashboard/operations/page.tsx app/dashboard/sales/page.tsx app/dashboard/team/page.tsx app/dashboard/universe/page.tsx
-          git commit -m 'fix(cto): scope executive dashboards to session workspace'
+          git add app/dashboard/clients/accounts-payment/page.tsx app/dashboard/media/page.tsx app/dashboard/page.tsx components/assistant/SystemAssistant.tsx app/dashboard/monthly-reports/page.tsx
+          git diff --cached --quiet && { echo 'No patch required'; exit 0; }
+          git commit -m 'fix(cto): close remaining tenant and UI release blockers'
           git push origin HEAD:feat/vivito-internal-100

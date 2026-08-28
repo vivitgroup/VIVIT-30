@@ -20,16 +20,12 @@ jobs:
           def patch(path, replacements):
               p=Path(path); s=p.read_text(); before=s
               for old,new in replacements:
+                  if new in s:
+                      continue
                   if old not in s:
                       raise SystemExit(f'pattern not found in {path}: {old[:100]}')
                   s=s.replace(old,new)
-              if s==before: raise SystemExit(f'no change: {path}')
-              p.write_text(s)
-
-          patch('app/dashboard/clients/accounts-payment/page.tsx',[
-            ('const role=(session.user as any).role as Role;if(![Role.SUPER_ADMIN,Role.ACCOUNTANT].includes(role))redirect("/dashboard/universe");const rows:any[]=Array.from(await db.execute(sql`select c.id,c.company_name,p.payment_day,p.responsible_name,p.currency,p.amount_due,p.amount_paid,p.amount_remaining,p.payment_ratio,p.payment_status,p.notes,am.name account_manager_name,mb.name media_buyer_name from clients c join client_payment_profiles p on p.client_id=c.id and p.workspace_id=\'default\' left join users am on am.id=c.account_manager_id left join users mb on mb.id=c.media_buyer_id where c.workspace_id=\'default\' and c.is_active=true order by p.amount_remaining desc,c.company_name asc`));',
-             'const role=(session.user as any).role as Role;if(![Role.SUPER_ADMIN,Role.ACCOUNTANT].includes(role))redirect("/dashboard/universe");const workspaceId=String((session.user as any).workspaceId||"");if(!workspaceId)redirect("/login");const rows:any[]=Array.from(await db.execute(sql`select c.id,c.company_name,p.payment_day,p.responsible_name,p.currency,p.amount_due,p.amount_paid,p.amount_remaining,p.payment_ratio,p.payment_status,p.notes,am.name account_manager_name,mb.name media_buyer_name from clients c join client_payment_profiles p on p.client_id=c.id and p.workspace_id=${workspaceId} left join users am on am.id=c.account_manager_id left join users mb on mb.id=c.media_buyer_id where c.workspace_id=${workspaceId} and c.is_active=true order by p.amount_remaining desc,c.company_name asc`));')
-          ])
+              if s!=before: p.write_text(s)
 
           patch('app/dashboard/media/page.tsx',[
             ('const userId=String((session.user as any).id||"");\n  const clientId = String(fd.get("clientId")||"");',
@@ -41,7 +37,7 @@ jobs:
              '  const userId = (session.user as any).id as string;\n  const workspaceId=String((session.user as any).workspaceId||"");if(!workspaceId)redirect("/login");\n  if (![Role.SUPER_ADMIN,Role.MEDIA_BUYER,Role.ACCOUNT_MANAGER].includes(role)) redirect("/dashboard");'),
             ('.from(clients).where(and(eq(clients.isActive,true),role===Role.MEDIA_BUYER?eq(clients.mediaBuyerId,userId):role===Role.ACCOUNT_MANAGER?eq(clients.accountManagerId,userId):eq(clients.workspaceId,"default")))',
              '.from(clients).where(and(eq(clients.workspaceId,workspaceId),eq(clients.isActive,true),role===Role.MEDIA_BUYER?eq(clients.mediaBuyerId,userId):role===Role.ACCOUNT_MANAGER?eq(clients.accountManagerId,userId):eq(clients.workspaceId,workspaceId)))'),
-            (']).from(mediaMetrics).where(gte(mediaMetrics.date, moStart))', ']).from(mediaMetrics).where(and(eq(mediaMetrics.workspaceId,workspaceId),gte(mediaMetrics.date, moStart)))'),
+            (']).from(mediaMetrics).where(gte(mediaMetrics.date, moStart))\n      .groupBy(mediaMetrics.clientId, mediaMetrics.platform)', ']).from(mediaMetrics).where(and(eq(mediaMetrics.workspaceId,workspaceId),gte(mediaMetrics.date, moStart)))\n      .groupBy(mediaMetrics.clientId, mediaMetrics.platform)'),
             (']).from(mediaMetrics).where(and(gte(mediaMetrics.date,mo1),', ']).from(mediaMetrics).where(and(eq(mediaMetrics.workspaceId,workspaceId),gte(mediaMetrics.date,mo1),'),
             (']).from(mediaMetrics).where(gte(mediaMetrics.date, moStart))\n      .groupBy(mediaMetrics.platform)', ']).from(mediaMetrics).where(and(eq(mediaMetrics.workspaceId,workspaceId),gte(mediaMetrics.date, moStart)))\n      .groupBy(mediaMetrics.platform)')
           ])
@@ -79,7 +75,7 @@ jobs:
         run: |
           git config user.name 'vivitgroup'
           git config user.email 'groupvivit@gmail.com'
-          git add app/dashboard/clients/accounts-payment/page.tsx app/dashboard/media/page.tsx app/dashboard/page.tsx components/assistant/SystemAssistant.tsx app/dashboard/monthly-reports/page.tsx
+          git add app/dashboard/media/page.tsx app/dashboard/page.tsx components/assistant/SystemAssistant.tsx app/dashboard/monthly-reports/page.tsx
           git diff --cached --quiet && { echo 'No patch required'; exit 0; }
           git commit -m 'fix(cto): close remaining tenant and UI release blockers'
           git push origin HEAD:feat/vivito-internal-100

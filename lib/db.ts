@@ -16,28 +16,26 @@ function createClient() {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) throw new Error("DATABASE_URL is required");
 
-  // Parse the connection URI explicitly so Supabase pooler usernames such as
-  // postgres.<project-ref> are preserved exactly. Passing the raw URI through
-  // postgres.js caused production to authenticate as plain "postgres".
+  // Parse and rebuild the URI so pooler usernames such as postgres.<project-ref>
+  // survive percent-encoding/URL parsing exactly instead of collapsing to postgres.
   const parsed = new URL(databaseUrl);
   if (!["postgres:", "postgresql:"].includes(parsed.protocol)) {
     throw new Error("DATABASE_URL must use postgres:// or postgresql://");
   }
-  const connection = {
-    host: parsed.hostname,
-    port: parsed.port ? Number(parsed.port) : 5432,
-    database: decodeURIComponent(parsed.pathname.replace(/^\//, "") || "postgres"),
-    username: decodeURIComponent(parsed.username),
-    password: decodeURIComponent(parsed.password),
-  };
-  if (!connection.host || !connection.username || !connection.password) {
+  const username = decodeURIComponent(parsed.username);
+  const password = decodeURIComponent(parsed.password);
+  const host = parsed.hostname;
+  const port = parsed.port ? Number(parsed.port) : 5432;
+  const database = decodeURIComponent(parsed.pathname.replace(/^\//, "") || "postgres");
+  if (!host || !username || !password) {
     throw new Error("DATABASE_URL is missing host, username, or password");
   }
+  const runtimeUrl = `${parsed.protocol}//${encodeURIComponent(username)}:${encodeURIComponent(password)}@${host}:${port}/${encodeURIComponent(database)}`;
 
   const ssl = process.env.DATABASE_SSL_DISABLED === "1"
     ? false
     : { rejectUnauthorized: false };
-  return postgres(connection, {
+  return postgres(runtimeUrl, {
     ssl,
     max:             3,
     idle_timeout:    20,

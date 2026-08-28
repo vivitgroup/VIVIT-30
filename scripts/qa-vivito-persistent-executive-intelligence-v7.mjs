@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { execFileSync } from "node:child_process";
 
 const engine = fs.readFileSync("lib/vivito/persistent-executive-intelligence-v7.ts", "utf8");
 const v6 = fs.readFileSync("lib/vivito/cognitive-execution-intelligence-v6.ts", "utf8");
@@ -31,3 +32,4 @@ if (failed.length) {
   process.exit(1);
 }
 console.log(`${checks.length}/${checks.length} VIVITO Persistent Executive Intelligence V7 checks passed`);
+execFileSync(process.execPath, ["scripts/qa-vivito-institutional-intelligence-v8.mjs"], { stdio: "inherit" });

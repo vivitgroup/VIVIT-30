@@ -20,6 +20,8 @@
     {"path": "/api/cron?type=evening", "schedule": "0 18 * * *"},
     {"path": "/api/cron?type=monthly", "schedule": "0 9 1 * *"},
     {"path": "/api/cron/media-sync", "schedule": "0 6 * * *"},
+    {"path": "/api/cron/competitive-intelligence", "schedule": "30 6 * * *"},
+    {"path": "/api/cron/vivito-direct", "schedule": "0 7 * * *"},
     {"path": "/api/cron/vivito-knowledge", "schedule": "30 5 * * *"}
   ],
   "env": {"NODE_ENV": "production"},
@@ -27,6 +29,8 @@
     "app/api/ai/route.ts": {"maxDuration": 60},
     "app/api/cron/route.ts": {"maxDuration": 300},
     "app/api/cron/media-sync/route.ts": {"maxDuration": 300},
+    "app/api/cron/competitive-intelligence/route.ts": {"maxDuration": 300},
+    "app/api/cron/vivito-direct/route.ts": {"maxDuration": 300},
     "app/api/cron/vivito-knowledge/route.ts": {"maxDuration": 300},
     "app/api/pdf-report/[clientId]/route.ts": {"maxDuration": 30},
     "app/api/performance-score/route.ts": {"maxDuration": 30},

@@ -16,26 +16,27 @@ function createClient() {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) throw new Error("DATABASE_URL is required");
 
-  // Parse and rebuild the URI so pooler usernames such as postgres.<project-ref>
-  // survive percent-encoding/URL parsing exactly instead of collapsing to postgres.
+  // Use the same explicit connection parsing that the production DB gate uses.
+  // This preserves pooler usernames such as postgres.<project-ref> exactly.
   const parsed = new URL(databaseUrl);
   if (!["postgres:", "postgresql:"].includes(parsed.protocol)) {
     throw new Error("DATABASE_URL must use postgres:// or postgresql://");
   }
-  const username = decodeURIComponent(parsed.username);
-  const password = decodeURIComponent(parsed.password);
-  const host = parsed.hostname;
-  const port = parsed.port ? Number(parsed.port) : 5432;
-  const database = decodeURIComponent(parsed.pathname.replace(/^\//, "") || "postgres");
-  if (!host || !username || !password) {
+  const connection = {
+    host: parsed.hostname,
+    port: parsed.port ? Number(parsed.port) : 5432,
+    database: decodeURIComponent(parsed.pathname.replace(/^\//, "") || "postgres"),
+    username: decodeURIComponent(parsed.username),
+    password: decodeURIComponent(parsed.password),
+  };
+  if (!connection.host || !connection.username || !connection.password) {
     throw new Error("DATABASE_URL is missing host, username, or password");
   }
-  const runtimeUrl = `${parsed.protocol}//${encodeURIComponent(username)}:${encodeURIComponent(password)}@${host}:${port}/${encodeURIComponent(database)}`;
 
   const ssl = process.env.DATABASE_SSL_DISABLED === "1"
     ? false
     : { rejectUnauthorized: false };
-  return postgres(runtimeUrl, {
+  return postgres(connection as any, {
     ssl,
     max:             3,
     idle_timeout:    20,
@@ -90,53 +91,11 @@ export const getCachedTeam = unstable_cache(
     return db.select({
       id:       schema.users.id,
       name:     schema.users.name,
-      role:     schema.users.role,
       email:    schema.users.email,
+      role:     schema.users.role,
       isActive: schema.users.isActive,
     }).from(schema.users).where(eq(schema.users.isActive, true));
   },
   ["team-list"],
-  { revalidate: 300, tags: ["team"] }
+  { revalidate: 60, tags: ["team"] }
 );
-
-export async function getClientsWithAMs() {
-  return db.select({
-    id:               schema.clients.id,
-    companyName:      schema.clients.companyName,
-    industry:         schema.clients.industry,
-    healthScore:      schema.clients.healthScore,
-    churnRisk:        schema.clients.churnRisk,
-    monthlyRetainer:  schema.clients.monthlyRetainer,
-    lifetimeValue:    schema.clients.lifetimeValue,
-    isActive:         schema.clients.isActive,
-    accountManagerId: schema.clients.accountManagerId,
-    mediaBudget:      schema.clients.mediaBudget,
-    amName:           schema.users.name,
-    amEmail:          schema.users.email,
-  })
-  .from(schema.clients)
-  .leftJoin(schema.users, eq(schema.clients.accountManagerId, schema.users.id))
-  .where(eq(schema.clients.isActive, true));
-}
-
-export async function getTasksWithClients() {
-  return db.select({
-    id:          schema.creativeTasks.id,
-    title:       schema.creativeTasks.title,
-    status:      schema.creativeTasks.status,
-    priority:    schema.creativeTasks.priority,
-    deadline:    schema.creativeTasks.deadline,
-    type:        schema.creativeTasks.type,
-    assignedToId:schema.creativeTasks.assignedToId,
-    clientId:    schema.creativeTasks.clientId,
-    companyName: schema.clients.companyName,
-  })
-  .from(schema.creativeTasks)
-  .leftJoin(schema.clients, eq(schema.creativeTasks.clientId, schema.clients.id))
-  .where(
-    and(
-      notInArray(schema.creativeTasks.status, ["COMPLETED", "REJECTED"] as any[]),
-      sql`true`
-    )
-  );
-}

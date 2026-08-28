@@ -24,17 +24,58 @@ on:
       - "scripts/qa-vivito-ui-motion-v1.ts"
       - "vercel.json"
       - ".github/workflows/vivito-super-operator-ci.yml"
+
+concurrency:
+  group: vivito-super-operator-${{ github.event.pull_request.head.sha || github.sha }}
+  cancel-in-progress: true
+
 jobs:
   qa:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: vivito
+          POSTGRES_PASSWORD: vivito
+          POSTGRES_DB: vivito_super_operator
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U vivito -d vivito_super_operator"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://vivito:vivito@127.0.0.1:5432/vivito_super_operator
+      DRIZZLE_DATABASE_URL: postgresql://vivito:vivito@127.0.0.1:5432/vivito_super_operator
+      DATABASE_SSL_DISABLED: "1"
+      AUTH_SECRET: ci-vivito-super-operator-secret-not-for-production
+      NEXTAUTH_SECRET: ci-vivito-super-operator-secret-not-for-production
+      NEXTAUTH_URL: http://127.0.0.1:3000
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout exact candidate SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Assert exact candidate SHA
+        shell: bash
+        run: |
+          ACTUAL="$(git rev-parse HEAD)"
+          EXPECTED="${{ github.event.pull_request.head.sha || github.sha }}"
+          echo "actual=$ACTUAL"
+          echo "expected=$EXPECTED"
+          test "$ACTUAL" = "$EXPECTED"
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
+
       - run: npm ci
+
+      - name: Build base ephemeral database
+        run: npx drizzle-kit push --force
+
       - name: Systems and marketing intelligence gate
         run: npm run qa:vivito-systems-complexity-intelligence
       - name: Red Team V2 behavioral gate

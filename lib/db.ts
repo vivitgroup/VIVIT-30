@@ -13,10 +13,31 @@ const globalForDb = globalThis as unknown as {
 };
 
 function createClient() {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) throw new Error("DATABASE_URL is required");
+
+  // Parse the connection URI explicitly so Supabase pooler usernames such as
+  // postgres.<project-ref> are preserved exactly. Passing the raw URI through
+  // postgres.js caused production to authenticate as plain "postgres".
+  const parsed = new URL(databaseUrl);
+  if (!["postgres:", "postgresql:"].includes(parsed.protocol)) {
+    throw new Error("DATABASE_URL must use postgres:// or postgresql://");
+  }
+  const connection = {
+    host: parsed.hostname,
+    port: parsed.port ? Number(parsed.port) : 5432,
+    database: decodeURIComponent(parsed.pathname.replace(/^\//, "") || "postgres"),
+    username: decodeURIComponent(parsed.username),
+    password: decodeURIComponent(parsed.password),
+  };
+  if (!connection.host || !connection.username || !connection.password) {
+    throw new Error("DATABASE_URL is missing host, username, or password");
+  }
+
   const ssl = process.env.DATABASE_SSL_DISABLED === "1"
     ? false
     : { rejectUnauthorized: false };
-  return postgres(process.env.DATABASE_URL!, {
+  return postgres(connection, {
     ssl,
     max:             3,
     idle_timeout:    20,

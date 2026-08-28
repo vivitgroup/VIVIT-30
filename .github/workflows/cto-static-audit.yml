@@ -3,6 +3,9 @@ on:
   push:
     branches: [feat/vivito-internal-100]
     paths:
+      - 'app/**'
+      - 'components/**'
+      - 'lib/**'
       - '.github/workflows/cto-static-audit.yml'
 permissions:
   contents: read
@@ -11,25 +14,42 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: feat/vivito-internal-100
-      - name: Fixed workspace/runtime scope scan
+      - name: Runtime tenant scope audit
         run: |
-          echo '=== fixed default workspace references in app/components/lib ==='
-          grep -RInE 'const (W|WORKSPACE)="default"|workspace(Id|_id)[^\n]*"default"|workspace(Id|_id)[^\n]*\x27default\x27' app components lib --include='*.ts' --include='*.tsx' || true
-      - name: Shared DB helper callers
+          node <<'NODE'
+          const fs=require('fs'),path=require('path');
+          const roots=['app','components','lib'];
+          const allow=[
+            /schema/i,
+            /migration/i,
+            /seed/i,
+            /live-knowledge-fabric\.ts$/,
+          ];
+          const files=[];
+          const walk=d=>{if(!fs.existsSync(d))return;for(const e of fs.readdirSync(d,{withFileTypes:true})){const p=path.join(d,e.name);if(e.isDirectory())walk(p);else if(/\.(ts|tsx)$/.test(p))files.push(p)}};
+          roots.forEach(walk);
+          const hits=[];
+          for(const f of files){if(allow.some(r=>r.test(f)))continue;const lines=fs.readFileSync(f,'utf8').split(/\r?\n/);lines.forEach((line,i)=>{if(/const\s+(?:W|WORKSPACE)\s*=\s*["']default["']/.test(line)||/workspace(?:Id|_id)[^\n]{0,120}["']default["']/.test(line)||/workspace_id\s*=\s*["']default["']/.test(line))hits.push(`${f}:${i+1}: ${line.trim()}`)})}
+          if(hits.length){console.error('Hard-coded runtime tenant scope found:\n'+hits.join('\n'));process.exit(1)}
+          console.log('PASS: no hard-coded runtime tenant scope literals.');
+          NODE
+      - name: Incomplete UI marker audit
         run: |
-          echo '=== DB helper definitions/callers ==='
-          grep -RInE 'getCachedClients|getCachedTeam|getClientsWithAMs|getTasksWithClients' app components lib --include='*.ts' --include='*.tsx' || true
-      - name: Incomplete UI markers
+          node <<'NODE'
+          const fs=require('fs'),path=require('path');const files=[];const roots=['app','components','lib'];
+          const walk=d=>{if(!fs.existsSync(d))return;for(const e of fs.readdirSync(d,{withFileTypes:true})){const p=path.join(d,e.name);if(e.isDirectory())walk(p);else if(/\.(ts|tsx)$/.test(p))files.push(p)}};roots.forEach(walk);
+          const re=/(TODO|FIXME|Not implemented|not implemented|Coming soon|coming soon|href\s*=\s*["']#["']|alert\([^\n]*(?:not available|not implemented|coming soon))/;
+          const hits=[];for(const f of files){fs.readFileSync(f,'utf8').split(/\r?\n/).forEach((line,i)=>{if(re.test(line))hits.push(`${f}:${i+1}: ${line.trim()}`)})}
+          if(hits.length){console.error('Incomplete UI/runtime markers found:\n'+hits.join('\n'));process.exit(1)}
+          console.log('PASS: no incomplete UI/runtime markers.');
+          NODE
+      - name: Suspicious permanently disabled controls
         run: |
-          echo '=== TODO / not implemented / placeholder links ==='
-          grep -RInE 'TODO|FIXME|Not implemented|not implemented|Coming soon|coming soon|href=["'"']#["'"']|alert\([^)]*(not available|not implemented|coming soon)' app components lib --include='*.ts' --include='*.tsx' || true
-      - name: Suspicious disabled controls
-        run: |
-          echo '=== hard-disabled buttons/inputs ==='
-          grep -RInE '<(button|input|select|textarea)[^>]*disabled([ >]|=\{true\})' app components --include='*.tsx' || true
-      - name: Raw default tenant literals
-        run: |
-          echo '=== all runtime "default" literals (review list) ==='
-          grep -RIn '"default"' app components lib --include='*.ts' --include='*.tsx' || true
+          node <<'NODE'
+          const fs=require('fs'),path=require('path');const files=[];const roots=['app','components'];
+          const walk=d=>{if(!fs.existsSync(d))return;for(const e of fs.readdirSync(d,{withFileTypes:true})){const p=path.join(d,e.name);if(e.isDirectory())walk(p);else if(/\.tsx$/.test(p))files.push(p)}};roots.forEach(walk);
+          const re=/<(?:button|input|select|textarea)[^>]*\sdisabled(?:\s|>|=\{true\})/;
+          const hits=[];for(const f of files){fs.readFileSync(f,'utf8').split(/\r?\n/).forEach((line,i)=>{if(re.test(line))hits.push(`${f}:${i+1}: ${line.trim()}`)})}
+          if(hits.length){console.error('Permanently disabled controls require review:\n'+hits.join('\n'));process.exit(1)}
+          console.log('PASS: no permanently disabled controls.');
+          NODE

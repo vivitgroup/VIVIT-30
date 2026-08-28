@@ -2,12 +2,13 @@ export const dynamic="force-dynamic";
 export const maxDuration=300;
 import {NextRequest,NextResponse} from "next/server";
 import {runVivitoDirectCycle} from "@/lib/vivito/direct-runtime";
+import {assertAutonomyAllowed,saveCheckpoint,recordEval} from "@/lib/vivito/enterprise-governance";
 
 export async function GET(req:NextRequest){
  const expected=String(process.env.CRON_SECRET||"");
  const bearer=req.headers.get("authorization")?.replace(/^Bearer\s+/i,"")||"";
  const header=req.headers.get("x-cron-secret")||"";
  if(!expected||(bearer!==expected&&header!==expected))return NextResponse.json({error:"Unauthorized"},{status:401});
- const result=await runVivitoDirectCycle();
- return NextResponse.json(result,{status:result.ok?200:503,headers:{"Cache-Control":"no-store"}});
+ const runKey=`vivito-direct:${new Date().toISOString().slice(0,13)}`;
+ try{await assertAutonomyAllowed();await saveCheckpoint(runKey,{phase:"STARTED"});const result=await runVivitoDirectCycle();await saveCheckpoint(runKey,{phase:"FINISHED",result},result.ok?"COMPLETED":"FAILED");await recordEval("direct_cycle_ok",result.ok?1:0,1);return NextResponse.json(result,{status:result.ok?200:503,headers:{"Cache-Control":"no-store"}})}catch(e:any){await saveCheckpoint(runKey,{phase:"BLOCKED",error:String(e?.message||e)},"BLOCKED").catch(()=>{});return NextResponse.json({ok:false,error:String(e?.message||e)},{status:503,headers:{"Cache-Control":"no-store"}})}
 }

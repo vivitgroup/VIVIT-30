@@ -1,0 +1,57 @@
+name: CTO Dashboard Autofix
+on:
+  push:
+    branches: [feat/vivito-internal-100]
+    paths: ['.github/workflows/cto-dashboard-autofix.yml']
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-internal-100
+      - name: Harden workspace-scoped server pages
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          import re
+
+          targets={
+            'app/dashboard/creative/quality/page.tsx':'W',
+            'app/dashboard/executive/page.tsx':'W',
+            'app/dashboard/finance/payroll/page.tsx':'WORKSPACE',
+            'app/dashboard/forecast/page.tsx':'WORKSPACE',
+            'app/dashboard/kpis/page.tsx':'WORKSPACE',
+            'app/dashboard/ltv/page.tsx':'WORKSPACE',
+            'app/dashboard/operations/page.tsx':'W',
+            'app/dashboard/sales/page.tsx':'WORKSPACE',
+            'app/dashboard/team/page.tsx':'WORKSPACE',
+            'app/dashboard/universe/page.tsx':'W',
+          }
+          auth_re=re.compile(r'const\s+(\w+)=await auth\(\);if\(!\1\?\.user\)redirect\("/login"\);')
+          for path,symbol in targets.items():
+              p=Path(path); s=p.read_text()
+              before=s
+              s=s.replace(f'const {symbol}="default",','const ')
+              s=s.replace(f'const {symbol}="default";','')
+              s=re.sub(rf'\b{re.escape(symbol)}\b','workspaceId',s)
+              if 'const workspaceId=String(' not in s:
+                  m=auth_re.search(s)
+                  if not m: raise SystemExit(f'auth pattern not found: {path}')
+                  session=m.group(1)
+                  inject=f'const workspaceId=String(({session}.user as any).workspaceId||"");if(!workspaceId)redirect("/login");'
+                  s=s[:m.end()]+inject+s[m.end():]
+              if s==before: raise SystemExit(f'no change: {path}')
+              if '"default"' in s and ('workspace' in s.lower()):
+                  print(f'warning: residual default in {path}')
+              p.write_text(s)
+          PY
+      - name: Commit dashboard workspace fixes
+        run: |
+          git config user.name 'vivitgroup'
+          git config user.email 'groupvivit@gmail.com'
+          git add app/dashboard/creative/quality/page.tsx app/dashboard/executive/page.tsx app/dashboard/finance/payroll/page.tsx app/dashboard/forecast/page.tsx app/dashboard/kpis/page.tsx app/dashboard/ltv/page.tsx app/dashboard/operations/page.tsx app/dashboard/sales/page.tsx app/dashboard/team/page.tsx app/dashboard/universe/page.tsx
+          git commit -m 'fix(cto): scope executive dashboards to session workspace'
+          git push origin HEAD:feat/vivito-internal-100

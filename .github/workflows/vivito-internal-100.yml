@@ -43,6 +43,8 @@ jobs:
         run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/20260828_vivito_enterprise_governance.sql
       - name: Apply zero-based gap closure persistence
         run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/20260828_vivito_gap_closure.sql
+      - name: Apply task/campaign propagation scope
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/20260828_data_propagation_scope.sql
       - name: Verify tenant-safe persistence
         run: |
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
@@ -63,6 +65,8 @@ jobs:
             if exists(select 1 from pg_class where relnamespace='public'::regnamespace and relname like 'vivito_%' and relkind='r' and not relrowsecurity) then raise exception 'VIVITO table without RLS'; end if;
           end $$;
           SQL
+      - name: Task and campaign data propagation
+        run: node scripts/qa-data-propagation.mjs
       - name: Zero-based executable gap certification
         run: npx tsx scripts/certify-vivito-internal-gap-e2e.ts
       - name: Resilience acceptance E2E

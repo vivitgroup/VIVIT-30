@@ -1,0 +1,30 @@
+name: VIVITO V9 Persistent Company Brain
+
+on:
+  pull_request:
+    paths:
+      - "lib/vivito/persistent-company-brain-v9.ts"
+      - "app/api/assistant/institutional/**"
+      - "db/migrations/20260828_vivito_persistent_company_brain_v9.sql"
+      - "scripts/qa-vivito-persistent-company-brain-v9.mjs"
+      - ".github/workflows/vivito-v9-persistent-company-brain.yml"
+  workflow_dispatch:
+
+jobs:
+  v9-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: V9 persistent company brain regression gate
+        run: node scripts/qa-vivito-persistent-company-brain-v9.mjs
+      - name: TypeScript check
+        run: npm run type-check
+      - name: Production build
+        run: npm run build

@@ -31,6 +31,8 @@ jobs:
         with: {node-version: 22, cache: npm}
       - name: Install locked dependencies
         run: npm ci
+      - name: Production dependency security audit
+        run: npm audit --omit=dev --audit-level=moderate
       - name: Build base ephemeral database
         run: npx drizzle-kit push --force
       - name: Apply Direct Operator V1 persistence

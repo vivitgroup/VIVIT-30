@@ -4,7 +4,17 @@ import {activeProvenance,assertAutonomyAllowed,claimNotification,consumeResource
 const rows=(v:any)=>Array.from(v as any) as any[];
 const A="gap-ws-a",B="gap-ws-b";
 async function main(){
- await db.execute(sql`delete from vivito_notification_dedupe where workspace_id in (${A},${B});delete from vivito_resource_usage where workspace_id in (${A},${B});delete from vivito_eval_metrics where workspace_id in (${A},${B});delete from vivito_value_ledger where workspace_id in (${A},${B});delete from vivito_runtime_checkpoints where workspace_id in (${A},${B});delete from vivito_backup_manifests where workspace_id in (${A},${B});delete from vivito_knowledge_provenance where workspace_id in (${A},${B});delete from vivito_governance_controls where workspace_id in (${A},${B});delete from vivito_escalations where workspace_id in (${A},${B});delete from vivito_learning_signals where workspace_id in (${A},${B});delete from vivito_autonomy_events where workspace_id in (${A},${B})`);
+ await db.execute(sql`delete from vivito_notification_dedupe where workspace_id in (${A},${B})`);
+ await db.execute(sql`delete from vivito_resource_usage where workspace_id in (${A},${B})`);
+ await db.execute(sql`delete from vivito_eval_metrics where workspace_id in (${A},${B})`);
+ await db.execute(sql`delete from vivito_value_ledger where workspace_id in (${A},${B})`);
+ await db.execute(sql`delete from vivito_runtime_checkpoints where workspace_id in (${A},${B})`);
+ await db.execute(sql`delete from vivito_backup_manifests where workspace_id in (${A},${B})`);
+ await db.execute(sql`delete from vivito_knowledge_provenance where workspace_id in (${A},${B})`);
+ await db.execute(sql`delete from vivito_governance_controls where workspace_id in (${A},${B})`);
+ await db.execute(sql`delete from vivito_escalations where workspace_id in (${A},${B})`);
+ await db.execute(sql`delete from vivito_learning_signals where workspace_id in (${A},${B})`);
+ await db.execute(sql`delete from vivito_autonomy_events where workspace_id in (${A},${B})`);
  await db.execute(sql`insert into vivito_governance_controls(id,workspace_id,scope_type,scope_id,max_daily_actions,max_daily_ai_calls,policy_version) values(${crypto.randomUUID()},${A},'WORKSPACE',null,2,2,'gap-v1'),(${crypto.randomUUID()},${B},'WORKSPACE',null,3,3,'gap-v1')`);
  const duplicate=await db.execute(sql`insert into vivito_governance_controls(id,workspace_id,scope_type,scope_id) values(${crypto.randomUUID()},${A},'WORKSPACE',null) on conflict do nothing returning id`);assert.equal(rows(duplicate).length,0,"workspace NULL governance control must be unique");
  await setKillSwitch({workspaceId:A,scopeType:"WORKSPACE",enabled:true,userId:"qa"});await assert.rejects(()=>assertAutonomyAllowed({workspaceId:A}),/disabled-by-governance/);assert.equal((await assertAutonomyAllowed({workspaceId:B})).allowed,true,"kill switch must not leak across workspaces");await setKillSwitch({workspaceId:A,scopeType:"WORKSPACE",enabled:false,userId:"qa"});

@@ -1,3 +1,4 @@
+# Final multinational CTO release gate: runtime scope, incomplete UI and dead controls must all stay clean.
 name: CTO Static Architecture Audit
 on:
   push:

@@ -16,8 +16,16 @@ export async function analyzeVivitoImage(input:VisionInput){
  const r=await fetch(endpoint(model()),{method:"POST",signal:timeout(),headers:{"Content-Type":"application/json"},body:JSON.stringify({systemInstruction:{parts:[{text:system}]},contents:[{role:"user",parts:[{inlineData:{mimeType:mime,data:input.base64}},{text:input.prompt||"Analyze this image professionally."}]}],generationConfig:{temperature:.12,maxOutputTokens:4500}})});const d=await safeJson(r);if(!r.ok)throw new Error(d?.error?.message||`gemini-vision-${r.status}`);const text=String(d?.candidates?.[0]?.content?.parts?.map((p:any)=>p.text).filter(Boolean).join("\n")||"").trim();if(!text)throw new Error("vision-empty-response");return{text,model:model()}
 }
 
-export async function groundedVivitoResearch(workspaceId:string,prompt:string):Promise<VivitoGroundedResearch>{
- if(!workspaceId)throw new Error("workspace-required-for-grounded-research");
+async function researchArgs(workspaceOrPrompt:string,promptMaybe?:string){
+ if(promptMaybe!==undefined){const workspaceId=String(workspaceOrPrompt||"").trim(),prompt=String(promptMaybe||"").trim();if(!workspaceId)throw new Error("workspace-required-for-grounded-research");if(!prompt)throw new Error("prompt-required-for-grounded-research");return{workspaceId,prompt}}
+ const prompt=String(workspaceOrPrompt||"").trim();if(!prompt)throw new Error("prompt-required-for-grounded-research");
+ const {auth}=await import("@/lib/auth");const session=await auth(),workspaceId=String((session?.user as any)?.workspaceId||"").trim();if(!workspaceId)throw new Error("workspace-required-for-grounded-research");return{workspaceId,prompt};
+}
+
+export async function groundedVivitoResearch(workspaceId:string,prompt:string):Promise<VivitoGroundedResearch>;
+export async function groundedVivitoResearch(prompt:string):Promise<VivitoGroundedResearch>;
+export async function groundedVivitoResearch(workspaceOrPrompt:string,promptMaybe?:string):Promise<VivitoGroundedResearch>{
+ const {workspaceId,prompt}=await researchArgs(workspaceOrPrompt,promptMaybe);
  if(!process.env.GEMINI_API_KEY)throw new Error("gemini-not-configured");
  const cached=await loadVivitoLiveKnowledgeContext(workspaceId,prompt).catch(()=>"Cached knowledge unavailable; rely on live search and disclose that limitation.");
  const system=`You are VIVITO Research Intelligence. Search when necessary. Prefer official/first-party and primary sources. State dates, geography, metric definitions and limitations. Distinguish fact, inference and recommendation. Never fabricate a citation or market statistic. Cached snapshots are evidence leads, not permission to skip live verification when the user asks for current information.\n\n${buildLiveKnowledgeResearchPolicy(prompt)}\n\nCACHED VERIFIED-SOURCE SNAPSHOTS:\n${cached}`;

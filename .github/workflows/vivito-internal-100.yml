@@ -63,6 +63,8 @@ jobs:
           SQL
       - name: Zero-based executable gap certification
         run: npx tsx scripts/certify-vivito-internal-gap-e2e.ts
+      - name: Resilience acceptance E2E
+        run: npx tsx scripts/certify-vivito-internal-acceptance-e2e.ts
       - name: Direct Operator V2 invariants
         run: node scripts/qa-vivito-direct-runtime-v2.mjs
       - name: Enterprise gates 13-32

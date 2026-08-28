@@ -39,4 +39,6 @@ jobs:
           git config user.email 'groupvivit@gmail.com'
           git add app/api/assistant/route.ts app/api/assistant/actions/route.ts app/api/assistant/operations/route.ts app/api/assistant/rollback/route.ts lib/vivito/executor.ts lib/vivito/executor-extended.ts lib/vivito/executor-operator.ts lib/vivito/plan-runtime.ts lib/vivito/memory.ts lib/vivito/direct-runtime.ts
           git commit -m 'fix(cto): scope VIVITO execution memory plans and rollback to session workspace'
+          git fetch origin feat/vivito-internal-100
+          git rebase origin/feat/vivito-internal-100
           git push origin HEAD:feat/vivito-internal-100

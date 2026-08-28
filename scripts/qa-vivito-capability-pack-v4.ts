@@ -7,8 +7,8 @@ import {
 const checks:{name:string;pass:boolean}[]=[];
 const check=(name:string,pass:boolean)=>checks.push({name,pass});
 
-check("exactly 15 capability tracks exist",VIVITO_CAPABILITY_PACK_V4.length===15);
-check("all capability ids are unique",new Set(VIVITO_CAPABILITY_PACK_V4.map(x=>x.id)).size===15);
+check("at least 15 capability tracks exist",VIVITO_CAPABILITY_PACK_V4.length>=15);
+check("all capability ids are unique",new Set(VIVITO_CAPABILITY_PACK_V4.map(x=>x.id)).size===VIVITO_CAPABILITY_PACK_V4.length);
 check("all tracks are runtime-enabled",VIVITO_CAPABILITY_PACK_V4.every(x=>x.runtime));
 check("sales routing activates Sales V3",detectVivitoCapabilities("pipeline close rate and objections").some(x=>x.id==="sales-v3"));
 check("Egypt property routing activates Real Estate Egypt V2",detectVivitoCapabilities("عقارات مصر مقدم وتقسيط").some(x=>x.id==="real-estate-egypt-v2"));

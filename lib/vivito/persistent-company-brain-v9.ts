@@ -131,8 +131,9 @@ export async function recordDependency(scope: BrainScope, input: { fromType: str
 export async function requestGovernanceApproval(scope: BrainScope, input: { entityType: string; entityId: string; title: string; amount?: number; steps: unknown[] }) {
   requireScope(scope);
   const approvalId = id();
+  const totalSteps = Math.max(1, input.steps.length);
   await db.execute(sql`insert into approval_workflows(id,workspace_id,entity_type,entity_id,title,amount,requested_by,current_step,total_steps,status,steps)
-    values(${approvalId},${scope.workspaceId},${input.entityType},${input.entityId},${input.title},${input.amount ?? null},1,${Math.max(1,input.steps.length)},'PENDING',${JSON.stringify(input.steps)})`);
+    values(${approvalId},${scope.workspaceId},${input.entityType},${input.entityId},${input.title},${input.amount ?? null},${scope.actorId},1,${totalSteps},'PENDING',${JSON.stringify(input.steps)})`);
   return approvalId;
 }
 

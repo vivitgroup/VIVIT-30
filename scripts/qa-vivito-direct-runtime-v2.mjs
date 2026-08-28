@@ -1,6 +1,6 @@
 import fs from "node:fs";
 const read=p=>fs.readFileSync(p,"utf8");
-const runtime=read("lib/vivito/direct-runtime.ts"),route=read("app/api/assistant/direct/route.ts"),migration=read("db/migrations/20260828_vivito_direct_operator_v2.sql"),ui=read("components/vivito/DirectOperatorPanel.tsx"),cron=read("app/api/cron/vivito-direct/route.ts");
+const runtime=read("lib/vivito/direct-runtime.ts"),route=read("app/api/assistant/direct/route.ts"),migrationV1=read("db/migrations/20260828_vivito_direct_operator.sql"),migration=read("db/migrations/20260828_vivito_direct_operator_v2.sql"),ui=read("components/vivito/DirectOperatorPanel.tsx"),cron=read("app/api/cron/vivito-direct/route.ts");
 const checks=[];const ok=(name,test)=>{if(!test)throw new Error(`FAIL  ${name}`);console.log(`PASS  ${name}`);checks.push(name)};
 ok("Runtime resolves workspace from authenticated/automation actor",runtime.includes("workspace_id")&&!runtime.includes('const W="default"'));
 ok("Autonomy idempotency is tenant scoped",migration.includes("uq_vivito_event_workspace_idempotency")&&migration.includes("workspace_id,idempotency_key"));
@@ -16,7 +16,7 @@ ok("Proactive client health risk is detected",runtime.includes("CLIENT_HEALTH_RI
 ok("Overdue finance risk escalates without auto financial mutation",runtime.includes("invoice-overdue")&&!runtime.includes('op:"record_payment"'));
 ok("Internal media diagnosis works from database evidence",runtime.includes("MEDIA_ZERO_RESULT_SPEND")&&runtime.includes("ad_performance_daily"));
 ok("Campaign pause remains human gated",runtime.includes("MEDIA_ZERO_RESULT_HIGH_SPEND")&&runtime.includes('op:"update_campaign"'));
-ok("24/48/72 outcome checks persist",runtime.includes("[24,48,72]")&&migration.includes("horizon_hours"));
+ok("24/48/72 outcome checks persist",runtime.includes("[24,48,72]")&&migrationV1.includes("horizon_hours")&&migrationV1.includes("vivito_outcome_checks"));
 ok("Outcome learning updates confidence without causal overclaim",runtime.includes("confidence_after")&&runtime.includes("causality is not assumed"));
 ok("Learning signal stores outcome and lesson",migration.includes("outcome_state")&&migration.includes("lesson")&&runtime.includes("vivito_learning_signals"));
 ok("Escalations are persistent and deduplicated per workspace",migration.includes("vivito_escalations")&&migration.includes("uq_vivito_escalation_workspace_dedupe"));

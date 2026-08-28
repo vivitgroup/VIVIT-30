@@ -1,9 +1,9 @@
 import fs from "node:fs";
 const read=p=>fs.readFileSync(p,"utf8"),checks=[],check=(name,ok)=>checks.push({name,ok:Boolean(ok)});
 const calendar=read("app/dashboard/calendar/page.tsx"),portal=read("app/dashboard/portal/page.tsx"),settings=read("components/settings/PreferencePanel.tsx"),calendarSafe=read("lib/actions/calendar-safe.ts"),barrel=read("lib/actions.ts");
-check("Calendar only loads active workspace clients",calendar.includes("eq(clients.workspaceId,WORKSPACE)")&&calendar.includes("eq(clients.isActive,true)"));
+check("Calendar only loads active workspace clients",calendar.includes("eq(clients.workspaceId,workspaceId)")&&calendar.includes("eq(clients.isActive,true)"));
 check("Calendar Super Admin and Sales events are client scoped, not true scoped",!calendar.includes("?sql`true`")&&calendar.includes("inArray(calendarEvents.clientId,allowedClientIds)"));
-check("Creator calendar requires workspace active client and unarchived task",calendar.includes("t.workspace_id=${WORKSPACE}")&&calendar.includes("c.workspace_id=${WORKSPACE}")&&calendar.includes("c.is_active=true")&&calendar.includes("t.archived_at is null"));
+check("Creator calendar requires workspace active client and unarchived task",calendar.includes("t.workspace_id=${workspaceId}")&&calendar.includes("c.workspace_id=${workspaceId}")&&calendar.includes("c.is_active=true")&&calendar.includes("t.archived_at is null"));
 check("Calendar no longer renders demo data for empty clients",!calendar.includes("ClientCalendarDemo")&&!calendar.toLowerCase().includes("demo"));
 check("Calendar creation uses central client access policy",calendarSafe.includes("canAccessClient(session,clientId,{write:true})"));
 check("Calendar creation validates tenant active uploaded asset",calendarSafe.includes("eq(fileDocuments.workspaceId,WORKSPACE)")&&calendarSafe.includes("archived_at is null"));

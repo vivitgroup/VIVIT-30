@@ -38,6 +38,7 @@ const migrationFiles = [
   'db/migrations/20260828_vivito_direct_operator_v2.sql',
   'db/migrations/20260828_vivito_enterprise_governance.sql',
   'db/migrations/20260828_vivito_gap_closure.sql',
+  'db/migrations/20260828_data_propagation_scope.sql',
 ];
 
 async function preflight() {
@@ -59,9 +60,6 @@ async function applyMigrations() {
     if (!/\bbegin\s*;/i.test(body) || !/\bcommit\s*;/i.test(body)) {
       throw new Error(`Refusing migration without explicit transaction markers: ${file}`);
     }
-    // postgres.js rejects transaction control embedded in sql.unsafe(). The migration
-    // files are already guarded by explicit BEGIN/COMMIT markers, so strip only those
-    // outer markers and let sql.begin() own the transaction on the single connection.
     const statements = body
       .replace(/^\s*begin\s*;\s*/i, '')
       .replace(/\s*commit\s*;\s*$/i, '');
@@ -110,14 +108,41 @@ async function readback() {
 
   const indexes = await sql`
     select indexname from pg_indexes where schemaname='public' and indexname in (
-      'uq_vivito_event_workspace_idempotency','uq_vivito_checkpoint_run_key','uq_vivito_backup_snapshot','uq_vivito_governance_scope'
+      'uq_vivito_event_workspace_idempotency','uq_vivito_checkpoint_run_key','uq_vivito_backup_snapshot','uq_vivito_governance_scope',
+      'idx_creative_tasks_workspace_client_status','idx_ad_campaigns_workspace_client_status','idx_ad_connections_workspace_client'
     )
   `;
   const indexSet = new Set(indexes.map((r) => r.indexname));
-  for (const idx of ['uq_vivito_event_workspace_idempotency','uq_vivito_checkpoint_run_key','uq_vivito_backup_snapshot','uq_vivito_governance_scope']) {
+  for (const idx of [
+    'uq_vivito_event_workspace_idempotency','uq_vivito_checkpoint_run_key','uq_vivito_backup_snapshot','uq_vivito_governance_scope',
+    'idx_creative_tasks_workspace_client_status','idx_ad_campaigns_workspace_client_status','idx_ad_connections_workspace_client'
+  ]) {
     if (!indexSet.has(idx)) throw new Error(`Production readback failed: missing index ${idx}`);
   }
-  console.log('Production DB schema/RLS/readback: PASS');
+
+  const triggerRows = await sql`
+    select tgname from pg_trigger
+    where not tgisinternal and tgname in (
+      'trg_creative_tasks_sync_workspace','trg_ad_campaigns_sync_workspace','trg_ad_platform_connections_sync_workspace'
+    )
+  `;
+  const triggerSet = new Set(triggerRows.map((r) => r.tgname));
+  for (const trg of ['trg_creative_tasks_sync_workspace','trg_ad_campaigns_sync_workspace','trg_ad_platform_connections_sync_workspace']) {
+    if (!triggerSet.has(trg)) throw new Error(`Production readback failed: missing trigger ${trg}`);
+  }
+
+  const mismatches = await sql`
+    select
+      (select count(*)::int from creative_tasks t join clients c on c.id=t.client_id where t.workspace_id is distinct from c.workspace_id) task_mismatches,
+      (select count(*)::int from ad_campaigns a join clients c on c.id=a.client_id where a.workspace_id is distinct from c.workspace_id) campaign_mismatches,
+      (select count(*)::int from ad_platform_connections a join clients c on c.id=a.client_id where a.workspace_id is distinct from c.workspace_id) connection_mismatches
+  `;
+  const m = mismatches[0] || {};
+  if (Number(m.task_mismatches) || Number(m.campaign_mismatches) || Number(m.connection_mismatches)) {
+    throw new Error(`Production readback failed: workspace propagation mismatch tasks=${m.task_mismatches||0} campaigns=${m.campaign_mismatches||0} connections=${m.connection_mismatches||0}`);
+  }
+
+  console.log('Production DB schema/RLS/data-propagation readback: PASS');
 }
 
 try {

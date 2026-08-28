@@ -1,0 +1,79 @@
+name: CTO Type Safety Hygiene Sweep
+
+on:
+  push:
+    branches: [feat/vivito-internal-100]
+    paths:
+      - .github/workflows/cto-type-safety-cleanup.yml
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact triggering SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Remove runtime TypeScript shields
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('node:fs');
+          const { execFileSync } = require('node:child_process');
+          const files = execFileSync('git', ['ls-files'], { encoding: 'utf8' })
+            .split(/\r?\n/)
+            .filter(Boolean)
+            .filter((f) => /^(?:app|components|lib)\//.test(f) && /\.(?:ts|tsx)$/.test(f));
+          let changed = 0;
+          for (const file of files) {
+            const source = fs.readFileSync(file, 'utf8');
+            const next = source
+              .replace(/^\s*\/\/\s*@ts-nocheck\s*\r?\n/gm, '')
+              .replace(/^\s*\/\/\s*@ts-ignore\s*\r?\n/gm, '');
+            if (next !== source) {
+              fs.writeFileSync(file, next);
+              changed++;
+              console.log(`unshielded ${file}`);
+            }
+          }
+          console.log(`runtime files unshielded: ${changed}`);
+          NODE
+
+      - name: Apply safe ESLint autofixes
+        run: npx eslint . --fix || true
+
+      - name: TypeScript acceptance after unshielding
+        run: npm run type-check
+
+      - name: Diff safety
+        run: git diff --check
+
+      - name: Commit verified hygiene cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo 'No source cleanup required.'
+            exit 0
+          fi
+          git config user.name 'vivit-cto-bot'
+          git config user.email 'vivit-cto-bot@users.noreply.github.com'
+          git add app components lib
+          git commit -m 'chore(cto): remove runtime TypeScript shields'
+          git push origin HEAD:feat/vivito-internal-100

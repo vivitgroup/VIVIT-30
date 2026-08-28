@@ -21,9 +21,9 @@ async function portalAction(fd:FormData){
  if(!task||!task.file_url||!["APPROVED","COMPLETED"].includes(String(task.status)))throw new Error("Creative is not ready for client approval");
  if(decision==="REVISION"&&!comment)throw new Error("Please add revision notes");
  if(decision==="APPROVED")await db.execute(sql`update creative_tasks set approved_by_client=true,client_approval_at=now(),revision_notes=null,updated_at=now() where id=${taskId} and client_id=${client.id} and workspace_id=${workspaceId} and archived_at is null`);
- else await db.execute(sql`update creative_tasks set approved_by_client=false,status='REVISION',revision_notes=${comment},revision_count=coalesce(revision_count,0)+1,updated_at=now() where id=${taskId} and client_id=${client.id} and archived_at is null`);
+ else await db.execute(sql`update creative_tasks set approved_by_client=false,status='REVISION',revision_notes=${comment},revision_count=coalesce(revision_count,0)+1,updated_at=now() where id=${taskId} and client_id=${client.id} and workspace_id=${workspaceId} and archived_at is null`);
  if(task.assigned_to_id)await db.execute(sql`insert into notifications(id,user_id,type,title,message,link,priority,created_at) values(gen_random_uuid()::text,${task.assigned_to_id},'CLIENT_REVIEW',${`Client ${decision.toLowerCase()}: ${task.title}`},${decision==="APPROVED"?"Client approved the creative.":comment},${`/dashboard/creative/${taskId}`},${decision==="REVISION"?"high":"normal"},now())`);
- const {revalidatePath}=await import("next/cache");revalidatePath("/dashboard/portal");
+ const {revalidatePath}=await import("next/cache");for(const p of ["/dashboard/portal","/dashboard/creative","/dashboard/tasks-inbox","/dashboard/today","/dashboard/calendar"])revalidatePath(p);
 }
 
 export default async function PortalPage(){

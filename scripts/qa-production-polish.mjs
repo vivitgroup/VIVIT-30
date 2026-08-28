@@ -12,6 +12,7 @@ check("Proxy applies CSP",proxy.includes("Content-Security-Policy")&&proxy.inclu
 check("Proxy protects authenticated surfaces",proxy.includes("if(!session)")&&proxy.includes('pathname.startsWith("/api/")'));
 check("Health response is no-store",health.includes('"Cache-Control":"no-store"'));
 check("Health verifies database instead of static green",health.includes("db.select")&&health.includes('database:"connected"')&&health.includes("status:503"));
+check("Public health response does not expose user counts",!health.includes("users:Number")&&!health.includes("count(*)"));
 check("Health reports package version",health.includes("pkg.version"));
 check("Production build runs high-severity dependency audit",String(pkg.scripts.build).includes("npm audit --audit-level=high"));
 check("Project pins supported Node major",pkg.engines?.node==="22.x");

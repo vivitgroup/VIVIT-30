@@ -1,0 +1,45 @@
+name: CTO Runtime Autofix
+on:
+  push:
+    branches: [feat/vivito-internal-100]
+    paths: ['.github/workflows/cto-runtime-autofix.yml']
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-internal-100
+      - name: Apply targeted workspace patches
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          def replace(path, old, new):
+              p=Path(path); s=p.read_text()
+              if old not in s:
+                  raise SystemExit(f'missing expected pattern in {path}: {old[:100]}')
+              p.write_text(s.replace(old,new))
+
+          replace('lib/vivito/competitive-intelligence.ts',
+            'export async function buildDailyCompetitiveReport(clientId:string){const watches=rows(await db.execute(sql`select w.id,w.competitor_name,p.id profile_id,p.platform,p.profile_url from competitor_watchlists w join competitor_social_profiles p on p.watchlist_id=w.id where w.workspace_id=\'default\' and w.client_id=${clientId} and w.is_active=true and p.is_active=true order by w.competitor_name,p.platform`));',
+            'export async function buildDailyCompetitiveReport(clientId:string,workspaceId:string){if(!workspaceId)throw new Error("Workspace unavailable");const watches=rows(await db.execute(sql`select w.id,w.competitor_name,p.id profile_id,p.platform,p.profile_url from competitor_watchlists w join competitor_social_profiles p on p.watchlist_id=w.id where w.workspace_id=${workspaceId} and w.client_id=${clientId} and w.is_active=true and p.is_active=true order by w.competitor_name,p.platform`));')
+          replace('lib/vivito/competitive-intelligence.ts',
+            "values('default',${clientId},current_date,${summary},${JSON.stringify({details})}::jsonb)",
+            'values(${workspaceId},${clientId},current_date,${summary},${JSON.stringify({details})}::jsonb)')
+
+          p=Path('app/api/media-control/route.ts'); s=p.read_text()
+          old='async function context(){const session=await auth();if(!session?.user||!allowedRoles.includes((session.user as any).role))return null;const role=(session.user as any).role,userId=(session.user as any).id;const owned=await db.select({id:clients.id,name:clients.companyName,budget:clients.mediaBudget}).from(clients).where(and(eq(clients.isActive,true),role==="MEDIA_BUYER"?eq(clients.mediaBuyerId,userId):role==="ACCOUNT_MANAGER"?eq(clients.accountManagerId,userId):eq(clients.workspaceId,"default")));return {session,role,userId,clients:owned,clientIds:owned.map(x=>x.id)};}'
+          new='async function context(){const session=await auth();if(!session?.user||!allowedRoles.includes((session.user as any).role))return null;const role=(session.user as any).role,userId=String((session.user as any).id||""),workspaceId=String((session.user as any).workspaceId||"");if(!workspaceId)return null;const owned=await db.select({id:clients.id,name:clients.companyName,budget:clients.mediaBudget}).from(clients).where(and(eq(clients.workspaceId,workspaceId),eq(clients.isActive,true),role==="MEDIA_BUYER"?eq(clients.mediaBuyerId,userId):role==="ACCOUNT_MANAGER"?eq(clients.accountManagerId,userId):eq(clients.workspaceId,workspaceId)));return {session,role,userId,workspaceId,clients:owned,clientIds:owned.map(x=>x.id)};}'
+          if old not in s: raise SystemExit('media-control context pattern missing')
+          p.write_text(s.replace(old,new))
+          PY
+      - name: Commit hardened runtime
+        run: |
+          git config user.name 'vivitgroup'
+          git config user.email 'groupvivit@gmail.com'
+          git add lib/vivito/competitive-intelligence.ts app/api/media-control/route.ts
+          git commit -m 'fix(cto): harden competitive intelligence and media control tenancy'
+          git push origin HEAD:feat/vivito-internal-100

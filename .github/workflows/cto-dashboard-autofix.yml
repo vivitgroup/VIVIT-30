@@ -37,9 +37,9 @@ jobs:
              '  const userId = (session.user as any).id as string;\n  const workspaceId=String((session.user as any).workspaceId||"");if(!workspaceId)redirect("/login");\n  if (![Role.SUPER_ADMIN,Role.MEDIA_BUYER,Role.ACCOUNT_MANAGER].includes(role)) redirect("/dashboard");'),
             ('.from(clients).where(and(eq(clients.isActive,true),role===Role.MEDIA_BUYER?eq(clients.mediaBuyerId,userId):role===Role.ACCOUNT_MANAGER?eq(clients.accountManagerId,userId):eq(clients.workspaceId,"default")))',
              '.from(clients).where(and(eq(clients.workspaceId,workspaceId),eq(clients.isActive,true),role===Role.MEDIA_BUYER?eq(clients.mediaBuyerId,userId):role===Role.ACCOUNT_MANAGER?eq(clients.accountManagerId,userId):eq(clients.workspaceId,workspaceId)))'),
-            (']).from(mediaMetrics).where(gte(mediaMetrics.date, moStart))\n      .groupBy(mediaMetrics.clientId, mediaMetrics.platform)', ']).from(mediaMetrics).where(and(eq(mediaMetrics.workspaceId,workspaceId),gte(mediaMetrics.date, moStart)))\n      .groupBy(mediaMetrics.clientId, mediaMetrics.platform)'),
-            (']).from(mediaMetrics).where(and(gte(mediaMetrics.date,mo1),', ']).from(mediaMetrics).where(and(eq(mediaMetrics.workspaceId,workspaceId),gte(mediaMetrics.date,mo1),'),
-            (']).from(mediaMetrics).where(gte(mediaMetrics.date, moStart))\n      .groupBy(mediaMetrics.platform)', ']).from(mediaMetrics).where(and(eq(mediaMetrics.workspaceId,workspaceId),gte(mediaMetrics.date, moStart)))\n      .groupBy(mediaMetrics.platform)')
+            ('}).from(mediaMetrics).where(gte(mediaMetrics.date, moStart))\n      .groupBy(mediaMetrics.clientId, mediaMetrics.platform)', '}).from(mediaMetrics).where(and(eq(mediaMetrics.workspaceId,workspaceId),gte(mediaMetrics.date, moStart)))\n      .groupBy(mediaMetrics.clientId, mediaMetrics.platform)'),
+            ('}).from(mediaMetrics).where(and(gte(mediaMetrics.date,mo1),', '}).from(mediaMetrics).where(and(eq(mediaMetrics.workspaceId,workspaceId),gte(mediaMetrics.date,mo1),'),
+            ('}).from(mediaMetrics).where(gte(mediaMetrics.date, moStart))\n      .groupBy(mediaMetrics.platform)', '}).from(mediaMetrics).where(and(eq(mediaMetrics.workspaceId,workspaceId),gte(mediaMetrics.date, moStart)))\n      .groupBy(mediaMetrics.platform)')
           ])
 
           patch('app/dashboard/page.tsx',[

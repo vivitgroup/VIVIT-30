@@ -60,10 +60,10 @@ check("Task restore requires active client",lifecycle.includes("Restore the clie
 check("Archive Center only exposes task hard delete to Super Admin",archive.includes('canHardDelete=entity==="lead"?(role==="SUPER_ADMIN"||role==="SALES"):role==="SUPER_ADMIN"'));
 check("Archived clients cannot open Client Portal",portalGuard.includes("eq(clients.isActive,true)"));
 check("Client Portal review action rejects archived tasks",/creative_tasks where id=\$\{taskId\}[\s\S]*archived_at is null/.test(portal));
-check("Client Portal creative approvals exclude archived tasks",/from creative_tasks where workspace_id=\$\{WORKSPACE\}[\s\S]*client_id=\$\{client\.id\}[\s\S]*archived_at is null/.test(portal));
+check("Client Portal creative approvals exclude archived tasks",/from creative_tasks where workspace_id=\$\{workspaceId\}[\s\S]*client_id=\$\{client\.id\}[\s\S]*archived_at is null/.test(portal));
 check("Client Portal deliverable counts derive only from active task query",portal.includes("tasks=[...taskRows]")&&/taskRows[\s\S]*creative_tasks[\s\S]*archived_at is null/.test(portal));
 check("Client Portal calendar cannot expose archived-task events",!portal.includes("from calendar_events")||/calendar_events[\s\S]*creative_tasks[\s\S]*archived_at is null/.test(portal));
-check("Client Portal documents exclude archived files",/from file_documents where workspace_id=\$\{WORKSPACE\}[\s\S]*client_id=\$\{client\.id\}[\s\S]*archived_at is null/.test(portal));
+check("Client Portal documents exclude archived files",/from file_documents where workspace_id=\$\{workspaceId\}[\s\S]*client_id=\$\{client\.id\}[\s\S]*archived_at is null/.test(portal));
 check("Files API validates task target before Super Admin bypass",files.indexOf("if(taskId)")<files.indexOf('if(role==="SUPER_ADMIN")return true'));
 check("Files API rejects archived task and archived client targets",files.includes("t.archived_at is null and c.is_active=true")&&files.includes("eq(clients.isActive,true)"));
 check("Task-scoped file GET rejects unavailable archived targets",files.includes("The selected client or task is archived or unavailable to you."));

@@ -26,12 +26,12 @@ check("Task creation server action validates client ownership",actions.includes(
 check("Task creation validates type and priority allowlists",actions.includes("allowedTypes")&&actions.includes("allowedPriorities")&&actions.includes("Invalid task data"));
 check("Task creation validates active creator assignment",actions.includes("eq(users.role,\"CREATOR\")")&&actions.includes("eq(users.isActive,true)")&&actions.includes("Invalid creator assignment"));
 check("Task creation form blocks invalid deadline submission",newForm.includes("disabled={!deadline}")&&newForm.includes("Enter a valid date as DD/MM/YYYY"));
-check("Creative board excludes archived tasks",board.includes("where archived_at is null"));
-check("Creative board scopes every role to active clients",board.includes("activeClientScope")&&board.includes("eq(clients.isActive,true)"));
+check("Creative board excludes archived tasks",/creative_tasks where[\s\S]*archived_at is null/.test(board)&&board.includes("activeOnly"));
+check("Creative board scopes every role to active clients",board.includes("activeClientScope")&&board.includes("eq(clients.isActive,true)")&&board.includes("eq(clients.workspaceId,workspaceId)"));
 check("Creative board rejects status mutations on archived tasks",board.includes("Archived tasks cannot be changed. Restore the task first."));
 check("Creative board task archive is management-only",board.includes("[\"SUPER_ADMIN\",\"ACCOUNT_MANAGER\"].includes(role)"));
 check("Account Manager task archive uses client ownership",board.includes("eq(clients.accountManagerId,userId)")&&board.includes("You can only archive tasks for clients assigned to you."));
-check("Task archive revalidates board, inbox, calendar and archive",board.includes('revalidatePath("/dashboard/tasks-inbox")')&&board.includes('revalidatePath("/dashboard/calendar")')&&board.includes('revalidatePath("/dashboard/archive")'));
+check("Task archive revalidates board, inbox, calendar and archive",["/dashboard/creative","/dashboard/tasks-inbox","/dashboard/calendar","/dashboard/archive"].every(p=>board.includes(`\"${p}\"`))&&board.includes("revalidatePath(p)"));
 check("Task detail has central archived-record guard",detailGuard.includes("t.archived_at is null"));
 check("Task detail guard rejects archived clients",detailGuard.includes("task.client_active===false"));
 check("Task detail guard scopes Account Manager",detailGuard.includes("task.account_manager_id===userId"));
@@ -42,8 +42,8 @@ check("Task comments reject archived, deleted or inactive-client tasks",detail.i
 check("Safe task actions reject archived tasks",safe.includes("t.archived_at is null")&&safe.includes("t.deleted_at is null")&&/Task is archived or unavailable/i.test(safe));
 check("Safe task actions reject archived clients",safe.includes("task.client_active===false"));
 check("Safe task actions enforce AM and Creator ownership",safe.includes("task.account_manager_id===userId")&&safe.includes("task.assigned_to_id===userId"));
-check("Tasks Inbox excludes archived tasks",inbox.includes("creative_tasks where workspace_id=${WORKSPACE} and archived_at is null")&&inbox.includes("activeOnly"));
-check("Tasks Inbox scopes every role to active clients",inbox.includes("allowedClients")&&inbox.includes("eq(clients.isActive,true)")&&inbox.includes("inArray(creativeTasks.clientId,allowedIds)"));
+check("Tasks Inbox excludes archived tasks",/creative_tasks where workspace_id=\$\{workspaceId\}[\s\S]*archived_at is null/.test(inbox)&&inbox.includes("activeOnly"));
+check("Tasks Inbox scopes every role to active clients",inbox.includes("allowedClients")&&inbox.includes("eq(clients.isActive,true)")&&inbox.includes("eq(clients.workspaceId,workspaceId)")&&inbox.includes("inArray(creativeTasks.clientId,allowedIds)"));
 check("Bulk approve only transitions REVIEW to APPROVED",inbox.includes('approve:{from:["REVIEW"],status:"APPROVED"}'));
 check("Bulk complete only transitions APPROVED to COMPLETED",inbox.includes('complete:{from:["APPROVED"],status:"COMPLETED"}'));
 check("Bulk complete records completedAt",inbox.includes('target.status===\"COMPLETED\"')||inbox.includes('target.status==="COMPLETED"'));

@@ -1,12 +1,12 @@
 import type {NextAuthConfig} from "next-auth";
 
-type LiveState={role?:string;is_active?:boolean;passwordChangedAt?:string|null};
+type LiveState={role?:string;workspace_id?:string;is_active?:boolean;approval_status?:string;passwordChangedAt?:string|null};
 async function liveUserState(userId:string):Promise<LiveState|null>{
  const url=process.env.SUPABASE_URL,key=process.env.SUPABASE_SERVICE_KEY;if(!url||!key)return null;
  const headers={apikey:key,Authorization:`Bearer ${key}`};
  try{
   const [userRes,auditRes]=await Promise.all([
-   fetch(`${url}/rest/v1/users?id=eq.${encodeURIComponent(userId)}&select=role,is_active&limit=1`,{headers,cache:"no-store",signal:AbortSignal.timeout(3000)}),
+   fetch(`${url}/rest/v1/users?id=eq.${encodeURIComponent(userId)}&select=role,workspace_id,is_active,approval_status&limit=1`,{headers,cache:"no-store",signal:AbortSignal.timeout(3000)}),
    fetch(`${url}/rest/v1/audit_logs?user_id=eq.${encodeURIComponent(userId)}&action=eq.password_changed&select=created_at&order=created_at.desc&limit=1`,{headers,cache:"no-store",signal:AbortSignal.timeout(3000)})
   ]);
   if(!userRes.ok||!auditRes.ok)return null;
@@ -22,16 +22,17 @@ const authConfig={
  providers:[],
  callbacks:{
   async jwt({token,user}){
-   if(user){token.role=(user as {role?:string}).role;token.authValid=true}
+   if(user){token.role=(user as any).role;token.workspaceId=(user as any).workspaceId;token.authValid=true}
    if(token.sub){
     const live=await liveUserState(token.sub),issuedAtMs=Number(token.iat||0)*1000,passwordChangedMs=live?.passwordChangedAt?new Date(live.passwordChangedAt).getTime():0;
-    token.authValid=Boolean(live?.is_active)&&(!passwordChangedMs||passwordChangedMs<=issuedAtMs);
+    token.authValid=Boolean(live?.is_active)&&String(live?.approval_status||"")==="APPROVED"&&(!passwordChangedMs||passwordChangedMs<=issuedAtMs);
     if(live?.role)token.role=live.role;
+    if(live?.workspace_id)token.workspaceId=live.workspace_id;
    }else token.authValid=false;
    return token;
   },
   session({session,token}){
-   if(session.user){session.user.id=token.sub!;(session.user as any).role=token.role;(session.user as any).authValid=token.authValid===true}
+   if(session.user){session.user.id=token.sub!;(session.user as any).role=token.role;(session.user as any).workspaceId=token.workspaceId;(session.user as any).authValid=token.authValid===true}
    return session;
   },
  },

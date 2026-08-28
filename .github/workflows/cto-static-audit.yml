@@ -1,61 +1,60 @@
-# Final multinational CTO release gate: runtime scope, incomplete UI, dead controls and source corruption must all stay clean.
 name: CTO Static Architecture Audit
+
 on:
   push:
-    branches: [feat/vivito-internal-100]
-    paths:
-      - 'app/**'
-      - 'components/**'
-      - 'lib/**'
-      - '.github/workflows/cto-static-audit.yml'
+    branches:
+      - feat/vivito-internal-100
+      - release/vivito-rc1-2026-08-27
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
 permissions:
   contents: read
+
+concurrency:
+  group: cto-static-${{ github.event.pull_request.head.sha || github.sha }}
+  cancel-in-progress: true
+
 jobs:
   audit:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
-      - uses: actions/checkout@v4
-      - name: Source corruption sentinel audit
+      - name: Checkout exact candidate SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.CANDIDATE_SHA }}
+          fetch-depth: 1
+
+      - name: Assert exact candidate SHA
+        shell: bash
         run: |
-          node <<'NODE'
-          const fs=require('fs'),path=require('path');
-          const roots=['app','components','lib'];const files=[];
-          const walk=d=>{if(!fs.existsSync(d))return;for(const e of fs.readdirSync(d,{withFileTypes:true})){const p=path.join(d,e.name);if(e.isDirectory())walk(p);else if(/\.(ts|tsx|js|jsx|mjs|cjs)$/.test(p))files.push(p)}};roots.forEach(walk);
-          const bad=[];for(const f of files){const body=fs.readFileSync(f,'utf8').trim();if(/^__(?:PATCH|PLACEHOLDER|TODO)__$/i.test(body))bad.push(f)}
-          if(bad.length){console.error('Sentinel-only corrupted source files found:\n'+bad.join('\n'));process.exit(1)}
-          console.log('PASS: no sentinel-only source corruption.');
-          NODE
-      - name: Runtime tenant scope audit
-        run: |
-          node <<'NODE'
-          const fs=require('fs'),path=require('path');
-          const roots=['app','components','lib'];
-          const allow=[/schema/i,/migration/i,/seed/i];
-          const files=[];
-          const walk=d=>{if(!fs.existsSync(d))return;for(const e of fs.readdirSync(d,{withFileTypes:true})){const p=path.join(d,e.name);if(e.isDirectory())walk(p);else if(/\.(ts|tsx)$/.test(p))files.push(p)}};
-          roots.forEach(walk);
-          const hits=[];
-          for(const f of files){if(allow.some(r=>r.test(f)))continue;const lines=fs.readFileSync(f,'utf8').split(/\r?\n/);lines.forEach((line,i)=>{if(/const\s+(?:W|WORKSPACE)\s*=\s*["']default["']/.test(line)||/workspace(?:Id|_id)[^\n]{0,120}["']default["']/.test(line)||/workspace_id\s*=\s*["']default["']/.test(line))hits.push(`${f}:${i+1}: ${line.trim()}`)})}
-          if(hits.length){console.error('Hard-coded runtime tenant scope found:\n'+hits.join('\n'));process.exit(1)}
-          console.log('PASS: no hard-coded runtime tenant scope literals.');
-          NODE
-      - name: Incomplete UI marker audit
-        run: |
-          node <<'NODE'
-          const fs=require('fs'),path=require('path');const files=[];const roots=['app','components','lib'];
-          const walk=d=>{if(!fs.existsSync(d))return;for(const e of fs.readdirSync(d,{withFileTypes:true})){const p=path.join(d,e.name);if(e.isDirectory())walk(p);else if(/\.(ts|tsx)$/.test(p))files.push(p)}};roots.forEach(walk);
-          const re=/(TODO|FIXME|Not implemented|not implemented|Coming soon|coming soon|href\s*=\s*["']#["']|alert\([^\n]*(?:not available|not implemented|coming soon))/;
-          const hits=[];for(const f of files){fs.readFileSync(f,'utf8').split(/\r?\n/).forEach((line,i)=>{if(re.test(line))hits.push(`${f}:${i+1}: ${line.trim()}`)})}
-          if(hits.length){console.error('Incomplete UI/runtime markers found:\n'+hits.join('\n'));process.exit(1)}
-          console.log('PASS: no incomplete UI/runtime markers.');
-          NODE
-      - name: Suspicious permanently disabled controls
-        run: |
-          node <<'NODE'
-          const fs=require('fs'),path=require('path');const files=[];const roots=['app','components'];
-          const walk=d=>{if(!fs.existsSync(d))return;for(const e of fs.readdirSync(d,{withFileTypes:true})){const p=path.join(d,e.name);if(e.isDirectory())walk(p);else if(/\.tsx$/.test(p))files.push(p)}};roots.forEach(walk);
-          const re=/<(?:button|input|select|textarea)[^>]*\sdisabled(?:\s|>|=\{true\})/;
-          const hits=[];for(const f of files){fs.readFileSync(f,'utf8').split(/\r?\n/).forEach((line,i)=>{if(re.test(line))hits.push(`${f}:${i+1}: ${line.trim()}`)})}
-          if(hits.length){console.error('Permanently disabled controls require review:\n'+hits.join('\n'));process.exit(1)}
-          console.log('PASS: no permanently disabled controls.');
-          NODE
+          set -euo pipefail
+          ACTUAL_SHA="$(git rev-parse HEAD)"
+          echo "candidate=$CANDIDATE_SHA"
+          echo "checkout=$ACTUAL_SHA"
+          test "$ACTUAL_SHA" = "$CANDIDATE_SHA"
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: ESLint zero-warning acceptance
+        run: npx eslint . --max-warnings=0
+
+      - name: Repository-wide CTO static acceptance
+        run: node scripts/qa-cto-static-audit.mjs
+
+      - name: Release-focused static acceptance
+        run: node scripts/qa-cto-release-audit.mjs
+
+      - name: TypeScript acceptance
+        run: npm run type-check

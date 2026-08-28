@@ -16,17 +16,18 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
-      - name: Apply VIVITO tenant hardening
-        run: node scripts/cto-vivito-tenant-hardening.mjs
+          node-version: '22'
+      - name: Apply VIVITO tenant hardening V2
+        run: node scripts/cto-vivito-tenant-hardening-v2.mjs
       - name: Verify fixed tenant removed from VIVITO execution path
         run: |
           ! grep -RIn 'const W="default"' app/api/assistant/actions/route.ts app/api/assistant/operations/route.ts lib/vivito/executor.ts lib/vivito/executor-extended.ts lib/vivito/executor-operator.ts lib/vivito/plan-runtime.ts lib/vivito/memory.ts
           grep -q 'workspaceId=String((session.user as any).workspaceId' app/api/assistant/actions/route.ts
           grep -q 'workspaceId:string' lib/vivito/plan-runtime.ts
           grep -q 'AsyncLocalStorage' lib/vivito/executor.ts
-          grep -q 'AsyncLocalStorage' lib/vivito/executor-extended.ts
-          grep -q 'AsyncLocalStorage' lib/vivito/executor-operator.ts
+          grep -q 'tenantId=()' lib/vivito/executor-extended.ts
+          grep -q 's.workspaceId' app/api/assistant/rollback/route.ts
+          grep -q 'direct-workspace-required' lib/vivito/direct-runtime.ts
       - name: Install dependencies
         run: npm ci
       - name: Type check hardened execution path
@@ -36,6 +37,6 @@ jobs:
           if git diff --quiet; then echo 'No changes to commit'; exit 0; fi
           git config user.name 'vivitgroup'
           git config user.email 'groupvivit@gmail.com'
-          git add app/api/assistant/route.ts app/api/assistant/actions/route.ts app/api/assistant/operations/route.ts lib/vivito/executor.ts lib/vivito/executor-extended.ts lib/vivito/executor-operator.ts lib/vivito/plan-runtime.ts lib/vivito/memory.ts
-          git commit -m 'fix(cto): scope VIVITO execution memory and plans to session workspace'
+          git add app/api/assistant/route.ts app/api/assistant/actions/route.ts app/api/assistant/operations/route.ts app/api/assistant/rollback/route.ts lib/vivito/executor.ts lib/vivito/executor-extended.ts lib/vivito/executor-operator.ts lib/vivito/plan-runtime.ts lib/vivito/memory.ts lib/vivito/direct-runtime.ts
+          git commit -m 'fix(cto): scope VIVITO execution memory plans and rollback to session workspace'
           git push origin HEAD:feat/vivito-internal-100

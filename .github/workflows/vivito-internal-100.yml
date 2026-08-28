@@ -47,11 +47,17 @@ jobs:
       - name: Verify tenant-safe persistence
         run: |
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
-          select case when to_regclass('public.vivito_autonomy_events') is not null then 1 else 1/0 end;
-          select case when to_regclass('public.vivito_approval_events') is not null then 1 else 1/0 end;
-          select case when to_regclass('public.vivito_decision_journal') is not null then 1 else 1/0 end;
-          select case when to_regclass('public.vivito_escalations') is not null then 1 else 1/0 end;
-          select case when exists(select 1 from pg_class where oid='public.vivito_autonomy_events'::regclass and relrowsecurity) then 1 else 1/0 end;
+          do $$
+          begin
+            if to_regclass('public.vivito_autonomy_events') is null then raise exception 'missing vivito_autonomy_events'; end if;
+            if to_regclass('public.vivito_approval_events') is null then raise exception 'missing vivito_approval_events'; end if;
+            if to_regclass('public.vivito_decision_journal') is null then raise exception 'missing vivito_decision_journal'; end if;
+            if to_regclass('public.vivito_escalations') is null then raise exception 'missing vivito_escalations'; end if;
+            if not exists(select 1 from pg_class where oid='public.vivito_autonomy_events'::regclass and relrowsecurity) then raise exception 'RLS disabled on vivito_autonomy_events'; end if;
+            if not exists(select 1 from pg_class where oid='public.vivito_approval_events'::regclass and relrowsecurity) then raise exception 'RLS disabled on vivito_approval_events'; end if;
+            if not exists(select 1 from pg_class where oid='public.vivito_decision_journal'::regclass and relrowsecurity) then raise exception 'RLS disabled on vivito_decision_journal'; end if;
+            if not exists(select 1 from pg_class where oid='public.vivito_escalations'::regclass and relrowsecurity) then raise exception 'RLS disabled on vivito_escalations'; end if;
+          end $$;
           SQL
       - name: Direct Operator V2 invariants
         run: node scripts/qa-vivito-direct-runtime-v2.mjs

@@ -11,7 +11,25 @@ if (!['CHECK', 'APPLY'].includes(mode)) {
   throw new Error(`Unsupported VIVITO_PROD_DB_MODE: ${mode}`);
 }
 
-const sql = postgres(databaseUrl, {
+// Parse the URI once and pass connection fields explicitly. This preserves
+// Supabase pooler usernames such as postgres.<project-ref> and avoids any
+// ambiguity in downstream connection-string parsing. Credentials are never logged.
+const parsedDatabaseUrl = new URL(databaseUrl);
+if (!['postgres:', 'postgresql:'].includes(parsedDatabaseUrl.protocol)) {
+  throw new Error('PROD_DATABASE_URL must use postgres:// or postgresql://');
+}
+const connection = {
+  host: parsedDatabaseUrl.hostname,
+  port: parsedDatabaseUrl.port ? Number(parsedDatabaseUrl.port) : 5432,
+  database: decodeURIComponent(parsedDatabaseUrl.pathname.replace(/^\//, '') || 'postgres'),
+  username: decodeURIComponent(parsedDatabaseUrl.username),
+  password: decodeURIComponent(parsedDatabaseUrl.password),
+};
+if (!connection.host || !connection.username || !connection.password) {
+  throw new Error('PROD_DATABASE_URL is missing host, username, or password.');
+}
+
+const sql = postgres(connection, {
   max: 1,
   idle_timeout: 10,
   connect_timeout: 10,

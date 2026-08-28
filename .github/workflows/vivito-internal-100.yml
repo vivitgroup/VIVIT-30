@@ -9,7 +9,7 @@ permissions:
 jobs:
   internal-certify:
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 30
     services:
       postgres:
         image: postgres:16
@@ -39,6 +39,8 @@ jobs:
         run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/20260828_vivito_direct_operator_v2.sql
       - name: Apply enterprise governance persistence
         run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/20260828_vivito_enterprise_governance.sql
+      - name: Apply zero-based gap closure persistence
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/20260828_vivito_gap_closure.sql
       - name: Verify tenant-safe persistence
         run: |
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
@@ -53,9 +55,14 @@ jobs:
             if to_regclass('public.vivito_eval_metrics') is null then raise exception 'missing eval metrics'; end if;
             if to_regclass('public.vivito_value_ledger') is null then raise exception 'missing value ledger'; end if;
             if to_regclass('public.vivito_backup_manifests') is null then raise exception 'missing backup manifests'; end if;
+            if to_regclass('public.vivito_resource_usage') is null then raise exception 'missing resource usage'; end if;
+            if to_regclass('public.vivito_notification_dedupe') is null then raise exception 'missing notification dedupe'; end if;
+            if to_regclass('public.vivito_security_events') is null then raise exception 'missing security events'; end if;
             if exists(select 1 from pg_class where relnamespace='public'::regnamespace and relname like 'vivito_%' and relkind='r' and not relrowsecurity) then raise exception 'VIVITO table without RLS'; end if;
           end $$;
           SQL
+      - name: Zero-based executable gap certification
+        run: npx tsx scripts/certify-vivito-internal-gap-e2e.ts
       - name: Direct Operator V2 invariants
         run: node scripts/qa-vivito-direct-runtime-v2.mjs
       - name: Enterprise gates 13-32

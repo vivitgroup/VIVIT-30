@@ -30,7 +30,7 @@ check("Mark paid writes audit history",finance.includes('action:"invoice_paid"')
 check("Finance page shows recent payment history",finance.includes("Recent payments")&&finance.includes("recentPayments"));
 check("Workspace currency drives finance display",finance.includes("workspaces.currency")&&finance.includes("currency=workspace?.currency||\"EGP\""));
 check("Accounts Payment rejects Account Manager and Media Buyer",accounts.includes("Role.SUPER_ADMIN,Role.ACCOUNTANT")&&accounts.includes('redirect("/dashboard/universe")'));
-check("Accounts Payment only includes active clients for admin/accountant",accounts.includes("where c.workspace_id='default' and c.is_active=true"));
+check("Accounts Payment only includes active clients for admin/accountant",accounts.includes("workspaceId=String((session.user as any).workspaceId||\"\")")&&accounts.includes("p.workspace_id=${workspaceId}")&&accounts.includes("where c.workspace_id=${workspaceId} and c.is_active=true"));
 check("Invoice API is workspace scoped",invoice.includes("eq(financeRecords.workspaceId,WORKSPACE_ID)"));
 check("Invoice API validates finance client access",invoice.includes("canAccessClient(session,record.clientId,{finance:true})"));
 check("Invoice API returns stored media fee",invoice.includes("record.mediaBuyingFee"));
@@ -57,10 +57,10 @@ check("Monthly summary fee comes from workspace",monthly.includes("workspaces.ag
 check("Monthly summary currency comes from workspace",monthly.includes("workspaces.currency")&&monthly.includes("currency=workspace?.currency||\"EGP\""));
 check("Monthly summary response is private no-store",monthly.includes('"Cache-Control":"private, no-store"'));
 check("Export API uses explicit role entity allowlist",exportApi.includes("allowed:Record<string,string[]>"));
-check("Finance export is complete workspace history",exportApi.includes('entity==="finance"')&&exportApi.includes("where(eq(financeRecords.workspaceId,WORKSPACE))")&&!exportApi.includes("eq(financeRecords.year,new Date().getFullYear())"));
+check("Finance export is complete workspace history",exportApi.includes('entity==="finance"')&&exportApi.includes("where(eq(financeRecords.workspaceId,workspaceId))")&&!exportApi.includes("eq(financeRecords.year,new Date().getFullYear())"));
 check("Media export is not silently current-month limited",!exportApi.includes("monthStart")&&!exportApi.includes("gte(mediaMetrics.date"));
 check("Media export only uses active scoped clients",exportApi.includes("activeIds")&&exportApi.includes("inArray(mediaMetrics.clientId,activeIds)"));
-check("Sales-person export remains workspace scoped",exportApi.includes("and(eq(salesLeads.workspaceId,WORKSPACE),eq(salesLeads.salesRepId,userId))"));
+check("Sales-person export remains workspace scoped",exportApi.includes("and(eq(salesLeads.workspaceId,workspaceId),eq(salesLeads.salesRepId,userId))"));
 check("Export response is private no-store",exportApi.includes('"Cache-Control":"private, no-store"'));
 check("Reports UI exposes errors instead of failing silently",reports.includes("setError")&&reports.includes('role="alert"'));
 check("Reports UI role entity list matches server concepts",reports.includes("ROLE_ENTITIES")&&reports.includes('ACCOUNTANT:["clients","finance","expenses"]'));

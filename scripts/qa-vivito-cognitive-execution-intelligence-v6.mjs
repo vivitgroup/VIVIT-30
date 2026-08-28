@@ -27,3 +27,5 @@ if (failed.length) {
   process.exit(1);
 }
 console.log(`${checks.length}/${checks.length} VIVITO Cognitive & Execution Intelligence V6 checks passed`);
+
+await import("./qa-vivito-persistent-executive-intelligence-v7.mjs");

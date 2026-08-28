@@ -17,18 +17,20 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Apply scoped patch
-        run: node scripts/cto-workspace-hardening.mjs
-      - name: Verify no fixed tenant scope remains
+      - name: Apply final scoped patch
+        run: node scripts/cto-portal-media-finalize.mjs
+      - name: Verify critical scoping
         run: |
           ! grep -n 'const W="default"' app/api/assistant/route.ts
           ! grep -n 'const WORKSPACE="default"' app/dashboard/portal/page.tsx
           ! grep -n 'eq(clients.workspaceId,"default")' app/api/media-control-v2/route.ts
+          grep -q 'workspace_id=${workspaceId} and archived_at is null' app/dashboard/portal/page.tsx
+          grep -q 'workspaceId:c.workspaceId' app/api/media-control-v2/route.ts
       - name: Commit hardening
         run: |
           if git diff --quiet; then echo 'No changes to commit'; exit 0; fi
           git config user.name 'vivitgroup'
           git config user.email 'groupvivit@gmail.com'
-          git add app/api/assistant/route.ts app/api/media-control-v2/route.ts app/dashboard/portal/page.tsx
-          git commit -m 'fix(cto): enforce request-scoped workspace across portal media and VIVITO'
+          git add app/dashboard/portal/page.tsx app/api/media-control-v2/route.ts
+          git commit -m 'fix(cto): finalize portal propagation and media tenant writes'
           git push origin HEAD:feat/vivito-internal-100

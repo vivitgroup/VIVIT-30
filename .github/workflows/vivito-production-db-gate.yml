@@ -1,0 +1,53 @@
+name: VIVITO Production DB Gate
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'CHECK is read-only. APPLY executes only the four controlled VIVITO migrations, then verifies schema/RLS.'
+        required: true
+        default: CHECK
+        type: choice
+        options:
+          - CHECK
+          - APPLY
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vivito-production-db-gate
+  cancel-in-progress: false
+
+jobs:
+  production-db-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    steps:
+      - name: Checkout release branch
+        uses: actions/checkout@v4
+
+      - name: Use Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Refuse missing production database secret
+        env:
+          PROD_DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+        run: |
+          if [ -z "$PROD_DATABASE_URL" ]; then
+            echo "PROD_DATABASE_URL is not configured in the protected production environment."
+            exit 1
+          fi
+
+      - name: Production preflight / controlled migration / readback
+        env:
+          PROD_DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+          VIVITO_PROD_DB_MODE: ${{ inputs.mode }}
+        run: node scripts/vivito-production-db-gate.mjs

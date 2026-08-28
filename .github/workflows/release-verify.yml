@@ -36,8 +36,19 @@ jobs:
       NEXTAUTH_SECRET: ci-release-verify-secret-not-for-production
       NEXTAUTH_URL: http://127.0.0.1:3000
     steps:
-      - name: Checkout
+      - name: Checkout exact candidate SHA
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Assert exact candidate SHA
+        shell: bash
+        run: |
+          ACTUAL="$(git rev-parse HEAD)"
+          EXPECTED="${{ github.event.pull_request.head.sha || github.sha }}"
+          echo "actual=$ACTUAL"
+          echo "expected=$EXPECTED"
+          test "$ACTUAL" = "$EXPECTED"
 
       - name: Use Node 22
         uses: actions/setup-node@v4

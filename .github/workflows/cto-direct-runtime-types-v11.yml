@@ -39,6 +39,7 @@ jobs:
           one('if((p as any).executed)autoExecuted++;else if(!(p as any).duplicate&&["CONFIRM","SUPER_ADMIN_CONFIRM"].includes(String((p as any).mode)))queued++','if(p.executed)autoExecuted++;else if(!p.duplicate&&["CONFIRM","SUPER_ADMIN_CONFIRM"].includes(String(p.mode)))queued++');
           one('if((sync as any).executed)autoExecuted++;','if(sync.executed)autoExecuted++;');
           one('if(!(pause as any).duplicate&&["CONFIRM","SUPER_ADMIN_CONFIRM"].includes(String((pause as any).mode)))queued++','if(!pause.duplicate&&["CONFIRM","SUPER_ADMIN_CONFIRM"].includes(String(pause.mode)))queued++');
+          one('new Date(t.deadline).getTime()','new Date(String(t.deadline)).getTime()');
           one('async function observe(workspaceId:string,event:any){','async function observe(workspaceId:string,event:Record<string,unknown>):Promise<ObservedOutcome>{');
           one('Number((observed as any).spend24h||0),Number((observed as any).revenue24h||0)','Number(observed.spend24h||0),Number(observed.revenue24h||0)');
           one('async function scopedEvent(eventId:string,workspaceId:string,role:string,userId:string){let q:any;','async function scopedEvent(eventId:string,workspaceId:string,role:string,userId:string){let q:SQL;');

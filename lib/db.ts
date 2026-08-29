@@ -36,13 +36,18 @@ function createClient() {
   const ssl = process.env.DATABASE_SSL_DISABLED === "1"
     ? false
     : { rejectUnauthorized: false };
-  return postgres(connection as any, {
+  return postgres(databaseUrl, {
+    host: connection.host,
+    port: connection.port,
+    database: connection.database,
+    username: connection.username,
+    password: connection.password,
     ssl,
     max:             3,
     idle_timeout:    20,
     connect_timeout: 10,
     max_lifetime:    60,
-    connection:      { application_name: "vivit-erp", statement_timeout: "8000" } as any,
+    connection:      { application_name: "vivit-erp", statement_timeout: 8000 },
     prepare:         false,
     onnotice:        () => {},
   });

@@ -22,7 +22,6 @@ export function KeyboardShortcutsModal() {
   const router  = useRouter();
   const [open, setOpen]   = useState(false);
   const [theme, setTheme] = useState<"dark"|"light">("dark");
-  const keyBuf  = { current: "" as string };
 
   // Theme persistence
   useEffect(() => {

@@ -16,17 +16,8 @@ function sanitize(str: string | null | undefined, maxLen = 500): string {
     .replace(/</g, "&lt;").replace(/>/g, "&gt;")
     .replace(/javascript:/gi, "").replace(/on\w+=/gi, "");
 }
-function validateEmail(email: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length <= 254;
-}
 function validateUrl(url: string): boolean {
   try { const u = new URL(url); return ["http:","https:"].includes(u.protocol); } catch { return false; }
-}
-function requireFields(data: Record<string, any>, fields: string[]): string | null {
-  for (const f of fields) {
-    if (!data[f] || String(data[f]).trim() === "") return `${f} is required`;
-  }
-  return null;
 }
 function roleOf(session:any):string { return String(session?.user?.role||""); }
 function requireRole(session:any, allowed:string[]) {

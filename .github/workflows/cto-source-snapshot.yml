@@ -1,0 +1,103 @@
+name: CTO Source Snapshot
+
+on:
+  push:
+    branches:
+      - feat/vivito-internal-100
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-internal-100
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Apply typed session and catch remediation
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          roots=[Path('app'),Path('components'),Path('lib'),Path('scripts')]
+          files=[]
+          for root in roots:
+            if root.exists():
+              files.extend([p for p in root.rglob('*') if p.is_file() and p.suffix in {'.ts','.tsx'}])
+          for extra in [Path('proxy.ts'),Path('auth.config.ts')]:
+            if extra.exists(): files.append(extra)
+          changed=0
+          for p in files:
+            s=p.read_text()
+            n=s.replace('(session.user as any)','session.user').replace('(session?.user as any)','session?.user').replace('(session!.user as any)','session!.user')
+            n=re.sub(r'catch\s*\(\s*([A-Za-z_$][\w$]*)\s*:\s*any\s*\)',r'catch(\1)',n)
+            if n!=s:
+              p.write_text(n)
+              changed+=1
+          print(f'changed_files={changed}')
+          PY
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Apply safe ESLint autofixes
+        run: npx eslint . --fix || true
+
+      - name: Verify TypeScript gate before commit
+        run: npm run type-check
+
+      - name: Verify static architecture gate before commit
+        run: node scripts/qa-cto-static-audit.mjs
+
+      - name: Commit lint remediation batch
+        shell: bash
+        run: |
+          if ! git diff --quiet; then
+            git config user.name "VIVIT CTO Gate Bot"
+            git config user.email "groupvivit@gmail.com"
+            git add app components lib scripts proxy.ts auth.config.ts
+            git commit -m "fix(cto): remove redundant explicit-any session and catch casts"
+            git push origin HEAD:feat/vivito-internal-100
+          fi
+
+      - name: Capture ESLint
+        run: npx eslint . -f json > eslint-after.json || true
+
+      - name: Capture TypeScript
+        run: npm run type-check > typecheck.txt 2>&1 || true
+
+      - name: Capture static architecture
+        run: node scripts/qa-cto-static-audit.mjs > cto-static.txt 2>&1 || true
+
+      - name: Upload diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: cto-gate-diagnostics
+          path: |
+            eslint-after.json
+            typecheck.txt
+            cto-static.txt
+            app/**
+            components/**
+            lib/**
+            scripts/**
+            types/**
+            proxy.ts
+            auth.config.ts
+            eslint.config.mjs
+            tsconfig.json
+            package.json
+            package-lock.json
+          include-hidden-files: true
+          retention-days: 1

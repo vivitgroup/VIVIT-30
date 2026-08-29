@@ -1,4 +1,3 @@
-// @ts-nocheck -- Legacy dashboard helpers use the full live schema signature.
 export const dynamic = "force-dynamic";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -14,6 +13,7 @@ export default async function DashboardPage() {
   if (!session?.user) redirect("/login");
   const role   = (session.user as any).role as Role;
   const userId = (session.user as any).id as string;
+  const workspaceId=String((session.user as any).workspaceId||"");if(!workspaceId)redirect("/login");
   const roleHomes:Record<string,string>={CLIENT:"/dashboard/portal",CREATOR:"/dashboard/creative",ACCOUNTANT:"/dashboard/finance",MEDIA_BUYER:"/dashboard/media/control-center",SALES:"/dashboard/sales",ACCOUNT_MANAGER:"/dashboard/clients"};
   if(roleHomes[role])redirect(roleHomes[role]);
 
@@ -30,25 +30,25 @@ export default async function DashboardPage() {
     db.select({ id:clients.id, companyName:clients.companyName, healthScore:clients.healthScore,
       churnRisk:clients.churnRisk, monthlyRetainer:clients.monthlyRetainer,
       lifetimeValue:clients.lifetimeValue, accountManagerId:clients.accountManagerId })
-      .from(clients).where(and(eq(clients.isActive,true),role===Role.ACCOUNT_MANAGER?eq(clients.accountManagerId,userId):role===Role.MEDIA_BUYER?eq(clients.mediaBuyerId,userId):eq(clients.workspaceId,"default"))),
+      .from(clients).where(and(eq(clients.workspaceId,workspaceId),eq(clients.isActive,true),role===Role.ACCOUNT_MANAGER?eq(clients.accountManagerId,userId):role===Role.MEDIA_BUYER?eq(clients.mediaBuyerId,userId):eq(clients.workspaceId,workspaceId))),
     db.select({ total:sum(financeRecords.totalRevenue), paid:sum(financeRecords.paid), outstanding:sum(financeRecords.outstanding) })
-      .from(financeRecords).where(and(eq(financeRecords.month as any,month),eq(financeRecords.year as any,year))),
+      .from(financeRecords).where(and(eq(financeRecords.workspaceId,workspaceId),eq(financeRecords.month as any,month),eq(financeRecords.year as any,year))),
     db.select({ total:sum(financeRecords.totalRevenue), paid:sum(financeRecords.paid) })
-      .from(financeRecords).where(and(eq(financeRecords.month as any,month===1?12:month-1),eq(financeRecords.year as any,month===1?year-1:year))),
+      .from(financeRecords).where(and(eq(financeRecords.workspaceId,workspaceId),eq(financeRecords.month as any,month===1?12:month-1),eq(financeRecords.year as any,month===1?year-1:year))),
     db.select({ total:sum(financeRecords.totalRevenue), paid:sum(financeRecords.paid) })
-      .from(financeRecords).where(gte(financeRecords.createdAt,yrStart)),
+      .from(financeRecords).where(and(eq(financeRecords.workspaceId,workspaceId),gte(financeRecords.createdAt,yrStart))),
     db.select({ spend:sum(mediaMetrics.adSpend), leads:sum(mediaMetrics.leads), revenue:sum(mediaMetrics.revenue) })
-      .from(mediaMetrics).where(gte(mediaMetrics.date,moStart)),
-    db.select({cnt:count()}).from(creativeTasks).where(notInArray(creativeTasks.status,["COMPLETED","REJECTED"])),
-    db.select({cnt:count()}).from(creativeTasks).where(eq(creativeTasks.status,"REVIEW")),
-    db.select({cnt:count()}).from(creativeTasks).where(and(lt(creativeTasks.deadline,today),notInArray(creativeTasks.status,["COMPLETED","REJECTED","APPROVED"]))),
-    db.select({cnt:count()}).from(salesLeads).where(eq(salesLeads.stage,"WON")),
-    db.select({cnt:count()}).from(salesLeads).where(and(lte(salesLeads.updatedAt,new Date(today.getTime()-5*86400000)),notInArray(salesLeads.stage,["WON","LOST"]))),
-    db.select({total:sum(companyExpenses.amount)}).from(companyExpenses).where(gte(companyExpenses.date,moStart)),
+      .from(mediaMetrics).where(and(eq(mediaMetrics.workspaceId,workspaceId),gte(mediaMetrics.date,moStart))),
+    db.select({cnt:count()}).from(creativeTasks).where(and(eq(creativeTasks.workspaceId,workspaceId),notInArray(creativeTasks.status,["COMPLETED","REJECTED"]))),
+    db.select({cnt:count()}).from(creativeTasks).where(and(eq(creativeTasks.workspaceId,workspaceId),eq(creativeTasks.status,"REVIEW"))),
+    db.select({cnt:count()}).from(creativeTasks).where(and(eq(creativeTasks.workspaceId,workspaceId),lt(creativeTasks.deadline,today),notInArray(creativeTasks.status,["COMPLETED","REJECTED","APPROVED"]))),
+    db.select({cnt:count()}).from(salesLeads).where(and(eq(salesLeads.workspaceId,workspaceId),eq(salesLeads.stage,"WON"))),
+    db.select({cnt:count()}).from(salesLeads).where(and(eq(salesLeads.workspaceId,workspaceId),lte(salesLeads.updatedAt,new Date(today.getTime()-5*86400000)),notInArray(salesLeads.stage,["WON","LOST"]))),
+    db.select({total:sum(companyExpenses.amount)}).from(companyExpenses).where(and(eq(companyExpenses.workspaceId,workspaceId),gte(companyExpenses.date,moStart))),
     db.select({id:notifications.id,title:notifications.title,message:notifications.message,priority:notifications.priority,createdAt:notifications.createdAt,isRead:notifications.isRead,link:notifications.link}).from(notifications).where(eq(notifications.userId,userId)).orderBy(desc(notifications.createdAt)).limit(5),
-    db.select().from(agencyHealthScores).orderBy(desc(agencyHealthScores.calculatedAt)).limit(1),
-    db.select({id:creativeTasks.id,title:creativeTasks.title,status:creativeTasks.status,priority:creativeTasks.priority,deadline:creativeTasks.deadline,assignedToId:creativeTasks.assignedToId,clientId:creativeTasks.clientId}).from(creativeTasks).where(notInArray(creativeTasks.status,["COMPLETED","REJECTED"])).orderBy(desc(creativeTasks.createdAt)).limit(6),
-    db.select().from(payrollLocks).where(eq(payrollLocks.period,period)).limit(1),
+    db.select().from(agencyHealthScores).where(eq(agencyHealthScores.workspaceId,workspaceId)).orderBy(desc(agencyHealthScores.calculatedAt)).limit(1),
+    db.select({id:creativeTasks.id,title:creativeTasks.title,status:creativeTasks.status,priority:creativeTasks.priority,deadline:creativeTasks.deadline,assignedToId:creativeTasks.assignedToId,clientId:creativeTasks.clientId}).from(creativeTasks).where(and(eq(creativeTasks.workspaceId,workspaceId),notInArray(creativeTasks.status,["COMPLETED","REJECTED"]))).orderBy(desc(creativeTasks.createdAt)).limit(6),
+    db.select().from(payrollLocks).where(and(eq(payrollLocks.workspaceId,workspaceId),eq(payrollLocks.period,period))).limit(1),
   ]);
   const dashboardDefaults:any[]=[[],[{total:0,paid:0,outstanding:0}],[{total:0,paid:0}],[{total:0,paid:0}],[{spend:0,leads:0,revenue:0}],[{cnt:0}],[{cnt:0}],[{cnt:0}],[{cnt:0}],[{cnt:0}],[{total:0}],[],[],[],[]];
   const [

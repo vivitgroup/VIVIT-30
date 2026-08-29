@@ -1,0 +1,51 @@
+name: CTO Targeted Media Cron Typing Batch 12
+
+on:
+  push:
+    branches: [feat/vivito-internal-100]
+    paths:
+      - '.github/workflows/cto-targeted-media-cron-typing-batch12.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-internal-100
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply media cron typing remediation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('app/api/cron/media-sync/route.ts'); s=p.read_text()
+          replacements=[
+            ('const iso=(d:Date)=>d.toISOString().slice(0,10),sleep=(ms:number)=>new Promise(r=>setTimeout(r,ms));\nconst isRateLimit=(e:any)=>/too many calls|rate.?limit|request limit|code\\s*4|code\\s*17|code\\s*32|code\\s*613/i.test(String(e?.message||e||""));\nasync function syncWithRetry(input:any){let last:any;for(let attempt=0;attempt<3;attempt++){try{return await syncCampaign(input)}catch(e:any){last=e;if(!isRateLimit(e)||attempt===2)throw e;await sleep(1500*Math.pow(2,attempt)+Math.floor(Math.random()*750));}}throw last}\nasync function persist(c:any,days:any[]){', 'type SyncInput=Parameters<typeof syncCampaign>[0];\ntype SyncResult=Awaited<ReturnType<typeof syncCampaign>>;\ntype SyncDay=SyncResult["days"][number];\ntype CampaignRow=typeof adCampaigns.$inferSelect;\ntype CoverageRow={min_date?:unknown;max_date?:unknown;days?:unknown};\nconst iso=(d:Date)=>d.toISOString().slice(0,10),sleep=(ms:number)=>new Promise(r=>setTimeout(r,ms));\nconst errorMessage=(e:unknown)=>e instanceof Error?e.message:String(e||"");\nconst isRateLimit=(e:unknown)=>/too many calls|rate.?limit|request limit|code\\s*4|code\\s*17|code\\s*32|code\\s*613/i.test(errorMessage(e));\nasync function syncWithRetry(input:SyncInput):Promise<SyncResult>{let last:unknown;for(let attempt=0;attempt<3;attempt++){try{return await syncCampaign(input)}catch(e:unknown){last=e;if(!isRateLimit(e)||attempt===2)throw e;await sleep(1500*Math.pow(2,attempt)+Math.floor(Math.random()*750));}}throw last}\nasync function persist(c:CampaignRow,days:SyncDay[]){'),
+            ('const rows:any=await db.execute(sql`select min(date)::date min_date,max(date)::date max_date,count(distinct date)::int days from ad_performance_daily where campaign_id=${c.id} and breakdown_type=\'TOTAL\' and ad_set_id is null and ad_id is null and date>=${iso(monthStart)}::date and date<=${iso(end)}::date`);const coverage:any=Array.from(rows)[0]||{},', 'const rows=await db.execute(sql`select min(date)::date min_date,max(date)::date max_date,count(distinct date)::int days from ad_performance_daily where campaign_id=${c.id} and breakdown_type=\'TOTAL\' and ad_set_id is null and ad_id is null and date>=${iso(monthStart)}::date and date<=${iso(end)}::date`);const coverage=(Array.from(rows) as CoverageRow[])[0]||{},'),
+            ('}catch(e:any){failed++;if(connection)await db.update(adPlatformConnections).set({status:"ERROR",syncError:String(e.message||"Sync failed").slice(0,700),updatedAt:new Date()}).where(eq(adPlatformConnections.id,connection.id));if(isRateLimit(e))await sleep(2500);}', '}catch(e:unknown){failed++;if(connection)await db.update(adPlatformConnections).set({status:"ERROR",syncError:(errorMessage(e)||"Sync failed").slice(0,700),updatedAt:new Date()}).where(eq(adPlatformConnections.id,connection.id));if(isRateLimit(e))await sleep(2500);}'),
+          ]
+          for old,new in replacements:
+              if old not in s: raise SystemExit(f'missing expected fragment: {old[:180]}')
+              s=s.replace(old,new,1)
+          p.write_text(s)
+          PY
+      - name: TypeScript acceptance
+        run: npx tsc --noEmit
+      - name: Targeted ESLint acceptance
+        run: npx eslint app/api/cron/media-sync/route.ts --max-warnings=0
+      - name: Commit validated remediation
+        run: |
+          git config user.name 'vivitgroup'
+          git config user.email 'groupvivit@gmail.com'
+          git add app/api/cron/media-sync/route.ts
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix(types): harden media sync cron boundaries'
+          git push origin HEAD:feat/vivito-internal-100

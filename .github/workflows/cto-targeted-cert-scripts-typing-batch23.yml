@@ -1,0 +1,77 @@
+name: CTO Targeted Certification Scripts Typing Batch 23
+
+on:
+  push:
+    branches: [feat/vivito-internal-100]
+    paths:
+      - '.github/workflows/cto-targeted-cert-scripts-typing-batch23.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-internal-100
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply certification script typing remediation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          p=Path('scripts/certify-vivito-internal-gap-e2e.ts'); s=p.read_text()
+          s=s.replace('const rows=(v:any)=>Array.from(v as any) as any[];','const rows=<T extends Record<string,unknown>>(v:unknown)=>Array.from(v as Iterable<T>);',1)
+          s=s.replace('active.some((x:any)=>x.id===p2.id)','active.some(x=>x.id===p2.id)',1)
+          s=s.replace('active.some((x:any)=>x.id===p1.id)','active.some(x=>x.id===p1.id)',1)
+          s=s.replace('const manifest=rows(await db.execute(','const manifest=rows<{status:string;restore_verified_at:unknown;verified_checksum:string}>(await db.execute(',1)
+          s=s.replace('const rls=rows(await db.execute(','const rls=rows<{relname:string;relrowsecurity:boolean}>(await db.execute(',1)
+          s=s.replace('rls.every((x:any)=>x.relrowsecurity===true)','rls.every(x=>x.relrowsecurity===true)',1)
+          p.write_text(s)
+
+          p=Path('scripts/certify-vivito-reliability-e2e.ts'); s=p.read_text()
+          old="const executeStep=(op:any,args:any,r:string,u:string)=>executeVivitoOperatorAction(op,args,r,u) as any;"
+          new="type OperatorCall=Parameters<typeof executeVivitoOperatorAction>;\n const executeStep=(op:OperatorCall[0],args:OperatorCall[1],r:OperatorCall[2],u:OperatorCall[3])=>executeVivitoOperatorAction(op,args,r,u);"
+          if old not in s: raise SystemExit('reliability executeStep fragment missing')
+          s=s.replace(old,new,1)
+          s=s.replace('const failures:any[]=[];','const failures:unknown[]=[];',1)
+          s=s.replace('`) as any)[0]?.count??0;','`) as unknown as Iterable<{count:number|string}>)[0]?.count??0;',1)
+          p.write_text(s)
+
+          p=Path('scripts/run-vivito-super-benchmark-v2.ts'); s=p.read_text()
+          insert='''type SuperResult={id:string;domain:SuperCase["domain"];provider:Awaited<ReturnType<typeof generateVivito>>["provider"];answer:string;score:ReturnType<typeof score>};\ntype SuperCheckpoint={version?:string;results?:Record<string,SuperResult>};\nconst errorMessage=(error:unknown)=>error instanceof Error?error.message:String(error);\n'''
+          marker='const sleep=(ms:number)=>new Promise(r=>setTimeout(r,ms));\n'
+          if marker not in s: raise SystemExit('super benchmark sleep marker missing')
+          s=s.replace(marker,marker+insert,1)
+          s=s.replace('let previous:any={};','let previous:SuperCheckpoint={};',1)
+          s=s.replace('const results:Record<string,any>=previous.version===VIVITO_SUPER_BENCHMARK_V2_VERSION?previous.results||{}:{};','const results:Record<string,SuperResult>=previous.version===VIVITO_SUPER_BENCHMARK_V2_VERSION?previous.results||{}:{};',1)
+          s=s.replace('}catch(e:any){console.log(`DEFER ${c.id} ${String(e?.message||e).slice(0,140)}`)}','}catch(e:unknown){console.log(`DEFER ${c.id} ${errorMessage(e).slice(0,140)}`)}',1)
+          old='const rows=selected.map(c=>results[c.id]).filter(Boolean),passed=rows.filter((r:any)=>r.score?.passed).length;'
+          new='const rows=selected.map(c=>results[c.id]).filter((r):r is SuperResult=>Boolean(r)),passed=rows.filter(r=>r.score.passed).length;'
+          if old not in s: raise SystemExit('super benchmark rows fragment missing')
+          s=s.replace(old,new,1)
+          old2='done=cases.map(c=>results[c.id]).filter(Boolean);return[d,{selected:cases.length,completed:done.length,passed:done.filter((x:any)=>x.score?.passed).length}]'
+          new2='done=cases.map(c=>results[c.id]).filter((x):x is SuperResult=>Boolean(x));return[d,{selected:cases.length,completed:done.length,passed:done.filter(x=>x.score.passed).length}]'
+          if old2 not in s: raise SystemExit('super benchmark domain fragment missing')
+          s=s.replace(old2,new2,1)
+          p.write_text(s)
+          PY
+      - name: TypeScript acceptance
+        run: npx tsc --noEmit
+      - name: Targeted ESLint acceptance
+        run: npx eslint scripts/certify-vivito-internal-gap-e2e.ts scripts/certify-vivito-reliability-e2e.ts scripts/run-vivito-super-benchmark-v2.ts --max-warnings=0
+      - name: Commit validated remediation
+        run: |
+          git config user.name 'vivitgroup'
+          git config user.email 'groupvivit@gmail.com'
+          git add scripts/certify-vivito-internal-gap-e2e.ts scripts/certify-vivito-reliability-e2e.ts scripts/run-vivito-super-benchmark-v2.ts
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix(types): harden remaining vivito certification scripts'
+          git push origin HEAD:feat/vivito-internal-100

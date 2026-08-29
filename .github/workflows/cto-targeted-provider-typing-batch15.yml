@@ -1,0 +1,57 @@
+name: CTO Targeted Provider Typing Batch 15
+
+on:
+  push:
+    branches: [feat/vivito-internal-100]
+    paths:
+      - '.github/workflows/cto-targeted-provider-typing-batch15.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-internal-100
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply provider typing remediation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('lib/vivito/providers.ts'); s=p.read_text()
+          replacements=[
+            ('type GenerateOptions={temperature?:number;maxTokens?:number;preferred?:VivitoProviderName[];timeoutMs?:number;task?:VivitoMeshTask};', 'type GenerateOptions={temperature?:number;maxTokens?:number;preferred?:VivitoProviderName[];timeoutMs?:number;task?:VivitoMeshTask};\ntype JsonRecord=Record<string,unknown>;\ntype ProviderHttpError=Error&{status?:number};\nconst asRecord=(value:unknown):JsonRecord=>value&&typeof value==="object"&&!Array.isArray(value)?value as JsonRecord:{};\nconst asArray=(value:unknown):unknown[]=>Array.isArray(value)?value:[];\nconst errorStatus=(error:unknown)=>{if(!error||typeof error!=="object"||!("status" in error))return undefined;const status=Number((error as {status?:unknown}).status);return Number.isFinite(status)?status:undefined};\nconst providerError=(message:string,status:number):ProviderHttpError=>{const error=new Error(message) as ProviderHttpError;error.status=status;return error};'),
+            ('async function safeJson(r:Response){return r.json().catch(()=>({}))}', 'async function safeJson(r:Response):Promise<unknown>{return r.json().catch(()=>({}))}'),
+            ('  const d=await safeJson(r);if(!r.ok){const e:any=new Error(d?.error?.message||`claude-${r.status}`);e.status=r.status;throw e}const text=String(d?.content?.[0]?.text||"").trim();if(!text)throw new Error("claude-empty-response");return text;', '  const d=asRecord(await safeJson(r)),apiError=asRecord(d.error);if(!r.ok)throw providerError(String(apiError.message||`claude-${r.status}`),r.status);const content=asArray(d.content),first=asRecord(content[0]);const text=String(first.text||"").trim();if(!text)throw new Error("claude-empty-response");return text;'),
+            ('function geminiGenerationConfig(model:string,options:GenerateOptions){const generationConfig:any={maxOutputTokens:options.maxTokens||3200};', 'function geminiGenerationConfig(model:string,options:GenerateOptions){const generationConfig:JsonRecord={maxOutputTokens:options.maxTokens||3200};'),
+            ('function geminiError(model:string,d:any,status:number){const message=String(d?.error?.message||`gemini-${status}`).replace(/[\\r\\n\\t]+/g," ").slice(0,220);return `${model}:${message}`}', 'function geminiError(model:string,d:unknown,status:number){const root=asRecord(d),apiError=asRecord(root.error);const message=String(apiError.message||`gemini-${status}`).replace(/[\\r\\n\\t]+/g," ").slice(0,220);return `${model}:${message}`}'),
+            ('const text=String(d?.candidates?.[0]?.content?.parts?.filter((p:any)=>!p.thought).map((p:any)=>p.text).join("\\n")||"").trim();', 'const root=asRecord(d),candidate=asRecord(asArray(root.candidates)[0]),content=asRecord(candidate.content),parts=asArray(content.parts).map(asRecord);const text=parts.filter(part=>!part.thought).map(part=>String(part.text||"")).join("\\n").trim();'),
+            ('}catch(error){const raw=String((error as any)?.name==="TimeoutError"?"timeout":(error as any)?.message||error).replace(/[\\r\\n\\t]+/g," ").slice(0,180);errors.push(`${model}:${raw}`)}}\n  const e:any=new Error(`gemini-model-chain-failed:${errors.join(" | ")}`);e.status=lastStatus;throw e;', '}catch(error:unknown){const name=error&&typeof error==="object"&&"name" in error?String((error as {name?:unknown}).name):"";const raw=String(name==="TimeoutError"?"timeout":error instanceof Error?error.message:error).replace(/[\\r\\n\\t]+/g," ").slice(0,180);errors.push(`${model}:${raw}`)}}\n  throw providerError(`gemini-model-chain-failed:${errors.join(" | ")}`,lastStatus);'),
+            ('function safeError(provider:VivitoProviderName,error:unknown){const failure=classifyVivitoProviderFailure(error,(error as any)?.status);return `${provider}:${failure.safeCode}`}', 'function safeError(provider:VivitoProviderName,error:unknown){const failure=classifyVivitoProviderFailure(error,errorStatus(error));return `${provider}:${failure.safeCode}`}'),
+            ('}catch(error){const failure=classifyVivitoProviderFailure(error,(error as any)?.status);markVivitoProviderCooldown(provider,failure);errors.push(safeError(provider,error))}', '}catch(error:unknown){const failure=classifyVivitoProviderFailure(error,errorStatus(error));markVivitoProviderCooldown(provider,failure);errors.push(safeError(provider,error))}'),
+          ]
+          for old,new in replacements:
+              if old not in s: raise SystemExit(f'missing expected fragment: {old[:180]}')
+              s=s.replace(old,new,1)
+          p.write_text(s)
+          PY
+      - name: TypeScript acceptance
+        run: npx tsc --noEmit
+      - name: Targeted ESLint acceptance
+        run: npx eslint lib/vivito/providers.ts --max-warnings=0
+      - name: Commit validated remediation
+        run: |
+          git config user.name 'vivitgroup'
+          git config user.email 'groupvivit@gmail.com'
+          git add lib/vivito/providers.ts
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix(types): harden provider response boundaries'
+          git push origin HEAD:feat/vivito-internal-100

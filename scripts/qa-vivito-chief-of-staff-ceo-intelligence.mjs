@@ -1,0 +1,6 @@
+import fs from "node:fs";
+const src=fs.readFileSync("lib/vivito/training-batch-30-chief-of-staff-ceo-intelligence.ts","utf8");
+const academy=fs.readFileSync("lib/vivito/academy.ts","utf8");
+const checks=[
+["30 executive operating modules",(src.match(/M\("/g)||[]).length>=30],["north star",src.includes("North Star Translation")],["decision agenda",src.includes("Decision Agenda")],["priority arbitration",src.includes("Priority Arbitration")],["operating cadence",src.includes("Operating Cadence")],["decision rights",src.includes("Decision Rights")],["resource reallocation",src.includes("Resource Reallocation")],["risk register",src.includes("Risk Register")],["crisis command",src.includes("Crisis Command")],["strategy traceability",src.includes("Strategy-to-Execution Traceability")],["Academy wires Batch 30",academy.includes("VIVITO_TRAINING_BATCH_30_CONTEXT")&&academy.includes("CHIEF-OF-STAFF / CEO OPERATING INTELLIGENCE")]
+];let p=0;for(const [n,ok] of checks){console.log(`${ok?"PASS":"FAIL"}  ${n}`);if(ok)p++;}console.log(`\n${p}/${checks.length} Batch 30 checks passed.`);if(p!==checks.length)process.exit(1);

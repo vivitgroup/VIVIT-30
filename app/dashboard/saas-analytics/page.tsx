@@ -10,6 +10,8 @@ export default async function SaaSAnalyticsPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
   if ((session.user as any).role !== Role.SUPER_ADMIN) redirect("/dashboard");
+  const workspaceId = String((session.user as any).workspaceId || "");
+  if (!workspaceId) redirect("/login");
 
   const now   = new Date();
   const d30   = new Date(now.getTime() - 30*24*60*60*1000);
@@ -29,7 +31,7 @@ export default async function SaaSAnalyticsPage() {
     db.select({ cnt:count() }).from(creativeTasks).then(r=>Number(r[0]?.cnt??0)),
     db.select({ cnt:count() }).from(creativeTasks).where(gte(creativeTasks.createdAt,d30)).then(r=>Number(r[0]?.cnt??0)),
     db.select({ type:aiGenerations.type, cnt:count() }).from(aiGenerations).groupBy(aiGenerations.type).orderBy(desc(count())),
-    db.select().from(workspaces).where(eq(workspaces.id,"default")).then(r=>r[0]),
+    db.select().from(workspaces).where(eq(workspaces.id,workspaceId)).then(r=>r[0]),
   ]);
 
   const dau = activeUsers30d > 0 ? Math.round(activeUsers30d/30) : 0;
@@ -43,7 +45,7 @@ export default async function SaaSAnalyticsPage() {
     <div className="max-w-5xl space-y-6 animate-fade-up">
       <div>
         <h1 className="page-title">🏗️ SaaS Analytics</h1>
-        <p className="text-sm text-[#6B8FAF] mt-1">Platform usage metrics — workspace: <strong className="text-[#244D87]">{workspace?.name ?? "default"}</strong> · Plan: <strong className="text-[#244D87]">{workspace?.plan}</strong></p>
+        <p className="text-sm text-[#6B8FAF] mt-1">Platform usage metrics — workspace: <strong className="text-[#244D87]">{workspace?.name ?? "Unavailable"}</strong> · Plan: <strong className="text-[#244D87]">{workspace?.plan}</strong></p>
       </div>
 
       {/* MRR Banner */}

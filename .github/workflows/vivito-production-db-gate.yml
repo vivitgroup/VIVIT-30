@@ -25,10 +25,8 @@ jobs:
     timeout-minutes: 15
     environment: production
     steps:
-      - name: Checkout selected release branch
+      - name: Checkout release branch
         uses: actions/checkout@v4
-        with:
-          ref: feat/vivito-internal-100
 
       - name: Use Node 22
         uses: actions/setup-node@v4

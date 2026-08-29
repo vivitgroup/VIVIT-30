@@ -4,21 +4,51 @@ on:
   push:
     branches:
       - qa/100-percent-release
+      - release/vivito-rc1-2026-08-27
   pull_request:
     branches:
       - main
 
 concurrency:
-  group: qa-100-percent-release-${{ github.ref }}
+  group: qa-100-percent-release-${{ github.event.pull_request.head.sha || github.sha }}
   cancel-in-progress: true
 
 jobs:
   release-gate:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: vivito
+          POSTGRES_PASSWORD: vivito
+          POSTGRES_DB: vivito_qa_release
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U vivito -d vivito_qa_release"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://vivito:vivito@127.0.0.1:5432/vivito_qa_release
+      DRIZZLE_DATABASE_URL: postgresql://vivito:vivito@127.0.0.1:5432/vivito_qa_release
+      DATABASE_SSL_DISABLED: "1"
+      AUTH_SECRET: ci-qa-release-secret-not-for-production
+      NEXTAUTH_SECRET: ci-qa-release-secret-not-for-production
+      NEXTAUTH_URL: http://127.0.0.1:3000
     steps:
-      - name: Checkout
+      - name: Checkout exact candidate SHA
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Assert exact candidate SHA
+        shell: bash
+        run: |
+          ACTUAL="$(git rev-parse HEAD)"
+          EXPECTED="${{ github.event.pull_request.head.sha || github.sha }}"
+          echo "actual=$ACTUAL"
+          echo "expected=$EXPECTED"
+          test "$ACTUAL" = "$EXPECTED"
 
       - name: Use Node 22
         uses: actions/setup-node@v4
@@ -29,15 +59,11 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
+      - name: Build base ephemeral database
+        run: npx drizzle-kit push --force
+
       - name: Full release build
         run: npm run build
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
-          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
-          NEXTAUTH_URL: http://localhost:3000
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
       - name: Built runtime smoke
         shell: bash
@@ -58,10 +84,3 @@ jobs:
             exit 1
           fi
           BASE_URL=http://127.0.0.1:3000 npm run qa:runtime-smoke
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
-          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
-          NEXTAUTH_URL: http://127.0.0.1:3000
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}

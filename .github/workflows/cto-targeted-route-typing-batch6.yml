@@ -1,0 +1,56 @@
+name: CTO Targeted Route Typing Batch 6
+
+on:
+  push:
+    branches: [feat/vivito-internal-100]
+    paths:
+      - '.github/workflows/cto-targeted-route-typing-batch6.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-internal-100
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply media link typing remediation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('app/api/media-link/route.ts'); s=p.read_text()
+          replacements=[
+            ('const allowedPlatforms=["META","TIKTOK"];\nconst cleanId=(v:any)=>String(v||"").trim().replace(/^act_/i,"");\nconst iso=(d:Date)=>d.toISOString().slice(0,10);\nconst n=(v:any)=>Number(v||0);', 'const allowedPlatforms=["META","TIKTOK"] as const;\ntype AllowedPlatform=(typeof allowedPlatforms)[number];\nconst isAllowedPlatform=(v:string):v is AllowedPlatform=>(allowedPlatforms as readonly string[]).includes(v);\nconst cleanId=(v:unknown)=>String(v||"").trim().replace(/^act_/i,"");\nconst iso=(d:Date)=>d.toISOString().slice(0,10);\nconst n=(v:unknown)=>Number(v||0);'),
+            ('const role=String((session.user as any).role||""),userId=String((session.user as any).id||""),workspaceId=String((session.user as any).workspaceId||"").trim();', 'const role=String(session.user.role||""),userId=String(session.user.id||""),workspaceId=String(session.user.workspaceId||"").trim();'),
+            ('!allowedPlatforms.includes(platform)', '!isAllowedPlatform(platform)'),
+            ('eq(adPlatformConnections.platform,platform as any)', 'eq(adPlatformConnections.platform,platform)'),
+            ('platform:platform as any', 'platform'),
+            ('eq(adCampaigns.platform,platform as any)', 'eq(adCampaigns.platform,platform)'),
+            ('platform:platform as any', 'platform'),
+            ('}catch(error:any){const message=String(error?.message||"Campaign could not be loaded from the platform")', '}catch(error:unknown){const message=String(error instanceof Error?error.message:"Campaign could not be loaded from the platform")'),
+          ]
+          for old,new in replacements:
+              if old not in s: raise SystemExit(f'missing expected fragment: {old[:120]}')
+              s=s.replace(old,new,1)
+          p.write_text(s)
+          PY
+      - name: TypeScript acceptance
+        run: npx tsc --noEmit
+      - name: Targeted ESLint acceptance
+        run: npx eslint app/api/media-link/route.ts --max-warnings=0
+      - name: Commit validated remediation
+        run: |
+          git config user.name 'vivitgroup'
+          git config user.email 'groupvivit@gmail.com'
+          git add app/api/media-link/route.ts
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix(types): harden media link platform boundaries'
+          git push origin HEAD:feat/vivito-internal-100

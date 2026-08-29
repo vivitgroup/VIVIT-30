@@ -1,0 +1,65 @@
+name: CTO Targeted Route Typing Batch 5
+
+on:
+  push:
+    branches: [feat/vivito-internal-100]
+    paths:
+      - '.github/workflows/cto-targeted-route-typing-batch5.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-internal-100
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply route typing remediation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def apply(path, replacements):
+              p=Path(path); s=p.read_text()
+              for old,new in replacements:
+                  if old not in s:
+                      raise SystemExit(f'{path}: missing expected fragment: {old[:100]}')
+                  s=s.replace(old,new,1)
+              p.write_text(s)
+
+          apply('app/api/competitive-intelligence/route.ts', [
+            ('const rows=(v:any)=>Array.from(v as any) as any[];', 'type DbRow=Record<string,unknown>;\nconst rows=(v:unknown):DbRow[]=>Array.from(v as Iterable<DbRow>);'),
+            ('const role=String((s.user as any).role||""),uid=String((s.user as any).id||""),workspaceId=String((s.user as any).workspaceId||"");', 'const role=String(s.user.role||""),uid=String(s.user.id||""),workspaceId=String(s.user.workspaceId||"");'),
+            ('const role=String((s.user as any).role||""),uid=String((s.user as any).id||""),workspaceId=String((s.user as any).workspaceId||"");', 'const role=String(s.user.role||""),uid=String(s.user.id||""),workspaceId=String(s.user.workspaceId||"");'),
+            ('catch(e:any){return NextResponse.json({error:String(e?.message||"Competitive intelligence operation failed safely.")},{status:422})}', 'catch(e:unknown){return NextResponse.json({error:e instanceof Error?e.message:"Competitive intelligence operation failed safely."},{status:422})}'),
+          ])
+
+          apply('app/api/assistant/direct/route.ts', [
+            ('const rows=(v:any)=>Array.from(v as any) as any[];', 'type DbRow=Record<string,unknown>;\nconst rows=(v:unknown):DbRow[]=>Array.from(v as Iterable<DbRow>);'),
+            ('const role=String((s.user as any).role||""),userId=String((s.user as any).id||"");', 'const role=String(s.user.role||""),userId=String(s.user.id||"");'),
+            ('const workspaceId=await resolveVivitoWorkspaceForUser(userId),status=req.nextUrl.searchParams.get("status")||"ALL";let q:any;\n  const statusClause=status==="ALL"?sql``:sql`and e.status=${status}`;\n  if(role==="SUPER_ADMIN")q=sql`select e.*,(select count(*)::int from vivito_outcome_checks o where o.event_id=e.id and o.workspace_id=e.workspace_id) outcome_checks from vivito_autonomy_events e where e.workspace_id=${workspaceId} ${statusClause} order by e.created_at desc limit 150`;\n  else if(role==="ACCOUNT_MANAGER")q=sql`select e.*,(select count(*)::int from vivito_outcome_checks o where o.event_id=e.id and o.workspace_id=e.workspace_id) outcome_checks from vivito_autonomy_events e join clients c on c.id=e.client_id and c.workspace_id=e.workspace_id where e.workspace_id=${workspaceId} and c.account_manager_id=${userId} ${statusClause} order by e.created_at desc limit 150`;\n  else q=sql`select e.*,(select count(*)::int from vivito_outcome_checks o where o.event_id=e.id and o.workspace_id=e.workspace_id) outcome_checks from vivito_autonomy_events e join clients c on c.id=e.client_id and c.workspace_id=e.workspace_id where e.workspace_id=${workspaceId} and c.media_buyer_id=${userId} ${statusClause} order by e.created_at desc limit 150`;', 'const workspaceId=await resolveVivitoWorkspaceForUser(userId),status=req.nextUrl.searchParams.get("status")||"ALL";\n  const statusClause=status==="ALL"?sql``:sql`and e.status=${status}`;\n  const q=role==="SUPER_ADMIN"?sql`select e.*,(select count(*)::int from vivito_outcome_checks o where o.event_id=e.id and o.workspace_id=e.workspace_id) outcome_checks from vivito_autonomy_events e where e.workspace_id=${workspaceId} ${statusClause} order by e.created_at desc limit 150`:role==="ACCOUNT_MANAGER"?sql`select e.*,(select count(*)::int from vivito_outcome_checks o where o.event_id=e.id and o.workspace_id=e.workspace_id) outcome_checks from vivito_autonomy_events e join clients c on c.id=e.client_id and c.workspace_id=e.workspace_id where e.workspace_id=${workspaceId} and c.account_manager_id=${userId} ${statusClause} order by e.created_at desc limit 150`:sql`select e.*,(select count(*)::int from vivito_outcome_checks o where o.event_id=e.id and o.workspace_id=e.workspace_id) outcome_checks from vivito_autonomy_events e join clients c on c.id=e.client_id and c.workspace_id=e.workspace_id where e.workspace_id=${workspaceId} and c.media_buyer_id=${userId} ${statusClause} order by e.created_at desc limit 150`;'),
+            ('}catch(e:any){return NextResponse.json({events:[],schemaReady:false,error:String(e?.message||e)},{status:503,headers:{"Cache-Control":"private, no-store"}})}', '}catch(e:unknown){return NextResponse.json({events:[],schemaReady:false,error:e instanceof Error?e.message:String(e)},{status:503,headers:{"Cache-Control":"private, no-store"}})}'),
+            ('const role=String((s.user as any).role||""),userId=String((s.user as any).id||"");', 'const role=String(s.user.role||""),userId=String(s.user.id||"");'),
+            ('}catch(e:any){return NextResponse.json({error:String(e?.message||e)},{status:Number(e?.status||400),headers:{"Cache-Control":"private, no-store"}})}', '}catch(e:unknown){const status=e&&typeof e==="object"&&"status" in e?Number((e as {status?:unknown}).status||400):400;return NextResponse.json({error:e instanceof Error?e.message:String(e)},{status,headers:{"Cache-Control":"private, no-store"}})}'),
+          ])
+          PY
+      - name: TypeScript acceptance
+        run: npx tsc --noEmit
+      - name: Targeted ESLint acceptance
+        run: npx eslint app/api/competitive-intelligence/route.ts app/api/assistant/direct/route.ts --max-warnings=0
+      - name: Commit validated remediation
+        run: |
+          git config user.name 'vivitgroup'
+          git config user.email 'groupvivit@gmail.com'
+          git add app/api/competitive-intelligence/route.ts app/api/assistant/direct/route.ts
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix(types): type intelligence and direct assistant routes'
+          git push origin HEAD:feat/vivito-internal-100

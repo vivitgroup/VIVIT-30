@@ -3,14 +3,14 @@ import {auth} from "@/lib/auth";
 import {redirect} from "next/navigation";
 import {db,sql} from "@/lib/db";
 import Link from "next/link";
-const W="default";
+
 export default async function OperationsPage(){
- const s=await auth();if(!s?.user)redirect("/login");
+ const s=await auth();if(!s?.user)redirect("/login");const workspaceId=String((s.user as any).workspaceId||"");if(!workspaceId)redirect("/login");
  const role=String((s.user as any).role||""),uid=String((s.user as any).id||"");
  if(!["SUPER_ADMIN","ACCOUNT_MANAGER"].includes(role))redirect("/dashboard/today");
  const teamScope=role==="ACCOUNT_MANAGER"?sql`and c.account_manager_id=${uid}`:sql``;
- const people:any[]=Array.from(await db.execute(role==="ACCOUNT_MANAGER"?sql`select distinct u.id,u.name,u.role from users u join creative_tasks t on t.assigned_to_id=u.id join clients c on c.id=t.client_id where u.is_active=true and c.workspace_id=${W} and c.is_active=true and c.account_manager_id=${uid} and u.role='CREATOR' union select id,name,role from users where id=${uid}`:sql`select id,name,role from users where is_active=true and role in ('CREATOR','ACCOUNT_MANAGER','MEDIA_BUYER') order by role,name`));
- const work:any[]=Array.from(await db.execute(sql`select t.id,t.title,t.status,t.priority,t.deadline,t.assigned_to_id,c.account_manager_id,c.media_buyer_id,c.company_name from creative_tasks t join clients c on c.id=t.client_id where t.workspace_id=${W} and c.workspace_id=${W} and c.is_active=true ${teamScope} and t.archived_at is null and t.status not in ('COMPLETED','REJECTED')`));
+ const people:any[]=Array.from(await db.execute(role==="ACCOUNT_MANAGER"?sql`select distinct u.id,u.name,u.role from users u join creative_tasks t on t.assigned_to_id=u.id join clients c on c.id=t.client_id where u.is_active=true and c.workspace_id=${workspaceId} and c.is_active=true and c.account_manager_id=${uid} and u.role='CREATOR' union select id,name,role from users where id=${uid}`:sql`select id,name,role from users where is_active=true and role in ('CREATOR','ACCOUNT_MANAGER','MEDIA_BUYER') order by role,name`));
+ const work:any[]=Array.from(await db.execute(sql`select t.id,t.title,t.status,t.priority,t.deadline,t.assigned_to_id,c.account_manager_id,c.media_buyer_id,c.company_name from creative_tasks t join clients c on c.id=t.client_id where t.workspace_id=${workspaceId} and c.workspace_id=${workspaceId} and c.is_active=true ${teamScope} and t.archived_at is null and t.status not in ('COMPLETED','REJECTED')`));
  const now=Date.now(),stats=people.map(p=>{const tasks=p.role==="CREATOR"?work.filter(x=>x.assigned_to_id===p.id):p.role==="ACCOUNT_MANAGER"?work.filter(x=>x.account_manager_id===p.id):work.filter(x=>x.media_buyer_id===p.id),overdue=tasks.filter(x=>new Date(x.deadline).getTime()<now).length,urgent=tasks.filter(x=>x.priority==="URGENT").length,review=tasks.filter(x=>["REVIEW","REVISION","APPROVED"].includes(String(x.status))).length,load=tasks.length+overdue*2+urgent*2;return{...p,tasks:tasks.length,overdue,urgent,review,load,state:load>=15?"OVERLOADED":load>=8?"BUSY":"HEALTHY"}}).sort((a,b)=>b.load-a.load);
  const blocked=work.filter(x=>new Date(x.deadline).getTime()<now||x.status==="REVISION"||x.priority==="URGENT").sort((a,b)=>+new Date(a.deadline)-+new Date(b.deadline));
  return <div className="vx-world vx-sonar" style={{display:"flex",flexDirection:"column",gap:18}}>

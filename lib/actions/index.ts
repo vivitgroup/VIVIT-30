@@ -1,4 +1,3 @@
-// @ts-nocheck -- Drizzle's generated action shapes are narrower than the live schema.
 "use server";
 // ═══════════════════════════════════════════════════════════════
 // Vivit ERP — All Server Actions (single file for GitHub limit)

@@ -1,0 +1,27 @@
+import fs from "node:fs";
+import {VIVITO_KNOWLEDGE_SOURCES,detectKnowledgeDomains,isEgyptQuery,rankVivitoSources,buildLiveKnowledgeResearchPolicy} from "../lib/vivito/live-knowledge-fabric";
+
+let passed=0;const checks:{name:string;ok:boolean}[]=[];const check=(name:string,ok:boolean)=>{checks.push({name,ok});if(ok){passed++;console.log("PASS ",name)}else console.error("FAIL ",name)};
+const domains=new Set(VIVITO_KNOWLEDGE_SOURCES.map(s=>s.domain));
+check("covers all six live-knowledge domains",["MARKETING","BUSINESS","SALES","FINANCE","REAL_ESTATE","HR"].every(x=>domains.has(x as any)));
+const egyptRE=VIVITO_KNOWLEDGE_SOURCES.filter(s=>s.domain==="REAL_ESTATE"&&s.market==="EGYPT");
+check("Egypt real estate has at least six official sources",egyptRE.length>=6&&egyptRE.every(s=>s.authority==="OFFICIAL_PRIMARY"));
+check("Egypt real estate includes CAPMAS",egyptRE.some(s=>/capmas/i.test(s.id+s.name)));
+check("Egypt real estate includes NUCA",egyptRE.some(s=>/nuca/i.test(s.id+s.name)));
+check("Egypt real estate includes SHMFF",egyptRE.some(s=>/shmff/i.test(s.id+s.name)));
+check("Egypt real estate includes FRA",egyptRE.some(s=>/fra/i.test(s.id+s.name)));
+check("Egypt real estate includes CBE",egyptRE.some(s=>/cbe/i.test(s.id+s.name)));
+const ranked=rankVivitoSources("حلل سوق العقارات في مصر وأسعار التمويل العقاري",8);
+check("Egypt real estate routing puts Egyptian official sources first",ranked.slice(0,5).every(s=>s.market==="EGYPT"&&s.domain==="REAL_ESTATE"));
+check("Arabic Egypt real estate intent detected",isEgyptQuery("سوق العقارات في مصر")&&detectKnowledgeDomains("سوق العقارات في مصر").includes("REAL_ESTATE"));
+check("policy contains Egypt-first hard rule",/EGYPT REAL ESTATE HARD RULE/.test(buildLiveKnowledgeResearchPolicy("العقارات في مصر")));
+const fabric=fs.readFileSync("lib/vivito/live-knowledge-fabric.ts","utf8"),multi=fs.readFileSync("lib/vivito/multimodal.ts","utf8"),cron=fs.readFileSync("app/api/cron/vivito-knowledge/route.ts","utf8"),vercel=fs.readFileSync("vercel.json","utf8");
+check("source fetch is allowlisted and redirect-safe",fabric.includes("knowledge-source-host-not-allowlisted")&&fabric.includes('redirect:"manual"'));
+check("knowledge snapshots use SHA256 change detection",fabric.includes('createHash("sha256")')&&fabric.includes("priorMeta?.hash===fetched.hash"));
+check("knowledge snapshots are versioned",fabric.includes("version=Number(prior[0]?.version||0)+1")&&fabric.includes("VIVITO_LIVE_KNOWLEDGE"));
+check("grounded research consumes cached snapshots",multi.includes("loadVivitoLiveKnowledgeContext")&&multi.includes("CACHED VERIFIED-SOURCE SNAPSHOTS"));
+check("grounded research consumes live source policy",multi.includes("buildLiveKnowledgeResearchPolicy(prompt)"));
+check("cron does not accept secret in URL query",!cron.includes("searchParams.get")&&cron.includes("x-cron-secret"));
+check("cron prioritizes Egypt real estate refresh",cron.includes('market:"EGYPT",domain:"REAL_ESTATE"'));
+check("Vercel schedules knowledge refresh",vercel.includes("/api/cron/vivito-knowledge"));
+console.log(`\n${passed}/${checks.length} VIVITO Live Knowledge Fabric checks passed.`);if(passed!==checks.length)process.exit(1);

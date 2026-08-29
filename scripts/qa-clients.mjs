@@ -24,7 +24,7 @@ check("Client detail direct URL scopes Account Managers",guard.includes("client.
 check("Client detail direct URL scopes Media Buyers",guard.includes("client.mediaBuyerId!==userId"));
 check("New client page and API agree on allowed roles",newPage.includes("SUPER_ADMIN\",\"ACCOUNT_MANAGER\",\"ACCOUNTANT")&&api.includes("SUPER_ADMIN\",\"ACCOUNT_MANAGER\",\"ACCOUNTANT"));
 check("Client create rejects duplicate company names",api.includes("already exists")&&api.includes("status:409"));
-check("Client create validates active portal user and one-client ownership",api.includes("valid active client portal user")&&api.includes("already linked to another client"));
+check("Client create validates active portal user and one-client ownership",api.includes("valid active approved client portal user")&&api.includes("already linked to another client"));
 check("Client create validates AM/Media Buyer assignments",api.includes("valid active account manager")&&api.includes("valid active media buyer"));
 check("Client create validates contract date order",api.includes("Contract end date must be on or after the start date"));
 check("Client form exposes real error and saving states",form.includes("setError")&&form.includes("Creating client…")&&form.includes("role=\"alert\""));

@@ -1,4 +1,3 @@
-// @ts-nocheck
 export const dynamic="force-dynamic";
 import {auth} from "@/lib/auth";
 import {redirect} from "next/navigation";
@@ -6,7 +5,6 @@ import {db,sql} from "@/lib/db";
 import Link from "next/link";
 import PortalAutoRefresh from "@/components/portal/PortalAutoRefresh";
 
-const WORKSPACE="default";
 const n=(v:any)=>Number(v||0);
 const fmtDate=(v:any)=>v?new Date(v).toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}):"—";
 const isVideo=(url:string,type:string)=>["REEL","VIDEO_EDIT","MOTION_GRAPHIC"].includes(type)||/\.(mp4|webm|mov)(\?|$)/i.test(url||"");
@@ -15,29 +13,29 @@ const labelKind=(label:string)=>{const x=String(label||"").toLowerCase();if(x.in
 async function portalAction(fd:FormData){
  "use server";
  const session=await auth();if(!session?.user||(session.user as any).role!=="CLIENT")throw new Error("Unauthorized");
- const userId=String((session.user as any).id),taskId=String(fd.get("taskId")||""),decision=String(fd.get("decision")||""),comment=String(fd.get("comment")||"").trim().slice(0,1000);
+ const userId=String((session.user as any).id),workspaceId=String((session.user as any).workspaceId||"");if(!workspaceId)throw new Error("Workspace unavailable");const taskId=String(fd.get("taskId")||""),decision=String(fd.get("decision")||""),comment=String(fd.get("comment")||"").trim().slice(0,1000);
  if(!taskId||!["APPROVED","REVISION"].includes(decision))throw new Error("Invalid review request");
- const clientRows:any=await db.execute(sql`select id from clients where workspace_id=${WORKSPACE} and user_id=${userId} and is_active=true limit 1`),client=clientRows?.[0];if(!client)throw new Error("Client not found");
- const rows:any=await db.execute(sql`select id,title,status,file_url,assigned_to_id from creative_tasks where id=${taskId} and client_id=${client.id} and workspace_id=${WORKSPACE} and archived_at is null limit 1`),task=rows?.[0];
+ const clientRows:any=await db.execute(sql`select id from clients where workspace_id=${workspaceId} and user_id=${userId} and is_active=true limit 1`),client=clientRows?.[0];if(!client)throw new Error("Client not found");
+ const rows:any=await db.execute(sql`select id,title,status,file_url,assigned_to_id from creative_tasks where id=${taskId} and client_id=${client.id} and workspace_id=${workspaceId} and archived_at is null limit 1`),task=rows?.[0];
  if(!task||!task.file_url||!["APPROVED","COMPLETED"].includes(String(task.status)))throw new Error("Creative is not ready for client approval");
  if(decision==="REVISION"&&!comment)throw new Error("Please add revision notes");
- if(decision==="APPROVED")await db.execute(sql`update creative_tasks set approved_by_client=true,client_approval_at=now(),revision_notes=null,updated_at=now() where id=${taskId} and client_id=${client.id} and archived_at is null`);
- else await db.execute(sql`update creative_tasks set approved_by_client=false,status='REVISION',revision_notes=${comment},revision_count=coalesce(revision_count,0)+1,updated_at=now() where id=${taskId} and client_id=${client.id} and archived_at is null`);
+ if(decision==="APPROVED")await db.execute(sql`update creative_tasks set approved_by_client=true,client_approval_at=now(),revision_notes=null,updated_at=now() where id=${taskId} and client_id=${client.id} and workspace_id=${workspaceId} and archived_at is null`);
+ else await db.execute(sql`update creative_tasks set approved_by_client=false,status='REVISION',revision_notes=${comment},revision_count=coalesce(revision_count,0)+1,updated_at=now() where id=${taskId} and client_id=${client.id} and workspace_id=${workspaceId} and archived_at is null`);
  if(task.assigned_to_id)await db.execute(sql`insert into notifications(id,user_id,type,title,message,link,priority,created_at) values(gen_random_uuid()::text,${task.assigned_to_id},'CLIENT_REVIEW',${`Client ${decision.toLowerCase()}: ${task.title}`},${decision==="APPROVED"?"Client approved the creative.":comment},${`/dashboard/creative/${taskId}`},${decision==="REVISION"?"high":"normal"},now())`);
- const {revalidatePath}=await import("next/cache");revalidatePath("/dashboard/portal");
+ const {revalidatePath}=await import("next/cache");for(const p of ["/dashboard/portal","/dashboard/creative","/dashboard/tasks-inbox","/dashboard/today","/dashboard/calendar"])revalidatePath(p);
 }
 
 export default async function PortalPage(){
  const session=await auth();if(!session?.user)redirect("/login");if((session.user as any).role!=="CLIENT")redirect("/dashboard");
- const userId=String((session.user as any).id);
- const clientRows:any=await db.execute(sql`select id,company_name,industry,currency,logo,facebook_url,instagram_url,website,health_score,contract_start,contract_end from clients where workspace_id=${WORKSPACE} and user_id=${userId} and is_active=true limit 1`),client=clientRows?.[0];
+ const userId=String((session.user as any).id),workspaceId=String((session.user as any).workspaceId||"");if(!workspaceId)redirect("/login?reason=workspace_missing");
+ const clientRows:any=await db.execute(sql`select id,company_name,industry,currency,logo,facebook_url,instagram_url,website,health_score,contract_start,contract_end from clients where workspace_id=${workspaceId} and user_id=${userId} and is_active=true limit 1`),client=clientRows?.[0];
  if(!client)return <div className="card"><div className="card-body" style={{padding:48,textAlign:"center"}}><h1 className="page-title">Client Portal</h1><p className="page-subtitle">No active client workspace is linked to this account.</p></div></div>;
  const now=new Date(),monthStart=`${now.getUTCFullYear()}-${String(now.getUTCMonth()+1).padStart(2,"0")}-01`,today=now.toISOString().slice(0,10);
  const [campaignRows,taskRows,docRows,financeRows,eventRows,notificationRows]:any=await Promise.all([
-  db.execute(sql`select c.id,c.name,c.status,c.reported_result_label,c.reported_result_type,c.last_sync_at,coalesce(sum(p.spend),0) spend,coalesce(sum(p.results),0) results,coalesce(sum(p.add_to_cart),0) add_to_cart,coalesce(sum(p.purchases),0) purchases,coalesce(sum(p.revenue),0) revenue,coalesce(sum(p.impressions),0) impressions,coalesce(sum(p.clicks),0) clicks,coalesce(sum(p.reach),0) reach from ad_campaigns c left join ad_performance_daily p on p.campaign_id=c.id and p.date>=${monthStart}::date and p.date<=${today}::date and p.breakdown_type='TOTAL' and p.ad_set_id is null and p.ad_id is null where c.client_id=${client.id} and c.archived_at is null group by c.id,c.name,c.status,c.reported_result_label,c.reported_result_type,c.last_sync_at order by c.updated_at desc`),
-  db.execute(sql`select id,title,type,status,file_url,caption,deadline,platform,approved_by_client,revision_notes,revision_count,updated_at from creative_tasks where workspace_id=${WORKSPACE} and client_id=${client.id} and archived_at is null order by updated_at desc limit 100`),
-  db.execute(sql`select id,name,category,created_at from file_documents where workspace_id=${WORKSPACE} and client_id=${client.id} and archived_at is null order by created_at desc limit 40`),
-  db.execute(sql`select id,month,year,total_revenue,paid,outstanding,invoice_number,invoice_status,due_date,paid_date from finance_records where workspace_id=${WORKSPACE} and client_id=${client.id} order by year desc,month desc limit 6`),
+  db.execute(sql`select c.id,c.name,c.status,c.reported_result_label,c.reported_result_type,c.last_sync_at,coalesce(sum(p.spend),0) spend,coalesce(sum(p.results),0) results,coalesce(sum(p.add_to_cart),0) add_to_cart,coalesce(sum(p.purchases),0) purchases,coalesce(sum(p.revenue),0) revenue,coalesce(sum(p.impressions),0) impressions,coalesce(sum(p.clicks),0) clicks,coalesce(sum(p.reach),0) reach from ad_campaigns c left join ad_performance_daily p on p.campaign_id=c.id and p.date>=${monthStart}::date and p.date<=${today}::date and p.breakdown_type='TOTAL' and p.ad_set_id is null and p.ad_id is null where c.workspace_id=${workspaceId} and c.client_id=${client.id} and c.archived_at is null group by c.id,c.name,c.status,c.reported_result_label,c.reported_result_type,c.last_sync_at order by c.updated_at desc`),
+  db.execute(sql`select id,title,type,status,file_url,caption,deadline,platform,approved_by_client,revision_notes,revision_count,updated_at from creative_tasks where workspace_id=${workspaceId} and client_id=${client.id} and archived_at is null order by updated_at desc limit 100`),
+  db.execute(sql`select id,name,category,created_at from file_documents where workspace_id=${workspaceId} and client_id=${client.id} and archived_at is null order by created_at desc limit 40`),
+  db.execute(sql`select id,month,year,total_revenue,paid,outstanding,invoice_number,invoice_status,due_date,paid_date from finance_records where workspace_id=${workspaceId} and client_id=${client.id} order by year desc,month desc limit 6`),
   db.execute(sql`select e.id,e.title,e.date,e.platform,e.status,e.task_id from calendar_events e where e.client_id=${client.id} and e.date>=now()-interval '7 days' and (e.task_id is null or exists(select 1 from creative_tasks t where t.id=e.task_id and t.client_id=${client.id} and t.archived_at is null)) order by e.date asc limit 12`),
   db.execute(sql`select id,type,title,message,link,is_read,priority,created_at from notifications where user_id=${userId} order by created_at desc limit 8`)
  ]);

@@ -1,0 +1,36 @@
+{
+  "standard": "VIVITO Artifact Visual Baseline",
+  "version": "1.0",
+  "inspected": true,
+  "inspectedAt": "2026-08-27T14:27:00+03:00",
+  "latinPdf": "4caf1bdd4764e4b9dff507d00a28c20292055f7e45cd0b0f522f32d49e5d826b",
+  "arabicPrintHtml": "86d9841bcff4dc2c3f768d17c475fe88d1fc8947baf98356fc211184ee3d47a7",
+  "xlsx": "f9024db7bc97bf8c687ffbeda2b67e336c076616985bf1864437917448002cd7",
+  "inspection": {
+    "latinPdf": {
+      "rendered": true,
+      "pages": 1,
+      "noClipping": true,
+      "noOverlap": true,
+      "noBrokenGlyphs": true,
+      "hierarchyReadable": true
+    },
+    "arabicRtl": {
+      "renderedToPdf": true,
+      "pages": 1,
+      "rtlShapingCorrect": true,
+      "tableReadable": true,
+      "chartReadable": true,
+      "footerReadable": true,
+      "noClipping": true,
+      "noBrokenGlyphs": true
+    },
+    "xlsx": {
+      "ooxmlValidated": true,
+      "sheets": ["Content Plan", "Strategy"],
+      "contentPlanColumnsValidated": true,
+      "rowDataValidated": true
+    }
+  },
+  "policy": "Any renderer output hash change invalidates this baseline and requires a new rendered inspection before certification."
+}

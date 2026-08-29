@@ -1,0 +1,48 @@
+name: CTO Targeted Ad Platforms Typing Batch 17 Final
+
+on:
+  push:
+    branches: [feat/vivito-internal-100]
+    paths:
+      - '.github/workflows/cto-targeted-ad-platforms-typing-batch17-retry2.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-internal-100
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply validated Batch 17 remediation
+        run: |
+          awk '/python - <<'"'"'PY'"'"'/{flag=1;next} flag && /^[[:space:]]*PY[[:space:]]*$/{exit} flag{sub(/^          /,""); print}' .github/workflows/cto-targeted-ad-platforms-typing-batch17-retry.yml > /tmp/ad-platforms-remediate.py
+          python /tmp/ad-platforms-remediate.py
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('lib/ad-platforms.ts'); s=p.read_text()
+          old='let next=url,rows:JsonRecord[]=[];'
+          new='let next=url;const rows:JsonRecord[]=[];'
+          if old not in s: raise SystemExit('missing prefer-const target')
+          p.write_text(s.replace(old,new,1))
+          PY
+      - name: TypeScript acceptance
+        run: npx tsc --noEmit
+      - name: Targeted ESLint acceptance
+        run: npx eslint lib/ad-platforms.ts --max-warnings=0
+      - name: Commit validated remediation
+        run: |
+          git config user.name 'vivitgroup'
+          git config user.email 'groupvivit@gmail.com'
+          git add lib/ad-platforms.ts
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix(types): harden ad platform response boundaries'
+          git push origin HEAD:feat/vivito-internal-100

@@ -1,0 +1,6 @@
+import fs from "node:fs";
+const src=fs.readFileSync("lib/vivito/training-batch-28-forecasting-world-models.ts","utf8");
+const academy=fs.readFileSync("lib/vivito/academy.ts","utf8");
+const checks=[
+["30 forecasting modules",(src.match(/M\("/g)||[]).length>=30],["reference class",src.includes("Reference Class Forecasting")],["probability calibration",src.includes("Probability Calibration")],["prediction intervals",src.includes("Prediction Intervals")],["scenario tree",src.includes("Scenario Tree")],["change points",src.includes("Change-Point Detection")],["feedback loops",src.includes("Feedback Loops")],["Monte Carlo",src.includes("Monte Carlo Thinking")],["forecast error",src.includes("Forecast Error Tracking")],["world model audit",src.includes("World Model Audit")],["Academy wires Batch 28",academy.includes("VIVITO_TRAINING_BATCH_28_CONTEXT")&&academy.includes("FORECASTING & WORLD MODELS")]
+];let p=0;for(const [n,ok] of checks){console.log(`${ok?"PASS":"FAIL"}  ${n}`);if(ok)p++;}console.log(`\n${p}/${checks.length} Batch 28 checks passed.`);if(p!==checks.length)process.exit(1);

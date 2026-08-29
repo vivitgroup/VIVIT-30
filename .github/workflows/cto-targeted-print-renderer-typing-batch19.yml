@@ -1,0 +1,68 @@
+name: CTO Targeted Print Renderer Typing Batch 19
+
+on:
+  push:
+    branches: [feat/vivito-internal-100]
+    paths:
+      - '.github/workflows/cto-targeted-print-renderer-typing-batch19.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-internal-100
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply print renderer typing remediation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('lib/vivito/print-renderer.ts'); s=p.read_text()
+          s=s.replace('import type {VivitoPdfSpec} from "./artifact-intelligence";','import type {VivitoPdfBlock,VivitoPdfSpec} from "./artifact-intelligence";',1)
+          anchor='const cssColor=(rgb?:[number,number,number])=>{const c=rgb||[0.77,0.09,0.13];return `rgb(${c.map(x=>Math.max(0,Math.min(255,Math.round(Number(x)<=1?Number(x)*255:Number(x)))).toString()).join(",")})`};\n'
+          helper='const cssColor=(rgb?:[number,number,number])=>{const c=rgb||[0.77,0.09,0.13];return `rgb(${c.map(x=>Math.max(0,Math.min(255,Math.round(Number(x)<=1?Number(x)*255:Number(x)))).toString()).join(",")})`};\ntype RenderBlock={type:VivitoPdfBlock["type"];text?:string;title?:string;headers?:string[];rows?:(string|number)[][];data?:{label:string;value:number}[];src?:string;alt?:string;caption?:string};\nconst blockTextParts=(b:RenderBlock):unknown[]=>[b.text||"",b.title||"",...(b.headers||[]),...(b.rows||[]).flat()];\nconst blockSummary=(b:RenderBlock)=>b.text||b.title||"";\n'
+          if anchor not in s: raise SystemExit('missing css anchor')
+          s=s.replace(anchor,helper,1)
+          old='export function vivitoPdfNeedsPrintRenderer(spec:VivitoPdfSpec){const text=[spec.title,spec.subtitle||"",spec.author||"",...spec.pages.flatMap((p:any)=>[p.title,p.eyebrow||"",p.footer||"",...(p.blocks||[]).flatMap((b:any)=>[b.text||"",b.title||"",...(b.headers||[]),...(b.rows||[]).flat?.()||[]])])].join(" ");return hasArabic(text)||spec.pages.some((p:any)=>(p.blocks||[]).some((b:any)=>["table","chart","quote","divider","image"].includes(String(b.type))))}'
+          new='export function vivitoPdfNeedsPrintRenderer(spec:VivitoPdfSpec){const text=[spec.title,spec.subtitle||"",spec.author||"",...spec.pages.flatMap(p=>[p.title,p.eyebrow||"",p.footer||"",...p.blocks.flatMap(blockTextParts)])].join(" ");return hasArabic(text)||spec.pages.some(p=>p.blocks.some(b=>["table","chart","quote","divider","image"].includes(b.type)))}'
+          if old not in s: raise SystemExit('missing needs-renderer function')
+          s=s.replace(old,new,1)
+          replacements=[
+            ('function renderBlock(b:any,rtl:boolean)', 'function renderBlock(b:RenderBlock,rtl:boolean)'),
+            ('headers.map((x:any)=>', 'headers.map(x=>'),
+            ('rows.slice(0,18).map((r:any)=>', 'rows.slice(0,18).map(r=>'),
+            ('(Array.isArray(r)?r:[]).map((x:any)=>', 'r.map(x=>'),
+            ('data.map((x:any)=>Number(x.value)||0)', 'data.map(x=>Number(x.value)||0)'),
+            ('data.map((x:any)=>`<div class="bar-row">', 'data.map(x=>`<div class="bar-row">'),
+            ('cssColor(spec.theme?.accent as any)', 'cssColor(spec.theme?.accent)'),
+            ('spec.pages.map((p:any)=>p.title)', 'spec.pages.map(p=>p.title)'),
+            ('spec.pages.map((p:any,idx:number)=>', 'spec.pages.map((p,idx:number)=>'),
+            ('...(p.blocks||[]).map((b:any)=>b.text||b.title||"")', '...p.blocks.map(blockSummary)'),
+            ('(p.blocks||[]).map((b:any)=>renderBlock(b,rtl))', 'p.blocks.map(b=>renderBlock(b,rtl))'),
+          ]
+          for old,new in replacements:
+              if old not in s: raise SystemExit(f'missing expected fragment: {old}')
+              s=s.replace(old,new,1)
+          p.write_text(s)
+          PY
+      - name: TypeScript acceptance
+        run: npx tsc --noEmit
+      - name: Targeted ESLint acceptance
+        run: npx eslint lib/vivito/print-renderer.ts --max-warnings=0
+      - name: Commit validated remediation
+        run: |
+          git config user.name 'vivitgroup'
+          git config user.email 'groupvivit@gmail.com'
+          git add lib/vivito/print-renderer.ts
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix(types): harden print renderer unions'
+          git push origin HEAD:feat/vivito-internal-100

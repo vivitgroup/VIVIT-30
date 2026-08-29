@@ -1,0 +1,83 @@
+name: VIVITO Internal 100
+
+on:
+  push:
+    branches: [feat/vivito-internal-100]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  internal-certify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: vivito
+          POSTGRES_PASSWORD: vivito
+          POSTGRES_DB: vivito_internal
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U vivito -d vivito_internal"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://vivito:vivito@127.0.0.1:5432/vivito_internal
+      DRIZZLE_DATABASE_URL: postgresql://vivito:vivito@127.0.0.1:5432/vivito_internal
+      DATABASE_SSL_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 22, cache: npm}
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Production dependency security audit
+        run: npm audit --omit=dev --audit-level=moderate
+      - name: Build base ephemeral database
+        run: npx drizzle-kit push --force
+      - name: Apply Direct Operator V1 persistence
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/20260828_vivito_direct_operator.sql
+      - name: Apply Direct Operator V2 hardening
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/20260828_vivito_direct_operator_v2.sql
+      - name: Apply enterprise governance persistence
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/20260828_vivito_enterprise_governance.sql
+      - name: Apply zero-based gap closure persistence
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/20260828_vivito_gap_closure.sql
+      - name: Apply task/campaign propagation scope
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/20260828_data_propagation_scope.sql
+      - name: Verify tenant-safe persistence
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          do $$ begin
+            if to_regclass('public.vivito_autonomy_events') is null then raise exception 'missing autonomy'; end if;
+            if to_regclass('public.vivito_approval_events') is null then raise exception 'missing approvals'; end if;
+            if to_regclass('public.vivito_decision_journal') is null then raise exception 'missing journal'; end if;
+            if to_regclass('public.vivito_escalations') is null then raise exception 'missing escalations'; end if;
+            if to_regclass('public.vivito_governance_controls') is null then raise exception 'missing governance'; end if;
+            if to_regclass('public.vivito_knowledge_provenance') is null then raise exception 'missing provenance'; end if;
+            if to_regclass('public.vivito_runtime_checkpoints') is null then raise exception 'missing checkpoints'; end if;
+            if to_regclass('public.vivito_eval_metrics') is null then raise exception 'missing eval metrics'; end if;
+            if to_regclass('public.vivito_value_ledger') is null then raise exception 'missing value ledger'; end if;
+            if to_regclass('public.vivito_backup_manifests') is null then raise exception 'missing backup manifests'; end if;
+            if to_regclass('public.vivito_resource_usage') is null then raise exception 'missing resource usage'; end if;
+            if to_regclass('public.vivito_notification_dedupe') is null then raise exception 'missing notification dedupe'; end if;
+            if to_regclass('public.vivito_security_events') is null then raise exception 'missing security events'; end if;
+            if exists(select 1 from pg_class where relnamespace='public'::regnamespace and relname like 'vivito_%' and relkind='r' and not relrowsecurity) then raise exception 'VIVITO table without RLS'; end if;
+          end $$;
+          SQL
+      - name: Task and campaign data propagation
+        run: node scripts/qa-data-propagation.mjs
+      - name: Zero-based executable gap certification
+        run: npx tsx scripts/certify-vivito-internal-gap-e2e.ts
+      - name: Resilience acceptance E2E
+        run: npx tsx scripts/certify-vivito-internal-acceptance-e2e.ts
+      - name: Direct Operator V2 invariants
+        run: node scripts/qa-vivito-direct-runtime-v2.mjs
+      - name: Enterprise gates 13-32
+        run: node scripts/qa-vivito-enterprise.mjs
+      - name: Full autonomy regression
+        run: node scripts/qa-vivito-autonomy.mjs
+      - name: Type check
+        run: npm run type-check
+      - name: Full release build
+        run: npm run build

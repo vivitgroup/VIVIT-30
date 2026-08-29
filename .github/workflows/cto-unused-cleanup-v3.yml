@@ -1,0 +1,87 @@
+name: CTO Unused Cleanup V3
+
+on:
+  push:
+    branches: [feat/vivito-static-unused-cleanup-v3]
+    paths:
+      - '.github/workflows/cto-unused-cleanup-v3.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-static-unused-cleanup-v3
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Remove proven dead values and fix unused expression
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs=require('node:fs');
+          function one(file,from,to,count=1){let s=fs.readFileSync(file,'utf8');const n=s.split(from).length-1;if(n!==count)throw new Error(`${file}: expected ${count}, found ${n}: ${from.slice(0,100)}`);fs.writeFileSync(file,s.split(from).join(to))}
+
+          one('app/api/ai/route.ts','data:any=body.data??(()=>{const{tool,...rest}=body;return rest})()','data:any=body.data??Object.fromEntries(Object.entries(body).filter(([key])=>key!=="tool"))');
+          one('app/api/media-control-v2/route.ts','accounts:connections.map(({accessTokenEncrypted,refreshTokenEncrypted,...x})=>x)','accounts:connections.map(x=>({...x,accessTokenEncrypted:undefined,refreshTokenEncrypted:undefined}))');
+
+          one('app/dashboard/kpis/page.tsx','const [clientsN,media,finance,creativeN,creativeDone,leadsN,won,lost,team,ws]=await Promise.all([','const [clientsN,media,finance,creativeN,creativeDone,won,lost,team,ws]=await Promise.all([');
+          one('app/dashboard/kpis/page.tsx',' db.select({n:count()}).from(salesLeads).where(and(eq(salesLeads.workspaceId,workspaceId),notInArray(salesLeads.stage,["WON","LOST"]),activeLeads)),\n','');
+
+          one('app/dashboard/media/page.tsx','  const mo1     = new Date(now.getFullYear(), now.getMonth()-1, 1);\n','');
+          one('app/dashboard/media/page.tsx','  const [allClients, thisMonth, lastMonth, platformMetrics] = await Promise.all([','  const [allClients, thisMonth] = await Promise.all([');
+          one('app/dashboard/media/page.tsx','    db.select({\n      spend:sum(mediaMetrics.adSpend), leads:sum(mediaMetrics.leads), revenue:sum(mediaMetrics.revenue),\n    }).from(mediaMetrics).where(and(eq(mediaMetrics.workspaceId,workspaceId),gte(mediaMetrics.date,mo1),\n      eq(mediaMetrics.date, new Date(now.getFullYear(), now.getMonth()-1, now.getDate())))),\n    db.select({\n      platform:mediaMetrics.platform,\n      spend:sum(mediaMetrics.adSpend), leads:sum(mediaMetrics.leads), revenue:sum(mediaMetrics.revenue),\n    }).from(mediaMetrics).where(and(eq(mediaMetrics.workspaceId,workspaceId),gte(mediaMetrics.date, moStart)))\n      .groupBy(mediaMetrics.platform),\n','');
+          one('app/dashboard/media/page.tsx','  const clientMap = Object.fromEntries(allClients.map(c=>[c.id,c]));\n','');
+
+          one('app/dashboard/page.tsx','  const mo1ago   = new Date(year, now.getMonth()-1, 1);\n','');
+          one('app/dashboard/page.tsx','  const mediaLeads    = Number(thisMonthMedia?.[0]?.leads??0);\n','');
+          one('app/dashboard/page.tsx','  const avgHealth    = clientCount>0 ? Math.round((allClients as any[]).reduce((s:number,c:any)=>s+c.healthScore,0)/clientCount) : 0;\n','');
+          one('app/dashboard/page.tsx','              const area=(arr:number[],color:string)=>{','              const area=(arr:number[])=>{');
+          one('app/dashboard/page.tsx','                  <path d={area(rev,"blue")} fill="url(#revGrad)"/>','                  <path d={area(rev)} fill="url(#revGrad)"/>');
+          one('app/dashboard/page.tsx','                  <path d={area(pro,"green")} fill="url(#proGrad)"/>','                  <path d={area(pro)} fill="url(#proGrad)"/>');
+
+          one('app/dashboard/team/page.tsx','db,users,payroll,leaveRequests,creatorProfiles,creatorPoints,notifications,auditLogs','db,users,payroll,leaveRequests,creatorPoints,notifications,auditLogs');
+          one('app/dashboard/team/page.tsx',']);const staffIds=allStaff.map(u=>u.id),allProfiles=staffIds.length?await db.select().from(creatorProfiles).where(inArray(creatorProfiles.userId,staffIds)):[],userMap=Object.fromEntries(allStaff.map(u=>[u.id,u.name])),profileMap=Object.fromEntries(allProfiles.map(p=>[p.userId,p])),payMap=',']);const userMap=Object.fromEntries(allStaff.map(u=>[u.id,u.name])),payMap=');
+
+          one('components/media/MediaControlV2.tsx','action="Scale +15–20%",confidence=92','action="Scale +15–20%";confidence=92');
+          NODE
+          git diff --check
+      - name: Whole-project acceptance
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          git diff --check
+      - name: Assert unused rules are closed and measure lint
+        shell: bash
+        run: |
+          npx eslint . -f json > /tmp/eslint.json || true
+          node <<'NODE'
+          const fs=require('node:fs');const rows=JSON.parse(fs.readFileSync('/tmp/eslint.json','utf8'));const m=rows.flatMap(r=>r.messages||[]),c={};for(const x of m)c[x.ruleId||'(parser)']=(c[x.ruleId||'(parser)']||0)+1;const uv=m.filter(x=>x.ruleId==='@typescript-eslint/no-unused-vars'),ue=m.filter(x=>x.ruleId==='@typescript-eslint/no-unused-expressions');console.log(`unused_vars_remaining=${uv.length}`);console.log(`unused_expr_remaining=${ue.length}`);console.log(`remaining_total=${m.length}`);console.log(`remaining_errors=${m.filter(x=>x.severity===2).length}`);console.log(`remaining_warnings=${m.filter(x=>x.severity===1).length}`);console.log(`remaining_any=${m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any').length}`);for(const x of m)c[x.ruleId||'(parser)']=(c[x.ruleId||'(parser)']||0)+0;console.log('top_rules='+JSON.stringify(Object.entries(c).sort((a,b)=>b[1]-a[1]).slice(0,20)));if(uv.length||ue.length)process.exit(1);
+          NODE
+      - name: Commit verified source cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git add app components
+          if ! git diff --cached --quiet; then
+            git commit -m 'fix(lint): remove proven dead values and unused expression [skip ci]'
+            git push origin HEAD:feat/vivito-static-unused-cleanup-v3
+          fi

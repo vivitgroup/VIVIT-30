@@ -27,6 +27,8 @@ jobs:
           NODE
       - name: Integrate verified media API source
         run: |
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
           git fetch origin 9aee6c7f3f4f4cfbea2c996ebeff27c18b6a5000
           git cherry-pick 9aee6c7f3f4f4cfbea2c996ebeff27c18b6a5000
       - name: Final acceptance

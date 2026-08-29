@@ -1,16 +1,16 @@
 export const dynamic="force-dynamic";
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db, clients, financeRecords, notifications, users, workspaces } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
 
 const money=(n:number,currency="EGP")=>new Intl.NumberFormat("en-EG",{style:"currency",currency,maximumFractionDigits:0}).format(Number(n||0));
 
-export async function POST(req: NextRequest) {
+export async function POST() {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if(!["SUPER_ADMIN","ACCOUNTANT"].includes(String((session.user as any).role)))return NextResponse.json({error:"Forbidden"},{status:403});
-  const workspaceId=String((session.user as any).workspaceId||"");
+  if(!["SUPER_ADMIN","ACCOUNTANT"].includes(String(session.user.role)))return NextResponse.json({error:"Forbidden"},{status:403});
+  const workspaceId=String(session.user.workspaceId||"");
   if(!workspaceId)return NextResponse.json({error:"Workspace unavailable"},{status:403});
 
   const now=new Date(),month=now.getMonth()+1,year=now.getFullYear();
@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
     if(existing.length)continue;
     const dueDate=new Date(year,month-1,15);
     await db.insert(financeRecords).values({
-      workspaceId:workspaceId,clientId:client.id,month,year,retainer,mediaBuyingFee:0,extraServices:0,
+      workspaceId,clientId:client.id,month,year,retainer,mediaBuyingFee:0,extraServices:0,
       totalRevenue:retainer,paid:0,outstanding:retainer,invoiceStatus:"SENT",
       invoiceNumber:`INV-${year}-${String(month).padStart(2,"0")}-${client.companyName.replace(/\s/g,"").slice(0,4).toUpperCase()}`,
       dueDate,
@@ -48,11 +48,11 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({success:true,generated:generated.length,clients:generated,month,year,currency},{headers:{"Cache-Control":"private, no-store"}});
 }
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   const session = await auth();
   if(!session?.user)return NextResponse.json({error:"Unauthorized"},{status:401});
-  if(!["SUPER_ADMIN","ACCOUNTANT"].includes(String((session.user as any).role)))return NextResponse.json({error:"Forbidden"},{status:403});
-  const workspaceId=String((session.user as any).workspaceId||"");
+  if(!["SUPER_ADMIN","ACCOUNTANT"].includes(String(session.user.role)))return NextResponse.json({error:"Forbidden"},{status:403});
+  const workspaceId=String(session.user.workspaceId||"");
   if(!workspaceId)return NextResponse.json({error:"Workspace unavailable"},{status:403});
 
   const now=new Date(),month=now.getMonth()+1,year=now.getFullYear();

@@ -29,7 +29,7 @@ jobs:
           p=Path('lib/vivito/print-renderer.ts'); s=p.read_text()
           s=s.replace('import type {VivitoPdfSpec} from "./artifact-intelligence";','import type {VivitoPdfBlock,VivitoPdfSpec} from "./artifact-intelligence";',1)
           anchor='const cssColor=(rgb?:[number,number,number])=>{const c=rgb||[0.77,0.09,0.13];return `rgb(${c.map(x=>Math.max(0,Math.min(255,Math.round(Number(x)<=1?Number(x)*255:Number(x)))).toString()).join(",")})`};\n'
-          helper='const cssColor=(rgb?:[number,number,number])=>{const c=rgb||[0.77,0.09,0.13];return `rgb(${c.map(x=>Math.max(0,Math.min(255,Math.round(Number(x)<=1?Number(x)*255:Number(x)))).toString()).join(",")})`};\nconst blockTextParts=(b:VivitoPdfBlock):unknown[]=>{switch(b.type){case"table":return[b.text||"",...b.headers,...b.rows.flat()];case"chart":return[b.text||"",b.title||"",...b.data.flatMap(x=>[x.label,x.value])];case"image":return[b.text||"",b.alt||"",b.caption||""];default:return[b.text||""]}};\nconst blockSummary=(b:VivitoPdfBlock)=>b.type==="chart"?b.title||b.text||"":b.text||"";\n'
+          helper='const cssColor=(rgb?:[number,number,number])=>{const c=rgb||[0.77,0.09,0.13];return `rgb(${c.map(x=>Math.max(0,Math.min(255,Math.round(Number(x)<=1?Number(x)*255:Number(x)))).toString()).join(",")})`};\ntype RenderBlock={type:VivitoPdfBlock["type"];text?:string;title?:string;headers?:string[];rows?:(string|number)[][];data?:{label:string;value:number}[];src?:string;alt?:string;caption?:string};\nconst blockTextParts=(b:RenderBlock):unknown[]=>[b.text||"",b.title||"",...(b.headers||[]),...(b.rows||[]).flat()];\nconst blockSummary=(b:RenderBlock)=>b.text||b.title||"";\n'
           if anchor not in s: raise SystemExit('missing css anchor')
           s=s.replace(anchor,helper,1)
           old='export function vivitoPdfNeedsPrintRenderer(spec:VivitoPdfSpec){const text=[spec.title,spec.subtitle||"",spec.author||"",...spec.pages.flatMap((p:any)=>[p.title,p.eyebrow||"",p.footer||"",...(p.blocks||[]).flatMap((b:any)=>[b.text||"",b.title||"",...(b.headers||[]),...(b.rows||[]).flat?.()||[]])])].join(" ");return hasArabic(text)||spec.pages.some((p:any)=>(p.blocks||[]).some((b:any)=>["table","chart","quote","divider","image"].includes(String(b.type))))}'
@@ -37,7 +37,7 @@ jobs:
           if old not in s: raise SystemExit('missing needs-renderer function')
           s=s.replace(old,new,1)
           replacements=[
-            ('function renderBlock(b:any,rtl:boolean)', 'function renderBlock(b:VivitoPdfBlock,rtl:boolean)'),
+            ('function renderBlock(b:any,rtl:boolean)', 'function renderBlock(b:RenderBlock,rtl:boolean)'),
             ('headers.map((x:any)=>', 'headers.map(x=>'),
             ('rows.slice(0,18).map((r:any)=>', 'rows.slice(0,18).map(r=>'),
             ('(Array.isArray(r)?r:[]).map((x:any)=>', 'r.map(x=>'),

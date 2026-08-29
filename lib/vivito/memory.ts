@@ -9,7 +9,7 @@ export type VivitoMemory={id:string;kind:VivitoMemoryKind;scopeType:VivitoMemory
 const MEMORY_INTENT=/(افتكر|إفتكر|خلي بالك|خلى بالك|من دلوقتي|من الآن|لما أقول|لما اقول|remember|from now on|when i say|keep in mind|forget|انسى|انسي|امسح من ذاكرتك|اتعلمنا|تعلمنا|النتيجة كانت|النتيجه كانت|learned|outcome was|result was)/i;
 const SECRET_RE=/(password|passcode|api[_ -]?key|secret|access[_ -]?token|refresh[_ -]?token|private[_ -]?key|otp|كلمة السر|باسورد|توكن|مفتاح api)/i;
 const INJECTION_RE=/(ignore (all|any|the)? ?previous|reveal (the )?system prompt|system prompt|developer message|تجاهل .*التعليمات|اكشف .*برومبت|اظهر .*برومبت)/i;
-const clean=(v:any,n=1400)=>String(v??"").trim().replace(/\s+/g," ").slice(0,n);
+const clean=(v:unknown,n=1400)=>String(v??"").trim().replace(/\s+/g," ").slice(0,n);
 
 export function likelyVivitoMemoryIntent(text:string){return MEMORY_INTENT.test(text)}
 export function validateVivitoMemoryText(textRaw:string){const text=clean(textRaw);if(text.length<3)throw new Error("Memory is too short.");if(SECRET_RE.test(text))throw new Error("VIVITO does not store passwords, API keys, tokens, OTPs, or secrets in memory.");if(INJECTION_RE.test(text))throw new Error("VIVITO will not store instructions that try to override system or security rules.");return text}

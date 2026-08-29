@@ -1,4 +1,3 @@
-// @ts-nocheck
 export const dynamic="force-dynamic";
 import {db,approvalTokens,creativeTasks,clients,notifications,auditLogs,sql} from "@/lib/db";
 import {eq,and,gte,or,isNull} from "drizzle-orm";

@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Meta reporting uses native Insights fields and account attribution settings.
 type SyncInput={platform:string;campaignId:string;adAccountId?:string;accessToken?:string;start:string;end:string};
 export type UnifiedDay={date:string;spend:number;impressions:number;reach:number;clicks:number;results:number;addToCart:number;purchases:number;revenue:number;frequency:number;ctr?:number;cpc?:number;cpm?:number;costPerResult?:number};

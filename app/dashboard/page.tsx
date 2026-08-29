@@ -1,4 +1,3 @@
-// @ts-nocheck -- Legacy dashboard helpers use the full live schema signature.
 export const dynamic = "force-dynamic";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";

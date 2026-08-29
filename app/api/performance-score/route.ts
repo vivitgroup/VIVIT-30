@@ -1,4 +1,3 @@
-// @ts-nocheck -- live schema is wider than generated Drizzle types in a few analytics tables.
 export const dynamic="force-dynamic";
 import {NextRequest,NextResponse} from "next/server";
 import {auth} from "@/lib/auth";

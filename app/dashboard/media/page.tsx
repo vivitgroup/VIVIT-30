@@ -1,4 +1,3 @@
-// @ts-nocheck -- Drizzle's generated media shapes are narrower than the live schema.
 export const dynamic = "force-dynamic";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";

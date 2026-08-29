@@ -62,8 +62,8 @@ scanRegex(runtimeFiles, "HARDCODED_TENANT_DEFAULT", /(?:\b(?:WORKSPACE|workspace
 const PUBLIC_API = new Map([
   ["app/api/health/route.ts", "public health probe; response must not expose tenant/user metadata"],
   ["app/api/auth/[...nextauth]/route.ts", "NextAuth framework endpoint"],
-  ["app/api/forgot-password/route.ts", "public password-reset request; must be enumeration-safe"],
-  ["app/api/reset-password/route.ts", "public single-use password-reset token endpoint"],
+  ["app/api/password/forgot/route.ts", "public password-reset request; must be enumeration-safe"],
+  ["app/api/password/reset/route.ts", "public single-use password-reset token endpoint"],
   ["app/api/signup/route.ts", "public signup initiation"],
   ["app/api/signup/otp/route.ts", "public OTP verification"],
   ["app/api/approve-token/route.ts", "public approval-token flow; token is the capability"],

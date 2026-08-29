@@ -5,19 +5,19 @@ import {db,clients,financeRecords,mediaMetrics,contacts,workspaces} from "@/lib/
 import {eq,and,gte,lte,sum} from "drizzle-orm";
 import {canAccessClient} from "@/lib/client-access";
 
-const WORKSPACE_ID="default",MONTHS=["","January","February","March","April","May","June","July","August","September","October","November","December"];
+const MONTHS=["","January","February","March","April","May","June","July","August","September","October","November","December"];
 const esc=(v:any)=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]!));
 const headerSafe=(v:any)=>String(v??"").replace(/[\r\n]/g," ").slice(0,180);
 export async function GET(req:NextRequest,context:{params:Promise<{clientId:string}>}){
- const session=await auth();if(!session?.user)return new NextResponse("Unauthorized",{status:401});const {clientId}=await context.params;if(!(await canAccessClient(session,clientId)))return new NextResponse("Forbidden",{status:403});
+ const session=await auth();if(!session?.user)return new NextResponse("Unauthorized",{status:401});const workspaceId=String((session.user as any).workspaceId||"");if(!workspaceId)return new NextResponse("Workspace unavailable",{status:403});const {clientId}=await context.params;if(!(await canAccessClient(session,clientId)))return new NextResponse("Forbidden",{status:403});
  const month=parseInt(req.nextUrl.searchParams.get("month")??String(new Date().getMonth()+1),10),year=parseInt(req.nextUrl.searchParams.get("year")??String(new Date().getFullYear()),10);if(!Number.isInteger(month)||month<1||month>12||!Number.isInteger(year)||year<2020||year>2100)return new NextResponse("Invalid report period",{status:400});
  const monthStart=new Date(year,month-1,1),monthEnd=new Date(year,month,0,23,59,59,999);
  const [[client],[invoice],[primaryContact],[workspace],[mAgg]]=await Promise.all([
-  db.select().from(clients).where(and(eq(clients.id,clientId),eq(clients.workspaceId,WORKSPACE_ID),eq(clients.isActive,true))).limit(1),
-  db.select().from(financeRecords).where(and(eq(financeRecords.workspaceId,WORKSPACE_ID),eq(financeRecords.clientId,clientId),eq(financeRecords.month,month),eq(financeRecords.year,year))).limit(1),
+  db.select().from(clients).where(and(eq(clients.id,clientId),eq(clients.workspaceId,workspaceId),eq(clients.isActive,true))).limit(1),
+  db.select().from(financeRecords).where(and(eq(financeRecords.workspaceId,workspaceId),eq(financeRecords.clientId,clientId),eq(financeRecords.month,month),eq(financeRecords.year,year))).limit(1),
   db.select().from(contacts).where(and(eq(contacts.clientId,clientId),eq(contacts.isPrimary,true))).limit(1),
-  db.select({currency:workspaces.currency}).from(workspaces).where(eq(workspaces.id,WORKSPACE_ID)).limit(1),
-  db.select({spend:sum(mediaMetrics.adSpend),leads:sum(mediaMetrics.leads),revenue:sum(mediaMetrics.revenue)}).from(mediaMetrics).where(and(eq(mediaMetrics.workspaceId,WORKSPACE_ID),eq(mediaMetrics.clientId,clientId),gte(mediaMetrics.date,monthStart),lte(mediaMetrics.date,monthEnd)))
+  db.select({currency:workspaces.currency}).from(workspaces).where(eq(workspaces.id,workspaceId)).limit(1),
+  db.select({spend:sum(mediaMetrics.adSpend),leads:sum(mediaMetrics.leads),revenue:sum(mediaMetrics.revenue)}).from(mediaMetrics).where(and(eq(mediaMetrics.workspaceId,workspaceId),eq(mediaMetrics.clientId,clientId),gte(mediaMetrics.date,monthStart),lte(mediaMetrics.date,monthEnd)))
  ]);
  if(!client)return new NextResponse("Client not found or archived",{status:404});
  const currency=workspace?.currency||client.currency||"EGP",money=(n:any)=>new Intl.NumberFormat("en-EG",{style:"currency",currency,maximumFractionDigits:2}).format(Number(n||0)),spend=Number(mAgg?.spend||0),leads=Number(mAgg?.leads||0),revenue=Number(mAgg?.revenue||0),roas=spend?revenue/spend:0,cpl=leads?spend/leads:0,company=esc(client.companyName),industry=esc(client.industry||"Digital Marketing"),contact=primaryContact?`${esc(primaryContact.name)}${primaryContact.email?` · ${esc(primaryContact.email)}`:""}`:"",status=esc(invoice?.invoiceStatus||"—");

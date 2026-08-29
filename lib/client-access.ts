@@ -1,11 +1,11 @@
 import {db,clients} from "@/lib/db";
 import {eq,and} from "drizzle-orm";
 
-const WORKSPACE_ID="default";
 export async function canAccessClient(session:any,clientId:string,options:{finance?:boolean;write?:boolean}={}){
  if(!session?.user||!clientId)return false;
- const role=String((session.user as any).role||""),userId=String((session.user as any).id||"");
- const [client]=await db.select({workspaceId:clients.workspaceId,isActive:clients.isActive,userId:clients.userId,accountManagerId:clients.accountManagerId,mediaBuyerId:clients.mediaBuyerId}).from(clients).where(and(eq(clients.id,clientId),eq(clients.workspaceId,WORKSPACE_ID))).limit(1);
+ const role=String((session.user as any).role||""),userId=String((session.user as any).id||""),workspaceId=String((session.user as any).workspaceId||"");
+ if(!workspaceId)return false;
+ const [client]=await db.select({workspaceId:clients.workspaceId,isActive:clients.isActive,userId:clients.userId,accountManagerId:clients.accountManagerId,mediaBuyerId:clients.mediaBuyerId}).from(clients).where(and(eq(clients.id,clientId),eq(clients.workspaceId,workspaceId))).limit(1);
  if(!client)return false;
  const historicalFinance=Boolean(options.finance)&&!options.write;
  if(!client.isActive&&!historicalFinance)return false;

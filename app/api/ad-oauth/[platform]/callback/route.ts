@@ -1,4 +1,3 @@
-// @ts-nocheck -- Drizzle's generated upsert shape is narrower than the live schema.
 import {NextRequest,NextResponse} from "next/server";
 import {auth} from "@/lib/auth";
 import {db,adPlatformConnections,auditLogs,clients} from "@/lib/db";

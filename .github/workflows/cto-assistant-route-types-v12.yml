@@ -1,0 +1,74 @@
+name: CTO Assistant Route Types V12
+on:
+  push:
+    branches: [feat/vivito-assistant-route-types-v12]
+permissions:
+  contents: write
+jobs:
+  remediate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-assistant-route-types-v12
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Apply assistant route contracts
+        run: |
+          node <<'NODE'
+          const fs=require('node:fs');const file='app/api/assistant/route.ts';let s=fs.readFileSync(file,'utf8');
+          function one(from,to,count=1){const n=s.split(from).length-1;if(n!==count)throw new Error(`expected ${count}, found ${n}: ${from.slice(0,140)}`);s=s.split(from).join(to)}
+          one('const rows=(value:unknown)=>Array.from(value as Iterable<Record<string,unknown>>);','type ClientRow={id:unknown;company_name?:unknown;industry?:unknown};\ntype TaskRow={id?:unknown;title?:unknown;status?:unknown;priority?:unknown;deadline?:unknown;client_id?:unknown;type?:unknown;revision_count?:unknown;company_name?:unknown};\ntype MediaRow=Record<string,unknown>;\ntype SalesRow={stage?:unknown;estimated_value?:unknown;probability?:unknown;next_follow_up?:unknown};\ntype FinanceBillingRow={company_name?:unknown;amount_due?:unknown;amount_paid?:unknown;amount_remaining?:unknown;payment_day?:unknown;payment_status?:unknown};\ntype Attachment={fileId:string;name:string;mimeType:string};\nconst rows=<T=Record<string,unknown>>(value:unknown):T[]=>Array.from(value as Iterable<T>);');
+          one('async function clientScope(role:string,userId:string,workspaceId:string):Promise<unknown[]>','async function clientScope(role:string,userId:string,workspaceId:string):Promise<ClientRow[]>');
+          one(' return rows(result);',' return rows<ClientRow>(result);',1);
+          one('async function taskContext(role:string,userId:string,ids:string[],workspaceId:string):Promise<unknown[]>','async function taskContext(role:string,userId:string,ids:string[],workspaceId:string):Promise<TaskRow[]>');
+          one(' return rows(result);',' return rows<TaskRow>(result);',1);
+          one('async function mediaContext(role:string,ids:string[],workspaceId:string):Promise<unknown[]>','async function mediaContext(role:string,ids:string[],workspaceId:string):Promise<MediaRow[]>');
+          one(' return rows(result).map((x:any)=>',' return rows<MediaRow>(result).map(x=>');
+          one('async function salesContext(role:string,userId:string,workspaceId:string):Promise<unknown[]>','async function salesContext(role:string,userId:string,workspaceId:string):Promise<SalesRow[]>');
+          one('return rows(await db.execute(sql`select l.id,l.company_name,l.stage,l.estimated_value,l.probability,l.next_follow_up,l.follow_up_count,l.industry,l.expected_close,l.updated_at,(select max(a.created_at) from sales_activities a where a.lead_id=l.id) last_activity_at from sales_leads l where l.workspace_id=${workspaceId} and l.archived_at is null ${ownerFilter} order by coalesce(l.next_follow_up,l.expected_close,l.updated_at) asc limit 100`))','return rows<SalesRow>(await db.execute(sql`select l.id,l.company_name,l.stage,l.estimated_value,l.probability,l.next_follow_up,l.follow_up_count,l.industry,l.expected_close,l.updated_at,(select max(a.created_at) from sales_activities a where a.lead_id=l.id) last_activity_at from sales_leads l where l.workspace_id=${workspaceId} and l.archived_at is null ${ownerFilter} order by coalesce(l.next_follow_up,l.expected_close,l.updated_at) asc limit 100`))');
+          one('async function financeContext(role:string,ids:string[],workspaceId:string):Promise<{billing:any[];expenses:unknown[]}>','async function financeContext(role:string,ids:string[],workspaceId:string):Promise<{billing:FinanceBillingRow[];expenses:Record<string,unknown>[]}>');
+          one('let billing:unknown[]=[];','let billing:FinanceBillingRow[]=[];');
+          one('billing=rows(await db.execute(sql`select c.company_name,p.amount_due,p.amount_paid,p.amount_remaining,p.payment_day,p.payment_status from client_payment_profiles p join clients c on c.id=p.client_id where c.workspace_id=${workspaceId} and c.is_active=true and p.client_id in (${idsSql(ids)}) order by p.amount_remaining desc limit 80`))','billing=rows<FinanceBillingRow>(await db.execute(sql`select c.company_name,p.amount_due,p.amount_paid,p.amount_remaining,p.payment_day,p.payment_status from client_payment_profiles p join clients c on c.id=p.client_id where c.workspace_id=${workspaceId} and c.is_active=true and p.client_id in (${idsSql(ids)}) order by p.amount_remaining desc limit 80`))');
+          one('const expenses=rows(await db.execute(sql`select category,coalesce(sum(amount),0) amount from company_expenses where workspace_id=${workspaceId} and date>=date_trunc(\'month\',now()) group by category order by amount desc limit 20`))','const expenses=rows<Record<string,unknown>>(await db.execute(sql`select category,coalesce(sum(amount),0) amount from company_expenses where workspace_id=${workspaceId} and date>=date_trunc(\'month\',now()) group by category order by amount desc limit 20`))');
+          one('function resolveAuthorizedClient(clients:any[],nameRaw:string)','function resolveAuthorizedClient(clients:ClientRow[],nameRaw:string)');
+          one('function taskAnswer(question:string,tasks:any[])','function taskAnswer(question:string,tasks:TaskRow[])');
+          one('function buildOperations(tasks:any[])','function buildOperations(tasks:TaskRow[])');
+          one('function buildSalesSummary(leads:any[])','function buildSalesSummary(leads:SalesRow[])');
+          one('function buildMediaSummary(campaigns:any[])','function buildMediaSummary(campaigns:MediaRow[])');
+          one('const attachments=Array.isArray(body.attachments)?body.attachments.slice(0,5).map((x:Record<string,unknown>)=>({fileId:String(x?.fileId||"").slice(0,100),name:String(x?.name||"").slice(0,255),mimeType:String(x?.mimeType||"").slice(0,120)})).filter(x=>x.fileId):[];','const attachments:Attachment[]=Array.isArray(body.attachments)?body.attachments.slice(0,5).map((x:Record<string,unknown>)=>({fileId:String(x?.fileId||"").slice(0,100),name:String(x?.name||"").slice(0,255),mimeType:String(x?.mimeType||"").slice(0,120)})).filter((x:Attachment)=>x.fileId):[];');
+          one('clients.map((c:any)=>String(c.id))','clients.map(c=>String(c.id))');
+          one('clients.map((c:any)=>c.company_name)','clients.map(c=>c.company_name)',2);
+          one('const w=Array.from(await db.execute(sql`insert into competitor_watchlists(workspace_id,client_id,competitor_name,created_by) values(${workspaceId},${String(client.id)},${comp.name||"Competitor"},${userId}) returning id`) as any)[0] as any;','const w=rows<{id:unknown}>(await db.execute(sql`insert into competitor_watchlists(workspace_id,client_id,competitor_name,created_by) values(${workspaceId},${String(client.id)},${comp.name||"Competitor"},${userId}) returning id`))[0];');
+          one('attachments.find((a:any)=>String(a.mimeType||"").startsWith("image/"))','attachments.find(a=>a.mimeType.startsWith("image/"))',2);
+          one('clients.map((c:any)=>({name:c.company_name,id:c.id}))','clients.map(c=>({name:c.company_name,id:c.id}))');
+          one('const canSeeFinance=["SUPER_ADMIN","ACCOUNTANT"].includes(role),context:any={role,scope:{clientCount:clients.length,clientNames:clients.map((c:any)=>c.company_name)},clients,operations:buildOperations(tasks),topTasks:tasks.slice(0,40),operationalMemory:memories.slice(0,40)};','const canSeeFinance=["SUPER_ADMIN","ACCOUNTANT"].includes(role),context:Record<string,unknown>={role,scope:{clientCount:clients.length,clientNames:clients.map(c=>c.company_name)},clients,operations:buildOperations(tasks),topTasks:tasks.slice(0,40),operationalMemory:memories.slice(0,40)};');
+          fs.writeFileSync(file,s)
+          NODE
+          git diff --check
+      - name: Acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint app/api/assistant/route.ts -f json > /tmp/e.json || true
+          node <<'NODE'
+          const r=require('/tmp/e.json'),m=r.flatMap(x=>x.messages||[]);console.log(`target_total=${m.length}`);console.log(`target_any=${m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any').length}`);console.log(JSON.stringify(m.map(x=>[x.ruleId,x.line,x.message]).slice(0,40)));if(m.length)process.exit(1)
+          NODE
+          npx eslint . -f json > /tmp/all.json || true
+          node <<'NODE'
+          const r=require('/tmp/all.json'),m=r.flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any'),w=m.filter(x=>x.severity===1);console.log(`remaining_any=${a.length}`);console.log(`remaining_non_any=${n.length}`);console.log(`remaining_warnings=${w.length}`);if(n.length||w.length||a.length!==280)process.exit(1)
+          NODE
+      - name: Commit source
+        run: |
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git add app/api/assistant/route.ts
+          git commit -m 'fix(types): type assistant route contracts [skip ci]'
+          git push origin HEAD:feat/vivito-assistant-route-types-v12

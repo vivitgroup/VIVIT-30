@@ -24,35 +24,35 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Apply TypeScript source remediation
+      - name: Apply typed session and catch remediation
         shell: bash
         run: |
           python - <<'PY'
           from pathlib import Path
-
-          p=Path('app/api/cron/media-sync/route.ts'); s=p.read_text()
-          old='await db.insert(adPerformanceDaily).values({campaignId:c.id,date,breakdownType:"TOTAL",breakdownValue:"ALL",spend,impressions,reach,clicks,results,purchases,addToCart,revenue,frequency,ctr,cpc,cpm,cpl:cpr,costPerResult:cpr,cpa:purchases?spend/purchases:0,roas:spend?revenue/spend:0});'
-          new='await db.execute(sql`insert into ad_performance_daily(id,campaign_id,date,breakdown_type,breakdown_value,spend,impressions,reach,clicks,results,qualified_leads,purchases,add_to_cart,revenue,frequency,ctr,cpc,cpm,cpl,cost_per_result,cpa,roas) values(gen_random_uuid()::text,${c.id},${date}::timestamp,\'TOTAL\',\'ALL\',${spend},${impressions},${reach},${clicks},${results},0,${purchases},${addToCart},${revenue},${frequency},${ctr},${cpc},${cpm},${cpr},${cpr},${purchases?spend/purchases:0},${spend?revenue/spend:0})`);'
-          if old in s: p.write_text(s.replace(old,new))
-
-          p=Path('app/api/media-discover/route.ts'); s=p.read_text()
-          old='existing=(await db.select().from(adCampaigns).where(and(eq(adCampaigns.platform,"META"),eq(adCampaigns.externalId,externalId))).limit(1))[0],'
-          new='existing=(await db.select({id:adCampaigns.id,archivedAt:sql<Date|null>`archived_at`}).from(adCampaigns).where(and(eq(adCampaigns.platform,"META"),eq(adCampaigns.externalId,externalId))).limit(1))[0],'
-          if old in s: p.write_text(s.replace(old,new))
-
-          p=Path('app/api/recurring/route.ts'); s=p.read_text()
-          s=s.replace('workspaceId:workspaceId,userId:admin.id,type:"GENERAL"','userId:admin.id,type:"GENERAL"')
-          p.write_text(s)
-
-          p=Path('app/dashboard/finance/page.tsx'); s=p.read_text()
-          s=s.replace('async function markPaid(fd:FormData){"use server";const session=await requireFinanceUser(),id=','async function markPaid(fd:FormData){"use server";const {session,workspaceId}=await requireFinanceUser(),id=')
-          s=s.replace('const totals=Array.from(ledgerTotals as any),ledgerRevenue=Number(totals.find((x:any)=>x.direction==="IN")?.total||0),ledgerExpenses=Number(totals.find((x:any)=>x.direction==="OUT")?.total||0)','const totals=Array.from(ledgerTotals) as Array<{direction:string;total:string|number}>,ledgerRevenue=Number(totals.find(x=>x.direction==="IN")?.total||0),ledgerExpenses=Number(totals.find(x=>x.direction==="OUT")?.total||0)')
-          s=s.replace('months=Array.from(monthlyLedger as any),monthMap:any={};for(const r of months){const m=Number(r.month);monthMap[m]??={IN:0,OUT:0};monthMap[m][r.direction]=Number(r.total||0)}','months=Array.from(monthlyLedger) as Array<{month:number|string;direction:string;total:string|number}>,monthMap:Record<number,Record<string,number>>={};for(const r of months){const m=Number(r.month);monthMap[m]??={IN:0,OUT:0};monthMap[m][r.direction]=Number(r.total||0)}')
-          p.write_text(s)
+          import re
+          roots=[Path('app'),Path('components'),Path('lib'),Path('scripts')]
+          files=[]
+          for root in roots:
+            if root.exists():
+              files.extend([p for p in root.rglob('*') if p.is_file() and p.suffix in {'.ts','.tsx'}])
+          for extra in [Path('proxy.ts'),Path('auth.config.ts')]:
+            if extra.exists(): files.append(extra)
+          changed=0
+          for p in files:
+            s=p.read_text()
+            n=s.replace('(session.user as any)','session.user').replace('(session?.user as any)','session?.user').replace('(session!.user as any)','session!.user')
+            n=re.sub(r'catch\s*\(\s*([A-Za-z_$][\w$]*)\s*:\s*any\s*\)',r'catch(\1)',n)
+            if n!=s:
+              p.write_text(n)
+              changed+=1
+          print(f'changed_files={changed}')
           PY
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Apply safe ESLint autofixes
+        run: npx eslint . --fix || true
 
       - name: Verify TypeScript gate before commit
         run: npm run type-check
@@ -60,57 +60,41 @@ jobs:
       - name: Verify static architecture gate before commit
         run: node scripts/qa-cto-static-audit.mjs
 
-      - name: Commit TypeScript remediation
+      - name: Commit lint remediation batch
         shell: bash
         run: |
           if ! git diff --quiet; then
             git config user.name "VIVIT CTO Gate Bot"
             git config user.email "groupvivit@gmail.com"
-            git add app
-            git commit -m "fix(cto): close TypeScript runtime blockers"
+            git add app components lib scripts proxy.ts auth.config.ts
+            git commit -m "fix(cto): remove redundant explicit-any session and catch casts"
             git push origin HEAD:feat/vivito-internal-100
           fi
 
-      - name: Capture lint before fixes
-        shell: bash
-        run: npx eslint . -f json > eslint-before.json || true
-
-      - name: Apply safe ESLint autofixes
-        shell: bash
-        run: |
-          npx eslint . --fix || true
-          git diff -- . > eslint-autofix.patch
-
-      - name: Capture lint after fixes
-        shell: bash
+      - name: Capture ESLint
         run: npx eslint . -f json > eslint-after.json || true
 
-      - name: Capture TypeScript gate
-        shell: bash
+      - name: Capture TypeScript
         run: npm run type-check > typecheck.txt 2>&1 || true
 
-      - name: Capture static architecture gate
-        shell: bash
+      - name: Capture static architecture
         run: node scripts/qa-cto-static-audit.mjs > cto-static.txt 2>&1 || true
 
-      - name: Upload diagnostics and autofixed source
+      - name: Upload diagnostics
         uses: actions/upload-artifact@v4
         with:
           name: cto-gate-diagnostics
           path: |
-            eslint-before.json
             eslint-after.json
-            eslint-autofix.patch
             typecheck.txt
             cto-static.txt
             app/**
             components/**
             lib/**
-            db/**
             scripts/**
             types/**
-            auth.config.ts
             proxy.ts
+            auth.config.ts
             eslint.config.mjs
             tsconfig.json
             package.json

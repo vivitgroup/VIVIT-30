@@ -1,0 +1,65 @@
+name: CTO Dashboard Types V11
+on:
+  push:
+    branches: [feat/vivito-dashboard-types-v11]
+permissions:
+  contents: write
+jobs:
+  remediate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-dashboard-types-v11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Apply dashboard contracts
+        run: |
+          node <<'NODE'
+          const fs=require('node:fs');const file='app/dashboard/page.tsx';let s=fs.readFileSync(file,'utf8');
+          function one(from,to,count=1){const n=s.split(from).length-1;if(n!==count)throw new Error(`expected ${count}, found ${n}: ${from.slice(0,120)}`);s=s.split(from).join(to)}
+          one('import Link from "next/link";','import Link from "next/link";\ntype ClientDashRow=Pick<typeof clients.$inferSelect,"id"|"companyName"|"healthScore"|"churnRisk"|"monthlyRetainer"|"lifetimeValue"|"accountManagerId">;\ntype AgencyHealthRow=typeof agencyHealthScores.$inferSelect;\ntype PayrollLockRow=typeof payrollLocks.$inferSelect;\ntype RecentTaskRow=Pick<typeof creativeTasks.$inferSelect,"id"|"title"|"status"|"priority"|"deadline"|"assignedToId"|"clientId">;\ntype NotificationRow=Pick<typeof notifications.$inferSelect,"id"|"title"|"message"|"priority"|"createdAt"|"isRead"|"link">;\nfunction typedRows<T>(value:unknown):T[]{return value as T[]}');
+          one('eq(financeRecords.month as any,month)','eq(financeRecords.month,month)');
+          one('eq(financeRecords.year as any,year)','eq(financeRecords.year,year)');
+          one('eq(financeRecords.month as any,month===1?12:month-1)','eq(financeRecords.month,month===1?12:month-1)');
+          one('eq(financeRecords.year as any,month===1?year-1:year)','eq(financeRecords.year,month===1?year-1:year)');
+          one('  const fmt = (n:number) =>','  const clientRows=typedRows<ClientDashRow>(allClients),healthRows=typedRows<AgencyHealthRow>(agencyHealth),payrollRows=typedRows<PayrollLockRow>(payrollLock),recentTaskRows=typedRows<RecentTaskRow>(recentTasks),notificationRows=typedRows<NotificationRow>(recentNotifs);\n\n  const fmt = (n:number) =>');
+          one('const clientCount  = (allClients as unknown[]).length;','const clientCount  = clientRows.length;');
+          one('const highRisk     = (allClients as unknown[]).filter((c:any)=>c.churnRisk==="HIGH").length;','const highRisk     = clientRows.filter(c=>c.churnRisk==="HIGH").length;');
+          one('const health = (agencyHealth as any[])?.[0];','const health = healthRows[0];');
+          one('const payLock = (payrollLock as any[])?.[0];','const payLock = payrollRows[0];');
+          one('const clientMap = Object.fromEntries((allClients as unknown[]).map((c:any)=>[c.id,c.companyName]));','const clientMap = Object.fromEntries(clientRows.map(c=>[c.id,c.companyName]));');
+          one('(allClients as unknown[]).sort((a:any,b:any)=>a.healthScore-b.healthScore).slice(0,6).map((c:any)=>','clientRows.sort((a,b)=>a.healthScore-b.healthScore).slice(0,6).map(c=>');
+          one('(allClients as unknown[]).filter((c:any)=>c.churnRisk==="LOW").length','clientRows.filter(c=>c.churnRisk==="LOW").length');
+          one('(allClients as unknown[]).filter((c:any)=>c.churnRisk==="MEDIUM").length','clientRows.filter(c=>c.churnRisk==="MEDIUM").length');
+          one('(recentTasks as unknown[]).map((t:any)=>','recentTaskRows.map(t=>');
+          one('(recentNotifs as unknown[]).map((n:any)=>','notificationRows.map(n=>');
+          fs.writeFileSync(file,s)
+          NODE
+          git diff --check
+      - name: Acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint app/dashboard/page.tsx -f json > /tmp/e.json || true
+          node <<'NODE'
+          const r=require('/tmp/e.json'),m=r.flatMap(x=>x.messages||[]);console.log(`target_total=${m.length}`);console.log(`target_any=${m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any').length}`);console.log(JSON.stringify(m.map(x=>[x.ruleId,x.line,x.message]).slice(0,30)));if(m.length)process.exit(1)
+          NODE
+          npx eslint . -f json > /tmp/all.json || true
+          node <<'NODE'
+          const r=require('/tmp/all.json'),m=r.flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any'),w=m.filter(x=>x.severity===1);console.log(`remaining_any=${a.length}`);console.log(`remaining_non_any=${n.length}`);console.log(`remaining_warnings=${w.length}`);if(n.length||w.length||a.length!==314)process.exit(1)
+          NODE
+      - name: Commit source
+        run: |
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git add app/dashboard/page.tsx
+          git commit -m 'fix(types): type dashboard query contracts [skip ci]'
+          git push origin HEAD:feat/vivito-dashboard-types-v11

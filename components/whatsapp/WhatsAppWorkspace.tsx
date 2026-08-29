@@ -2,7 +2,7 @@
 import {useEffect,useMemo,useState} from "react";
 const digits=(v:string)=>v.replace(/[^0-9]/g,"");
 export default function WhatsAppWorkspace(){
- const[phone,setPhone]=useState(""),[body,setBody]=useState(""),[mode,setMode]=useState<"text"|"template">("text"),[templateName,setTemplateName]=useState(""),[languageCode,setLanguageCode]=useState("en_US"),[busy,setBusy]=useState(false),[message,setMessage]=useState(""),[configured,setConfigured]=useState<boolean|null>(null),[recent,setRecent]=useState<any[]>([]);
+ const[phone,setPhone]=useState(""),[body,setBody]=useState(""),[mode,setMode]=useState<"text"|"template">("text"),[templateName,setTemplateName]=useState(""),[languageCode,setLanguageCode]=useState("en_US"),[busy,setBusy]=useState(false),[message,setMessage]=useState(""),[configured,setConfigured]=useState<boolean|null>(null),[recent,setRecent]=useState<unknown[]>([]);
  async function load(){try{const r=await fetch("/api/whatsapp-templates"),d=await r.json();if(!r.ok)throw new Error(d.error||"Could not load WhatsApp status");setConfigured(!!d.hasRealAPI);setRecent(d.recent||[])}catch(e){setMessage(e.message||"Could not load WhatsApp status")}}
  useEffect(()=>{load()},[]);
  const normalized=digits(phone),directUrl=useMemo(()=>normalized?`https://wa.me/${normalized}${body?`?text=${encodeURIComponent(body)}`:""}`:"",[normalized,body]);

@@ -7,7 +7,8 @@ check("Notification center sanitizes stored links",page.includes("safeInternalPa
 check("Notification read mutation is owner scoped",page.includes("eq(notifications.userId,String(session.user.id))"));
 check("Notification poll is owner scoped",poll.includes("eq(notifications.userId,String(session.user.id))"));
 check("Notification poll is bounded and no-store",poll.includes(".limit(100)")&&poll.includes('"Cache-Control":"private, no-store"'));
-check("File API derives explicit workspace boundary from authenticated session",files.includes("async function sessionScope()")&&files.includes("workspaceId=clean((session.user as any).workspaceId")&&!files.includes('const WORKSPACE="default"'));
+const fileSessionWorkspace=(files.includes("workspaceId=clean((session.user as any).workspaceId")||files.includes("workspaceId=clean(sessionUser.workspaceId"));
+check("File API derives explicit workspace boundary from authenticated session",files.includes("async function sessionScope()")&&files.includes("const session=await auth()")&&fileSessionWorkspace&&files.includes("if(!workspaceId||!userId)return null")&&!files.includes('const WORKSPACE="default"'));
 check("Every file role scope is constrained by file workspace",files.includes("workspace=eq(fileDocuments.workspaceId,workspaceId)")&&files.includes("return and(workspace"));
 check("Accountant file categories cannot bypass workspace",files.includes('if(role==="ACCOUNTANT")return and(workspace,or(own,inArray(fileDocuments.category'));
 check("Client assignment lookup is workspace scoped",files.includes("eq(clients.workspaceId,workspaceId)"));

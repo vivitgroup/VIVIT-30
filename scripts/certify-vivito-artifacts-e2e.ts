@@ -24,7 +24,7 @@ if(latinSample)fs.writeFileSync('.vivito/artifact-latin-sample.pdf',latinSample)
 if(arabicSample)fs.writeFileSync('.vivito/artifact-arabic-sample.html',arabicSample,'utf8');
 if(xlsxSample)fs.writeFileSync('.vivito/artifact-xlsx-sample.xlsx',xlsxSample);
 const hashes={latinPdf:latinSample?sha(latinSample):'',arabicPrintHtml:arabicSample?sha(arabicSample):'',xlsx:xlsxSample?sha(xlsxSample):''};
-let baseline:any=null;try{baseline=JSON.parse(fs.readFileSync('certification/artifact-visual-baseline.json','utf8'))}catch{}
+let baseline:unknown=null;try{baseline=JSON.parse(fs.readFileSync('certification/artifact-visual-baseline.json','utf8'))}catch{}
 const visualInspectionPassed=!!baseline&&baseline.latinPdf===hashes.latinPdf&&baseline.arabicPrintHtml===hashes.arabicPrintHtml&&baseline.xlsx===hashes.xlsx&&baseline.inspected===true;
 const report={passed:structuralPassed&&pdfCases===20&&xlsxCases===10&&arabicRtlPassed,pdfCases,xlsxCases,arabicRtlPassed,visualInspectionPassed,structuralPassed,hashes,note:visualInspectionPassed?"Exact renderer outputs match the inspected visual baseline.":"Structural batch passed. Exact sample hashes require rendered visual inspection before certification."};
 fs.writeFileSync('.vivito/artifact-e2e.json',JSON.stringify(report,null,2));

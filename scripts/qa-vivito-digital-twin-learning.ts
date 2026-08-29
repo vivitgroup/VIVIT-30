@@ -9,8 +9,8 @@ const a=[
  {kind:"CORRECTION",text:"Do not position Client A as discount-first",createdAt:now,source:"memory",scopeId:"A"},
  {kind:"OUTCOME",text:"Retargeting campaign improved qualified leads",createdAt:now,source:"memory",scopeId:"A"},
  {kind:"LEARNING",text:"For Client A, premium proof beats discount messaging",createdAt:now,source:"memory",scopeId:"A"},
-] as any[];
-const b=[{kind:"FACT",text:"Client B is a restaurant",createdAt:now,source:"memory",scopeId:"B"}] as any[];
+] as unknown[];
+const b=[{kind:"FACT",text:"Client B is a restaurant",createdAt:now,source:"memory",scopeId:"B"}] as unknown[];
 const ta=buildVivitoClientTwin("A",a),tb=buildVivitoClientTwin("B",b);
 assert(ta.profile.some(x=>x.includes("skincare")),"A twin missed fact");
 assert(!clientTwinContext([tb]).includes("skincare"),"cross-client leakage detected");

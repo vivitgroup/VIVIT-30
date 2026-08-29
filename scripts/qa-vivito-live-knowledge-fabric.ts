@@ -3,7 +3,7 @@ import {VIVITO_KNOWLEDGE_SOURCES,detectKnowledgeDomains,isEgyptQuery,rankVivitoS
 
 let passed=0;const checks:{name:string;ok:boolean}[]=[];const check=(name:string,ok:boolean)=>{checks.push({name,ok});if(ok){passed++;console.log("PASS ",name)}else console.error("FAIL ",name)};
 const domains=new Set(VIVITO_KNOWLEDGE_SOURCES.map(s=>s.domain));
-check("covers all six live-knowledge domains",["MARKETING","BUSINESS","SALES","FINANCE","REAL_ESTATE","HR"].every(x=>domains.has(x as any)));
+check("covers all six live-knowledge domains",["MARKETING","BUSINESS","SALES","FINANCE","REAL_ESTATE","HR"].every(x=>domains.has(x as unknown)));
 const egyptRE=VIVITO_KNOWLEDGE_SOURCES.filter(s=>s.domain==="REAL_ESTATE"&&s.market==="EGYPT");
 check("Egypt real estate has at least six official sources",egyptRE.length>=6&&egyptRE.every(s=>s.authority==="OFFICIAL_PRIMARY"));
 check("Egypt real estate includes CAPMAS",egyptRE.some(s=>/capmas/i.test(s.id+s.name)));

@@ -6,7 +6,7 @@ async function main(){
  fs.mkdirSync('.vivito',{recursive:true});
  const roles=['SUPER_ADMIN','ACCOUNT_MANAGER','MEDIA_BUYER','CREATOR','SALES','ACCOUNTANT','CLIENT'];
  const ops=(Object.keys(VIVITO_ACTION_CATALOG) as VivitoActionOp[]).filter(isVivitoOperatorAction);
- let cases=0,blocked=0,criticalFailures=0;const failures:any[]=[];
+ let cases=0,blocked=0,criticalFailures=0;const failures:unknown[]=[];
  for(const op of ops){
    const allowed=new Set<string>(VIVITO_ACTION_CATALOG[op].roles as readonly string[]);
    for(const role of roles){

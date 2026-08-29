@@ -67,7 +67,7 @@ async function main() {
       mediaBuyerId: U[c.mb].id,
       colorPalette: c.colors,
       healthScore: c.health,
-      churnRisk: c.churn as any,
+      churnRisk: c.churn as unknown,
       churnProbability: c.churn === "HIGH" ? 0.72 : c.churn === "MEDIUM" ? 0.38 : 0.12,
       lifetimeValue: c.ret * 18,
       contractStart: new Date("2024-01-01"),
@@ -145,8 +145,8 @@ async function main() {
         commissionRate: 10,
         commissionPaid: isPaid ? Math.floor(total * 0.1) : 0,
       }).onConflictDoUpdate({
-        target: [schema.financeRecords.clientId, schema.financeRecords.month as any, schema.financeRecords.year as any],
-        set: { paid, outstanding, invoiceStatus: isPaid ? "PAID" : "SENT" as any, updatedAt: new Date() },
+        target: [schema.financeRecords.clientId, schema.financeRecords.month as unknown, schema.financeRecords.year as unknown],
+        set: { paid, outstanding, invoiceStatus: isPaid ? "PAID" : "SENT" as unknown, updatedAt: new Date() },
       });
       finCount++;
     }
@@ -175,8 +175,8 @@ async function main() {
         assignedToId:  creator.id,
         title:         `${type} — ${cl.companyName} — Week ${i+1}`,
         type,
-        status:        status as any,
-        priority:      priorities[i % priorities.length] as any,
+        status:        status as unknown,
+        priority:      priorities[i % priorities.length] as unknown,
         deadline,
         brief:         `Create a ${type.toLowerCase()} for ${cl.companyName} in the ${cl.industry} sector.\n\nTONE: Professional, engaging, on-brand.\nOBJECTIVE: Drive awareness and leads.\nDIMENSIONS: ${type==="REEL"||type==="STORY"?"1080×1920 (9:16)":"1080×1080 (1:1)"}.\nDURATION: ${type==="REEL"?"15-30 seconds":type==="STORY"?"15 seconds":"N/A"}.\n\nDO: Use brand colors ${cl.colorPalette}, include CTA.\nDON'T: Use stock photos, watermarks.`,
         fileUrl:       status === "REVIEW" || status === "APPROVED" || status === "COMPLETED"

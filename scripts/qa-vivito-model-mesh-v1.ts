@@ -49,7 +49,7 @@ async function main(){
   phase="auth";
   await check("authentication failure also fails over safely",async()=>{const out=await generateViaVivitoMesh("q","s",{task:"reasoning"});assert.equal(out.modelId,"fast");assert.ok(out.errors.some(x=>x.includes("provider-auth-failure")))});
   await check("auth-failed model is hard excluded from routing",()=>{assert.equal(vivitoMeshHealth("reasoner").health,"AUTH_FAILURE");assert.equal(rankVivitoMeshModels("reasoning").some(x=>x.id==="reasoner"),false)});
-  await check("mesh summary exposes configured providers and safe health ledger",()=>{const s=vivitoMeshSummary();assert.equal(s.configured,2);assert.equal(s.providers,2);assert.equal(s.models.includes("missing"),false);assert.equal((s.health as any).reasoner.health,"AUTH_FAILURE")});
+  await check("mesh summary exposes configured providers and safe health ledger",()=>{const s=vivitoMeshSummary();assert.equal(s.configured,2);assert.equal(s.providers,2);assert.equal(s.models.includes("missing"),false);assert.equal((s.health as unknown).reasoner.health,"AUTH_FAILURE")});
 
   delete process.env.VIVITO_MODEL_MESH_JSON;process.env.VIVITO_DEFAULT_MODEL_POOL="1";resetVivitoMeshHealth();
   await check("default pool contains at least twenty real model routes",()=>{const all=loadVivitoModelMesh();assert.ok(all.length>=20);assert.equal(all.length,VIVITO_DEFAULT_MODEL_POOL_META.modelCount)});

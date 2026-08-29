@@ -1,0 +1,76 @@
+name: CTO Targeted Finance Typing
+
+on:
+  push:
+    branches:
+      - feat/vivito-internal-100
+    paths:
+      - .github/workflows/cto-targeted-finance-typing.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-internal-100
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Apply exact session typing replacements
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          replacements = {
+              "app/dashboard/finance/page.tsx": {
+                  "(session.user as any).workspaceId": "session.user.workspaceId",
+                  "(session.user as any).role": "session.user.role",
+                  "(session.user as any).id": "session.user.id",
+              },
+              "app/api/pdf-report/[clientId]/route.ts": {
+                  "(session.user as any).workspaceId": "session.user.workspaceId",
+                  "(v:any)": "(v:unknown)",
+                  "(n:any)": "(n:unknown)",
+              },
+          }
+
+          total = 0
+          for file, mapping in replacements.items():
+              path = Path(file)
+              text = path.read_text()
+              original = text
+              for old, new in mapping.items():
+                  count = text.count(old)
+                  if count:
+                      print(f"{file}: {old} -> {new} x{count}")
+                      text = text.replace(old, new)
+                      total += count
+              if text != original:
+                  path.write_text(text)
+
+          if total < 2:
+              raise SystemExit(f"Expected at least 2 targeted replacements, got {total}")
+          PY
+      - name: TypeScript acceptance
+        run: npx tsc --noEmit
+      - name: Finance reports acceptance
+        run: node scripts/qa-finance-reports.mjs
+      - name: Commit verified source patch
+        run: |
+          if git diff --quiet -- app/dashboard/finance/page.tsx 'app/api/pdf-report/[clientId]/route.ts'; then
+            echo "No source changes to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/dashboard/finance/page.tsx 'app/api/pdf-report/[clientId]/route.ts'
+          git commit -m "fix(finance): type live workspace session contract"
+          git push origin HEAD:feat/vivito-internal-100

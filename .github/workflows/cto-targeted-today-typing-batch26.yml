@@ -1,0 +1,75 @@
+name: CTO Targeted Today Dashboard Typing Batch 26
+
+on:
+  push:
+    branches: [feat/vivito-internal-100]
+    paths:
+      - '.github/workflows/cto-targeted-today-typing-batch26.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-internal-100
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply today dashboard typing remediation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('app/dashboard/today/page.tsx'); s=p.read_text()
+          marker='import Link from "next/link";\n'
+          types='''import Link from "next/link";\ntype SessionUser={role?:string;id?:string;workspaceId?:string};\ntype ClientRow={id:string;company_name:string};\ntype TaskRow={id:string;title:string;status:string;priority:string;deadline:string|number|Date;company_name:string};\ntype MediaRow={company_name:string;id:string;name:string;status:string;reported_result_label:string|null;spend:unknown;results:unknown;atc:unknown;purchases:unknown};\ntype BillingRow={company_name:string;outstanding:unknown;status:string|null;cycle_day:unknown};\ntype LeadRow={id:string;company_name:string;contact_person:string|null;stage:string;estimated_value:unknown;probability:unknown;updated_at:string|number|Date};\nconst rows=<T extends Record<string,unknown>>(value:unknown)=>Array.from(value as Iterable<T>);\n'''
+          if marker not in s: raise SystemExit('import marker missing')
+          s=s.replace(marker,types,1)
+          old='const num=(v:any)=>Number(v||0),money=(v:any)=>`${Math.round(num(v)).toLocaleString("en-EG")} EGP`,d=(v:any)=>v?new Intl.DateTimeFormat("en-GB",{day:"2-digit",month:"short"}).format(new Date(v)):"—";'
+          new='const num=(v:unknown)=>Number(v||0),money=(v:unknown)=>`${Math.round(num(v)).toLocaleString("en-EG")} EGP`,d=(v:string|number|Date|null|undefined)=>v?new Intl.DateTimeFormat("en-GB",{day:"2-digit",month:"short"}).format(new Date(v)):"—";'
+          if old not in s: raise SystemExit('formatters missing')
+          s=s.replace(old,new,1)
+          old='async function getScope(role:string,userId:string,workspaceId:string){if(["SUPER_ADMIN","ACCOUNTANT"].includes(role))return Array.from(await db.execute(sql`select id,company_name from clients where workspace_id=${workspaceId} and is_active=true order by company_name`));if(role==="ACCOUNT_MANAGER")return Array.from(await db.execute(sql`select id,company_name from clients where workspace_id=${workspaceId} and is_active=true and account_manager_id=${userId} order by company_name`));if(role==="MEDIA_BUYER")return Array.from(await db.execute(sql`select id,company_name from clients where workspace_id=${workspaceId} and is_active=true and media_buyer_id=${userId} order by company_name`));if(role==="CLIENT")return Array.from(await db.execute(sql`select id,company_name from clients where workspace_id=${workspaceId} and is_active=true and user_id=${userId} limit 1`));return []}'
+          new='async function getScope(role:string,userId:string,workspaceId:string):Promise<ClientRow[]>{if(["SUPER_ADMIN","ACCOUNTANT"].includes(role))return rows<ClientRow>(await db.execute(sql`select id,company_name from clients where workspace_id=${workspaceId} and is_active=true order by company_name`));if(role==="ACCOUNT_MANAGER")return rows<ClientRow>(await db.execute(sql`select id,company_name from clients where workspace_id=${workspaceId} and is_active=true and account_manager_id=${userId} order by company_name`));if(role==="MEDIA_BUYER")return rows<ClientRow>(await db.execute(sql`select id,company_name from clients where workspace_id=${workspaceId} and is_active=true and media_buyer_id=${userId} order by company_name`));if(role==="CLIENT")return rows<ClientRow>(await db.execute(sql`select id,company_name from clients where workspace_id=${workspaceId} and is_active=true and user_id=${userId} limit 1`));return []}'
+          if old not in s: raise SystemExit('getScope missing')
+          s=s.replace(old,new,1)
+          old='export default async function TodayPage(){const session=await auth();if(!session?.user)redirect("/login");const role=String((session.user as any).role||""),userId=String((session.user as any).id||""),workspaceId=String((session.user as any).workspaceId||"");if(!workspaceId)redirect("/login?reason=workspace_missing");const clients:any[]=await getScope(role,userId,workspaceId),ids=clients.map(x=>String(x.id)),canSeeFinance=["SUPER_ADMIN","ACCOUNTANT"].includes(role);let tasks:any[]=[];'
+          new='export default async function TodayPage(){const session=await auth();if(!session?.user)redirect("/login");const sessionUser=session.user as unknown as SessionUser,role=String(sessionUser.role||""),userId=String(sessionUser.id||""),workspaceId=String(sessionUser.workspaceId||"");if(!workspaceId)redirect("/login?reason=workspace_missing");const clients=await getScope(role,userId,workspaceId),ids=clients.map(x=>String(x.id)),canSeeFinance=["SUPER_ADMIN","ACCOUNTANT"].includes(role);let tasks:TaskRow[]=[];'
+          if old not in s: raise SystemExit('page session/tasks fragment missing')
+          s=s.replace(old,new,1)
+          s=s.replace('tasks=Array.from(await db.execute(sql`select t.id,t.title,t.status,t.priority,t.deadline,c.company_name from creative_tasks t join clients c on c.id=t.client_id where t.workspace_id=${workspaceId} and c.workspace_id=${workspaceId} and t.archived_at is null and t.deleted_at is null and c.is_active=true and t.assigned_to_id=${userId} and t.status not in (\'COMPLETED\',\'REJECTED\') order by t.deadline asc limit 40`));','tasks=rows<TaskRow>(await db.execute(sql`select t.id,t.title,t.status,t.priority,t.deadline,c.company_name from creative_tasks t join clients c on c.id=t.client_id where t.workspace_id=${workspaceId} and c.workspace_id=${workspaceId} and t.archived_at is null and t.deleted_at is null and c.is_active=true and t.assigned_to_id=${userId} and t.status not in (\'COMPLETED\',\'REJECTED\') order by t.deadline asc limit 40`));',1)
+          s=s.replace('tasks=Array.from(await db.execute(sql`select t.id,t.title,t.status,t.priority,t.deadline,c.company_name from creative_tasks t join clients c on c.id=t.client_id where t.workspace_id=${workspaceId} and c.workspace_id=${workspaceId} and t.archived_at is null and t.deleted_at is null and c.is_active=true and t.client_id in (${sql.join(ids.map(id=>sql`${id}`),sql`,`)}) and t.status not in (\'COMPLETED\',\'REJECTED\') order by t.deadline asc limit 50`));','tasks=rows<TaskRow>(await db.execute(sql`select t.id,t.title,t.status,t.priority,t.deadline,c.company_name from creative_tasks t join clients c on c.id=t.client_id where t.workspace_id=${workspaceId} and c.workspace_id=${workspaceId} and t.archived_at is null and t.deleted_at is null and c.is_active=true and t.client_id in (${sql.join(ids.map(id=>sql`${id}`),sql`,`)}) and t.status not in (\'COMPLETED\',\'REJECTED\') order by t.deadline asc limit 50`));',1)
+          old='let media:any[]=[];if(ids.length&&["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CLIENT"].includes(role))media=Array.from(await db.execute('
+          new='let media:MediaRow[]=[];if(ids.length&&["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CLIENT"].includes(role))media=rows<MediaRow>(await db.execute('
+          if old not in s: raise SystemExit('media fragment missing')
+          s=s.replace(old,new,1)
+          old='let billing:any[]=[];if(ids.length&&canSeeFinance)billing=Array.from(await db.execute('
+          new='let billing:BillingRow[]=[];if(ids.length&&canSeeFinance)billing=rows<BillingRow>(await db.execute('
+          if old not in s: raise SystemExit('billing fragment missing')
+          s=s.replace(old,new,1)
+          old='let leads:any[]=[];if(["SUPER_ADMIN","SALES"].includes(role))leads=Array.from(await db.execute('
+          new='let leads:LeadRow[]=[];if(["SUPER_ADMIN","SALES"].includes(role))leads=rows<LeadRow>(await db.execute('
+          if old not in s: raise SystemExit('leads fragment missing')
+          s=s.replace(old,new,1)
+          if ':any' in s or ' as any' in s:
+              raise SystemExit('explicit any remains in today dashboard')
+          p.write_text(s)
+          PY
+      - name: TypeScript acceptance
+        run: npx tsc --noEmit
+      - name: Targeted ESLint acceptance
+        run: npx eslint app/dashboard/today/page.tsx --max-warnings=0
+      - name: Commit validated remediation
+        run: |
+          git config user.name 'vivitgroup'
+          git config user.email 'groupvivit@gmail.com'
+          git add app/dashboard/today/page.tsx
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix(types): harden today dashboard data boundaries'
+          git push origin HEAD:feat/vivito-internal-100

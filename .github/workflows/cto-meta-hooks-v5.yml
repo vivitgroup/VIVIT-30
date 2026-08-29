@@ -1,0 +1,51 @@
+name: CTO Meta Hooks V5
+
+on:
+  push:
+    branches: [feat/vivito-static-meta-hooks-v5]
+    paths: ['.github/workflows/cto-meta-hooks-v5.yml']
+  workflow_dispatch:
+permissions: {contents: write}
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: feat/vivito-static-meta-hooks-v5, fetch-depth: 0}
+      - uses: actions/setup-node@v4
+        with: {node-version: 22, cache: npm}
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Stabilize Meta panel effects
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs=require('node:fs'),file='components/media/MetaAccountConnectPanel.tsx';let s=fs.readFileSync(file,'utf8');
+          const oldImport='import {useEffect,useRef,useState} from "react";';if((s.split(oldImport).length-1)!==1)throw new Error('import mismatch');s=s.replace(oldImport,'import {useCallback,useEffect,useRef,useState} from "react";');
+          const from=` const autoRan=useRef(false);\n async function load(){const to=iso(new Date()),r=await fetch(\`/api/media-control-v2?from=\${CUTOFF}&to=\${to}\`,{cache:"no-store"}),d=await read(r);if(r.ok)setData(d)}\n useEffect(()=>{load();const q=new URLSearchParams(location.search),oauth=q.get("oauth"),connectionId=q.get("connectionId");if(oauth==="success"&&connectionId){setTone("info");setMsg("Meta connected. Updating campaign data…");syncAll(connectionId,true)}else if(oauth==="error"){setTone("warn");setMsg(q.get("message")||"Meta connection failed")};history.replaceState({},"",location.pathname)},[]);\n useEffect(()=>{if(autoRan.current)return;const accounts=(data.accountGroups||[]).filter((a:any)=>a.platform==="META"&&a.status!=="DISABLED"&&(a.status==="CONNECTED"||a.status==="ERROR"));if(!accounts.length)return;autoRan.current=true;const stale=accounts.filter((a:any)=>!a.lastSyncAt||Date.now()-new Date(a.lastSyncAt).getTime()>STALE_MS);if(!stale.length){setTone("ok");setMsg("");return}(async()=>{setTone("info");setMsg("Updating Meta data…");for(let i=0;i<stale.length;i++){const result=await syncAll(stale[i].id,true,false);if(result?.rateLimited){setTone("warn");setMsg("Meta is temporarily rate-limiting requests. Showing the latest successful data; automatic sync will retry later.");break}if(i<stale.length-1)await sleep(1200)}await load();if(!isRateLimit(msg)){setTone("ok");setMsg("")}})()},[data.accountGroups]);\n function connect(a:any){const p=new URLSearchParams({clientId:a.clientId,adAccountId:String(a.adAccountId||"").replace(/^act_/i,""),accountName:a.accountName||"Meta Ad Account"});router.push(\`/api/ad-oauth/meta/start?\${p}\`)}\n async function syncAll(id:string,auto=false,reload=true){setBusy(id);if(!auto){setTone("info");setMsg("")}const r=await fetch("/api/media-discover",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({connectionId:id})}),d=await read(r),rateLimited=isRateLimit(d.error)||isRateLimit(d.failures?.map((x:any)=>x.error).join(" "));if(r.ok&&!rateLimited){if(!auto){setTone("ok");setMsg(\`Updated \${d.synced||0} campaigns from Meta.\`)}}else if(rateLimited){setTone("warn");setMsg("Meta is temporarily rate-limiting requests. Latest successful data is still available and sync will retry automatically.")}else{setTone("warn");setMsg(d.error||"Meta refresh failed")}setBusy("");if(reload)await load();return{ok:r.ok,rateLimited}}\n`;
+          const to=` const autoRan=useRef(false);\n const load=useCallback(async()=>{const to=iso(new Date()),r=await fetch(\`/api/media-control-v2?from=\${CUTOFF}&to=\${to}\`,{cache:"no-store"}),d=await read(r);if(r.ok)setData(d)},[]);\n const syncAll=useCallback(async(id:string,auto=false,reload=true)=>{setBusy(id);if(!auto){setTone("info");setMsg("")}const r=await fetch("/api/media-discover",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({connectionId:id})}),d=await read(r),rateLimited=isRateLimit(d.error)||isRateLimit(d.failures?.map((x:any)=>x.error).join(" "));if(r.ok&&!rateLimited){if(!auto){setTone("ok");setMsg(\`Updated \${d.synced||0} campaigns from Meta.\`)}}else if(rateLimited){setTone("warn");setMsg("Meta is temporarily rate-limiting requests. Latest successful data is still available and sync will retry automatically.")}else{setTone("warn");setMsg(d.error||"Meta refresh failed")}setBusy("");if(reload)await load();return{ok:r.ok,rateLimited}},[load]);\n useEffect(()=>{const id=window.setTimeout(()=>{void (async()=>{await load();const q=new URLSearchParams(location.search),oauth=q.get("oauth"),connectionId=q.get("connectionId");if(oauth==="success"&&connectionId){setTone("info");setMsg("Meta connected. Updating campaign data…");await syncAll(connectionId,true)}else if(oauth==="error"){setTone("warn");setMsg(q.get("message")||"Meta connection failed")};history.replaceState({},"",location.pathname)})()},0);return()=>window.clearTimeout(id)},[load,syncAll]);\n useEffect(()=>{const id=window.setTimeout(()=>{if(autoRan.current)return;const accounts=(data.accountGroups||[]).filter((a:any)=>a.platform==="META"&&a.status!=="DISABLED"&&(a.status==="CONNECTED"||a.status==="ERROR"));if(!accounts.length)return;autoRan.current=true;const stale=accounts.filter((a:any)=>!a.lastSyncAt||Date.now()-new Date(a.lastSyncAt).getTime()>STALE_MS);if(!stale.length){setTone("ok");setMsg("");return}void (async()=>{setTone("info");setMsg("Updating Meta data…");let rateLimited=false;for(let i=0;i<stale.length;i++){const result=await syncAll(stale[i].id,true,false);if(result?.rateLimited){rateLimited=true;setTone("warn");setMsg("Meta is temporarily rate-limiting requests. Showing the latest successful data; automatic sync will retry later.");break}if(i<stale.length-1)await sleep(1200)}await load();if(!rateLimited){setTone("ok");setMsg("")}})()},0);return()=>window.clearTimeout(id)},[data.accountGroups,load,syncAll]);\n function connect(a:any){const p=new URLSearchParams({clientId:a.clientId,adAccountId:String(a.adAccountId||"").replace(/^act_/i,""),accountName:a.accountName||"Meta Ad Account"});router.push(\`/api/ad-oauth/meta/start?\${p}\`)}\n`;
+          if((s.split(from).length-1)!==1)throw new Error('Meta block mismatch');s=s.replace(from,to);fs.writeFileSync(file,s);
+          NODE
+          git diff --check
+      - name: Acceptance and assertion
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          git diff --check
+          npx eslint components/media/MetaAccountConnectPanel.tsx -f json > /tmp/e.json || true
+          node <<'NODE'
+          const r=require('/tmp/e.json'),m=r.flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='react-hooks/set-state-in-effect'),b=m.filter(x=>x.ruleId==='react-hooks/exhaustive-deps');console.log('set_state_remaining='+a.length);console.log('deps_remaining='+b.length);console.log(JSON.stringify([...a,...b].map(x=>[x.ruleId,x.line,x.message])));if(a.length||b.length)process.exit(1)
+          NODE
+      - name: Full lint and commit
+        shell: bash
+        run: |
+          npx eslint . -f json > /tmp/full.json || true
+          node -e "const r=require('/tmp/full.json'),m=r.flatMap(x=>x.messages||[]);console.log('remaining_total='+m.length);console.log('remaining_any='+m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any').length)"
+          git config user.name 'VIVIT CTO Gate Bot';git config user.email 'groupvivit@gmail.com';git add components/media/MetaAccountConnectPanel.tsx;git commit -m 'fix(react): stabilize Meta panel effects [skip ci]' && git push origin HEAD:feat/vivito-static-meta-hooks-v5

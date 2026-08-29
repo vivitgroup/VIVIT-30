@@ -1,0 +1,34 @@
+name: CTO React Diagnostic V3
+
+on:
+  push:
+    branches: [feat/vivito-static-react-diagnostic-v3]
+    paths:
+      - '.github/workflows/cto-react-diagnostic-v3.yml'
+  workflow_dispatch:
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-static-react-diagnostic-v3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Print React and image findings with source lines
+        shell: bash
+        run: |
+          npx eslint . -f json > /tmp/eslint.json || true
+          node <<'NODE'
+          const fs=require('node:fs'),path=require('node:path');
+          const rows=JSON.parse(fs.readFileSync('/tmp/eslint.json','utf8'));
+          const wanted=new Set(['react-hooks/set-state-in-effect','react-hooks/exhaustive-deps','@next/next/no-img-element']);
+          let total=0;
+          for(const row of rows){const rel=path.relative(process.cwd(),row.filePath).replaceAll('\\','/');const lines=fs.readFileSync(row.filePath,'utf8').split(/\r?\n/);for(const m of row.messages||[]){if(!wanted.has(m.ruleId))continue;total++;const line=m.line||0;console.log(`FINDING\t${rel}:${line}:${m.column||0}\t${m.ruleId}\t${m.message}`);for(let i=Math.max(0,line-2);i<=Math.min(lines.length-1,line);i++)console.log(`SRC${i+1}\t${lines[i]}`)}}
+          console.log(`wanted_total=${total}`);
+          NODE

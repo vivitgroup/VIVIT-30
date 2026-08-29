@@ -1,0 +1,91 @@
+name: CTO Lint Safe Cleanup
+
+on:
+  push:
+    branches: [feat/vivito-lint-safe-cleanup]
+    paths:
+      - '.github/workflows/cto-lint-safe-cleanup.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-lint-safe-cleanup
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Baseline TypeScript
+        run: npm run type-check
+      - name: Apply ESLint-provided unused-variable removal suggestions only
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs=require('node:fs');
+          const path=require('node:path');
+          const {spawnSync}=require('node:child_process');
+          const lint=spawnSync('npx',['eslint','.','-f','json'],{encoding:'utf8',maxBuffer:64*1024*1024});
+          if(!lint.stdout.trim())throw new Error(lint.stderr||'ESLint JSON missing');
+          const rows=JSON.parse(lint.stdout);
+          let applied=0;
+          for(const row of rows){
+            const rel=path.relative(process.cwd(),row.filePath).replaceAll('\\','/');
+            if(rel.startsWith('..')||!fs.existsSync(rel))continue;
+            const fixes=[];
+            for(const msg of row.messages||[]){
+              if(msg.ruleId!=='@typescript-eslint/no-unused-vars')continue;
+              const suggestion=(msg.suggestions||[]).find(s=>s?.fix?.text===''&&Array.isArray(s?.fix?.range));
+              if(suggestion)fixes.push({start:suggestion.fix.range[0],end:suggestion.fix.range[1]});
+            }
+            const unique=[...new Map(fixes.map(f=>[`${f.start}:${f.end}`,f])).values()].sort((a,b)=>b.start-a.start);
+            if(!unique.length)continue;
+            let text=fs.readFileSync(rel,'utf8'), lastStart=Infinity;
+            for(const f of unique){
+              if(f.end>lastStart)continue;
+              text=text.slice(0,f.start)+text.slice(f.end);
+              lastStart=f.start; applied++;
+            }
+            fs.writeFileSync(rel,text);
+          }
+          console.log(`eslint_unused_suggestions_applied=${applied}`);
+          NODE
+      - name: Compiler and invariant acceptance
+        run: |
+          npm run type-check
+          git diff --check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Report lint after cleanup
+        shell: bash
+        run: |
+          npx eslint . -f json > /tmp/eslint-after.json || true
+          node <<'NODE'
+          const fs=require('node:fs');
+          const rows=JSON.parse(fs.readFileSync('/tmp/eslint-after.json','utf8'));
+          const m=rows.flatMap(r=>r.messages||[]), c={};
+          for(const x of m)c[x.ruleId||'(parser)']=(c[x.ruleId||'(parser)']||0)+1;
+          console.log(`remaining_total=${m.length}`);
+          console.log(`remaining_unused=${m.filter(x=>x.ruleId==='@typescript-eslint/no-unused-vars').length}`);
+          console.log('top_rules='+JSON.stringify(Object.entries(c).sort((a,b)=>b[1]-a[1]).slice(0,20)));
+          NODE
+      - name: Commit verified cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git add app components lib scripts types proxy.ts auth.config.ts 2>/dev/null || true
+          if ! git diff --cached --quiet; then
+            git commit -m 'fix(lint): remove verified unused declarations [skip ci]'
+            git push origin HEAD:feat/vivito-lint-safe-cleanup
+          fi

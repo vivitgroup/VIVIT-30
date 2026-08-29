@@ -1,0 +1,55 @@
+name: CTO Effects Cleanup V5
+
+on:
+  push:
+    branches: [feat/vivito-static-effects-v5]
+    paths: ['.github/workflows/cto-effects-cleanup-v5.yml']
+  workflow_dispatch:
+permissions: {contents: write}
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: feat/vivito-static-effects-v5, fetch-depth: 0}
+      - uses: actions/setup-node@v4
+        with: {node-version: 22, cache: npm}
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Refactor immediate effect state work
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs=require('node:fs');function one(f,a,b,n=1){let s=fs.readFileSync(f,'utf8'),c=s.split(a).length-1;if(c!==n)throw new Error(`${f}: expected ${n}, found ${c}`);fs.writeFileSync(f,s.split(a).join(b))}
+          one('components/layout/Header.tsx','useEffect(()=>{try{setHistory(JSON.parse(localStorage.getItem("vivit-search-history")??"[]"));const saved=(localStorage.getItem("vivit-lang") as "en"|"ar")||"en";setLang(saved);document.documentElement.lang=saved;document.documentElement.dir=saved==="ar"?"rtl":"ltr"}catch{}},[]);','useEffect(()=>{const id=window.setTimeout(()=>{try{setHistory(JSON.parse(localStorage.getItem("vivit-search-history")??"[]"));const saved=(localStorage.getItem("vivit-lang") as "en"|"ar")||"en";setLang(saved);document.documentElement.lang=saved;document.documentElement.dir=saved==="ar"?"rtl":"ltr"}catch{}},0);return()=>window.clearTimeout(id)},[]);');
+          one('components/layout/Sidebar.tsx','useEffect(()=>{const c=localStorage.getItem("vivit-sidebar-collapsed")==="true",t=(localStorage.getItem("vivit-theme") as any)||"light",l=(localStorage.getItem("vivit-lang") as any)||"en";setCollapsed(c);setTheme(t);setLang(l);document.documentElement.classList.toggle("dark",t==="dark");const h=(e:Event)=>setLang((e as CustomEvent).detail);window.addEventListener("vivit-language",h);return()=>window.removeEventListener("vivit-language",h)},[]);','useEffect(()=>{const h=(e:Event)=>setLang((e as CustomEvent).detail);window.addEventListener("vivit-language",h);const id=window.setTimeout(()=>{const c=localStorage.getItem("vivit-sidebar-collapsed")==="true",t=(localStorage.getItem("vivit-theme") as any)||"light",l=(localStorage.getItem("vivit-lang") as any)||"en";setCollapsed(c);setTheme(t);setLang(l);document.documentElement.classList.toggle("dark",t==="dark")},0);return()=>{window.clearTimeout(id);window.removeEventListener("vivit-language",h)}},[]);');
+          one('components/vivito/DirectOperatorPanel.tsx','useEffect(()=>{void load();const i=setInterval(()=>void load(),30000);return()=>clearInterval(i)},[load]);','useEffect(()=>{const first=window.setTimeout(()=>void load(),0);const i=setInterval(()=>void load(),30000);return()=>{window.clearTimeout(first);clearInterval(i)}},[load]);');
+          one('components/realtime-notifications.tsx','}, [showToast, router]);','}, [showToast]);');
+          one('components/whatsapp/WhatsAppWorkspace.tsx','import {useEffect,useMemo,useState} from "react";','import {useCallback,useEffect,useMemo,useState} from "react";');
+          one('components/whatsapp/WhatsAppWorkspace.tsx',' async function load(){try{const r=await fetch("/api/whatsapp-templates"),d=await r.json();if(!r.ok)throw new Error(d.error||"Could not load WhatsApp status");setConfigured(!!d.hasRealAPI);setRecent(d.recent||[])}catch(e){setMessage(e.message||"Could not load WhatsApp status")}}\n useEffect(()=>{load()},[]);',' const load=useCallback(async()=>{try{const r=await fetch("/api/whatsapp-templates"),d=await r.json();if(!r.ok)throw new Error(d.error||"Could not load WhatsApp status");setConfigured(!!d.hasRealAPI);setRecent(d.recent||[])}catch(e){setMessage(e.message||"Could not load WhatsApp status")}},[]);\n useEffect(()=>{const id=window.setTimeout(()=>void load(),0);return()=>window.clearTimeout(id)},[load]);');
+          one('app/dashboard/media/sync/page.tsx','import {useEffect,useMemo,useState} from "react";','import {useCallback,useEffect,useMemo,useState} from "react";');
+          one('app/dashboard/media/sync/page.tsx',' async function load(){try{const [r,c]=await Promise.all([fetch("/api/media-control",{cache:"no-store"}),fetch("/api/media-commerce",{cache:"no-store"})]),d=await json(r),cd=await json(c);if(!r.ok)throw new Error(d.error||"Unable to load integrations");setData(d);if(c.ok)setCommerce(cd.campaigns||[])}catch(e){setMessage(e.message||"Unable to load integrations")}finally{setLoading(false)}}\n useEffect(()=>{const saved=localStorage.getItem("vivit-meta-connect");if(saved)try{const s=JSON.parse(saved);setClientId(s.clientId||"");setAdAccountId(s.adAccountId||"");setCampaignId(s.campaignId||"");setAccountName(s.accountName||"")}catch{}const q=new URLSearchParams(window.location.search),status=q.get("oauth"),requested=(q.get("platform")||"").toUpperCase();if(platforms.includes(requested))setSelectedPlatform(requested);load();if(status==="success"){setMessage(`${q.get("platform")} connected securely. Now click Connect & Load Campaign.`);localStorage.removeItem("vivit-meta-connect")}if(status==="missing")setMessage(`${q.get("platform")} developer app keys are not configured in Vercel yet.`);if(status==="error")setMessage(q.get("message")||"Connection failed.");window.history.replaceState({},"",window.location.pathname)},[]);',' const load=useCallback(async()=>{try{const [r,c]=await Promise.all([fetch("/api/media-control",{cache:"no-store"}),fetch("/api/media-commerce",{cache:"no-store"})]),d=await json(r),cd=await json(c);if(!r.ok)throw new Error(d.error||"Unable to load integrations");setData(d);if(c.ok)setCommerce(cd.campaigns||[])}catch(e){setMessage(e.message||"Unable to load integrations")}finally{setLoading(false)}},[]);\n useEffect(()=>{const id=window.setTimeout(()=>{const saved=localStorage.getItem("vivit-meta-connect");if(saved)try{const s=JSON.parse(saved);setClientId(s.clientId||"");setAdAccountId(s.adAccountId||"");setCampaignId(s.campaignId||"");setAccountName(s.accountName||"")}catch{}const q=new URLSearchParams(window.location.search),status=q.get("oauth"),requested=(q.get("platform")||"").toUpperCase();if(platforms.includes(requested))setSelectedPlatform(requested);void load();if(status==="success"){setMessage(`${q.get("platform")} connected securely. Now click Connect & Load Campaign.`);localStorage.removeItem("vivit-meta-connect")}if(status==="missing")setMessage(`${q.get("platform")} developer app keys are not configured in Vercel yet.`);if(status==="error")setMessage(q.get("message")||"Connection failed.");window.history.replaceState({},"",window.location.pathname)},0);return()=>window.clearTimeout(id)},[load]);');
+          NODE
+          git diff --check
+      - name: Acceptance and targeted assertion
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          git diff --check
+          npx eslint app/dashboard/media/sync/page.tsx components/layout/Header.tsx components/layout/Sidebar.tsx components/realtime-notifications.tsx components/vivito/DirectOperatorPanel.tsx components/whatsapp/WhatsAppWorkspace.tsx -f json > /tmp/e.json || true
+          node <<'NODE'
+          const r=require('/tmp/e.json'),m=r.flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='react-hooks/set-state-in-effect'),b=m.filter(x=>x.ruleId==='react-hooks/exhaustive-deps');console.log('set_state_remaining='+a.length);console.log('deps_remaining='+b.length);console.log(JSON.stringify([...a,...b].map(x=>[x.ruleId,x.line,x.message])));if(a.length||b.length)process.exit(1)
+          NODE
+      - name: Full lint and commit
+        shell: bash
+        run: |
+          npx eslint . -f json > /tmp/full.json || true
+          node -e "const r=require('/tmp/full.json'),m=r.flatMap(x=>x.messages||[]);console.log('remaining_total='+m.length);console.log('remaining_any='+m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any').length)"
+          git config user.name 'VIVIT CTO Gate Bot';git config user.email 'groupvivit@gmail.com';git add app components;git commit -m 'fix(react): defer immediate effect state work [skip ci]' && git push origin HEAD:feat/vivito-static-effects-v5

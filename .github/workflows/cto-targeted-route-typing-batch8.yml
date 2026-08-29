@@ -1,0 +1,55 @@
+name: CTO Targeted Route Typing Batch 8
+
+on:
+  push:
+    branches: [feat/vivito-internal-100]
+    paths:
+      - '.github/workflows/cto-targeted-route-typing-batch8.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-internal-100
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply media portfolio typing remediation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('app/api/media-portfolio-totals/route.ts'); s=p.read_text()
+          replacements=[
+            ('const n=(v:any)=>Number(v||0),DATE=/^\\d{4}-\\d{2}-\\d{2}$/;', 'type MetricRow={campaignId?:unknown;spend?:unknown;impressions?:unknown;reach?:unknown;clicks?:unknown;results?:unknown;purchases?:unknown;addToCart?:unknown;revenue?:unknown};\ntype IdRow={id:unknown};\ntype MetricTotals={spend:number;impressions:number;reach:number;clicks:number;results:number;purchases:number;addToCart:number;revenue:number};\nconst n=(v:unknown)=>Number(v||0),DATE=/^\\d{4}-\\d{2}-\\d{2}$/;'),
+            ('function summarize(rows:any[]){const x=rows.reduce((a:any,p:any)=>{a.spend+=n(p.spend);a.impressions+=n(p.impressions);a.reach+=n(p.reach);a.clicks+=n(p.clicks);a.results+=n(p.results);a.purchases+=n(p.purchases);a.addToCart+=n(p.addToCart);a.revenue+=n(p.revenue);return a},{spend:0,impressions:0,reach:0,clicks:0,results:0,purchases:0,addToCart:0,revenue:0});', 'function summarize(rows:MetricRow[]){const x=rows.reduce<MetricTotals>((a,p)=>{a.spend+=n(p.spend);a.impressions+=n(p.impressions);a.reach+=n(p.reach);a.clicks+=n(p.clicks);a.results+=n(p.results);a.purchases+=n(p.purchases);a.addToCart+=n(p.addToCart);a.revenue+=n(p.revenue);return a},{spend:0,impressions:0,reach:0,clicks:0,results:0,purchases:0,addToCart:0,revenue:0});'),
+            ('const role=String((s.user as any).role),uid=String((s.user as any).id),workspaceId=String((s.user as any).workspaceId||"");', 'const role=String(s.user.role),uid=String(s.user.id),workspaceId=String(s.user.workspaceId||"");'),
+            ('const byCampaign=new Map<string,any[]>();', 'const byCampaign=new Map<string,MetricRow[]>();'),
+            ('const accountMap:any={};', 'const accountMap:Record<string,MetricRow[]>={};'),
+            ('summarize(v as any[])', 'summarize(v)'),
+            ('`)) as any[],archivedIds=archived.map(x=>x.id),archivedRows=archivedIds.length?rows.filter((r:any)=>archivedIds.includes(r.campaignId)):[];', '`)) as IdRow[],archivedIds=archived.map(x=>String(x.id)),archivedRows=archivedIds.length?rows.filter(r=>archivedIds.includes(String(r.campaignId))):[];'),
+          ]
+          for old,new in replacements:
+              if old not in s: raise SystemExit(f'missing expected fragment: {old[:140]}')
+              s=s.replace(old,new,1)
+          p.write_text(s)
+          PY
+      - name: TypeScript acceptance
+        run: npx tsc --noEmit
+      - name: Targeted ESLint acceptance
+        run: npx eslint app/api/media-portfolio-totals/route.ts --max-warnings=0
+      - name: Commit validated remediation
+        run: |
+          git config user.name 'vivitgroup'
+          git config user.email 'groupvivit@gmail.com'
+          git add app/api/media-portfolio-totals/route.ts
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix(types): type media portfolio metrics'
+          git push origin HEAD:feat/vivito-internal-100

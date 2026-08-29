@@ -1,0 +1,44 @@
+name: CTO Static Final Diagnostic
+
+on:
+  push:
+    branches: [feat/vivito-static-final-diagnostic]
+    paths:
+      - '.github/workflows/cto-static-final-diagnostic.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-static-final-diagnostic
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Map remaining non-any lint debt
+        shell: bash
+        run: |
+          npx eslint . -f json > /tmp/eslint.json || true
+          node <<'NODE'
+          const fs=require('node:fs'),path=require('node:path');
+          const rows=JSON.parse(fs.readFileSync('/tmp/eslint.json','utf8'));
+          const out=[];
+          for(const row of rows){
+            const file=path.relative(process.cwd(),row.filePath).replaceAll('\\','/');
+            for(const m of row.messages||[]){
+              if(m.ruleId==='@typescript-eslint/no-explicit-any')continue;
+              out.push({rule:m.ruleId||'(parser)',file,line:m.line,column:m.column,message:m.message});
+            }
+          }
+          out.sort((a,b)=>a.rule.localeCompare(b.rule)||a.file.localeCompare(b.file)||a.line-b.line);
+          console.log(`non_any_total=${out.length}`);
+          for(const x of out)console.log(`${x.rule}|${x.file}|${x.line}:${x.column}|${x.message}`);
+          NODE

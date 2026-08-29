@@ -5,8 +5,8 @@ import {db,emailLogs,clients,contacts,creativeTasks,users,financeRecords} from "
 import {eq,and} from "drizzle-orm";
 
 const RESEND_URL="https://api.resend.com/emails";
-const esc=(v:any)=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]!)).slice(0,2000);
-const email=(v:any)=>String(v??"").trim().toLowerCase().slice(0,254);
+const esc=(v:unknown)=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]!)).slice(0,2000);
+const email=(v:unknown)=>String(v??"").trim().toLowerCase().slice(0,254);
 const validEmail=(v:string)=>/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 const _rate=new Map<string,{count:number;resetAt:number}>();
 function rateOk(key:string){const now=Date.now(),x=_rate.get(key);if(!x||now>x.resetAt){_rate.set(key,{count:1,resetAt:now+3600000});return true}if(x.count>=20)return false;x.count++;return true}
@@ -15,7 +15,7 @@ async function activeClient(clientId:string,workspaceId:string){return db.select
 async function clientRecipients(clientId:string,workspaceId:string){const c=await activeClient(clientId,workspaceId);if(!c)return {client:null,emails:[] as string[]};const [primary,portal]=await Promise.all([db.select({email:contacts.email}).from(contacts).innerJoin(clients,eq(contacts.clientId,clients.id)).where(and(eq(contacts.clientId,clientId),eq(contacts.isPrimary,true),eq(clients.workspaceId,workspaceId),eq(clients.isActive,true))).limit(1).then(r=>r[0]),c.userId?db.select({email:users.email}).from(users).where(and(eq(users.id,c.userId),eq(users.workspaceId,workspaceId),eq(users.isActive,true))).limit(1).then(r=>r[0]):Promise.resolve(null)]);return {client:c,emails:[email(primary?.email),email(portal?.email)].filter(validEmail)}}
 export async function POST(req:NextRequest){
  const session=await auth();if(!session?.user)return NextResponse.json({error:"Unauthorized"},{status:401});
- const role=String((session.user as any).role||""),userId=String((session.user as any).id||""),workspaceId=String((session.user as any).workspaceId||"").trim();if(!workspaceId)return NextResponse.json({error:"Workspace context is required"},{status:403});if(!rateOk(`email:${workspaceId}:${userId}`))return NextResponse.json({error:"Email rate limit exceeded"},{status:429});
+ const role=String(session.user.role||""),userId=String(session.user.id||""),workspaceId=String(session.user.workspaceId||"").trim();if(!workspaceId)return NextResponse.json({error:"Workspace context is required"},{status:403});if(!rateOk(`email:${workspaceId}:${userId}`))return NextResponse.json({error:"Email rate limit exceeded"},{status:429});
  const body=await req.json().catch(()=>null);if(!body)return NextResponse.json({error:"Invalid JSON body"},{status:400});const type=String(body.type||""),to=email(body.to),data=body.data&&typeof body.data==="object"?body.data:{};if(!validEmail(to))return NextResponse.json({error:"Valid recipient required"},{status:400});
  const allowed:Record<string,string[]>={task_assigned:["SUPER_ADMIN","ACCOUNT_MANAGER"],creative_review:["SUPER_ADMIN","ACCOUNT_MANAGER"],invoice_reminder:["SUPER_ADMIN","ACCOUNTANT"],monthly_report:["SUPER_ADMIN","ACCOUNT_MANAGER","ACCOUNTANT"],welcome:["SUPER_ADMIN"]};if(!allowed[type]?.includes(role))return NextResponse.json({error:"Forbidden"},{status:403});
  let subject="",html="";const footer=`<p style="color:#777;font-size:12px;margin-top:28px;border-top:1px solid #ddd;padding-top:12px">VIVIT GROUP · Automated ERP message</p>`;

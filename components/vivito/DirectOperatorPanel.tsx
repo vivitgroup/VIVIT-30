@@ -1,10 +1,10 @@
 "use client";
 import {useCallback,useEffect,useMemo,useState} from "react";
 
-type EventRow={id:string;signal_type:string;action_op:string;approval_mode:string;status:string;client_id?:string|null;evidence?:any;last_error?:string|null;retry_count?:number;created_at:string;outcome_state?:string|null;confidence_before?:number|null;confidence_after?:number|null};
-const parse=(v:any)=>{try{return typeof v==="string"?JSON.parse(v):v||{}}catch{return{}}};
+type EventRow={id:string;signal_type:string;action_op:string;approval_mode:string;status:string;client_id?:string|null;evidence?:unknown;last_error?:string|null;retry_count?:number;created_at:string;outcome_state?:string|null;confidence_before?:number|null;confidence_after?:number|null};
+const parse=(v:unknown)=>{try{return typeof v==="string"?JSON.parse(v):v||{}}catch{return{}}};
 export default function DirectOperatorPanel(){
- const [events,setEvents]=useState<EventRow[]>([]),[summary,setSummary]=useState<any[]>([]),[escalations,setEscalations]=useState<any[]>([]),[busy,setBusy]=useState<string|null>(null),[error,setError]=useState("");
+ const [events,setEvents]=useState<EventRow[]>([]),[summary,setSummary]=useState<unknown[]>([]),[escalations,setEscalations]=useState<unknown[]>([]),[busy,setBusy]=useState<string|null>(null),[error,setError]=useState("");
  const load=useCallback(async()=>{try{const r=await fetch("/api/assistant/direct",{cache:"no-store"}),d=await r.json();if(!r.ok)throw new Error(d.error||"Could not load VIVITO Direct Operator");setEvents(d.events||[]);setSummary(d.summary||[]);setEscalations(d.escalations||[]);setError("")}catch(e){setError(String(e?.message||e))}},[]);
  useEffect(()=>{void load();const i=setInterval(()=>void load(),30000);return()=>clearInterval(i)},[load]);
  const counts=useMemo(()=>Object.fromEntries(summary.map((x:any)=>[String(x.status),Number(x.count||0)])),[summary]);

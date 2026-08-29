@@ -116,7 +116,7 @@ export function RealtimeNotifications() {
         notifs.slice(0, 3).forEach(n => showToast(n));
       }
     } catch {}
-  }, [showToast, router]);
+  }, [showToast]);
 
   useEffect(() => {
     let interval = 30000;

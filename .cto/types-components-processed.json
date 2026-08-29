@@ -1,0 +1,18 @@
+[
+  "components/ai/CopilotActionCenter.tsx",
+  "components/assistant/SystemAssistant.tsx",
+  "components/clients/ClientLogoManager.tsx",
+  "components/creative/NewTaskForm.tsx",
+  "components/i18n/DashboardLanguage.tsx",
+  "components/layout/Header.tsx",
+  "components/layout/Sidebar.tsx",
+  "components/media/MediaControlV2.tsx",
+  "components/media/MediaIntelligenceWorkspace.tsx",
+  "components/media/MediaIntelligenceWorkspaceV2.tsx",
+  "components/media/MediaLiveSync.tsx",
+  "components/media/MetaAccountConnectPanel.tsx",
+  "components/realtime-notifications.tsx",
+  "components/reminders/TaskReminderWatcher.tsx",
+  "components/vivito/DirectOperatorPanel.tsx",
+  "components/whatsapp/WhatsAppWorkspace.tsx"
+]

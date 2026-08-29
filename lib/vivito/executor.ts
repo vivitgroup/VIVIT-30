@@ -12,16 +12,16 @@ const FILE_CATEGORIES=new Set(["GENERAL","CONTENT_PLAN","STRATEGY","BRIEF","CREA
 export class VivitoActionError extends Error{status:number;details?:unknown;constructor(message:string,status=400,details?:unknown){super(message);this.status=status;this.details=details}}
 const workspaceContext=new AsyncLocalStorage<string>();
 const tenantId=()=>{const id=workspaceContext.getStore();if(!id)throw new VivitoActionError("Workspace unavailable.",403);return id};
-const rows=(v:any)=>Array.from(v as any) as any[];
-const clean=(v:any,n=500)=>String(v??"").trim().slice(0,n);
-const amount=(v:any)=>{const n=Number(v);if(!Number.isFinite(n)||n<=0)throw new VivitoActionError("Amount must be greater than zero.");return Number(n.toFixed(2))};
-const nonNegative=(v:any)=>{const n=Number(v??0);if(!Number.isFinite(n)||n<0)throw new VivitoActionError("Amount cannot be negative.");return Number(n.toFixed(2))};
-const parsedDate=(v:any)=>{const d=new Date(String(v||""));if(Number.isNaN(d.getTime()))throw new VivitoActionError("A valid date is required.");return d};
-async function audit(userId:string,action:string,entity:string,entityId:string,payload:any={}){await db.insert(auditLogs).values({workspaceId:tenantId(),userId,action,entity,entityId,newValues:JSON.stringify(payload)} as any)}
+const rows=(v:unknown)=>Array.from(v as any) as any[];
+const clean=(v:unknown,n=500)=>String(v??"").trim().slice(0,n);
+const amount=(v:unknown)=>{const n=Number(v);if(!Number.isFinite(n)||n<=0)throw new VivitoActionError("Amount must be greater than zero.");return Number(n.toFixed(2))};
+const nonNegative=(v:unknown)=>{const n=Number(v??0);if(!Number.isFinite(n)||n<0)throw new VivitoActionError("Amount cannot be negative.");return Number(n.toFixed(2))};
+const parsedDate=(v:unknown)=>{const d=new Date(String(v||""));if(Number.isNaN(d.getTime()))throw new VivitoActionError("A valid date is required.");return d};
+async function audit(userId:string,action:string,entity:string,entityId:string,payload:unknown={}){await db.insert(auditLogs).values({workspaceId:tenantId(),userId,action,entity,entityId,newValues:JSON.stringify(payload)} as any)}
 
 function authorizeOp(role:string,op:VivitoActionOp){const meta=VIVITO_ACTION_CATALOG[op];if(!meta)throw new VivitoActionError("Unsupported VIVITO action.",400);if(!meta.roles.includes(role))throw new VivitoActionError("You do not have permission to execute this action.",403)}
 
-async function findClient(refRaw:any,role:string,userId:string,includeArchived=false){
+async function findClient(refRaw:unknown,role:string,userId:string,includeArchived=false){
  const ref=clean(refRaw,180);if(!ref)throw new VivitoActionError("Client name is required.");
  let found=rows(await db.execute(sql`select id,company_name,workspace_id,is_active,archived_at,account_manager_id,media_buyer_id,user_id from clients where workspace_id=${tenantId()} and (id=${ref} or lower(company_name)=lower(${ref})) ${includeArchived?sql``:sql`and is_active=true and archived_at is null`} limit 3`));
  if(!found.length){found=rows(await db.execute(sql`select id,company_name,workspace_id,is_active,archived_at,account_manager_id,media_buyer_id,user_id from clients where workspace_id=${tenantId()} and company_name ilike ${`%${ref}%`} ${includeArchived?sql``:sql`and is_active=true and archived_at is null`} order by company_name limit 6`));}
@@ -34,7 +34,7 @@ async function findClient(refRaw:any,role:string,userId:string,includeArchived=f
  return c;
 }
 
-async function findUser(refRaw:any,expectedRoles:string[]){
+async function findUser(refRaw:unknown,expectedRoles:string[]){
  const ref=clean(refRaw,180);if(!ref)throw new VivitoActionError("Team member name is required.");
  let found=rows(await db.execute(sql`select id,name,role from users where workspace_id=${tenantId()} and is_active=true and role in (${sql.join(expectedRoles.map(x=>sql`${x}`),sql`,`)}) and (id=${ref} or lower(name)=lower(${ref})) limit 3`));
  if(!found.length)found=rows(await db.execute(sql`select id,name,role from users where workspace_id=${tenantId()} and is_active=true and role in (${sql.join(expectedRoles.map(x=>sql`${x}`),sql`,`)}) and name ilike ${`%${ref}%`} order by name limit 6`));
@@ -90,7 +90,7 @@ async function clientLifecycle(op:VivitoActionOp,args:any,role:string,userId:str
 async function createTaskAction(args:any,role:string,userId:string){
  const client=await findClient(args.clientName,role,userId,false),title=clean(args.title,180),brief=clean(args.brief,5000),type=clean(args.type||"GRAPHIC",40).toUpperCase(),priority=clean(args.priority||"MEDIUM",30).toUpperCase(),deadline=parsedDate(args.deadline);if(!title||!brief)throw new VivitoActionError("Task title and brief are required.");if(!TYPES.has(type)||!PRIORITIES.has(priority))throw new VivitoActionError("Invalid task type or priority.");
  let creatorId:string|null=null,creatorName:string|null=null;if(clean(args.assigneeName)){const u=await findUser(args.assigneeName,["CREATOR"]);creatorId=u.id;creatorName=u.name}
- const [task]=await db.insert(creativeTasks).values({workspaceId:tenantId(),title,clientId:client.id,type:type as any,brief,priority:priority as any,status:"PENDING",assignedToId:creatorId,deadline,createdById:userId} as any).returning();
+ const [task]=await db.insert(creativeTasks).values({workspaceId:tenantId(),title,clientId:client.id,type:type as unknown,brief,priority:priority as unknown,status:"PENDING",assignedToId:creatorId,deadline,createdById:userId} as any).returning();
  if(creatorId)await db.insert(notifications).values({userId:creatorId,type:"TASK_ASSIGNED",title:`VIVITO assigned: ${title}`,message:`${client.company_name} · ${deadline.toLocaleDateString("en-EG")}`,link:`/dashboard/creative/${task.id}`,priority:priority==="URGENT"?"high":"normal"} as any);
  await audit(userId,"vivito_task_created","creative_tasks",task.id,{title,clientId:client.id,clientName:client.company_name,creatorId,creatorName,type,priority});return{success:true,action:"create_task",entityId:task.id,message:`Task ${title} created${creatorName?` and assigned to ${creatorName}`:""}.`,link:`/dashboard/creative/${task.id}`};
 }

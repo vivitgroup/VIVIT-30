@@ -1,0 +1,56 @@
+name: CTO Targeted Plan Runtime Typing Batch 16
+
+on:
+  push:
+    branches: [feat/vivito-internal-100]
+    paths:
+      - '.github/workflows/cto-targeted-plan-runtime-typing-batch16.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-internal-100
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply plan runtime typing remediation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('lib/vivito/plan-runtime.ts'); s=p.read_text()
+          replacements=[
+            ('export type VivitoPlanStep={op:VivitoActionOp;args:any;summary?:string};', 'export type VivitoPlanStep={op:VivitoActionOp;args:unknown;summary?:string};'),
+            ('export type VivitoPlanDecision={approval:any;[key:string]:any};', 'export type VivitoPlanDecision={approval:unknown;[key:string]:unknown};'),
+            (' | {success:false;partial:boolean;requestId:string;completedSteps:VivitoPlanResult[];stoppedAt:number;error:string;details:any;status:number;duplicateSteps:number};', ' | {success:false;partial:boolean;requestId:string;completedSteps:VivitoPlanResult[];stoppedAt:number;error:string;details:unknown;status:number;duplicateSteps:number};'),
+            (' executeStep:(op:VivitoActionOp,args:any,role:string,userId:string)=>Promise<VivitoPlanResult>;\n applyExternal?:(op:VivitoActionOp,args:any,result:VivitoPlanResult,userId:string)=>Promise<any>;', ' executeStep:(op:VivitoActionOp,args:unknown,role:string,userId:string)=>Promise<VivitoPlanResult>;\n applyExternal?:(op:VivitoActionOp,args:unknown,result:VivitoPlanResult,userId:string)=>Promise<unknown>;'),
+            ('  const previous=Array.from(await db.execute(sql`select new_values from audit_logs where workspace_id=${workspaceId} and user_id=${userId} and action=\'vivito_plan_step_executed\' and new_values::jsonb->>\'stepKey\'=${stepKey} order by created_at desc limit 1`)) as any[];\n  if(previous[0]){let saved:any={};try{saved=JSON.parse(String(previous[0].new_values||"{}"))}catch{}results.push(saved.result||{success:true,duplicate:true});duplicateSteps++;continue}', '  const previous=Array.from(await db.execute(sql`select new_values from audit_logs where workspace_id=${workspaceId} and user_id=${userId} and action=\'vivito_plan_step_executed\' and new_values::jsonb->>\'stepKey\'=${stepKey} order by created_at desc limit 1`)) as Array<{new_values?:unknown}>;\n  if(previous[0]){let saved:Record<string,unknown>={};try{const parsed:unknown=JSON.parse(String(previous[0].new_values||"{}"));if(parsed&&typeof parsed==="object"&&!Array.isArray(parsed))saved=parsed as Record<string,unknown>}catch{}const prior=saved.result;results.push(prior&&typeof prior==="object"&&!Array.isArray(prior)?prior as VivitoPlanResult:{success:true,duplicate:true});duplicateSteps++;continue}'),
+            ('})} as any);', '})});'),
+            ('})} as any);', '})});'),
+            ('})} as any);', '})});'),
+          ]
+          for old,new in replacements:
+              if old not in s: raise SystemExit(f'missing expected fragment: {old[:180]}')
+              s=s.replace(old,new,1)
+          p.write_text(s)
+          PY
+      - name: TypeScript acceptance
+        run: npx tsc --noEmit
+      - name: Targeted ESLint acceptance
+        run: npx eslint lib/vivito/plan-runtime.ts --max-warnings=0
+      - name: Commit validated remediation
+        run: |
+          git config user.name 'vivitgroup'
+          git config user.email 'groupvivit@gmail.com'
+          git add lib/vivito/plan-runtime.ts
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix(types): harden plan runtime boundaries'
+          git push origin HEAD:feat/vivito-internal-100

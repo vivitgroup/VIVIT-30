@@ -1,9 +1,10 @@
+import type {Session} from "next-auth";
 import {db,clients} from "@/lib/db";
 import {eq,and} from "drizzle-orm";
 
-export async function canAccessClient(session:any,clientId:string,options:{finance?:boolean;write?:boolean}={}){
+export async function canAccessClient(session:Session|null,clientId:string,options:{finance?:boolean;write?:boolean}={}){
  if(!session?.user||!clientId)return false;
- const role=String((session.user as any).role||""),userId=String((session.user as any).id||""),workspaceId=String((session.user as any).workspaceId||"");
+ const role=String(session.user.role||""),userId=String(session.user.id||""),workspaceId=String(session.user.workspaceId||"");
  if(!workspaceId)return false;
  const [client]=await db.select({workspaceId:clients.workspaceId,isActive:clients.isActive,userId:clients.userId,accountManagerId:clients.accountManagerId,mediaBuyerId:clients.mediaBuyerId}).from(clients).where(and(eq(clients.id,clientId),eq(clients.workspaceId,workspaceId))).limit(1);
  if(!client)return false;

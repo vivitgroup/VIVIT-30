@@ -6,7 +6,7 @@ import {eq,desc,and,inArray} from "drizzle-orm";
 import {Role} from "@/lib/types";
 
 const EMPLOYEE_ROLES=["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CREATOR","ACCOUNTANT","SALES"] as const;
-const esc=(v:any)=>String(v??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\"/g,"&quot;").replace(/'/g,"&#39;");
+const esc=(v:unknown)=>String(v??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\"/g,"&quot;").replace(/'/g,"&#39;");
 
 async function approveLeave(fd:FormData){"use server";const session=await auth();if(session?.user?.role!==Role.SUPER_ADMIN)throw new Error("Unauthorized");const workspaceId=String(session!.user.workspaceId||"");if(!workspaceId)throw new Error("Workspace unavailable");const id=String(fd.get("id")||"").trim(),status=String(fd.get("status")||"");if(!id||!["APPROVED","REJECTED"].includes(status))throw new Error("Invalid leave decision");const [leave]=await db.select({id:leaveRequests.id,status:leaveRequests.status}).from(leaveRequests).where(and(eq(leaveRequests.id,id),eq(leaveRequests.workspaceId,workspaceId))).limit(1);if(!leave||leave.status!=="PENDING")throw new Error("Leave request is no longer pending");const now=new Date();await db.update(leaveRequests).set({status:status as any,approvedBy:String(session!.user!.id),approvedAt:now}).where(and(eq(leaveRequests.id,id),eq(leaveRequests.workspaceId,workspaceId),eq(leaveRequests.status,"PENDING")));await db.insert(auditLogs).values({workspaceId,userId:String(session!.user!.id),action:`leave_${status.toLowerCase()}`,entity:"leave_requests",entityId:id,newValues:JSON.stringify({status,approvedAt:now.toISOString()})} as any);const {revalidatePath}=await import("next/cache");revalidatePath("/dashboard/team")}
 

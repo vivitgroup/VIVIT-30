@@ -1,0 +1,53 @@
+name: CTO Static Reconcile V6
+
+on:
+  push:
+    branches: [feat/vivito-static-reconcile-v6]
+    paths: ['.github/workflows/cto-static-reconcile-v6.yml']
+  workflow_dispatch:
+
+permissions: {contents: write}
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: feat/vivito-static-reconcile-v6, fetch-depth: 0}
+      - uses: actions/setup-node@v4
+        with: {node-version: 22, cache: npm}
+      - run: npm ci
+      - name: Baseline acceptance and lint
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint . -f json > /tmp/before.json || true
+          node - <<'NODE'
+          const r=require('/tmp/before.json'),m=r.flatMap(x=>x.messages||[]);console.log('before_total='+m.length);console.log('before_any='+m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any').length);console.log('before_non_any='+m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any').length)
+          NODE
+      - name: Add verified media and Meta hook deltas
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          for c in 5acffef0b31f86bd266d4558570a36bd881b842f 9683123071b771f65fb69ec1aebaad18f912a3b6; do
+            echo "candidate=$c"
+            git cherry-pick "$c"
+            npm run type-check
+            node scripts/qa-cto-static-audit.mjs
+            git diff --check HEAD^ HEAD
+          done
+          git push origin HEAD:feat/vivito-static-reconcile-v6
+      - name: Final hard lint assertion
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx eslint . -f json > /tmp/after.json || true
+          node <<'NODE'
+          const r=require('/tmp/after.json'),m=r.flatMap(x=>x.messages||[]),non=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any');
+          console.log('remaining_total='+m.length);console.log('remaining_errors='+m.filter(x=>x.severity===2).length);console.log('remaining_warnings='+m.filter(x=>x.severity===1).length);console.log('remaining_any='+m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any').length);console.log('remaining_non_any='+non.length);if(non.length){console.log(JSON.stringify(non.map(x=>[x.ruleId,x.line,x.column,x.message])));process.exit(1)}
+          NODE

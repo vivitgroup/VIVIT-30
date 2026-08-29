@@ -1,0 +1,44 @@
+name: CTO Integrate Assistant Actions V13
+on:
+  push:
+    branches: [feat/vivito-static-integrate-assistant-actions-v13]
+permissions:
+  contents: write
+jobs:
+  integrate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-static-integrate-assistant-actions-v13
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint . -f json > /tmp/base.json || true
+          node <<'NODE'
+          const r=require('/tmp/base.json'),m=r.flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any'),w=m.filter(x=>x.severity===1);console.log(`baseline_any=${a.length}`);console.log(`baseline_non_any=${n.length}`);console.log(`baseline_warnings=${w.length}`);if(a.length!==238||n.length||w.length)process.exit(1)
+          NODE
+      - name: Integrate verified assistant action source
+        run: |
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git fetch origin f88146306283e02413786a483586d551e9b0b12d
+          git cherry-pick f88146306283e02413786a483586d551e9b0b12d
+      - name: Final acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint app/api/assistant/actions/route.ts -f json > /tmp/target.json || true
+          npx eslint . -f json > /tmp/all.json || true
+          node <<'NODE'
+          const target=require('/tmp/target.json').flatMap(x=>x.messages||[]);const r=require('/tmp/all.json'),m=r.flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any'),w=m.filter(x=>x.severity===1);console.log(`target_total=${target.length}`);console.log(`remaining_any=${a.length}`);console.log(`remaining_non_any=${n.length}`);console.log(`remaining_warnings=${w.length}`);if(target.length||a.length!==227||n.length||w.length)process.exit(1)
+          NODE
+      - name: Push accepted candidate
+        run: git push origin HEAD:feat/vivito-static-integrate-assistant-actions-v13

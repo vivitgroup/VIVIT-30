@@ -28,21 +28,47 @@ jobs:
         run: |
           npm run type-check
           node scripts/qa-cto-static-audit.mjs
-      - name: Integrate verified easy cleanup source commit
+      - name: Apply still-relevant verified easy fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs=require('node:fs');
+          function replaceIf(file,from,to){let s=fs.readFileSync(file,'utf8');const n=s.split(from).length-1;if(n>1)throw new Error(`${file}: ambiguous match x${n}`);if(n===0){console.log(`already_or_not_applicable=${file}`);return 0;}fs.writeFileSync(file,s.replace(from,to));console.log(`applied=${file}`);return 1}
+          let applied=0;
+          applied+=replaceIf('app/api/assistant/route.ts','}catch(error){return NextResponse.json({answer:isArabic(question)?"مش قادر أفعّل المراقبة بالروابط دي. اتأكد إن الروابط عامة وصحيحة.":"I could not configure monitoring from those links. Use valid public social URLs.",mode:"competitive-error",intelligence:"VIVITO"}','}catch{return NextResponse.json({answer:isArabic(question)?"مش قادر أفعّل المراقبة بالروابط دي. اتأكد إن الروابط عامة وصحيحة.":"I could not configure monitoring from those links. Use valid public social URLs.",mode:"competitive-error",intelligence:"VIVITO"}');
+          applied+=replaceIf('app/api/assistant/route.ts','}catch(error){return NextResponse.json({answer:isArabic(question)?"مش قادر أقرأ الصورة دي بأمان دلوقتي. تأكد إنها PNG/JPG/WebP وأقل من 12MB.":"I could not analyze that image safely. Use PNG/JPG/WebP under 12MB.",mode:"vision-error",intelligence:"VIVITO"}','}catch{return NextResponse.json({answer:isArabic(question)?"مش قادر أقرأ الصورة دي بأمان دلوقتي. تأكد إنها PNG/JPG/WebP وأقل من 12MB.":"I could not analyze that image safely. Use PNG/JPG/WebP under 12MB.",mode:"vision-error",intelligence:"VIVITO"}');
+          applied+=replaceIf('app/dashboard/onboarding/page.tsx','].map((step,i)=>(','].map(step=>(');
+          applied+=replaceIf('app/dashboard/sales/page.tsx','STAGES.map((stage,idx)=>{','STAGES.map(stage=>{');
+          applied+=replaceIf('app/dashboard/revenue-attribution/page.tsx','          const TK = "#E8F4FD";\n','');
+          applied+=replaceIf('components/realtime-notifications.tsx','// Tracks active users via heartbeat — stored in-memory per session\nconst onlineUsers = new Map<string, { name:string; role:string; page:string; ts:number }>();\n\n','');
+          applied+=replaceIf('lib/actions/index.ts','function validateEmail(email: string): boolean {\n  return /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email) && email.length <= 254;\n}\n','');
+          applied+=replaceIf('lib/actions/index.ts','function requireFields(data: Record<string, unknown>, fields: string[]): string | null {\n  for (const f of fields) {\n    if (!data[f] || String(data[f]).trim() === "") return `${f} is required`;\n  }\n  return null;\n}\n','');
+          applied+=replaceIf('app/api/media-discover/route.ts','async function metaPages(url:string,maxPages=100){let next=url,rows:any[]=[];','async function metaPages(url:string,maxPages=100){let next=url;const rows:any[]=[];');
+          applied+=replaceIf('components/reminders/TaskReminderWatcher.tsx','useEffect(()=>{let dead=false,timer:any;async function check()','useEffect(()=>{let dead=false;async function check()');
+          applied+=replaceIf('components/reminders/TaskReminderWatcher.tsx','}catch{}}check();timer=setInterval(check,60000);return()=>{dead=true;clearInterval(timer)}},[]);','}catch{}}check();const timer=setInterval(check,60000);return()=>{dead=true;clearInterval(timer)}},[]);');
+          console.log(`applied_total=${applied}`);
+          NODE
+          git diff --check
+      - name: Acceptance and lint measurement
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          git diff --check
+          npx eslint . -f json > /tmp/eslint.json || true
+          node <<'NODE'
+          const fs=require('node:fs');const rows=JSON.parse(fs.readFileSync('/tmp/eslint.json','utf8'));const m=rows.flatMap(r=>r.messages||[]),c={};for(const x of m)c[x.ruleId||'(parser)']=(c[x.ruleId||'(parser)']||0)+1;console.log(`remaining_total=${m.length}`);console.log(`remaining_errors=${m.filter(x=>x.severity===2).length}`);console.log(`remaining_warnings=${m.filter(x=>x.severity===1).length}`);console.log(`remaining_any=${m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any').length}`);console.log(`remaining_unused=${m.filter(x=>x.ruleId==='@typescript-eslint/no-unused-vars').length}`);console.log('top_rules='+JSON.stringify(Object.entries(c).sort((a,b)=>b[1]-a[1]).slice(0,20)));
+          NODE
+      - name: Commit accepted source fixes
         shell: bash
         run: |
           set -euo pipefail
           git config user.name 'VIVIT CTO Gate Bot'
           git config user.email 'groupvivit@gmail.com'
-          git cherry-pick f327c57f7d7e1b1b0386cb7b7faa50562a2f3655
-          npm run type-check
-          node scripts/qa-cto-static-audit.mjs
-          git diff --check HEAD^ HEAD
-          git push origin HEAD:feat/vivito-static-aggregate-easy
-      - name: Measure lint
-        shell: bash
-        run: |
-          npx eslint . -f json > /tmp/eslint.json || true
-          node <<'NODE'
-          const fs=require('node:fs');const rows=JSON.parse(fs.readFileSync('/tmp/eslint.json','utf8'));const m=rows.flatMap(r=>r.messages||[]),c={};for(const x of m)c[x.ruleId||'(parser)']=(c[x.ruleId||'(parser)']||0)+1;console.log(`remaining_total=${m.length}`);console.log(`remaining_errors=${m.filter(x=>x.severity===2).length}`);console.log(`remaining_warnings=${m.filter(x=>x.severity===1).length}`);console.log(`remaining_any=${m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any').length}`);console.log(`remaining_unused=${m.filter(x=>x.ruleId==='@typescript-eslint/no-unused-vars').length}`);console.log('top_rules='+JSON.stringify(Object.entries(c).sort((a,b)=>b[1]-a[1]).slice(0,20)));
-          NODE
+          git add app components lib scripts types proxy.ts auth.config.ts 2>/dev/null || true
+          if ! git diff --cached --quiet; then
+            git commit -m 'fix(lint): integrate still-relevant deterministic cleanup [skip ci]'
+            git push origin HEAD:feat/vivito-static-aggregate-easy
+          fi

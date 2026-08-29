@@ -276,7 +276,7 @@ export default async function OnboardingPage() {
             {n:3,icon:"🎨",task:"Create your first creative task", action:"New Task",    href:"/dashboard/creative/new",  time:"5 min",  tip:"Use a template — brief auto-fills in seconds"},
             {n:4,icon:"💰",task:"Set up first invoice",           action:"Go to Finance",href:"/dashboard/finance",      time:"5 min",  tip:"Add monthly retainer as your first finance record"},
             {n:5,icon:"👥",task:"Invite a team member",           action:"Invite Team", href:"/dashboard/settings",      time:"2 min",  tip:"Add your Account Manager or Media Buyer first"},
-          ].map((step,i)=>(
+          ].map(step=>(
             <div key={step.n} className="flex items-center gap-4 p-4 rounded-xl border border-white/8 bg-white/[0.02]">
               <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-black text-sm flex-shrink-0"
                 style={{background:`linear-gradient(135deg,#17345F,#244D87)`}}>{step.n}</div>

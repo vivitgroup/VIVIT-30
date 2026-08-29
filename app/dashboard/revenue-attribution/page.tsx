@@ -151,7 +151,6 @@ export default async function RevenueAttributionPage() {
               )}
             </div>
           );
-          const TK = "#E8F4FD";
         })}
 
         {amStats.length === 0 && (

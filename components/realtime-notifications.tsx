@@ -4,9 +4,6 @@ import { useRouter } from "next/navigation";
 
 
 // ── Who's Online (Feature 16) ─────────────────────────────────
-// Tracks active users via heartbeat — stored in-memory per session
-const onlineUsers = new Map<string, { name:string; role:string; page:string; ts:number }>();
-
 export function useOnlinePresence(userId: string, userName: string, role: string) {
   useEffect(() => {
     const report = () => {

@@ -1,0 +1,55 @@
+name: CTO AI Route Types V13
+on:
+  push:
+    branches: [feat/vivito-ai-route-types-v13]
+permissions:
+  contents: write
+jobs:
+  remediate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-ai-route-types-v13
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Apply AI route contracts
+        run: |
+          node <<'NODE'
+          const fs=require('node:fs');const file='app/api/ai/route.ts';let s=fs.readFileSync(file,'utf8');
+          function one(from,to,count=1){const n=s.split(from).length-1;if(n!==count)throw new Error(`expected ${count}, found ${n}: ${from.slice(0,140)}`);s=s.split(from).join(to)}
+          one('import {consumeResource,securityEvent} from "@/lib/vivito/enterprise-governance";','import {consumeResource,securityEvent} from "@/lib/vivito/enterprise-governance";\nimport type {Session} from "next-auth";\nconst objectRecord=(value:unknown):Record<string,unknown>=>value&&typeof value==="object"&&!Array.isArray(value)?value as Record<string,unknown>:{};');
+          one('.map((p:any)=>p.text).join("\\n")','.map((p:unknown)=>String(objectRecord(p).text||"")).join("\\n")');
+          one('async function hydrateClientContext(session:any,workspaceId:string,data:any,type:string)','async function hydrateClientContext(session:Session,workspaceId:string,data:Record<string,unknown>,type:string)');
+          one('let body:any;try{body=await req.json()}catch{return NextResponse.json({error:"Invalid JSON body"},{status:400})}const type=String(body.type??body.tool??"brief"),data:any=body.data??Object.fromEntries(Object.entries(body).filter(([key])=>key!=="tool"))','let body:Record<string,unknown>;try{body=objectRecord(await req.json())}catch{return NextResponse.json({error:"Invalid JSON body"},{status:400})}const type=String(body.type??body.tool??"brief"),data:Record<string,unknown>=objectRecord(body.data??Object.fromEntries(Object.entries(body).filter(([key])=>key!=="tool")))');
+          one('case"budget_optimizer":case"budget":{const totalBudget=Number(data.totalBudget||0);if(!data.platforms&&(!Number.isFinite(totalBudget)||totalBudget<=0))return NextResponse.json({error:"Enter a valid total budget."},{status:400});system="You are a media buying expert. Analyze only supplied performance data and give specific, actionable budget reallocation advice. Label estimates and do not invent live results.";prompt=data.platforms?`Analyze this ad performance data and recommend budget reallocation:\\n${data.platforms.map((p:any)=>`${p.platform}: Spend ${p.spend} EGP, Leads ${p.leads}, Revenue ${p.revenue} EGP, ROAS ${p.roas}x, CPL ${p.cpl} EGP`).join("\\n")}`:`Create a practical media budget allocation for ${data.clientName||"the selected client"} with total ${totalBudget.toLocaleString("en-EG")} EGP and goal ${data.objective||"not specified"}. Label all forecasts as estimates.`;break}','case"budget_optimizer":case"budget":{const totalBudget=Number(data.totalBudget||0),platforms=Array.isArray(data.platforms)?data.platforms.map((value:unknown)=>objectRecord(value)):null;if(!platforms&&(!Number.isFinite(totalBudget)||totalBudget<=0))return NextResponse.json({error:"Enter a valid total budget."},{status:400});system="You are a media buying expert. Analyze only supplied performance data and give specific, actionable budget reallocation advice. Label estimates and do not invent live results.";prompt=platforms?`Analyze this ad performance data and recommend budget reallocation:\\n${platforms.map(p=>`${p.platform}: Spend ${p.spend} EGP, Leads ${p.leads}, Revenue ${p.revenue} EGP, ROAS ${p.roas}x, CPL ${p.cpl} EGP`).join("\\n")}`:`Create a practical media budget allocation for ${data.clientName||"the selected client"} with total ${totalBudget.toLocaleString("en-EG")} EGP and goal ${data.objective||"not specified"}. Label all forecasts as estimates.`;break}');
+          one('tokensUsed:Math.floor(result.length/4)} as any','tokensUsed:Math.floor(result.length/4)}');
+          fs.writeFileSync(file,s)
+          NODE
+          git diff --check
+      - name: Acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint app/api/ai/route.ts -f json > /tmp/target.json || true
+          node <<'NODE'
+          const m=require('/tmp/target.json').flatMap(x=>x.messages||[]);console.log(`target_total=${m.length}`);console.log(JSON.stringify(m.map(x=>[x.ruleId,x.line,x.message]).slice(0,30)));if(m.length)process.exit(1)
+          NODE
+          npx eslint . -f json > /tmp/all.json || true
+          node <<'NODE'
+          const r=require('/tmp/all.json'),m=r.flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any'),w=m.filter(x=>x.severity===1);console.log(`remaining_any=${a.length}`);console.log(`remaining_non_any=${n.length}`);console.log(`remaining_warnings=${w.length}`);if(a.length!==217||n.length||w.length)process.exit(1)
+          NODE
+      - name: Commit source
+        run: |
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git add app/api/ai/route.ts
+          git commit -m 'fix(types): type AI route boundaries [skip ci]'
+          git push origin HEAD:feat/vivito-ai-route-types-v13

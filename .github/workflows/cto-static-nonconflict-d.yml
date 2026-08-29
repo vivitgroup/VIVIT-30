@@ -1,0 +1,65 @@
+name: CTO Static Nonconflict D
+
+on:
+  push:
+    branches: [feat/vivito-static-nonconflict-d]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-static-nonconflict-d
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply image and media hook cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs=require('node:fs');
+          const edit=(file,repls)=>{let s=fs.readFileSync(file,'utf8');for(const [a,b,all] of repls){if(!s.includes(a))throw new Error(`${file}: missing replacement source`);s=all?s.replaceAll(a,b):s.replace(a,b)}fs.writeFileSync(file,s)};
+          edit('components/creative/TaskMediaPanel.tsx',[
+            ['import {useEffect,useMemo,useState} from "react";','import Image from "next/image";\nimport {useCallback,useEffect,useMemo,useState} from "react";'],
+            [' async function load(){setLoading(true);setError("");const r=await fetch(`/api/files?taskId=${encodeURIComponent(taskId)}`,{cache:"no-store"});const d=await r.json().catch(()=>({}));if(r.ok)setFiles(d.files||[]);else setError(d.error||"Could not load task media.");setLoading(false)}',' const load=useCallback(async()=>{setLoading(true);setError("");const r=await fetch(`/api/files?taskId=${encodeURIComponent(taskId)}`,{cache:"no-store"});const d=await r.json().catch(()=>({}));if(r.ok)setFiles(d.files||[]);else setError(d.error||"Could not load task media.");setLoading(false)},[taskId]);'],
+            [' useEffect(()=>{load()},[taskId]);',' useEffect(()=>{const timer=setTimeout(()=>void load(),0);return()=>clearTimeout(timer)},[load]);'],
+            ['<img src={f.url||""} alt={f.name}/>','<Image src={f.url||""} alt={f.name} fill sizes="(max-width: 700px) 100vw, 33vw" unoptimized loader={({src})=>src} style={{objectFit:"contain"}}/>'],
+            ['<img src={open.url||""} alt={open.name}/>','<Image src={open.url||""} alt={open.name} width={1600} height={1600} unoptimized loader={({src})=>src} style={{width:"auto",height:"auto",maxWidth:"92vw",maxHeight:"84vh",objectFit:"contain"}}/>']
+          ]);
+          edit('components/portal/CreativeGallery.tsx',[
+            ['import { useState } from "react";','import Image from "next/image";\nimport { useState } from "react";'],
+            ['style={{height:180,background:"#101827",display:"grid",placeItems:"center",overflow:"hidden"}}','style={{height:180,background:"#101827",display:"grid",placeItems:"center",overflow:"hidden",position:"relative"}}'],
+            ['<img src={item.fileUrl} alt={item.title} style={{width:"100%",height:"100%",objectFit:"cover"}}/>','<Image src={item.fileUrl} alt={item.title} fill sizes="(max-width: 700px) 100vw, 33vw" unoptimized loader={({src})=>src} style={{objectFit:"cover"}}/>'],
+            ['<img src={active.fileUrl} alt={active.title} style={{maxWidth:"100%",maxHeight:"78vh",objectFit:"contain"}}/>','<Image src={active.fileUrl} alt={active.title} width={1600} height={1600} unoptimized loader={({src})=>src} style={{width:"auto",height:"auto",maxWidth:"100%",maxHeight:"78vh",objectFit:"contain"}}/>']
+          ]);
+          edit('components/portal/PortalDemoGallery.tsx',[
+            ['const demo=[','import Image from "next/image";\n\nconst demo=['],
+            ['<div className="ig-media"><img src={c.image} alt={`Demo creative ${i+1}`}/></div>','<div className="ig-media" style={{position:"relative"}}><Image src={c.image} alt={`Demo creative ${i+1}`} fill sizes="(max-width: 700px) 100vw, 33vw" style={{objectFit:"cover"}}/></div>']
+          ]);
+          NODE
+      - name: Acceptance
+        run: |
+          npm run type-check
+          npx eslint components/creative/TaskMediaPanel.tsx components/portal/CreativeGallery.tsx components/portal/PortalDemoGallery.tsx
+          node scripts/qa-cto-static-audit.mjs
+          git diff --check
+      - name: Commit accepted cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git add components/creative/TaskMediaPanel.tsx components/portal/CreativeGallery.tsx components/portal/PortalDemoGallery.tsx
+          if ! git diff --cached --quiet; then
+            git commit -m 'fix(lint): stabilize task media loading and optimize images [skip ci]'
+            git push origin HEAD:feat/vivito-static-nonconflict-d
+          fi

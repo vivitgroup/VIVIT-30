@@ -1,0 +1,58 @@
+name: CTO Bulk Types V13
+on:
+  push:
+    branches: [feat/vivito-bulk-types-v13]
+permissions:
+  contents: write
+jobs:
+  remediate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-bulk-types-v13
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Apply bulk route contracts
+        run: |
+          node <<'NODE'
+          const fs=require('node:fs');const file='app/api/bulk/route.ts';let s=fs.readFileSync(file,'utf8');
+          function one(from,to,count=1){const n=s.split(from).length-1;if(n!==count)throw new Error(`expected ${count}, found ${n}: ${from.slice(0,140)}`);s=s.split(from).join(to)}
+          one('import {eq,inArray,lte,and} from "drizzle-orm";','import {eq,inArray,lte,and,type SQL} from "drizzle-orm";');
+          one('const TASK_STATUS_ALLOWLIST=["IN_PROGRESS","REVIEW","APPROVED","REVISION","REJECTED","COMPLETED"] as const;\nconst TRANSITIONS:Record<string,string[]>={IN_PROGRESS:["PENDING","REVISION"],REVIEW:["IN_PROGRESS"],APPROVED:["REVIEW"],REVISION:["REVIEW"],REJECTED:["REVIEW"],COMPLETED:["APPROVED"]};','const TASK_STATUS_ALLOWLIST=["IN_PROGRESS","REVIEW","APPROVED","REVISION","REJECTED","COMPLETED"] as const;\ntype TargetTaskStatus=(typeof TASK_STATUS_ALLOWLIST)[number];\ntype TaskStatus="PENDING"|TargetTaskStatus;\nconst TRANSITIONS:Record<TargetTaskStatus,TaskStatus[]>={IN_PROGRESS:["PENDING","REVISION"],REVIEW:["IN_PROGRESS"],APPROVED:["REVIEW"],REVISION:["REVIEW"],REJECTED:["REVIEW"],COMPLETED:["APPROVED"]};\nconst isTargetTaskStatus=(value:string):value is TargetTaskStatus=>(TASK_STATUS_ALLOWLIST as readonly string[]).includes(value);\nconst objectRecord=(value:unknown):Record<string,unknown>=>value&&typeof value==="object"&&!Array.isArray(value)?value as Record<string,unknown>:{};');
+          one('function taskScope(ids:string[],role:string,owned:string[]|null,userId:string,workspaceId:string,from?:string[]){const parts:any[]=[','function taskScope(ids:string[],role:string,owned:string[]|null,userId:string,workspaceId:string,from?:TaskStatus[]){const parts:SQL[]=[');
+          one('if(from?.length)parts.push(inArray(creativeTasks.status,from as any));','if(from?.length)parts.push(inArray(creativeTasks.status,from));');
+          one('let payload:any;try{payload=await req.json()}catch{return NextResponse.json({error:"Invalid JSON body"},{status:400})}const action=String(payload?.action||""),rawIds:string[]=(Array.isArray(payload?.ids)?payload.ids:[]).map((v:unknown)=>String(v)).filter(Boolean),ids=[...new Set(rawIds)].slice(0,100),data=payload?.data&&typeof payload.data==="object"?payload.data:{},updated:string[]=[];','let payload:Record<string,unknown>;try{payload=objectRecord(await req.json())}catch{return NextResponse.json({error:"Invalid JSON body"},{status:400})}const action=String(payload.action||""),rawIds:string[]=(Array.isArray(payload.ids)?payload.ids:[]).map((v:unknown)=>String(v)).filter(Boolean),ids=[...new Set(rawIds)].slice(0,100),data=objectRecord(payload.data),updated:string[]=[];');
+          one('if(!TASK_STATUS_ALLOWLIST.includes(target as any))','if(!isTargetTaskStatus(target))');
+          one('.set({status:target as any,completedAt:target==="COMPLETED"?new Date():undefined,updatedAt:new Date()})','.set({status:target,completedAt:target==="COMPLETED"?new Date():undefined,updatedAt:new Date()})');
+          one('link:`/dashboard/creative/${t.id}`} as any','link:`/dashboard/creative/${t.id}`}');
+          one('eq(financeRecords.invoiceStatus,"SENT" as any)','eq(financeRecords.invoiceStatus,"SENT")');
+          fs.writeFileSync(file,s)
+          NODE
+          git diff --check
+      - name: Acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint app/api/bulk/route.ts -f json > /tmp/target.json || true
+          node <<'NODE'
+          const m=require('/tmp/target.json').flatMap(x=>x.messages||[]);console.log(`target_total=${m.length}`);console.log(JSON.stringify(m.map(x=>[x.ruleId,x.line,x.message]).slice(0,30)));if(m.length)process.exit(1)
+          NODE
+          npx eslint . -f json > /tmp/all.json || true
+          node <<'NODE'
+          const r=require('/tmp/all.json'),m=r.flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any'),w=m.filter(x=>x.severity===1);console.log(`remaining_any=${a.length}`);console.log(`remaining_non_any=${n.length}`);console.log(`remaining_warnings=${w.length}`);if(a.length!==209||n.length||w.length)process.exit(1)
+          NODE
+      - name: Commit source
+        run: |
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git add app/api/bulk/route.ts
+          git commit -m 'fix(types): type bulk route contracts [skip ci]'
+          git push origin HEAD:feat/vivito-bulk-types-v13

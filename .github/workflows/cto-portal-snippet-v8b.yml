@@ -1,0 +1,18 @@
+name: CTO Portal Snippet V8B
+on:
+  push:
+    branches: [feat/vivito-portal-types-v8]
+    paths: ['.github/workflows/cto-portal-snippet-v8b.yml']
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-portal-types-v8
+      - name: Print all deliverable usages
+        run: |
+          node <<'NODE'
+          const fs=require('node:fs');const s=fs.readFileSync('app/dashboard/portal/page.tsx','utf8');
+          for(const needle of ['reels','statics','carousels']){let from=0,n=0;while(true){const i=s.indexOf(needle,from);if(i<0)break;console.log(`\n### ${needle} #${++n} @ ${i}\n`+s.slice(Math.max(0,i-500),Math.min(s.length,i+900)));from=i+needle.length}}
+          NODE

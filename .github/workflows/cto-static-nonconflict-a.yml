@@ -1,0 +1,67 @@
+name: CTO Static Nonconflict A
+
+on:
+  push:
+    branches: [feat/vivito-static-nonconflict-a]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-static-nonconflict-a
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply non-conflicting cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs=require('node:fs');
+          const edit=(file,repls)=>{let s=fs.readFileSync(file,'utf8');for(const [a,b] of repls){if(!s.includes(a))throw new Error(`${file}: missing replacement source: ${a.slice(0,100)}`);s=s.replace(a,b)}fs.writeFileSync(file,s)};
+          edit('app/api/quick-action/route.ts',[["    } catch (e) {","    } catch {"]]);
+          edit('app/api/referrals/route.ts',[["export async function GET(req: NextRequest) {","export async function GET() {"]]);
+          edit('app/dashboard/nps/page.tsx',[
+            ['  const avgScore   = total>0 ? (allFeedback.reduce((s,f)=>s+Number(f.score),0)/total).toFixed(1) : "0.0";\n',''],
+            ['  const npsColor   = nps>=50?"var(--green)":nps>=0?"var(--amber)":"var(--red)";\n','']
+          ]);
+          edit('app/dashboard/onboarding/page.tsx',[['].map((step,i)=>(\n','].map((step)=>(\n']]);
+          edit('app/login/page.tsx',[
+            ['import {useState} from "react";\n','import {useState} from "react";\nimport {useRouter} from "next/navigation";\n'],
+            ['export default function LoginPage(){const[email,setEmail]=useState("")','export default function LoginPage(){const router=useRouter();const[email,setEmail]=useState("")'],
+            ['}else window.location.href="/apps"','}else router.replace("/apps")']
+          ]);
+          edit('app/dashboard/media/page.tsx',[
+            ['  const mo1     = new Date(now.getFullYear(), now.getMonth()-1, 1);\n',''],
+            ['  const [allClients, thisMonth, lastMonth, platformMetrics] = await Promise.all([','  const [allClients, thisMonth] = await Promise.all(['],
+            [`    db.select({\n      spend:sum(mediaMetrics.adSpend), leads:sum(mediaMetrics.leads), revenue:sum(mediaMetrics.revenue),\n    }).from(mediaMetrics).where(and(eq(mediaMetrics.workspaceId,workspaceId),gte(mediaMetrics.date,mo1),\n      eq(mediaMetrics.date, new Date(now.getFullYear(), now.getMonth()-1, now.getDate())))),\n    db.select({\n      platform:mediaMetrics.platform,\n      spend:sum(mediaMetrics.adSpend), leads:sum(mediaMetrics.leads), revenue:sum(mediaMetrics.revenue),\n    }).from(mediaMetrics).where(and(eq(mediaMetrics.workspaceId,workspaceId),gte(mediaMetrics.date, moStart)))\n      .groupBy(mediaMetrics.platform),\n`,``],
+            ['  const clientMap = Object.fromEntries(allClients.map(c=>[c.id,c]));\n','']
+          ]);
+          NODE
+      - name: Acceptance
+        shell: bash
+        run: |
+          npm run type-check
+          npx eslint app/api/quick-action/route.ts app/api/referrals/route.ts app/dashboard/media/page.tsx app/dashboard/nps/page.tsx app/dashboard/onboarding/page.tsx app/login/page.tsx
+          node scripts/qa-cto-static-audit.mjs
+          git diff --check
+      - name: Commit accepted cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git add app
+          if ! git diff --cached --quiet; then
+            git commit -m 'fix(lint): remove unused work and use Next navigation [skip ci]'
+            git push origin HEAD:feat/vivito-static-nonconflict-a
+          fi

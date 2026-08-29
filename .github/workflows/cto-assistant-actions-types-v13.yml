@@ -1,0 +1,60 @@
+name: CTO Assistant Actions Types V13
+on:
+  push:
+    branches: [feat/vivito-assistant-actions-types-v13]
+permissions:
+  contents: write
+jobs:
+  remediate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-assistant-actions-types-v13
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Apply action route contracts
+        run: |
+          node <<'NODE'
+          const fs=require('node:fs');const file='app/api/assistant/actions/route.ts';let s=fs.readFileSync(file,'utf8');
+          function one(from,to,count=1){const n=s.split(from).length-1;if(n!==count)throw new Error(`expected ${count}, found ${n}: ${from.slice(0,140)}`);s=s.split(from).join(to)}
+          one('type VivitoExecutionResult={success:boolean;action?:string;entityId?:string|null;message?:string;[key:string]:unknown};','type VivitoExecutionResult={success:boolean;action?:string;entityId?:string|null;message?:string;[key:string]:unknown};\ntype CampaignWriteRow={connection_id?:unknown;external_id?:unknown;platform?:unknown;ad_account_id?:unknown;access_token_encrypted?:unknown;refresh_token_encrypted?:unknown;token_expires_at?:unknown;connection_platform?:unknown;currency?:unknown};\ntype AuditValueRow={new_values?:unknown};\nconst objectRecord=(value:unknown):Record<string,unknown>=>value&&typeof value==="object"&&!Array.isArray(value)?value as Record<string,unknown>:{};\nconst dbRows=<T=Record<string,unknown>>(value:unknown):T[]=>Array.from(value as Iterable<T>);');
+          one('async function applyExternalCampaignWrite(op:VivitoActionOp,args:any,result:VivitoExecutionResult,userId:string,workspaceId:string)','async function applyExternalCampaignWrite(op:VivitoActionOp,args:Record<string,unknown>,result:VivitoExecutionResult,userId:string,workspaceId:string)');
+          one('Array.from(await db.execute(sql`select c.id,c.platform,c.external_id,c.connection_id,x.ad_account_id,x.access_token_encrypted,x.refresh_token_encrypted,x.token_expires_at,x.platform connection_platform,(select currency from workspaces where id=${workspaceId} limit 1) currency from ad_campaigns c left join ad_platform_connections x on x.id=c.connection_id and x.workspace_id=${workspaceId} where c.id=${id} and c.workspace_id=${workspaceId} limit 1`)) as any[]','dbRows<CampaignWriteRow>(await db.execute(sql`select c.id,c.platform,c.external_id,c.connection_id,x.ad_account_id,x.access_token_encrypted,x.refresh_token_encrypted,x.token_expires_at,x.platform connection_platform,(select currency from workspaces where id=${workspaceId} limit 1) currency from ad_campaigns c left join ad_platform_connections x on x.id=c.connection_id and x.workspace_id=${workspaceId} where c.id=${id} and c.workspace_id=${workspaceId} limit 1`))');
+          one('status:args.status,dailyBudget:args.dailyBudget===undefined?undefined:Number(args.dailyBudget),lifetimeBudget:args.lifetimeBudget===undefined?undefined:Number(args.lifetimeBudget)','status:args.status===undefined?undefined:String(args.status),dailyBudget:args.dailyBudget===undefined?undefined:Number(args.dailyBudget),lifetimeBudget:args.lifetimeBudget===undefined?undefined:Number(args.lifetimeBudget)');
+          one('newValues:JSON.stringify({platform:external.platform,externalCampaignId:external.campaignId,applied:external.applied,providerRequest:external.providerRequest})} as any','newValues:JSON.stringify({platform:external.platform,externalCampaignId:external.campaignId,applied:external.applied,providerRequest:external.providerRequest})}');
+          one('newValues:JSON.stringify({platform:row.platform,message})} as any','newValues:JSON.stringify({platform:row.platform,message})}');
+          one('const prior=Array.from(await db.execute(sql`select new_values from audit_logs where workspace_id=${workspaceId} and id=${retryId} and action=\'vivito_action_failed\' ${owner} limit 1`)) as any[];if(!prior[0])return NextResponse.json({error:"Retry source was not found or is not accessible."},{status:404,headers:noStore});let saved:any={};try{saved=JSON.parse(String(prior[0].new_values||"{}"))}catch{}','const prior=dbRows<AuditValueRow>(await db.execute(sql`select new_values from audit_logs where workspace_id=${workspaceId} and id=${retryId} and action=\'vivito_action_failed\' ${owner} limit 1`));if(!prior[0])return NextResponse.json({error:"Retry source was not found or is not accessible."},{status:404,headers:noStore});let saved:Record<string,unknown>={};try{saved=objectRecord(JSON.parse(String(prior[0].new_values||"{}")) as unknown)}catch{}');
+          one('const normalized=plan.map((s:any)=>({op:clean(s?.op,60) as VivitoActionOp,args:s?.args&&typeof s.args==="object"&&!Array.isArray(s.args)?s.args:{},summary:clean(s?.summary,500)}));','const normalized=plan.map((value:unknown)=>{const step=objectRecord(value),stepArgs=objectRecord(step.args);return{op:clean(step.op,60) as VivitoActionOp,args:stepArgs,summary:clean(step.summary,500)}});');
+          one('const done=Array.from(await db.execute(sql`select id,new_values from audit_logs where workspace_id=${workspaceId} and user_id=${userId} and action=\'vivito_action_executed\' and new_values::jsonb->>\'requestId\'=${requestId} order by created_at desc limit 1`)) as any[];if(done[0]){let previous:any={};try{previous=JSON.parse(String(done[0].new_values||"{}"))}catch{}','const done=dbRows<AuditValueRow>(await db.execute(sql`select id,new_values from audit_logs where workspace_id=${workspaceId} and user_id=${userId} and action=\'vivito_action_executed\' and new_values::jsonb->>\'requestId\'=${requestId} order by created_at desc limit 1`));if(done[0]){let previous:Record<string,unknown>={};try{previous=objectRecord(JSON.parse(String(done[0].new_values||"{}")) as unknown)}catch{}');
+          one('newValues:JSON.stringify({requestId:requestId||null,op,result:combined,approval:decideVivitoApproval(op,role)})} as any','newValues:JSON.stringify({requestId:requestId||null,op,result:combined,approval:decideVivitoApproval(op,role)})}');
+          one('newValues:JSON.stringify({requestId:requestId||null,op,args,message,status,details:error instanceof VivitoActionError?error.details||null:null})} as any','newValues:JSON.stringify({requestId:requestId||null,op,args,message,status,details:error instanceof VivitoActionError?error.details||null:null})}');
+          fs.writeFileSync(file,s)
+          NODE
+          git diff --check
+      - name: Acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint app/api/assistant/actions/route.ts -f json > /tmp/target.json || true
+          node <<'NODE'
+          const m=require('/tmp/target.json').flatMap(x=>x.messages||[]);console.log(`target_total=${m.length}`);console.log(JSON.stringify(m.map(x=>[x.ruleId,x.line,x.message]).slice(0,30)));if(m.length)process.exit(1)
+          NODE
+          npx eslint . -f json > /tmp/all.json || true
+          node <<'NODE'
+          const r=require('/tmp/all.json'),m=r.flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any'),w=m.filter(x=>x.severity===1);console.log(`remaining_any=${a.length}`);console.log(`remaining_non_any=${n.length}`);console.log(`remaining_warnings=${w.length}`);if(a.length!==244||n.length||w.length)process.exit(1)
+          NODE
+      - name: Commit source
+        run: |
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git add app/api/assistant/actions/route.ts
+          git commit -m 'fix(types): type assistant action route contracts [skip ci]'
+          git push origin HEAD:feat/vivito-assistant-actions-types-v13

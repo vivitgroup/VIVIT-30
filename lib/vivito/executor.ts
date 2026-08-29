@@ -12,16 +12,16 @@ const FILE_CATEGORIES=new Set(["GENERAL","CONTENT_PLAN","STRATEGY","BRIEF","CREA
 export class VivitoActionError extends Error{status:number;details?:unknown;constructor(message:string,status=400,details?:unknown){super(message);this.status=status;this.details=details}}
 const workspaceContext=new AsyncLocalStorage<string>();
 const tenantId=()=>{const id=workspaceContext.getStore();if(!id)throw new VivitoActionError("Workspace unavailable.",403);return id};
-const rows=(v:any)=>Array.from(v as any) as any[];
-const clean=(v:any,n=500)=>String(v??"").trim().slice(0,n);
-const amount=(v:any)=>{const n=Number(v);if(!Number.isFinite(n)||n<=0)throw new VivitoActionError("Amount must be greater than zero.");return Number(n.toFixed(2))};
-const nonNegative=(v:any)=>{const n=Number(v??0);if(!Number.isFinite(n)||n<0)throw new VivitoActionError("Amount cannot be negative.");return Number(n.toFixed(2))};
-const parsedDate=(v:any)=>{const d=new Date(String(v||""));if(Number.isNaN(d.getTime()))throw new VivitoActionError("A valid date is required.");return d};
-async function audit(userId:string,action:string,entity:string,entityId:string,payload:any={}){await db.insert(auditLogs).values({workspaceId:tenantId(),userId,action,entity,entityId,newValues:JSON.stringify(payload)} as any)}
+const rows=(v:unknown)=>Array.from(v as any) as any[];
+const clean=(v:unknown,n=500)=>String(v??"").trim().slice(0,n);
+const amount=(v:unknown)=>{const n=Number(v);if(!Number.isFinite(n)||n<=0)throw new VivitoActionError("Amount must be greater than zero.");return Number(n.toFixed(2))};
+const nonNegative=(v:unknown)=>{const n=Number(v??0);if(!Number.isFinite(n)||n<0)throw new VivitoActionError("Amount cannot be negative.");return Number(n.toFixed(2))};
+const parsedDate=(v:unknown)=>{const d=new Date(String(v||""));if(Number.isNaN(d.getTime()))throw new VivitoActionError("A valid date is required.");return d};
+async function audit(userId:string,action:string,entity:string,entityId:string,payload:unknown={}){await db.insert(auditLogs).values({workspaceId:tenantId(),userId,action,entity,entityId,newValues:JSON.stringify(payload)} as any)}
 
 function authorizeOp(role:string,op:VivitoActionOp){const meta=VIVITO_ACTION_CATALOG[op];if(!meta)throw new VivitoActionError("Unsupported VIVITO action.",400);if(!meta.roles.includes(role))throw new VivitoActionError("You do not have permission to execute this action.",403)}
 
-async function findClient(refRaw:any,role:string,userId:string,includeArchived=false){
+async function findClient(refRaw:unknown,role:string,userId:string,includeArchived=false){
  const ref=clean(refRaw,180);if(!ref)throw new VivitoActionError("Client name is required.");
  let found=rows(await db.execute(sql`select id,company_name,workspace_id,is_active,archived_at,account_manager_id,media_buyer_id,user_id from clients where workspace_id=${tenantId()} and (id=${ref} or lower(company_name)=lower(${ref})) ${includeArchived?sql``:sql`and is_active=true and archived_at is null`} limit 3`));
  if(!found.length){found=rows(await db.execute(sql`select id,company_name,workspace_id,is_active,archived_at,account_manager_id,media_buyer_id,user_id from clients where workspace_id=${tenantId()} and company_name ilike ${`%${ref}%`} ${includeArchived?sql``:sql`and is_active=true and archived_at is null`} order by company_name limit 6`));}
@@ -34,7 +34,7 @@ async function findClient(refRaw:any,role:string,userId:string,includeArchived=f
  return c;
 }
 
-async function findUser(refRaw:any,expectedRoles:string[]){
+async function findUser(refRaw:unknown,expectedRoles:string[]){
  const ref=clean(refRaw,180);if(!ref)throw new VivitoActionError("Team member name is required.");
  let found=rows(await db.execute(sql`select id,name,role from users where workspace_id=${tenantId()} and is_active=true and role in (${sql.join(expectedRoles.map(x=>sql`${x}`),sql`,`)}) and (id=${ref} or lower(name)=lower(${ref})) limit 3`));
  if(!found.length)found=rows(await db.execute(sql`select id,name,role from users where workspace_id=${tenantId()} and is_active=true and role in (${sql.join(expectedRoles.map(x=>sql`${x}`),sql`,`)}) and name ilike ${`%${ref}%`} order by name limit 6`));
@@ -90,12 +90,12 @@ async function clientLifecycle(op:VivitoActionOp,args:any,role:string,userId:str
 async function createTaskAction(args:any,role:string,userId:string){
  const client=await findClient(args.clientName,role,userId,false),title=clean(args.title,180),brief=clean(args.brief,5000),type=clean(args.type||"GRAPHIC",40).toUpperCase(),priority=clean(args.priority||"MEDIUM",30).toUpperCase(),deadline=parsedDate(args.deadline);if(!title||!brief)throw new VivitoActionError("Task title and brief are required.");if(!TYPES.has(type)||!PRIORITIES.has(priority))throw new VivitoActionError("Invalid task type or priority.");
  let creatorId:string|null=null,creatorName:string|null=null;if(clean(args.assigneeName)){const u=await findUser(args.assigneeName,["CREATOR"]);creatorId=u.id;creatorName=u.name}
- const [task]=await db.insert(creativeTasks).values({workspaceId:tenantId(),title,clientId:client.id,type:type as any,brief,priority:priority as any,status:"PENDING",assignedToId:creatorId,deadline,createdById:userId} as any).returning();
+ const [task]=await db.insert(creativeTasks).values({workspaceId:tenantId(),title,clientId:client.id,type:type as unknown,brief,priority:priority as unknown,status:"PENDING",assignedToId:creatorId,deadline,createdById:userId} as any).returning();
  if(creatorId)await db.insert(notifications).values({userId:creatorId,type:"TASK_ASSIGNED",title:`VIVITO assigned: ${title}`,message:`${client.company_name} · ${deadline.toLocaleDateString("en-EG")}`,link:`/dashboard/creative/${task.id}`,priority:priority==="URGENT"?"high":"normal"} as any);
  await audit(userId,"vivito_task_created","creative_tasks",task.id,{title,clientId:client.id,clientName:client.company_name,creatorId,creatorName,type,priority});return{success:true,action:"create_task",entityId:task.id,message:`Task ${title} created${creatorName?` and assigned to ${creatorName}`:""}.`,link:`/dashboard/creative/${task.id}`};
 }
 
-async function taskLifecycle(op:VivitoActionOp,args:any,role:string,userId:string){
+async function taskLifecycle(op:VivitoActionOp,args:unknown,role:string,userId:string){
  const t=await findTask(args,role,userId,true);
  if(op==="archive_task"){if(t.archived_at)throw new VivitoActionError("Task is already archived.",409);if(t.client_active===false)throw new VivitoActionError("The client is archived.",409);await db.execute(sql`update creative_tasks set archived_at=now(),archived_by=${userId},updated_at=now() where id=${t.id} and workspace_id=${tenantId()} and archived_at is null`);await audit(userId,"vivito_task_archived","creative_tasks",t.id,{title:t.title});return{success:true,action:op,entityId:t.id,message:`Task ${t.title} archived.`}}
  if(op==="restore_task"){if(!t.archived_at)throw new VivitoActionError("Task is already active.",409);if(t.client_active===false)throw new VivitoActionError("Restore the client before restoring this task.",409);await db.execute(sql`update creative_tasks set archived_at=null,archived_by=null,updated_at=now() where id=${t.id} and workspace_id=${tenantId()} and archived_at is not null`);await audit(userId,"vivito_task_restored","creative_tasks",t.id,{title:t.title});return{success:true,action:op,entityId:t.id,message:`Task ${t.title} restored.`,link:`/dashboard/creative/${t.id}`}}
@@ -109,7 +109,7 @@ async function logExpenseAction(args:any,userId:string){
 async function recordPaymentAction(args:any,role:string,userId:string){
  const client=await findClient(args.clientName,role,userId,false),value=amount(args.amount),method=clean(args.method||"bank",30).toLowerCase();if(!METHODS.has(method))throw new VivitoActionError("Invalid payment method.");const [workspace]=await db.select({currency:workspaces.currency}).from(workspaces).where(eq(workspaces.id,tenantId())).limit(1),currency=workspace?.currency||"EGP";
  const invoices=rows(await db.execute(sql`select id,total_revenue,paid,outstanding,invoice_status,due_date,created_at from finance_records where workspace_id=${tenantId()} and client_id=${client.id} and outstanding>0 and coalesce(invoice_status,'SENT') not in ('PAID','CANCELLED') order by coalesce(due_date,created_at) asc,created_at asc`));if(!invoices.length)throw new VivitoActionError("This client has no outstanding invoice to receive the payment.",409);const totalOutstanding=invoices.reduce((s,x)=>s+Number(x.outstanding||0),0);if(value-totalOutstanding>0.01)throw new VivitoActionError(`Payment exceeds outstanding balance (${totalOutstanding.toFixed(2)} ${currency}).`,409,{outstanding:totalOutstanding,currency});
- let remaining=value;const allocations:any[]=[];await db.transaction(async tx=>{for(const inv of invoices){if(remaining<=0.009)break;const outstanding=Number(inv.outstanding||0),part=Number(Math.min(remaining,outstanding).toFixed(2));if(part<=0)continue;const total=Number(inv.total_revenue||0),newPaid=Number(Math.min(total,Number(inv.paid||0)+part).toFixed(2)),newOutstanding=Number(Math.max(0,total-newPaid).toFixed(2)),now=new Date();await tx.insert(paymentRecords).values({workspaceId:tenantId(),invoiceId:inv.id,clientId:client.id,amount:part,currency,method,status:"COMPLETED",paidAt:now});await tx.update(financeRecords).set({paid:newPaid,outstanding:newOutstanding,invoiceStatus:newOutstanding<=0.009?"PAID":inv.invoice_status,paidDate:newOutstanding<=0.009?now:null,paymentMethod:method,updatedAt:now} as any).where(and(eq(financeRecords.id,inv.id),eq(financeRecords.workspaceId,tenantId())));allocations.push({invoiceId:inv.id,amount:part,remaining:newOutstanding});remaining=Number((remaining-part).toFixed(2))}await tx.insert(auditLogs).values({workspaceId:tenantId(),userId,action:"vivito_payment_recorded",entity:"clients",entityId:client.id,newValues:JSON.stringify({clientName:client.company_name,amount:value,currency,method,allocations})} as any)});return{success:true,action:"record_payment",entityId:client.id,message:`Payment ${value.toLocaleString("en-EG")} ${currency} recorded for ${client.company_name}.`,allocations,link:"/dashboard/finance"};
+ let remaining=value;const allocations:unknown[]=[];await db.transaction(async tx=>{for(const inv of invoices){if(remaining<=0.009)break;const outstanding=Number(inv.outstanding||0),part=Number(Math.min(remaining,outstanding).toFixed(2));if(part<=0)continue;const total=Number(inv.total_revenue||0),newPaid=Number(Math.min(total,Number(inv.paid||0)+part).toFixed(2)),newOutstanding=Number(Math.max(0,total-newPaid).toFixed(2)),now=new Date();await tx.insert(paymentRecords).values({workspaceId:tenantId(),invoiceId:inv.id,clientId:client.id,amount:part,currency,method,status:"COMPLETED",paidAt:now});await tx.update(financeRecords).set({paid:newPaid,outstanding:newOutstanding,invoiceStatus:newOutstanding<=0.009?"PAID":inv.invoice_status,paidDate:newOutstanding<=0.009?now:null,paymentMethod:method,updatedAt:now} as unknown).where(and(eq(financeRecords.id,inv.id),eq(financeRecords.workspaceId,tenantId())));allocations.push({invoiceId:inv.id,amount:part,remaining:newOutstanding});remaining=Number((remaining-part).toFixed(2))}await tx.insert(auditLogs).values({workspaceId:tenantId(),userId,action:"vivito_payment_recorded",entity:"clients",entityId:client.id,newValues:JSON.stringify({clientName:client.company_name,amount:value,currency,method,allocations})} as any)});return{success:true,action:"record_payment",entityId:client.id,message:`Payment ${value.toLocaleString("en-EG")} ${currency} recorded for ${client.company_name}.`,allocations,link:"/dashboard/finance"};
 }
 
 async function createInvoiceAction(args:any,role:string,userId:string){
@@ -122,7 +122,7 @@ async function attachFileAction(args:any,role:string,userId:string){
 
 async function reminderAction(args:any,userId:string){const title=clean(args.title||"VIVITO reminder",160),message=clean(args.message||title,1000),linkRaw=clean(args.link||"/dashboard/today",500),link=linkRaw.startsWith("/")&&!linkRaw.startsWith("//")?linkRaw:"/dashboard/today";const [row]=await db.insert(notifications).values({userId,type:"VIVITO_REMINDER",title,message,link,priority:"normal"} as any).returning();await audit(userId,"vivito_reminder_created","notifications",row.id,{title,link});return{success:true,action:"remind_me",entityId:row.id,message:"Reminder created.",link};}
 
-export async function executeVivitoAction(op:VivitoActionOp,args:any,role:string,userId:string,workspaceId:string){if(!workspaceId)throw new VivitoActionError("Workspace unavailable.",403);return workspaceContext.run(workspaceId,async()=>{
+export async function executeVivitoAction(op:VivitoActionOp,args:unknown,role:string,userId:string,workspaceId:string){if(!workspaceId)throw new VivitoActionError("Workspace unavailable.",403);return workspaceContext.run(workspaceId,async()=>{
  authorizeOp(role,op);
  if(op==="create_client")return createClientAction(args,role,userId);
  if(["archive_client","restore_client","delete_client"].includes(op))return clientLifecycle(op,args,role,userId);

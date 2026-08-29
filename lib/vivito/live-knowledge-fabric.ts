@@ -39,7 +39,7 @@ export function buildLiveKnowledgeResearchPolicy(query:string){const ranked=rank
 export async function loadVivitoLiveKnowledgeContext(workspaceId:string,query:string,limit=6){
  const workspace=requireWorkspace(workspaceId),wanted=new Set(rankVivitoSources(query,12).map(s=>s.id));
  const rows=Array.from(await db.execute(sql`select distinct on (title) title,content,tags,version,created_at from knowledge_base where workspace_id=${workspace} and category='VIVITO_LIVE_KNOWLEDGE' and is_published=true order by title,version desc,created_at desc limit 40`)) as any[];
- const chosen=rows.map(r=>{let meta:any={};try{meta=r.tags?JSON.parse(String(r.tags)):{} }catch{}return{...r,meta}}).filter(r=>wanted.has(String(r.meta?.sourceId||""))).sort((a,b)=>rankVivitoSources(query,20).findIndex(s=>s.id===b.meta.sourceId)-rankVivitoSources(query,20).findIndex(s=>s.id===a.meta.sourceId)).slice(0,Math.max(1,Math.min(10,limit)));
+ const chosen=rows.map(r=>{let meta:unknown={};try{meta=r.tags?JSON.parse(String(r.tags)):{} }catch{}return{...r,meta}}).filter(r=>wanted.has(String(r.meta?.sourceId||""))).sort((a,b)=>rankVivitoSources(query,20).findIndex(s=>s.id===b.meta.sourceId)-rankVivitoSources(query,20).findIndex(s=>s.id===a.meta.sourceId)).slice(0,Math.max(1,Math.min(10,limit)));
  if(!chosen.length)return"No cached live-knowledge snapshot is available yet; use live grounded search and say so.";
  return chosen.map(r=>`SOURCE ${r.meta.sourceId} | ${r.meta.url} | fetched ${r.meta.fetchedAt||r.created_at} | authority ${r.meta.authority||"unknown"}\n${String(r.content||"").slice(0,1800)}`).join("\n\n");
 }

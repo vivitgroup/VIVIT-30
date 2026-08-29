@@ -1,0 +1,16 @@
+[
+  "lib/vivito/ad-platform-writes.ts",
+  "lib/vivito/client-digital-twin.ts",
+  "lib/vivito/competitive-chat.ts",
+  "lib/vivito/competitive-intelligence.ts",
+  "lib/vivito/direct-runtime.ts",
+  "lib/vivito/enterprise-governance.ts",
+  "lib/vivito/executor-extended.ts",
+  "lib/vivito/executor-operator.ts",
+  "lib/vivito/executor.ts",
+  "lib/vivito/live-knowledge-fabric.ts",
+  "lib/vivito/memory.ts",
+  "lib/vivito/model-mesh-v1.ts",
+  "lib/vivito/multimodal.ts",
+  "lib/vivito/quota-resilience.ts"
+]

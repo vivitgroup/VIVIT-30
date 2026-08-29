@@ -34,9 +34,10 @@ const authConfig={
   },
   session({session,token}){
    if(session.user){
+    const role=token.role,workspaceId=token.workspaceId;
     session.user.id=token.sub??"";
-    session.user.role=typeof token.role==="string"?token.role:undefined;
-    session.user.workspaceId=typeof token.workspaceId==="string"?token.workspaceId:undefined;
+    session.user.role=typeof role==="string"?role:undefined;
+    session.user.workspaceId=typeof workspaceId==="string"?workspaceId:undefined;
     session.user.authValid=token.authValid===true;
    }
    return session;

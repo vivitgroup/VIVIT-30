@@ -1,0 +1,76 @@
+name: CTO Media Control Types V10 Retry
+
+on:
+  push:
+    branches: [feat/vivito-media-control-types-v10]
+    paths: ['.github/workflows/cto-media-control-types-v10-retry.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-media-control-types-v10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Apply media control contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs=require('node:fs'),file='components/media/MediaControlV2.tsx';let s=fs.readFileSync(file,'utf8');
+          function one(from,to,count=1){const n=s.split(from).length-1;if(n!==count)throw new Error(`expected ${count}, found ${n}: ${from.slice(0,120)}`);s=s.split(from).join(to)}
+          one('import {useCallback,useEffect,useMemo,useState} from "react";','import {useCallback,useEffect,useMemo,useState} from "react";\nimport type {MediaAccountGroup,MediaAdSet,MediaCampaign,MediaControlData,MediaMetricTotals,MediaMetrics} from "@/types/media-control";\ntype MediaControlUiData=Omit<MediaControlData,"access">&{clients?:unknown[];access?:{canHardDelete?:boolean}};');
+          one('function MiniMetrics({m,currency="EGP"}:{m:any;currency?:string}){const x=m||{}','function MiniMetrics({m,currency="EGP"}:{m:MediaMetrics|undefined;currency?:string}){const x:MediaMetrics=m||{}');
+          one('function Hierarchy({sets,currency}:{sets:any[];currency:string})','function Hierarchy({sets,currency}:{sets:MediaAdSet[];currency:string})');
+          one('sets.map((s:any)=>','sets.map((s)=>');
+          one('(s.ads||[]).map((a:any)=>','(s.ads||[]).map((a)=>');
+          one('function recommendation(c:any){const m=c.metrics||{},p=c.previousMetrics||{}','function recommendation(c:MediaCampaign){const m:MediaMetrics=c.metrics||{},p:MediaMetrics=c.previousMetrics||{}');
+          one('(c.adSets||[]).reduce((s:number,x:any)=>','(c.adSets||[]).reduce((s:number,x)=>');
+          one('function AccountCard({a,onOpen}:{a:any;onOpen:()=>void}){const m=a.metrics||{},p=a.previousMetrics||{}','function AccountCard({a,onOpen}:{a:MediaAccountGroup;onOpen:()=>void}){const m:MediaMetrics=a.metrics||{},p:MediaMetrics=a.previousMetrics||{}');
+          one('useState<any>({campaigns:[],archivedCampaigns:[],accountGroups:[],clients:[],range:{start:defaultFrom,end:today},access:{}})','useState<MediaControlUiData>({campaigns:[],archivedCampaigns:[],accountGroups:[],clients:[],range:{start:defaultFrom,end:today},access:{}})');
+          one('data.campaigns?.reduce((a:unknown,c:any)=>','data.campaigns.reduce<MediaMetricTotals>((a,c)=>');
+          one('})||{},[data.campaigns])','}),[data.campaigns])');
+          one('(data.accountGroups||[]).find((a:any)=>','data.accountGroups.find((a)=>');
+          one('(data.accountGroups||[]).map((a:any)=>','data.accountGroups.map((a)=>',2);
+          one('(data.campaigns||[]).map((c:any)=>','data.campaigns.map((c)=>');
+          one('(data.archivedCampaigns||[]).map((c:any)=>','data.archivedCampaigns.map((c)=>');
+          one('function AccountWorkspace({a,back,onArchive,onSync,syncing}:{a:any;back:()=>void;onArchive:(id:string)=>void;onSync:(id:string)=>void;syncing:string|null}){const m=a.metrics||{}','function AccountWorkspace({a,back,onArchive,onSync,syncing}:{a:MediaAccountGroup;back:()=>void;onArchive:(id:string)=>void;onSync:(id:string)=>void;syncing:string|null}){const m:MediaMetrics=a.metrics||{}');
+          one('(a.campaigns||[]).map((c:any)=>','(a.campaigns||[]).map((c)=>');
+          one('function CampaignCard({c,onArchive,onSync,syncing}:{c:any;onArchive:()=>void;onSync:()=>void;syncing:boolean}){const m=c.metrics||{}','function CampaignCard({c,onArchive,onSync,syncing}:{c:MediaCampaign;onArchive:()=>void;onSync:()=>void;syncing:boolean}){const m:MediaMetrics=c.metrics||{}');
+          fs.writeFileSync(file,s);
+          NODE
+          git diff --check
+      - name: Acceptance
+        shell: bash
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint components/media/MediaControlV2.tsx -f json > /tmp/e.json || true
+          node <<'NODE'
+          const r=require('/tmp/e.json'),m=r.flatMap(x=>x.messages||[]);console.log(`target_total=${m.length}`);console.log(`target_any=${m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any').length}`);console.log(JSON.stringify(m.map(x=>[x.ruleId,x.line,x.message]).slice(0,40)));if(m.length)process.exit(1)
+          NODE
+          npx eslint . -f json > /tmp/all.json || true
+          node <<'NODE'
+          const r=require('/tmp/all.json'),m=r.flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any');console.log(`remaining_any=${a.length}`);console.log(`remaining_non_any=${n.length}`);console.log(`remaining_warnings=${m.filter(x=>x.severity===1).length}`);if(n.length||m.filter(x=>x.severity===1).length)process.exit(1)
+          NODE
+      - name: Commit source
+        shell: bash
+        run: |
+          git config user.name 'VIVIT CTO Gate Bot';git config user.email 'groupvivit@gmail.com'
+          git add components/media/MediaControlV2.tsx
+          git commit -m 'fix(types): type media control component contracts [skip ci]'
+          git push origin HEAD:feat/vivito-media-control-types-v10

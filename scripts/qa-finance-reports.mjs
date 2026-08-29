@@ -48,7 +48,7 @@ check("Mark paid writes audit history", finance.includes('action:"invoice_paid"'
 check("Finance page shows recent payment history", finance.includes("Recent payments") && finance.includes("recentPayments"));
 check("Workspace currency drives finance display", finance.includes("workspaces.currency") && finance.includes('currency=workspace?.currency||"EGP"'));
 check("Accounts Payment rejects Account Manager and Media Buyer", accounts.includes("Role.SUPER_ADMIN,Role.ACCOUNTANT") && accounts.includes('redirect("/dashboard/universe")'));
-check("Accounts Payment only includes active clients for admin/accountant", accounts.includes('workspaceId=String((session.user as any).workspaceId||"")') && accounts.includes("p.workspace_id=${workspaceId}") && accounts.includes("where c.workspace_id=${workspaceId} and c.is_active=true"));
+check("Accounts Payment only includes active clients for admin/accountant", accounts.includes('workspaceId=String(session.user.workspaceId||"")') && accounts.includes("p.workspace_id=${workspaceId}") && accounts.includes("where c.workspace_id=${workspaceId} and c.is_active=true"));
 check("Invoice API derives workspace from authenticated session", derivesWorkspace(invoice));
 check("Invoice API is workspace scoped", invoice.includes("eq(financeRecords.workspaceId,workspaceId)"));
 check("Invoice API validates finance client access", invoice.includes("canAccessClient(session,record.clientId,{finance:true})"));

@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "npm run qa:static && npm run type-check && next build",
+    "build": "npm audit --audit-level=critical && npm run qa:static && npm run type-check && next build",
     "start": "next start",
     "lint": "next lint",
     "seed": "npx tsx scripts/seed.ts",

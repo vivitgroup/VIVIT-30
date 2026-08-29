@@ -22,7 +22,7 @@ function validateEmail(email: string): boolean {
 function validateUrl(url: string): boolean {
   try { const u = new URL(url); return ["http:","https:"].includes(u.protocol); } catch { return false; }
 }
-function requireFields(data: Record<string, any>, fields: string[]): string | null {
+function requireFields(data: Record<string, unknown>, fields: string[]): string | null {
   for (const f of fields) {
     if (!data[f] || String(data[f]).trim() === "") return `${f} is required`;
   }
@@ -124,7 +124,7 @@ export async function updateClient(clientId: string, formData: FormData) {
     googleAdsLink:    formData.get("googleAdsLink")    as string || null,
     internalNotes:    formData.get("internalNotes")    as string || null,
     updatedAt: new Date(),
-  } as any).where(eq(clients.id, clientId));
+  } as unknown).where(eq(clients.id, clientId));
 
   revalidatePath(`/dashboard/clients/${clientId}`);
   revalidatePath("/dashboard/clients");
@@ -219,8 +219,8 @@ export async function createTask(formData: FormData) {
   if(assignedToId){const [creator]=await db.select({id:users.id}).from(users).where(and(eq(users.id,assignedToId),eq(users.role,"CREATOR"),eq(users.isActive,true))).limit(1);if(!creator)throw new Error("Invalid creator assignment");}
 
   const [task] = await db.insert(creativeTasks).values({
-    title, clientId, type: type as any, brief, tov: tov || null,
-    priority: priority as any, status: "PENDING",
+    title, clientId, type: type as unknown, brief, tov: tov || null,
+    priority: priority as unknown, status: "PENDING",
     assignedToId, deadline: deadlineDate, caption,
     createdById: session.user.id!,
   } as any).returning();
@@ -272,12 +272,12 @@ export async function updateTaskStatus(taskId: string, status: string, revisionN
 
   const [task] = await db.update(creativeTasks)
     .set({
-      status: status as any,
+      status: status as unknown,
       completedAt: ["APPROVED","COMPLETED"].includes(status) ? new Date() : undefined,
       revisionCount: status === "REVISION" ? (currentTask?.revisionCount ?? 0) + 1 : undefined,
       revisionNotes: status === "REVISION" ? (revisionNotes ?? null) : undefined,
       updatedAt: new Date(),
-    } as any)
+    } as unknown)
     .where(eq(creativeTasks.id, taskId))
     .returning();
 
@@ -323,7 +323,7 @@ export async function submitTaskFile(taskId: string, fileName: string, fileUrl: 
   if(!validateUrl(String(fileUrl||"")))throw new Error("A valid uploaded file URL is required");
 
   const [task] = await db.update(creativeTasks)
-    .set({ status: "REVIEW", fileUrl: fileUrl || null, updatedAt: new Date() } as any)
+    .set({ status: "REVIEW", fileUrl: fileUrl || null, updatedAt: new Date() } as unknown)
     .where(eq(creativeTasks.id, taskId))
     .returning();
 
@@ -360,7 +360,7 @@ export async function updateTaskCaption(taskId: string, caption: string) {
     await requireClientAccess(session,task.clientId,true);
     if(role!=="SUPER_ADMIN"&&!["PENDING","IN_PROGRESS","REVIEW","REVISION"].includes(task.status))throw new Error("Approved or completed work is locked.");
   }
-  await db.update(creativeTasks).set({ caption, updatedAt: new Date() } as any).where(eq(creativeTasks.id, taskId));
+  await db.update(creativeTasks).set({ caption, updatedAt: new Date() } as unknown).where(eq(creativeTasks.id, taskId));
   revalidatePath(`/dashboard/creative/${taskId}`);
 }
 
@@ -370,7 +370,7 @@ export async function markTaskPosted(taskId: string) {
   await requireClientAccess(session,task.clientId,true);
   if(task.status!=="APPROVED")throw new Error("Only approved tasks can be marked posted");
   await db.update(creativeTasks)
-    .set({ isPosted: true, postedAt: new Date(), status: "COMPLETED", updatedAt: new Date() } as any)
+    .set({ isPosted: true, postedAt: new Date(), status: "COMPLETED", updatedAt: new Date() } as unknown)
     .where(eq(creativeTasks.id, taskId));
   revalidatePath(`/dashboard/creative/${taskId}`);
   revalidatePath("/dashboard/creative");

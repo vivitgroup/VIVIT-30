@@ -17,8 +17,10 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import authConfig from "@/auth.config";
+import {Role} from "@/lib/types";
 
 type AuthUserRow={id:string;name:string;email:string;password:string;role:string;workspace_id:string;is_active:boolean;approval_status:string};
+const isRole=(value:string):value is Role=>Object.values(Role).some(role=>role===value);
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
@@ -39,7 +41,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           if(!res.ok)return null;
           const users = await res.json() as AuthUserRow[];
           const user = users[0];
-          if (!user || !user.is_active || user.approval_status!=="APPROVED" || !user.workspace_id) return null;
+          if (!user || !user.is_active || user.approval_status!=="APPROVED" || !user.workspace_id || !isRole(user.role)) return null;
           const ok = await bcrypt.compare(String(credentials.password), user.password);
           if (!ok) return null;
           return { id: user.id, email: user.email, name: user.name, role: user.role, workspaceId:user.workspace_id };

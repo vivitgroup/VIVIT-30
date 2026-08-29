@@ -24,76 +24,52 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Apply CTO static-source remediation
+      - name: Apply TypeScript source remediation
         shell: bash
         run: |
           python - <<'PY'
           from pathlib import Path
 
-          for root in ['app','components','lib']:
-              for p in Path(root).rglob('*'):
-                  if p.suffix in {'.ts','.tsx','.js','.jsx','.mjs','.cjs'} and p.is_file():
-                      lines=p.read_text().splitlines(True)
-                      new=[ln for ln in lines if '@ts-nocheck' not in ln]
-                      if new!=lines:p.write_text(''.join(new))
+          p=Path('app/api/cron/media-sync/route.ts'); s=p.read_text()
+          old='await db.insert(adPerformanceDaily).values({campaignId:c.id,date,breakdownType:"TOTAL",breakdownValue:"ALL",spend,impressions,reach,clicks,results,purchases,addToCart,revenue,frequency,ctr,cpc,cpm,cpl:cpr,costPerResult:cpr,cpa:purchases?spend/purchases:0,roas:spend?revenue/spend:0});'
+          new='await db.execute(sql`insert into ad_performance_daily(id,campaign_id,date,breakdown_type,breakdown_value,spend,impressions,reach,clicks,results,qualified_leads,purchases,add_to_cart,revenue,frequency,ctr,cpc,cpm,cpl,cost_per_result,cpa,roas) values(gen_random_uuid()::text,${c.id},${date}::timestamp,\'TOTAL\',\'ALL\',${spend},${impressions},${reach},${clicks},${results},0,${purchases},${addToCart},${revenue},${frequency},${ctr},${cpc},${cpm},${cpr},${cpr},${purchases?spend/purchases:0},${spend?revenue/spend:0})`);'
+          if old in s: p.write_text(s.replace(old,new))
 
-          p=Path('app/api/auth/[...nextauth]/route.ts')
-          s=p.read_text().replace('export const { GET, POST } = handlers;','export const GET = handlers.GET;\nexport const POST = handlers.POST;')
+          p=Path('app/api/media-discover/route.ts'); s=p.read_text()
+          old='existing=(await db.select().from(adCampaigns).where(and(eq(adCampaigns.platform,"META"),eq(adCampaigns.externalId,externalId))).limit(1))[0],'
+          new='existing=(await db.select({id:adCampaigns.id,archivedAt:sql<Date|null>`archived_at`}).from(adCampaigns).where(and(eq(adCampaigns.platform,"META"),eq(adCampaigns.externalId,externalId))).limit(1))[0],'
+          if old in s: p.write_text(s.replace(old,new))
+
+          p=Path('app/api/recurring/route.ts'); s=p.read_text()
+          s=s.replace('workspaceId:workspaceId,userId:admin.id,type:"GENERAL"','userId:admin.id,type:"GENERAL"')
           p.write_text(s)
 
-          p=Path('scripts/qa-cto-static-audit.mjs')
-          s=p.read_text().replace('  ["app/api/forgot-password/route.ts", "public password-reset request; must be enumeration-safe"],\n  ["app/api/reset-password/route.ts", "public single-use password-reset token endpoint"],','  ["app/api/password/forgot/route.ts", "public password-reset request; must be enumeration-safe"],\n  ["app/api/password/reset/route.ts", "public single-use password-reset token endpoint"],')
+          p=Path('app/dashboard/finance/page.tsx'); s=p.read_text()
+          s=s.replace('async function markPaid(fd:FormData){"use server";const session=await requireFinanceUser(),id=','async function markPaid(fd:FormData){"use server";const {session,workspaceId}=await requireFinanceUser(),id=')
+          s=s.replace('const totals=Array.from(ledgerTotals as any),ledgerRevenue=Number(totals.find((x:any)=>x.direction==="IN")?.total||0),ledgerExpenses=Number(totals.find((x:any)=>x.direction==="OUT")?.total||0)','const totals=Array.from(ledgerTotals) as Array<{direction:string;total:string|number}>,ledgerRevenue=Number(totals.find(x=>x.direction==="IN")?.total||0),ledgerExpenses=Number(totals.find(x=>x.direction==="OUT")?.total||0)')
+          s=s.replace('months=Array.from(monthlyLedger as any),monthMap:any={};for(const r of months){const m=Number(r.month);monthMap[m]??={IN:0,OUT:0};monthMap[m][r.direction]=Number(r.total||0)}','months=Array.from(monthlyLedger) as Array<{month:number|string;direction:string;total:string|number}>,monthMap:Record<number,Record<string,number>>={};for(const r of months){const m=Number(r.month);monthMap[m]??={IN:0,OUT:0};monthMap[m][r.direction]=Number(r.total||0)}')
           p.write_text(s)
-
-          p=Path('lib/client-access.ts')
-          s=p.read_text().replace('const WORKSPACE_ID="default";\n','')
-          s=s.replace(' const role=String((session.user as any).role||""),userId=String((session.user as any).id||"");\n const [client]=', ' const role=String((session.user as any).role||""),userId=String((session.user as any).id||""),workspaceId=String((session.user as any).workspaceId||"");\n if(!workspaceId)return false;\n const [client]=')
-          s=s.replace('eq(clients.workspaceId,WORKSPACE_ID)', 'eq(clients.workspaceId,workspaceId)')
-          p.write_text(s)
-
-          p=Path('app/api/invoice/[id]/route.ts'); s=p.read_text().replace('const WORKSPACE_ID="default";\n','')
-          s=s.replace('if(!session?.user)return NextResponse.json({error:"Unauthorized"},{status:401});const {id}=await context.params;', 'if(!session?.user)return NextResponse.json({error:"Unauthorized"},{status:401});const workspaceId=String((session.user as any).workspaceId||"");if(!workspaceId)return NextResponse.json({error:"Workspace unavailable"},{status:403});const {id}=await context.params;').replace('WORKSPACE_ID','workspaceId'); p.write_text(s)
-
-          p=Path('app/api/monthly-summary/[clientId]/route.ts'); s=p.read_text().replace('const WORKSPACE_ID="default",MONTH_NAMES=', 'const MONTH_NAMES=').replace('const workspaceId="default",MONTH_NAMES=', 'const MONTH_NAMES=')
-          s=s.replace('if(!session?.user)return NextResponse.json({error:"Unauthorized"},{status:401});const {clientId}=await context.params;', 'if(!session?.user)return NextResponse.json({error:"Unauthorized"},{status:401});const workspaceId=String((session.user as any).workspaceId||"");if(!workspaceId)return NextResponse.json({error:"Workspace unavailable"},{status:403});const {clientId}=await context.params;').replace('WORKSPACE_ID','workspaceId'); p.write_text(s)
-
-          p=Path('app/api/pdf-report/[clientId]/route.ts'); s=p.read_text().replace('const WORKSPACE_ID="default",MONTHS=', 'const MONTHS=')
-          s=s.replace('const session=await auth();if(!session?.user)return new NextResponse("Unauthorized",{status:401});const {clientId}=await context.params;', 'const session=await auth();if(!session?.user)return new NextResponse("Unauthorized",{status:401});const workspaceId=String((session.user as any).workspaceId||"");if(!workspaceId)return new NextResponse("Workspace unavailable",{status:403});const {clientId}=await context.params;').replace('WORKSPACE_ID','workspaceId'); p.write_text(s)
-
-          p=Path('app/apps/page.tsx'); s=p.read_text().replace('const WORKSPACE_ID="default";\n','')
-          s=s.replace('const role=String((session.user as any).role??Role.CLIENT),userId=String((session.user as any).id||""),name=', 'const role=String((session.user as any).role??Role.CLIENT),userId=String((session.user as any).id||""),workspaceId=String((session.user as any).workspaceId||"");if(!workspaceId)redirect("/login");const name=').replace('WORKSPACE_ID','workspaceId'); p.write_text(s)
-
-          p=Path('app/dashboard/saas-analytics/page.tsx'); s=p.read_text()
-          s=s.replace('  if ((session.user as any).role !== Role.SUPER_ADMIN) redirect("/dashboard");\n\n  const now', '  if ((session.user as any).role !== Role.SUPER_ADMIN) redirect("/dashboard");\n  const workspaceId = String((session.user as any).workspaceId || "");\n  if (!workspaceId) redirect("/login");\n\n  const now')
-          s=s.replace('eq(workspaces.id,"default")','eq(workspaces.id,workspaceId)').replace('workspace?.name ?? "default"','workspace?.name ?? "Unavailable"'); p.write_text(s)
-
-          p=Path('app/api/recurring/route.ts'); s=p.read_text().replace('const WORKSPACE_ID="default";\n','')
-          marker='  if(!["SUPER_ADMIN","ACCOUNTANT"].includes(String((session.user as any).role)))return NextResponse.json({error:"Forbidden"},{status:403});\n'
-          repl=marker+'  const workspaceId=String((session.user as any).workspaceId||"");\n  if(!workspaceId)return NextResponse.json({error:"Workspace unavailable"},{status:403});\n'
-          s=s.replace(marker,repl).replace('WORKSPACE_ID','workspaceId'); p.write_text(s)
-
-          p=Path('app/dashboard/finance/page.tsx'); s=p.read_text().replace('const WORKSPACE_ID="default";\n','')
-          s=s.replace('async function requireFinanceUser(){const session=await auth();if(!session?.user||![Role.SUPER_ADMIN,Role.ACCOUNTANT].includes((session.user as any).role))throw new Error("Unauthorized");return session}', 'async function requireFinanceUser(){const session=await auth();if(!session?.user||![Role.SUPER_ADMIN,Role.ACCOUNTANT].includes((session.user as any).role))throw new Error("Unauthorized");const workspaceId=String((session.user as any).workspaceId||"");if(!workspaceId)throw new Error("Workspace unavailable");return {session,workspaceId}}')
-          s=s.replace('const session=await requireFinanceUser();', 'const {session,workspaceId}=await requireFinanceUser();')
-          s=s.replace('export default async function FinancePage(){const session=await auth();if(!session?.user)redirect("/login");const role=', 'export default async function FinancePage(){const session=await auth();if(!session?.user)redirect("/login");const workspaceId=String((session.user as any).workspaceId||"");if(!workspaceId)redirect("/login");const role=').replace('WORKSPACE_ID','workspaceId'); p.write_text(s)
           PY
 
-      - name: Verify static gate before commit
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify TypeScript gate before commit
+        run: npm run type-check
+
+      - name: Verify static architecture gate before commit
         run: node scripts/qa-cto-static-audit.mjs
 
-      - name: Commit remediation when source changed
+      - name: Commit TypeScript remediation
         shell: bash
         run: |
           if ! git diff --quiet; then
             git config user.name "VIVIT CTO Gate Bot"
             git config user.email "groupvivit@gmail.com"
-            git add app components lib scripts
-            git commit -m "fix(cto): remove runtime shields and hardcoded tenant defaults"
+            git add app
+            git commit -m "fix(cto): close TypeScript runtime blockers"
             git push origin HEAD:feat/vivito-internal-100
           fi
-
-      - name: Install dependencies
-        run: npm ci
 
       - name: Capture lint before fixes
         shell: bash

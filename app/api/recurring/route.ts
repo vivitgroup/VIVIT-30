@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
     });
     for(const admin of admins){
       await db.insert(notifications).values({
-        workspaceId:workspaceId,userId:admin.id,type:"GENERAL",priority:"normal",
+        userId:admin.id,type:"GENERAL",priority:"normal",
         title:`🧾 Invoice generated: ${client.companyName}`,
         message:`Monthly retainer invoice of ${money(retainer,currency)} for ${month}/${year} created.`,
         link:"/dashboard/finance",

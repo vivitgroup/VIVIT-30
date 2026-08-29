@@ -15,7 +15,7 @@ const exportApi = read("app/api/export/route.ts");
 const reports = read("components/reports/ReportsClient.tsx");
 
 const derivesWorkspace = (source) =>
-  source.includes('workspaceId=String((session.user as any).workspaceId||"")') &&
+  source.includes('workspaceId=String(session.user.workspaceId||"")') &&
   source.includes("if(!workspaceId)");
 
 check("Finance page is role gated", finance.includes("Role.SUPER_ADMIN,Role.ACCOUNTANT"));

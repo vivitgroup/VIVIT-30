@@ -1,0 +1,67 @@
+name: CTO Targeted Tasks Inbox Typing Batch 25
+
+on:
+  push:
+    branches: [feat/vivito-internal-100]
+    paths:
+      - '.github/workflows/cto-targeted-tasks-inbox-typing-batch25.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-internal-100
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply tasks inbox typing remediation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('app/dashboard/tasks-inbox/page.tsx'); s=p.read_text()
+          old='type BulkTarget={from?:string[];status?:string;priority?:string};\nconst BULK_ACTIONS:Record<string,BulkTarget>='
+          new='type TaskStatus=typeof creativeTasks.$inferSelect.status;type TaskPriority=typeof creativeTasks.$inferSelect.priority;\ntype BulkTarget={from?:TaskStatus[];status?:TaskStatus;priority?:TaskPriority};\ntype SessionUser={role?:Role|string;id?:string;workspaceId?:string};\nconst BULK_ACTIONS:Record<string,BulkTarget>='
+          if old not in s: raise SystemExit('bulk target marker missing')
+          s=s.replace(old,new,1)
+          old='async function bulkAction(fd:FormData){"use server";const session=await auth();if(!session?.user||![Role.SUPER_ADMIN,Role.ACCOUNT_MANAGER].includes((session.user as any).role))throw new Error("Unauthorized");const role=(session.user as any).role as Role,userId=String((session.user as any).id||""),workspaceId=String((session.user as any).workspaceId||"");'
+          new='async function bulkAction(fd:FormData){"use server";const session=await auth();if(!session?.user)throw new Error("Unauthorized");const sessionUser=session.user as unknown as SessionUser,role=String(sessionUser.role||"") as Role;if(![Role.SUPER_ADMIN,Role.ACCOUNT_MANAGER].includes(role))throw new Error("Unauthorized");const userId=String(sessionUser.id||""),workspaceId=String(sessionUser.workspaceId||"");'
+          if old not in s: raise SystemExit('bulk session fragment missing')
+          s=s.replace(old,new,1)
+          replacements=[
+            ('let scope:any=and(', 'let scope=and('),
+            ('inArray(creativeTasks.status,target.from as any)', 'inArray(creativeTasks.status,target.from)'),
+            ('{status:target.status as any}', '{status:target.status}'),
+            ('{priority:target.priority as any}', '{priority:target.priority}'),
+            ('newValues:JSON.stringify({taskIds:candidates.map(t=>t.id),from:target.from||null,status:target.status||null,priority:target.priority||null})} as any)', 'newValues:JSON.stringify({taskIds:candidates.map(t=>t.id),from:target.from||null,status:target.status||null,priority:target.priority||null})})'),
+          ]
+          for old,new in replacements:
+              if old not in s: raise SystemExit(f'missing fragment: {old[:140]}')
+              s=s.replace(old,new,1)
+          old='export default async function TasksInboxPage(){const session=await auth();if(!session?.user)redirect("/login");const role=(session.user as any).role as Role;if(![Role.SUPER_ADMIN,Role.ACCOUNT_MANAGER].includes(role))redirect("/dashboard");const userId=String((session.user as any).id||""),workspaceId=String((session.user as any).workspaceId||"");'
+          new='export default async function TasksInboxPage(){const session=await auth();if(!session?.user)redirect("/login");const sessionUser=session.user as unknown as SessionUser,role=String(sessionUser.role||"") as Role;if(![Role.SUPER_ADMIN,Role.ACCOUNT_MANAGER].includes(role))redirect("/dashboard");const userId=String(sessionUser.id||""),workspaceId=String(sessionUser.workspaceId||"");'
+          if old not in s: raise SystemExit('page session fragment missing')
+          s=s.replace(old,new,1)
+          if ':any' in s or ' as any' in s:
+              raise SystemExit('explicit any remains in tasks inbox')
+          p.write_text(s)
+          PY
+      - name: TypeScript acceptance
+        run: npx tsc --noEmit
+      - name: Targeted ESLint acceptance
+        run: npx eslint app/dashboard/tasks-inbox/page.tsx --max-warnings=0
+      - name: Commit validated remediation
+        run: |
+          git config user.name 'vivitgroup'
+          git config user.email 'groupvivit@gmail.com'
+          git add app/dashboard/tasks-inbox/page.tsx
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix(types): harden tasks inbox bulk actions'
+          git push origin HEAD:feat/vivito-internal-100

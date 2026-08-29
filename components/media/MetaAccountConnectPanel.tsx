@@ -3,7 +3,7 @@ import {useEffect,useRef,useState} from "react";
 
 const CUTOFF="2026-07-25",STALE_MS=10*60*1000,iso=(d:Date)=>d.toISOString().slice(0,10),sleep=(ms:number)=>new Promise(r=>setTimeout(r,ms));
 async function read(r:Response){const t=await r.text();try{return t?JSON.parse(t):{}}catch{return {error:t||`Request failed (${r.status})`}}}
-const isRateLimit=(v:any)=>/too many calls|rate.?limit|request limit/i.test(String(v||""));
+const isRateLimit=(v:unknown)=>/too many calls|rate.?limit|request limit/i.test(String(v||""));
 export function MetaAccountConnectPanel(){
  const [data,setData]=useState<any>({accountGroups:[]}),[busy,setBusy]=useState(""),[msg,setMsg]=useState(""),[tone,setTone]=useState<"info"|"warn"|"ok">("info");
  const autoRan=useRef(false);

@@ -36,7 +36,7 @@ function defaultPoolEnabled(){return env("VIVITO_DEFAULT_MODEL_POOL")!=="0"}
 
 function normalizeModel(m:any):VivitoMeshModel|null{
   if(!m||typeof m.id!=="string"||typeof m.provider!=="string"||typeof m.model!=="string"||typeof m.baseUrl!=="string"||typeof m.apiKeyEnv!=="string")return null;
-  const tasks=Array.isArray(m.tasks)?m.tasks.filter((t:any)=>["general","reasoning","creative","research","finance","coding","arabic"].includes(String(t))):undefined;
+  const tasks=Array.isArray(m.tasks)?m.tasks.filter((t:unknown)=>["general","reasoning","creative","research","finance","coding","arabic"].includes(String(t))):undefined;
   const normalized:VivitoMeshModel={
     id:m.id.trim(),provider:m.provider.trim(),model:m.model.trim(),baseUrl:m.baseUrl.replace(/\/+$/,"").trim(),apiKeyEnv:m.apiKeyEnv.trim(),enabled:m.enabled!==false,
     quality:clamp(Number(m.quality??70),0,100),cost:clamp(Number(m.cost??50),0,100),latency:clamp(Number(m.latency??50),0,100),tasks,

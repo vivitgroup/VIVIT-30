@@ -36,7 +36,7 @@ jobs:
               p.write_text(s)
 
           apply('app/api/api-keys/route.ts', [
-            ('function canManageKeys(session:any){return !!session?.user&&(session.user as any).role==="SUPER_ADMIN";}\nfunction workspaceOf(session:any){const workspaceId=String((session?.user as any)?.workspaceId||"").trim();return workspaceId||null;}', 'type AuthSession=Awaited<ReturnType<typeof auth>>;\nfunction canManageKeys(session:AuthSession){return !!session?.user&&session.user.role==="SUPER_ADMIN";}\nfunction workspaceOf(session:AuthSession){const workspaceId=String(session?.user?.workspaceId||"").trim();return workspaceId||null;}'),
+            ('function canManageKeys(session:any){return !!session?.user&&(session.user as any).role==="SUPER_ADMIN";}\nfunction workspaceOf(session:any){const workspaceId=String((session?.user as any)?.workspaceId||"").trim();return workspaceId||null;}', 'type AuthSession={user?:{role?:string|null;workspaceId?:string|null}|null}|null;\nfunction canManageKeys(session:AuthSession){return !!session?.user&&session.user.role==="SUPER_ADMIN";}\nfunction workspaceOf(session:AuthSession){const workspaceId=String(session?.user?.workspaceId||"").trim();return workspaceId||null;}'),
             ('{workspaceId,userId:session!.user!.id!,name,keyHash,keyPrefix,permissions} as any', '{workspaceId,userId:session!.user!.id!,name,keyHash,keyPrefix,permissions}'),
             ('set({isActive:false} as any)', 'set({isActive:false})'),
           ])

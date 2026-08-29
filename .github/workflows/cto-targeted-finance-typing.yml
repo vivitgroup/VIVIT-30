@@ -31,8 +31,9 @@ jobs:
 
           replacements = {
               "app/dashboard/finance/page.tsx": {
+                  "![Role.SUPER_ADMIN,Role.ACCOUNTANT].includes((session.user as any).role)": "![Role.SUPER_ADMIN,Role.ACCOUNTANT].includes(session.user.role as Role)",
+                  "const role=(session.user as any).role as Role": "const role=session.user.role as Role",
                   "(session.user as any).workspaceId": "session.user.workspaceId",
-                  "(session.user as any).role": "session.user.role",
                   "(session.user as any).id": "session.user.id",
               },
               "app/api/pdf-report/[clientId]/route.ts": {

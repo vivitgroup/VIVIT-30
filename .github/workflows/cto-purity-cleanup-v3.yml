@@ -1,0 +1,62 @@
+name: CTO Purity Cleanup V3
+
+on:
+  push:
+    branches: [feat/vivito-static-purity-v3]
+    paths:
+      - '.github/workflows/cto-purity-cleanup-v3.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-static-purity-v3
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Replace render-time Date.now calls
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs=require('node:fs');
+          const files=['app/apps/page.tsx','app/dashboard/creative/[id]/page.tsx','app/dashboard/creative/quality/page.tsx','app/dashboard/ltv/page.tsx','app/dashboard/operations/page.tsx','app/dashboard/universe/page.tsx','components/media/MediaControlV2.tsx','components/media/MediaIntelligenceWorkspace.tsx','components/media/MediaIntelligenceWorkspaceV2.tsx'];
+          let total=0;for(const file of files){let s=fs.readFileSync(file,'utf8');const n=s.split('Date.now()').length-1;if(!n){console.log(`no_date_now=${file}`);continue}s=s.split('Date.now()').join('new Date().getTime()');fs.writeFileSync(file,s);total+=n;console.log(`replaced=${file} count=${n}`)}console.log(`replaced_total=${total}`);
+          NODE
+          git diff --check
+      - name: Acceptance and targeted lint
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          git diff --check
+          npx eslint app/apps/page.tsx 'app/dashboard/creative/[id]/page.tsx' app/dashboard/creative/quality/page.tsx app/dashboard/ltv/page.tsx app/dashboard/operations/page.tsx app/dashboard/universe/page.tsx components/media/MediaControlV2.tsx components/media/MediaIntelligenceWorkspace.tsx components/media/MediaIntelligenceWorkspaceV2.tsx -f json > /tmp/eslint.json || true
+          node <<'NODE'
+          const fs=require('node:fs');const rows=JSON.parse(fs.readFileSync('/tmp/eslint.json','utf8'));const m=rows.flatMap(r=>r.messages||[]);const p=m.filter(x=>x.ruleId==='react-hooks/purity');console.log(`purity_remaining=${p.length}`);console.log(JSON.stringify(p.map(x=>[x.line,x.column,x.message])));if(p.length)process.exit(1);
+          NODE
+      - name: Commit verified source fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git add app components
+          if ! git diff --cached --quiet; then
+            git commit -m 'fix(react): remove render-time Date.now purity findings [skip ci]'
+            git push origin HEAD:feat/vivito-static-purity-v3
+          fi

@@ -15,8 +15,15 @@ function roleFor(test:VivitoBenchmarkCase){
   return"SUPER_ADMIN";
 }
 
+type SyntheticContext={
+  benchmarkMode:boolean;benchmarkRule:string;role:string;scope:{clientCount:number;clientNames:string[]};
+  clients:Array<{id:string;company_name:string;industry:string}>;operations:Record<string,number>;topTasks:Array<Record<string,unknown>>;
+  media?:Record<string,number|string>;campaigns?:Array<Record<string,unknown>>;trackingHealth?:Array<Record<string,unknown>>;clientHealth?:Array<Record<string,unknown>>;
+  sales?:Record<string,unknown>;salesPipeline?:Array<Record<string,unknown>>;archivedExcluded?:boolean;finance?:Record<string,unknown>;
+};
+
 function syntheticContext(test:VivitoBenchmarkCase,role:string){
-  const base:any={
+  const base:SyntheticContext={
     benchmarkMode:true,
     benchmarkRule:"Facts stated in the benchmark prompt are hypothetical scenario evidence. Live VIVIT facts may only come from this synthetic ERP context.",
     role,
@@ -36,9 +43,9 @@ function syntheticContext(test:VivitoBenchmarkCase,role:string){
   };
   const q=test.prompt.toLowerCase();
   if(q.includes("client y"))base.scope={clientCount:1,clientNames:["Client X"]};
-  if(q.includes("client y"))base.clients=base.clients.filter((x:any)=>x.company_name!=="Client Y");
+  if(q.includes("client y"))base.clients=base.clients.filter(x=>x.company_name!=="Client Y");
   if(q.includes("999,999"))base.benchmarkRule+=" The user-provided 999,999 conflicts with ERP; ERP is authoritative and shows 12,345 EGP for Client X.";
-  if(q.includes("backend says 12")){base.media.purchases=12;base.benchmarkRule+=" Backend purchase count is 12 while the platform reports 20.";}
+  if(q.includes("backend says 12")&&base.media){base.media.purchases=12;base.benchmarkRule+=" Backend purchase count is 12 while the platform reports 20.";}
   if(q.includes("no tracking data")||q.includes("missing conversion tracking")||q.includes("tracking is broken"))base.trackingHealth=[{company_name:"Benchmark Client",platform:"META",pixel_status:"MISSING",capi_status:"MISSING",utm_status:"UNKNOWN",landing_page_status:"ACTIVE",issues:'["Purchase event missing"]',checked_at:"2026-08-27T09:00:00Z"}];
   if(q.includes("archived")){base.benchmarkRule+=" Archived records are excluded from active ERP context.";base.archivedExcluded=true;}
   if(role==="ACCOUNTANT"||role==="SUPER_ADMIN")base.finance={amountDue:500000,amountPaid:390000,amountOutstanding:110000,billing:[{company_name:"Benchmark Client",amount_due:100000,amount_paid:60000,amount_remaining:40000,payment_status:"PARTIAL"}],expensesMTD:[{category:"Production",amount:42000}]};
@@ -56,12 +63,15 @@ const batchSize=Math.max(1,Math.min(25,Number(process.env.VIVITO_BENCHMARK_BATCH
 const checkpointPath=process.env.VIVITO_BENCHMARK_CHECKPOINT||path.join(process.cwd(),".vivito","benchmark-checkpoint.json");
 let lastProviderCallAt=0;
 
+const errorMessage=(error:unknown)=>error instanceof Error?error.message:String(error);
+type GenerateOptions=Parameters<typeof generateVivito>[2];
+
 function isTransientProviderError(error:unknown){
-  const msg=String((error as any)?.message||error).toLowerCase();
+  const msg=errorMessage(error).toLowerCase();
   return /429|resource_exhausted|quota|rate[- ]?limit|high demand|temporar|timeout|timed out|503|unavailable|overloaded/.test(msg);
 }
 
-async function pacedGenerate(prompt:string,system:string,options:any){
+async function pacedGenerate(prompt:string,system:string,options:GenerateOptions){
   for(let attempt=1;attempt<=retryAttempts;attempt++){
     const wait=paceMs-(Date.now()-lastProviderCallAt);
     if(wait>0)await sleep(wait);
@@ -93,6 +103,8 @@ async function runCase(test:VivitoBenchmarkCase){
   return{test,answer,role,provider:draft.provider,attempted:draft.attempted,criticApplied,criticProvider};
 }
 
+type BenchmarkOutput=Awaited<ReturnType<typeof runCase>>&{error?:string};
+
 function readCheckpoint(selected:VivitoBenchmarkCase[]){
   try{
     const cp=JSON.parse(fs.readFileSync(checkpointPath,"utf8"));
@@ -103,7 +115,7 @@ function readCheckpoint(selected:VivitoBenchmarkCase[]){
   }catch{return null;}
 }
 
-function writeCheckpoint(selected:VivitoBenchmarkCase[],outputsById:Record<string,any>){
+function writeCheckpoint(selected:VivitoBenchmarkCase[],outputsById:Record<string,BenchmarkOutput>){
   fs.mkdirSync(path.dirname(checkpointPath),{recursive:true});
   const ordered=selected.map(test=>outputsById[test.id]).filter(Boolean);
   const payload={version:VIVITO_BENCHMARK_VERSION,updatedAt:new Date().toISOString(),selectedIds:selected.map(x=>x.id),completedCases:ordered.length,outputs:ordered};
@@ -117,7 +129,7 @@ async function main(){
   const limit=Math.max(1,Math.min(100,Number(process.env.VIVITO_BENCHMARK_LIMIT||100)));
   const selected=VIVITO_BENCHMARK_CASES.filter(x=>!dimension||x.dimension===dimension).slice(0,limit);
   const checkpoint=readCheckpoint(selected);
-  const outputsById:Record<string,any>={};
+  const outputsById:Record<string,BenchmarkOutput>={};
   for(const item of checkpoint?.outputs||[]){
     if(!item?.test?.id)continue;
     const previousScore=scoreVivitoAnswer(item.test,item.answer||"");
@@ -143,9 +155,9 @@ async function main(){
         console.log(`RETRY NEEDED (missing [${caseScore.requiredMissing.join(", ")}] forbidden [${caseScore.forbiddenFound.join(", ")}])`);
       }
       writeCheckpoint(selected,outputsById);
-    }catch(error:any){
+    }catch(error:unknown){
       if(isTransientProviderError(error))providerFailuresInRun++;
-      console.log(`DEFERRED (${String(error?.message||error).slice(0,180)})`);
+      console.log(`DEFERRED (${errorMessage(error).slice(0,180)})`);
     }
   }
 

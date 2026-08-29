@@ -20,9 +20,9 @@ check("Sidebar WhatsApp gives operating roles access",side.includes('label:"What
 check("Sidebar portal is client-only",side.includes('label:"My Portal",href:"/dashboard/portal",roles:["CLIENT"]')&&proxy.includes('["/dashboard/portal",["CLIENT"]]'));
 check("Mobile accountant navigation points only to allowed finance/report/file routes",mobile.includes('ACCOUNTANT:[{icon:"🏠",label:"Home",href:"/apps"},{icon:"💰",label:"Finance",href:"/dashboard/finance"')&&mobile.includes('href:"/dashboard/reports"')&&mobile.includes('href:"/dashboard/clients/accounts-payment"'));
 check("Mobile client navigation stays inside client-safe routes",mobile.includes('CLIENT:[{icon:"🏠",label:"Home",href:"/apps"},{icon:"🌐",label:"Portal",href:"/dashboard/portal"')&&mobile.includes('href:"/dashboard/calendar"')&&mobile.includes('href:"/dashboard/files"'));
-check("Launcher payment alert requires active workspace client",apps.includes("eq(clients.workspaceId,WORKSPACE_ID)")&&apps.includes("eq(clients.isActive,true)")&&apps.includes("eq(clients.userId,userId)"));
-check("Launcher payment invoice is workspace scoped",apps.includes("eq(financeRecords.workspaceId,WORKSPACE_ID)"));
-check("Central client helper is workspace scoped",access.includes("eq(clients.workspaceId,WORKSPACE_ID)"));
+check("Launcher payment alert requires active workspace client",apps.includes("eq(clients.workspaceId,workspaceId)")&&apps.includes("eq(clients.isActive,true)")&&apps.includes("eq(clients.userId,userId)"));
+check("Launcher payment invoice is workspace scoped",apps.includes("eq(financeRecords.workspaceId,workspaceId)"));
+check("Central client helper is workspace scoped",access.includes("eq(clients.workspaceId,workspaceId)"));
 check("Central client helper rejects archived clients outside historical finance",access.includes("!client.isActive&&!historicalFinance"));
 check("Central client helper requires explicit finance context for Accountant",access.includes('if(role==="ACCOUNTANT")return historicalFinance'));
 check("Central client helper prevents client finance/write access",access.includes("!options.write&&!options.finance")&&access.includes("client.userId===userId"));

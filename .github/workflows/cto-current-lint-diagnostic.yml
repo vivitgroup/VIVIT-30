@@ -1,0 +1,33 @@
+name: CTO Current Lint Diagnostic
+
+on:
+  push:
+    branches: [feat/vivito-static-current-diagnostic]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Capture current ESLint JSON
+        shell: bash
+        run: |
+          npx eslint . -f json > /tmp/eslint-current.json || true
+          node <<'NODE'
+          const fs=require('node:fs');const rows=JSON.parse(fs.readFileSync('/tmp/eslint-current.json','utf8'));const msgs=rows.flatMap(r=>r.messages||[]),counts={};for(const m of msgs)counts[m.ruleId||'(parser)']=(counts[m.ruleId||'(parser)']||0)+1;console.log(`total=${msgs.length}`);console.log(`errors=${msgs.filter(m=>m.severity===2).length}`);console.log(`warnings=${msgs.filter(m=>m.severity===1).length}`);console.log('rules='+JSON.stringify(Object.entries(counts).sort((a,b)=>b[1]-a[1])));
+          NODE
+      - uses: actions/upload-artifact@v4
+        with:
+          name: current-eslint-json
+          path: /tmp/eslint-current.json
+          retention-days: 1

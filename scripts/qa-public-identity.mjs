@@ -4,7 +4,7 @@ const issue=r("app/api/approve-token/route.ts"),approve=r("app/approve/[token]/p
 check("Approval tokens use 256-bit random secrets",issue.includes("crypto.randomBytes(32)"));
 check("New approval tokens are hashed before database storage",issue.includes("tokenHash=hashApprovalToken(rawToken)")&&issue.includes("token:tokenHash"));
 check("Approval API does not return raw token as standalone field",!issue.includes(",token,expiresAt")&&!issue.includes("token:rawToken"));
-check("Approval token issue derives authenticated workspace and fails closed",issue.includes("workspaceId=String((session.user as any).workspaceId||\"\").trim()")&&issue.includes("Workspace context is required"));
+check("Approval token issue derives authenticated workspace and fails closed",issue.includes('workspaceId=String(session.user.workspaceId||"").trim()')&&issue.includes("Workspace context is required"));
 check("Approval token issue is active workspace task scoped",issue.includes("eq(creativeTasks.workspaceId,workspaceId)")&&issue.includes("workspace_id=${workspaceId} and archived_at is null"));
 check("Approval token issue requires active same-workspace client",issue.includes("eq(clients.workspaceId,workspaceId)")&&issue.includes("eq(clients.isActive,true)"));
 check("Approval review email escapes stored content",issue.includes("escapeHtml(task.title)")&&issue.includes("escapeHtml(contact.name")&&issue.includes("escapeHtml(client.companyName)"));

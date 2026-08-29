@@ -1,0 +1,94 @@
+name: CTO Assistant Types V7
+on:
+  push:
+    branches: [feat/vivito-assistant-types-v7]
+permissions:
+  contents: write
+jobs:
+  remediate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-assistant-types-v7
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Accept semantic assistant contracts one by one
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs=require('node:fs');
+          const {spawnSync}=require('node:child_process');
+          const file='app/api/assistant/route.ts';
+          const tsc=()=>spawnSync('npx',['tsc','--noEmit','--pretty','false'],{encoding:'utf8',maxBuffer:32*1024*1024});
+          const candidates=[
+            ['rows-contract','const rows=(value:unknown)=>Array.from(value as any) as any[];','const rows=(value:unknown)=>Array.from(value as Iterable<Record<string,unknown>>);'],
+            ['finance-billing','Promise<{billing:any[];expenses:unknown[]}>','Promise<{billing:Record<string,unknown>[];expenses:unknown[]}>'],
+            ['authorized-clients','function resolveAuthorizedClient(clients:any[],nameRaw:string)','function resolveAuthorizedClient(clients:Record<string,unknown>[],nameRaw:string)'],
+            ['task-array','function taskAnswer(question:string,tasks:any[])','function taskAnswer(question:string,tasks:Record<string,unknown>[])'],
+            ['task-line','line=(t:any)=>','line=(t)=>'],
+            ['ops-array','function buildOperations(tasks:any[])','function buildOperations(tasks:Record<string,unknown>[])'],
+            ['ops-status','t:any)=>{const key=String(t.status||"UNKNOWN")','t)=>{const key=String(t.status||"UNKNOWN")'],
+            ['ops-priority','t:any)=>{const key=String(t.priority||"UNKNOWN")','t)=>{const key=String(t.priority||"UNKNOWN")'],
+            ['sales-array','function buildSalesSummary(leads:any[])','function buildSalesSummary(leads:Record<string,unknown>[])'],
+            ['sales-row','lead:any)=>{const key=String(lead.stage||"UNKNOWN")','lead)=>{const key=String(lead.stage||"UNKNOWN")'],
+            ['media-array','function buildMediaSummary(campaigns:any[])','function buildMediaSummary(campaigns:Record<string,unknown>[])'],
+            ['media-reduce','campaigns.reduce((a:any,x:any)=>','campaigns.reduce((a:Record<string,number>,x:Record<string,unknown>)=>'],
+            ['attachment-param','async function readUploadedImageForVivito(userId:string,attachment:any,workspaceId:string)','async function readUploadedImageForVivito(userId:string,attachment:Record<string,unknown>,workspaceId:string)'],
+            ['attachment-map','.slice(0,5).map((x:any)=>({fileId:', '.slice(0,5).map((x:Record<string,unknown>)=>({fileId:'],
+            ['attachment-filter','})).filter((x:any)=>x.fileId):[];', '})).filter(x=>x.fileId):[];'],
+            ['clients-map','clients.map((c:any)=>','clients.map(c=>'],
+            ['research-type','const kind=requestedArtifactKind(question);let research:any=null,visionText="";','const kind=requestedArtifactKind(question);let research:Awaited<ReturnType<typeof groundedVivitoResearch>>|null=null,visionText="";'],
+            ['research-source','research.sources.map((s:any)=>s.title)','research.sources.map(s=>s.title)'],
+            ['context-record','const canSeeFinance=["SUPER_ADMIN","ACCOUNTANT"].includes(role),context:any={','const canSeeFinance=["SUPER_ADMIN","ACCOUNTANT"].includes(role),context:Record<string,unknown>={']
+          ];
+          let accepted=0,rejected=0;
+          for(const [name,from,to] of candidates){
+            const before=fs.readFileSync(file,'utf8');
+            const count=before.split(from).length-1;
+            if(!count){console.log(`skip_missing=${name}`);continue}
+            const after=before.split(from).join(to);
+            fs.writeFileSync(file,after);
+            const result=tsc();
+            if(result.status===0){accepted+=count;console.log(`accepted=${name} count=${count}`)}
+            else{fs.writeFileSync(file,before);rejected+=count;console.log(`rejected=${name} count=${count}`)}
+          }
+          const final=tsc();if(final.status!==0){console.error(final.stdout);process.exit(1)}
+          console.log(`accepted_occurrences=${accepted}`);console.log(`rejected_occurrences=${rejected}`);
+          NODE
+          git diff --check
+      - name: Whole-project acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          git diff --check
+      - name: Measure assistant and full lint
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx eslint app/api/assistant/route.ts -f json > /tmp/target.json || true
+          npx eslint . -f json > /tmp/full.json || true
+          node <<'NODE'
+          const fs=require('node:fs');const target=JSON.parse(fs.readFileSync('/tmp/target.json','utf8')).flatMap(r=>r.messages||[]),full=JSON.parse(fs.readFileSync('/tmp/full.json','utf8')).flatMap(r=>r.messages||[]);const nonAny=full.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any');console.log(`assistant_any_remaining=${target.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any').length}`);console.log(`full_any_remaining=${full.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any').length}`);console.log(`full_warnings=${full.filter(x=>x.severity===1).length}`);console.log(`full_non_any=${nonAny.length}`);if(nonAny.length)process.exit(1);
+          NODE
+      - name: Commit verified source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git add app/api/assistant/route.ts
+          if ! git diff --cached --quiet; then
+            git commit -m 'fix(types): add compiler-safe assistant semantic contracts [skip ci]'
+            git push origin HEAD:feat/vivito-assistant-types-v7
+          fi

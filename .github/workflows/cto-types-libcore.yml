@@ -1,0 +1,57 @@
+name: CTO Types Lib Core Worker
+
+on:
+  push:
+    branches: [feat/vivito-types-libcore]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cto-types-libcore
+  cancel-in-progress: false
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-types-libcore
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Compiler-safe lib core explicit-any remediation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          node <<'NODE'
+          const fs=require('node:fs'),path=require('node:path'),{spawnSync}=require('node:child_process');
+          const manifest='.cto/types-libcore-processed.json';fs.mkdirSync('.cto',{recursive:true});let processed=[];try{processed=JSON.parse(fs.readFileSync(manifest,'utf8'))}catch{};const done=new Set(processed);
+          const lint=spawnSync('npx',['eslint','.','-f','json'],{encoding:'utf8',maxBuffer:64*1024*1024});if(!lint.stdout.trim())throw new Error(lint.stderr||'no eslint json');const rows=JSON.parse(lint.stdout);
+          const candidates=[];for(const row of rows){const rel=path.relative(process.cwd(),row.filePath).replaceAll('\\','/');if(!rel.startsWith('lib/')||rel.startsWith('lib/vivito/')||done.has(rel))continue;const ranges=[];for(const m of row.messages||[]){if(m.ruleId!=='@typescript-eslint/no-explicit-any')continue;const s=(m.suggestions||[]).find(x=>x?.fix?.text==='unknown'&&Array.isArray(x?.fix?.range));if(s)ranges.push(s.fix.range)}const u=[...new Map(ranges.map(r=>[`${r[0]}:${r[1]}`,r])).values()].sort((a,b)=>b[0]-a[0]);if(u.length)candidates.push({file:rel,ranges:u})}candidates.sort((a,b)=>a.ranges.length-b.ranges.length||a.file.localeCompare(b.file));
+          const deadline=Date.now()+25*60*1000;const tsc=()=>spawnSync('npx',['tsc','--noEmit','--pretty','false'],{encoding:'utf8',maxBuffer:32*1024*1024});const render=(src,rs)=>{let out=src;for(const [s,e] of [...rs].sort((a,b)=>b[0]-a[0])){if(out.slice(s,e)!=='any')throw new Error(`bad range ${s}:${e}`);out=out.slice(0,s)+'unknown'+out.slice(e)}return out};const key=r=>`${r[0]}:${r[1]}`;
+          let acceptedTotal=0,rejectedTotal=0,filesDone=0;class Stop extends Error{}
+          for(const entry of candidates){if(Date.now()>deadline)break;const original=fs.readFileSync(entry.file,'utf8'),accepted=[],rejected=[],keys=new Set();const persist=()=>fs.writeFileSync(entry.file,render(original,accepted));const tryGroup=g=>{if(!g.length)return;if(Date.now()>deadline)throw new Stop();fs.writeFileSync(entry.file,render(original,[...accepted,...g]));const r=tsc();if(r.status===0){for(const x of g)if(!keys.has(key(x))){accepted.push(x);keys.add(key(x))}persist();return}persist();if(g.length===1){rejected.push(g[0]);return}const mid=Math.floor(g.length/2);tryGroup(g.slice(0,mid));tryGroup(g.slice(mid))};let complete=false;try{tryGroup(entry.ranges);complete=true}catch(e){if(!(e instanceof Stop))throw e;persist()}const final=tsc();if(final.status!==0){fs.writeFileSync(entry.file,original);console.error(final.stdout);throw new Error(`final tsc failed ${entry.file}`)}acceptedTotal+=accepted.length;rejectedTotal+=rejected.length;if(complete){done.add(entry.file);filesDone++;fs.writeFileSync(manifest,JSON.stringify([...done].sort(),null,2)+'\n');console.log(`processed ${entry.file} accepted=${accepted.length} rejected=${rejected.length}`)}if(!complete)break}
+          console.log(`files_done=${filesDone}`);console.log(`accepted=${acceptedTotal}`);console.log(`rejected=${rejectedTotal}`);console.log(`processed_total=${done.size}`);
+          NODE
+          npm run type-check
+          git diff --check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Report and checkpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx eslint . -f json > /tmp/eslint.json || true
+          node - <<'NODE'
+          const fs=require('node:fs');const rows=JSON.parse(fs.readFileSync('/tmp/eslint.json','utf8'));const msgs=rows.filter(r=>r.filePath.includes('/lib/')&&!r.filePath.includes('/lib/vivito/')).flatMap(r=>r.messages||[]);console.log(`libcore_remaining_total=${msgs.length}`);console.log(`libcore_remaining_any=${msgs.filter(m=>m.ruleId==='@typescript-eslint/no-explicit-any').length}`);
+          NODE
+          git add lib .cto 2>/dev/null || true
+          if ! git diff --cached --quiet; then git commit -m 'fix(types): compiler-safe core unknown remediation [skip ci]'; git push origin HEAD:feat/vivito-types-libcore; fi

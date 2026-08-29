@@ -1,0 +1,69 @@
+name: CTO Mechanical Non-Any V3
+
+on:
+  push:
+    branches: [feat/vivito-static-mechanical-v3]
+    paths:
+      - '.github/workflows/cto-mechanical-nonany-v3.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-static-mechanical-v3
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Accept ESLint suggestion fixes file by file
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs=require('node:fs'),path=require('node:path'),{spawnSync}=require('node:child_process');
+          const targetRules=new Set(['@typescript-eslint/no-unused-vars','react/no-unescaped-entities']);
+          const runLint=()=>spawnSync('npx',['eslint','.','-f','json'],{encoding:'utf8',maxBuffer:64*1024*1024});
+          const tsc=()=>spawnSync('npx',['tsc','--noEmit','--pretty','false'],{encoding:'utf8',maxBuffer:64*1024*1024});
+          const lint=runLint();if(!lint.stdout.trim())throw new Error(lint.stderr||'No ESLint JSON');const rows=JSON.parse(lint.stdout);
+          const candidates=[];
+          for(const row of rows){const rel=path.relative(process.cwd(),row.filePath).replaceAll('\\','/');const fixes=[];for(const m of row.messages||[]){if(!targetRules.has(m.ruleId))continue;const s=(m.suggestions||[]).find(x=>x?.fix&&Array.isArray(x.fix.range));if(s)fixes.push({rule:m.ruleId,range:s.fix.range,text:s.fix.text||'',desc:s.desc||''})}if(fixes.length)candidates.push({file:rel,fixes})}
+          let acceptedFiles=0,acceptedFindings=0,rejectedFiles=0;
+          for(const entry of candidates){const original=fs.readFileSync(entry.file,'utf8');const unique=[...new Map(entry.fixes.map(f=>[`${f.range[0]}:${f.range[1]}:${f.text}`,f])).values()].sort((a,b)=>b.range[0]-a.range[0]);let out=original,lastStart=Infinity,valid=true;for(const f of unique){const [s,e]=f.range;if(e>lastStart){valid=false;break}out=out.slice(0,s)+f.text+out.slice(e);lastStart=s}if(!valid){console.log(`skip_overlap=${entry.file}`);rejectedFiles++;continue}fs.writeFileSync(entry.file,out);const tc=tsc();if(tc.status===0){acceptedFiles++;acceptedFindings+=unique.length;console.log(`accepted=${entry.file} findings=${unique.length}`)}else{fs.writeFileSync(entry.file,original);rejectedFiles++;console.log(`rejected=${entry.file}`)}}
+          console.log(`accepted_files=${acceptedFiles}`);console.log(`accepted_findings=${acceptedFindings}`);console.log(`rejected_files=${rejectedFiles}`);
+          NODE
+          git diff --check
+      - name: Whole-project acceptance and lint
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          git diff --check
+          npx eslint . -f json > /tmp/eslint.json || true
+          node <<'NODE'
+          const fs=require('node:fs');const rows=JSON.parse(fs.readFileSync('/tmp/eslint.json','utf8'));const m=rows.flatMap(r=>r.messages||[]),c={};for(const x of m)c[x.ruleId||'(parser)']=(c[x.ruleId||'(parser)']||0)+1;console.log(`remaining_total=${m.length}`);console.log(`remaining_errors=${m.filter(x=>x.severity===2).length}`);console.log(`remaining_warnings=${m.filter(x=>x.severity===1).length}`);console.log(`remaining_any=${m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any').length}`);console.log(`remaining_unused=${m.filter(x=>x.ruleId==='@typescript-eslint/no-unused-vars').length}`);console.log('top_rules='+JSON.stringify(Object.entries(c).sort((a,b)=>b[1]-a[1]).slice(0,20)));
+          NODE
+      - name: Commit accepted source fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git add app components lib types proxy.ts auth.config.ts 2>/dev/null || true
+          if ! git diff --cached --quiet; then
+            git commit -m 'fix(lint): accept compiler-safe mechanical non-any fixes [skip ci]'
+            git push origin HEAD:feat/vivito-static-mechanical-v3
+          fi

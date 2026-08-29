@@ -1,0 +1,24 @@
+name: CTO Executor Rows Context V13
+on:
+  push:
+    branches: [feat/vivito-executor-rows-context-v13]
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-executor-rows-context-v13
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Validate and print row boundaries
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          node <<'NODE'
+          const fs=require('node:fs');const file='lib/vivito/executor.ts',src=fs.readFileSync(file,'utf8'),lines=src.split('\n');
+          for(let i=0;i<lines.length;i++)if(lines[i].includes('rows(')||lines[i].includes('let q:any')||lines[i].includes('client:any')){const a=Math.max(0,i-1),b=Math.min(lines.length,i+2);console.log(`\nAT ${i+1}\n${lines.slice(a,b).map((x,j)=>`${a+j+1}: ${x}`).join('\n')}`)}
+          NODE

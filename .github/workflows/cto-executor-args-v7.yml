@@ -1,0 +1,69 @@
+name: CTO Executor Args V7
+on:
+  push:
+    branches: [feat/vivito-executor-args-v7]
+permissions:
+  contents: write
+jobs:
+  remediate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-executor-args-v7
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Accept typed action arguments function by function
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs=require('node:fs');
+          const {spawnSync}=require('node:child_process');
+          const files=['lib/vivito/executor.ts','lib/vivito/executor-operator.ts','lib/vivito/executor-extended.ts'];
+          const originals=new Map(files.map(f=>[f,fs.readFileSync(f,'utf8')]));
+          const candidates=[];
+          for(const file of files){let s=originals.get(file);let from=0;while(true){const i=s.indexOf('args:any',from);if(i<0)break;candidates.push({file,start:i,end:i+'args:any'.length});from=i+8}}
+          const accepted=[];
+          function apply(extra){for(const [file,orig] of originals){let out=orig;const all=[...accepted,...extra].filter(c=>c.file===file).sort((a,b)=>b.start-a.start);for(const c of all){if(out.slice(c.start,c.end)!=='args:any')throw new Error(`range drift ${file}:${c.start}`);out=out.slice(0,c.start)+'args:Record<string,unknown>'+out.slice(c.end)}fs.writeFileSync(file,out)}}
+          const tsc=()=>spawnSync('npx',['tsc','--noEmit','--pretty','false'],{encoding:'utf8',maxBuffer:32*1024*1024});
+          let rejected=0;
+          for(const c of candidates){apply([c]);const r=tsc();if(r.status===0){accepted.push(c);console.log(`accepted=${c.file}:${c.start}`)}else{rejected++;apply([]);console.log(`rejected=${c.file}:${c.start}`)}}
+          apply([]);const final=tsc();if(final.status!==0){console.error(final.stdout);process.exit(1)}
+          console.log(`candidates=${candidates.length}`);console.log(`accepted_total=${accepted.length}`);console.log(`rejected_total=${rejected}`);
+          NODE
+          git diff --check
+      - name: Whole-project acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          git diff --check
+      - name: Measure executor and full lint
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx eslint lib/vivito/executor.ts lib/vivito/executor-operator.ts lib/vivito/executor-extended.ts -f json > /tmp/target.json || true
+          npx eslint . -f json > /tmp/full.json || true
+          node <<'NODE'
+          const fs=require('node:fs');const target=JSON.parse(fs.readFileSync('/tmp/target.json','utf8')).flatMap(r=>r.messages||[]),full=JSON.parse(fs.readFileSync('/tmp/full.json','utf8')).flatMap(r=>r.messages||[]);const nonAny=full.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any');console.log(`executor_any_remaining=${target.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any').length}`);console.log(`full_any_remaining=${full.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any').length}`);console.log(`full_warnings=${full.filter(x=>x.severity===1).length}`);console.log(`full_non_any=${nonAny.length}`);if(nonAny.length)process.exit(1);
+          NODE
+      - name: Commit verified source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git add lib/vivito/executor.ts lib/vivito/executor-operator.ts lib/vivito/executor-extended.ts
+          if ! git diff --cached --quiet; then
+            git commit -m 'fix(types): type compiler-safe executor action arguments [skip ci]'
+            git push origin HEAD:feat/vivito-executor-args-v7
+          fi

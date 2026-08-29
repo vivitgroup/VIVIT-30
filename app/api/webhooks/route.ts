@@ -15,14 +15,15 @@ function safeWebhookUrl(raw:string){
     return u.toString();
   }catch{return null;}
 }
-function workspaceOf(session:any){const workspaceId=String((session?.user as any)?.workspaceId||"").trim();return workspaceId||null;}
+type WebhookSession={user?:{role?:string|null;workspaceId?:string|null}|null}|null;
+function workspaceOf(session:WebhookSession){const workspaceId=String(session?.user?.workspaceId||"").trim();return workspaceId||null;}
 
-export async function dispatchWebhook(event:string,payload:Record<string,any>,workspaceId:string){
+export async function dispatchWebhook(event:string,payload:Record<string,unknown>,workspaceId:string){
   if(!workspaceId)throw new Error("workspaceId is required for webhook dispatch");
   if(!EVENT_TYPES.includes(event)&&event!=="*")return;
   const hooks=await db.select().from(webhooks).where(and(eq(webhooks.workspaceId,workspaceId),eq(webhooks.isActive,true)));
   for(const hook of hooks){
-    let events:string[]=[];try{const parsed=JSON.parse(hook.events??"[]");events=Array.isArray(parsed)?parsed.filter((v:any)=>typeof v==="string"):[];}catch{}
+    let events:string[]=[];try{const parsed=JSON.parse(hook.events??"[]");events=Array.isArray(parsed)?parsed.filter((v:unknown):v is string=>typeof v==="string"):[];}catch{}
     if(!events.includes(event)&&!events.includes("*"))continue;
     const target=safeWebhookUrl(hook.url);if(!target)continue;
     const body=JSON.stringify({event,timestamp:new Date().toISOString(),workspaceId,data:payload});
@@ -39,7 +40,7 @@ export async function dispatchWebhook(event:string,payload:Record<string,any>,wo
   }
 }
 
-function isAdmin(session:any){return !!session?.user&&(session.user as any).role==="SUPER_ADMIN";}
+function isAdmin(session:WebhookSession){return !!session?.user&&session.user.role==="SUPER_ADMIN";}
 export async function GET(){
   const session=await auth();if(!session?.user)return NextResponse.json({error:"Unauthorized"},{status:401});if(!isAdmin(session))return NextResponse.json({error:"Forbidden"},{status:403});
   const workspaceId=workspaceOf(session);if(!workspaceId)return NextResponse.json({error:"Workspace context is required"},{status:403});
@@ -51,7 +52,7 @@ export async function POST(req:NextRequest){
   const session=await auth();if(!session?.user)return NextResponse.json({error:"Unauthorized"},{status:401});if(!isAdmin(session))return NextResponse.json({error:"Forbidden"},{status:403});
   const workspaceId=workspaceOf(session);if(!workspaceId)return NextResponse.json({error:"Workspace context is required"},{status:403});
   const body=await req.json().catch(()=>null);if(!body)return NextResponse.json({error:"Invalid JSON body"},{status:400});
-  const url=safeWebhookUrl(String(body.url||""));const events=Array.isArray(body.events)?[...new Set(body.events.map((v:any)=>String(v)))]:[];
+  const url=safeWebhookUrl(String(body.url||""));const events=Array.isArray(body.events)?[...new Set(body.events.map((v:unknown)=>String(v)))]:[];
   if(!url||!events.length||events.some((e:string)=>!EVENT_TYPES.includes(e)))return NextResponse.json({error:"A public HTTPS URL and valid events are required"},{status:400});
   const secret=crypto.randomBytes(32).toString("hex");
   const [hook]=await db.insert(webhooks).values({workspaceId,url,events:JSON.stringify(events),secret,isActive:true,failCount:0}).returning({id:webhooks.id,url:webhooks.url,events:webhooks.events,isActive:webhooks.isActive,createdAt:webhooks.createdAt});

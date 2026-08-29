@@ -1,0 +1,69 @@
+name: CTO Images Cleanup V3
+on:
+  push:
+    branches: [feat/vivito-static-images-v3]
+permissions:
+  contents: write
+jobs:
+  remediate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-static-images-v3
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Replace dynamic img elements with NextImage
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs=require('node:fs');
+          function one(file,from,to,count=1){let s=fs.readFileSync(file,'utf8');const n=s.split(from).length-1;if(n!==count)throw new Error(`${file}: expected ${count}, found ${n}: ${from.slice(0,120)}`);fs.writeFileSync(file,s.split(from).join(to))}
+          for (const file of ['app/dashboard/clients/[id]/page.tsx','app/dashboard/creative/page.tsx','app/dashboard/portal/page.tsx','app/dashboard/universe/page.tsx']) {
+            one(file,'import Link from "next/link";','import Link from "next/link";\nimport NextImage from "next/image";');
+          }
+          one('components/clients/ClientLogoManager.tsx','import {usePathname} from "next/navigation";','import {usePathname} from "next/navigation";\nimport NextImage from "next/image";');
+
+          one('app/dashboard/clients/[id]/page.tsx','<img src={client.logo} alt={`${client.company_name} logo`}/>','<NextImage src={client.logo} alt={`${client.company_name} logo`} width={88} height={88} unoptimized/>');
+          one('app/dashboard/clients/[id]/page.tsx','<img src={x.file_url} alt=""/>','<NextImage src={x.file_url} alt="" width={48} height={48} unoptimized/>');
+          one('app/dashboard/creative/page.tsx','<img src={t.fileUrl} alt={t.title} style={{width:"100%",height:"100%",objectFit:"cover"}}/>','<NextImage src={t.fileUrl} alt={t.title} width={600} height={450} unoptimized style={{width:"100%",height:"100%",objectFit:"cover"}}/>');
+          one('app/dashboard/portal/page.tsx','<img src={client.logo} alt={client.company_name}/>','<NextImage src={client.logo} alt={client.company_name} width={88} height={88} unoptimized/>');
+          one('app/dashboard/portal/page.tsx','<img src={c.file_url} alt={c.title}/>','<NextImage src={c.file_url} alt={c.title} width={800} height={600} unoptimized/>');
+          one('app/dashboard/universe/page.tsx','<img src={c.logo} alt={`${c.company_name} logo`} style={{width:"100%",height:"100%",objectFit:"contain",padding:8}}/>','<NextImage src={c.logo} alt={`${c.company_name} logo`} width={82} height={82} unoptimized style={{width:"100%",height:"100%",objectFit:"contain",padding:8}}/>');
+          one('components/clients/ClientLogoManager.tsx','<img src={p.logo} alt="Preview" style={{width:92,height:92,objectFit:"contain",borderRadius:20,border:"1px solid var(--card-border)",marginTop:8,background:"#fff"}}/>','<NextImage src={p.logo} alt="Preview" width={92} height={92} unoptimized style={{width:92,height:92,objectFit:"contain",borderRadius:20,border:"1px solid var(--card-border)",marginTop:8,background:"#fff"}}/>');
+          one('components/clients/ClientLogoManager.tsx','<img src={p.logo} alt="Client logo" style={{width:"100%",height:"100%",objectFit:"contain",padding:5}}/>','<NextImage src={p.logo} alt="Client logo" width={64} height={64} unoptimized style={{width:"100%",height:"100%",objectFit:"contain",padding:5}}/>');
+          NODE
+          git diff --check
+      - name: Whole-project acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          git diff --check
+      - name: Assert image lint closed and measure full lint
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx eslint . -f json > /tmp/eslint.json || true
+          node <<'NODE'
+          const fs=require('node:fs');const rows=JSON.parse(fs.readFileSync('/tmp/eslint.json','utf8'));const m=rows.flatMap(r=>r.messages||[]),c={};for(const x of m)c[x.ruleId||'(parser)']=(c[x.ruleId||'(parser)']||0)+1;const imgs=m.filter(x=>x.ruleId==='@next/next/no-img-element');console.log(`img_remaining=${imgs.length}`);console.log(`remaining_total=${m.length}`);console.log(`remaining_any=${m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any').length}`);console.log('top_rules='+JSON.stringify(Object.entries(c).sort((a,b)=>b[1]-a[1]).slice(0,12)));if(imgs.length)process.exit(1);
+          NODE
+      - name: Commit verified source image cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git add app components
+          if ! git diff --cached --quiet; then
+            git commit -m 'fix(next): replace dynamic img elements with NextImage [skip ci]'
+            git push origin HEAD:feat/vivito-static-images-v3
+          fi

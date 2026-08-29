@@ -1,0 +1,96 @@
+name: CTO Static Unknown Diagnostic
+
+on:
+  push:
+    branches: [feat/vivito-static-diagnostic]
+    paths:
+      - '.github/workflows/cto-static-diagnostic.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Apply all ESLint unknown suggestions in runner only
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx eslint . -f json > /tmp/eslint-before.json || true
+          node <<'NODE'
+          const fs=require('node:fs');
+          const path=require('node:path');
+          const rows=JSON.parse(fs.readFileSync('/tmp/eslint-before.json','utf8'));
+          let files=0,replacements=0;
+          for(const row of rows){
+            const rel=path.relative(process.cwd(),row.filePath).replaceAll('\\','/');
+            if(rel.startsWith('..')||!fs.existsSync(rel))continue;
+            const ranges=[];
+            for(const msg of row.messages||[]){
+              if(msg.ruleId!=='@typescript-eslint/no-explicit-any')continue;
+              const s=(msg.suggestions||[]).find(x=>x?.fix?.text==='unknown'&&Array.isArray(x?.fix?.range));
+              if(s)ranges.push(s.fix.range);
+            }
+            const unique=[...new Map(ranges.map(r=>[`${r[0]}:${r[1]}`,r])).values()].sort((a,b)=>b[0]-a[0]);
+            if(!unique.length)continue;
+            let src=fs.readFileSync(rel,'utf8');
+            for(const [start,end] of unique){
+              if(src.slice(start,end)!=='any')throw new Error(`${rel}: unexpected range ${start}:${end} -> ${JSON.stringify(src.slice(start,end))}`);
+              src=src.slice(0,start)+'unknown'+src.slice(end);
+            }
+            fs.writeFileSync(rel,src);
+            files++; replacements+=unique.length;
+          }
+          console.log(`transformed_files=${files}`);
+          console.log(`unknown_replacements=${replacements}`);
+          NODE
+      - name: Capture TypeScript fallout
+        shell: bash
+        run: |
+          set +e
+          npx tsc --noEmit --pretty false > /tmp/type-errors.txt 2>&1
+          rc=$?
+          echo "tsc_exit=$rc"
+          echo "ts_error_lines=$(grep -c 'error TS' /tmp/type-errors.txt || true)"
+          echo '--- error codes ---'
+          grep -o 'TS[0-9]\{4\}' /tmp/type-errors.txt | sort | uniq -c | sort -nr | head -30 || true
+          echo '--- files by error count ---'
+          grep 'error TS' /tmp/type-errors.txt | sed -E 's/\([0-9]+,[0-9]+\): error TS.*//' | sort | uniq -c | sort -nr | head -50 || true
+          echo '--- first errors ---'
+          head -160 /tmp/type-errors.txt || true
+          exit 0
+      - name: Capture transformed ESLint
+        shell: bash
+        run: |
+          npx eslint . -f json > /tmp/eslint-after.json || true
+          node <<'NODE'
+          const fs=require('node:fs');
+          const rows=JSON.parse(fs.readFileSync('/tmp/eslint-after.json','utf8'));
+          const msgs=rows.flatMap(r=>r.messages||[]);
+          const counts={};
+          for(const m of msgs)counts[m.ruleId||'(parser)']=(counts[m.ruleId||'(parser)']||0)+1;
+          console.log(`remaining_total=${msgs.length}`);
+          console.log(`remaining_errors=${msgs.filter(m=>m.severity===2).length}`);
+          console.log(`remaining_warnings=${msgs.filter(m=>m.severity===1).length}`);
+          console.log(`remaining_explicit_any=${msgs.filter(m=>m.ruleId==='@typescript-eslint/no-explicit-any').length}`);
+          console.log('top_rules='+JSON.stringify(Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,20)));
+          NODE
+      - name: Upload diagnostic
+        uses: actions/upload-artifact@v4
+        with:
+          name: static-unknown-diagnostic
+          path: |
+            /tmp/type-errors.txt
+            /tmp/eslint-before.json
+            /tmp/eslint-after.json
+          retention-days: 1

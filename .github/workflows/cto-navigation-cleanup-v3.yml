@@ -1,0 +1,67 @@
+name: CTO Navigation Cleanup V3
+
+on:
+  push:
+    branches: [feat/vivito-static-navigation-v3]
+    paths:
+      - '.github/workflows/cto-navigation-cleanup-v3.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-static-navigation-v3
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Replace relative location navigation with Next router
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs=require('node:fs');
+          function one(file,from,to,count=1){let s=fs.readFileSync(file,'utf8');const n=s.split(from).length-1;if(n!==count)throw new Error(`${file}: expected ${count}, found ${n}`);fs.writeFileSync(file,s.split(from).join(to))}
+          one('app/dashboard/media/sync/page.tsx','import {useEffect,useMemo,useState} from "react";','import {useEffect,useMemo,useState} from "react";\nimport {useRouter} from "next/navigation";');
+          one('app/dashboard/media/sync/page.tsx','export default function PlatformSync(){\n const [data,setData]','export default function PlatformSync(){\n const router=useRouter();\n const [data,setData]');
+          one('app/dashboard/media/sync/page.tsx','window.location.assign(`/api/ad-oauth/${selectedPlatform.toLowerCase()}/start?${params}`)','router.push(`/api/ad-oauth/${selectedPlatform.toLowerCase()}/start?${params}`)');
+          one('components/media/MetaAccountConnectPanel.tsx','import {useEffect,useRef,useState} from "react";','import {useEffect,useRef,useState} from "react";\nimport {useRouter} from "next/navigation";');
+          one('components/media/MetaAccountConnectPanel.tsx','export function MetaAccountConnectPanel(){\n const [data,setData]','export function MetaAccountConnectPanel(){\n const router=useRouter();\n const [data,setData]');
+          one('components/media/MetaAccountConnectPanel.tsx','location.assign(`/api/ad-oauth/meta/start?${p}`)','router.push(`/api/ad-oauth/meta/start?${p}`)');
+          NODE
+          git diff --check
+      - name: Acceptance and targeted lint
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          git diff --check
+          npx eslint app/dashboard/media/sync/page.tsx components/media/MetaAccountConnectPanel.tsx -f json > /tmp/eslint.json || true
+          node <<'NODE'
+          const fs=require('node:fs');const rows=JSON.parse(fs.readFileSync('/tmp/eslint.json','utf8'));const m=rows.flatMap(r=>r.messages||[]);console.log(`target_remaining=${m.length}`);console.log(`location_remaining=${m.filter(x=>x.ruleId==='@next/next/no-location-assign-relative-destination').length}`);console.log(JSON.stringify(m.map(x=>[x.ruleId,x.line,x.column])));
+          NODE
+      - name: Commit verified source fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git add app/dashboard/media/sync/page.tsx components/media/MetaAccountConnectPanel.tsx
+          if ! git diff --cached --quiet; then
+            git commit -m 'fix(next): use router for internal OAuth navigation [skip ci]'
+            git push origin HEAD:feat/vivito-static-navigation-v3
+          fi

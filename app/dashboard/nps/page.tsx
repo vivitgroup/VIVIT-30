@@ -26,8 +26,6 @@ export default async function NPSPage() {
   const passives   = allFeedback.filter(f=>Number(f.score)>=7&&Number(f.score)<=8).length;
   const detractors = allFeedback.filter(f=>Number(f.score)<=6).length;
   const nps        = total>0 ? Math.round((promoters-detractors)/total*100) : 0;
-  const avgScore   = total>0 ? (allFeedback.reduce((s,f)=>s+Number(f.score),0)/total).toFixed(1) : "0.0";
-  const npsColor   = nps>=50?"var(--green)":nps>=0?"var(--amber)":"var(--red)";
 
   return (
     <div style={{display:"flex",flexDirection:"column",gap:"20px",maxWidth:"800px"}}>

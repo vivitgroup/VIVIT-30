@@ -1,0 +1,55 @@
+name: CTO Media Loaders V5
+
+on:
+  push:
+    branches: [feat/vivito-static-media-loaders-v5]
+    paths: ['.github/workflows/cto-media-loaders-v5.yml']
+  workflow_dispatch:
+permissions: {contents: write}
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: feat/vivito-static-media-loaders-v5, fetch-depth: 0}
+      - uses: actions/setup-node@v4
+        with: {node-version: 22, cache: npm}
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Stabilize media loader callbacks
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs=require('node:fs');
+          const specs=[
+            ['components/media/MediaControlV2.tsx','import {useEffect,useMemo,useState} from "react";','import {useCallback,useEffect,useMemo,useState} from "react";','async function load(start=from,end=to){','const load=useCallback(async(start:string,end:string)=>{'],
+            ['components/media/MediaIntelligenceWorkspace.tsx','import {useEffect,useState} from "react";','import {useCallback,useEffect,useState} from "react";','async function load(a=from,b=to){','const load=useCallback(async(a:string,b:string)=>{'],
+            ['components/media/MediaIntelligenceWorkspaceV2.tsx','import {useEffect,useState} from "react";','import {useCallback,useEffect,useState} from "react";','async function load(a=from,b=to){','const load=useCallback(async(a:string,b:string)=>{']
+          ];
+          const marker='useEffect(()=>{load(defaultFrom,today)},[]);useEffect(()=>{const t=setInterval(()=>load(from,to),30000);return()=>clearInterval(t)},[from,to]);';
+          const replacement='useEffect(()=>{const id=window.setTimeout(()=>void load(defaultFrom,today),0);return()=>window.clearTimeout(id)},[defaultFrom,today,load]);useEffect(()=>{const t=setInterval(()=>void load(from,to),30000);return()=>clearInterval(t)},[from,to,load]);';
+          for(const [file,impOld,impNew,startOld,startNew] of specs){let s=fs.readFileSync(file,'utf8');if((s.split(impOld).length-1)!==1)throw new Error(`${file}: import mismatch`);s=s.replace(impOld,impNew);if((s.split(startOld).length-1)!==1)throw new Error(`${file}: load start mismatch`);s=s.replace(startOld,startNew);const i=s.indexOf(marker);if(i<0)throw new Error(`${file}: effect marker missing`);let j=i-1;while(j>=0&&/\s/.test(s[j]))j--;if(s[j]!=='}')throw new Error(`${file}: load close missing before effects`);s=s.slice(0,j)+'},[]);'+s.slice(j+1);s=s.replace(marker,replacement);s=s.split('load()').join('load(from,to)');fs.writeFileSync(file,s);console.log(`updated=${file}`)}
+          NODE
+          git diff --check
+      - name: Acceptance and targeted assertion
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          git diff --check
+          npx eslint components/media/MediaControlV2.tsx components/media/MediaIntelligenceWorkspace.tsx components/media/MediaIntelligenceWorkspaceV2.tsx -f json > /tmp/e.json || true
+          node <<'NODE'
+          const r=require('/tmp/e.json'),m=r.flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='react-hooks/set-state-in-effect'),b=m.filter(x=>x.ruleId==='react-hooks/exhaustive-deps');console.log('set_state_remaining='+a.length);console.log('deps_remaining='+b.length);console.log(JSON.stringify([...a,...b].map(x=>[x.ruleId,x.line,x.message])));if(a.length||b.length)process.exit(1)
+          NODE
+      - name: Full lint and commit
+        shell: bash
+        run: |
+          npx eslint . -f json > /tmp/full.json || true
+          node -e "const r=require('/tmp/full.json'),m=r.flatMap(x=>x.messages||[]);console.log('remaining_total='+m.length);console.log('remaining_any='+m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any').length)"
+          git config user.name 'VIVIT CTO Gate Bot';git config user.email 'groupvivit@gmail.com';git add components;git commit -m 'fix(react): stabilize media loader effects [skip ci]' && git push origin HEAD:feat/vivito-static-media-loaders-v5

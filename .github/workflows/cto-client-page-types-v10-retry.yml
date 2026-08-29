@@ -1,0 +1,62 @@
+name: CTO Client Page Types V10 Retry
+on:
+  push:
+    branches: [feat/vivito-client-page-types-v10-retry]
+permissions:
+  contents: write
+jobs:
+  remediate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-client-page-types-v10-retry
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Apply client workspace contracts
+        run: |
+          node <<'NODE'
+          const fs=require('node:fs');const file='app/dashboard/clients/[id]/page.tsx';let s=fs.readFileSync(file,'utf8');
+          function one(from,to,count=1){const n=s.split(from).length-1;if(n!==count)throw new Error(`expected ${count}, found ${n}: ${from.slice(0,100)}`);s=s.split(from).join(to)}
+          one('import NextImage from "next/image";','import NextImage from "next/image";\ntype SessionUser={role?:unknown;id?:unknown};\ntype ContactRow={id:string;name:string;title?:string|null;email?:string|null;phone?:string|null;whatsapp?:string|null;is_primary?:boolean};\ntype CampaignRow={id:string;name:string;status?:string|null;objective?:string|null;reported_result_label?:string|null;reported_metrics?:unknown;reported_period_start?:unknown;reported_period_end?:unknown;last_sync_at?:unknown;spend?:unknown;results?:unknown;atc?:unknown;purchases?:unknown;impressions?:unknown;clicks?:unknown;revenue?:unknown};\ntype TaskRow={id:string;title:string;type?:string|null;status:string;priority?:string|null;deadline?:unknown;file_url?:string|null;revision_count?:number|null};\ntype CalendarRow={id:string;title:string;date?:unknown;platform?:string|null;status?:string|null;task_id?:string|null};\ntype ActivityRow={type?:string|null;notes?:string|null;created_at?:unknown;user_name?:string|null};\ntype FinanceRow={amount_due?:unknown;amount_paid?:unknown;amount_remaining?:unknown;payment_status?:string|null;payment_day?:unknown;currency?:string|null};');
+          one('fmt=(v:any)=>v?new Intl.DateTimeFormat("en-GB",{day:"2-digit",month:"short",year:"numeric"}).format(new Date(v)):"—"','fmt=(v:unknown)=>v?new Intl.DateTimeFormat("en-GB",{day:"2-digit",month:"short",year:"numeric"}).format(new Date(String(v))):"—"');
+          one('const metric=(x:any)=>{let r:any={};try{r=typeof x.reported_metrics==="string"?JSON.parse(x.reported_metrics):x.reported_metrics||{}}catch{}','const metric=(x:CampaignRow)=>{let r:Record<string,unknown>={};try{const raw:unknown=typeof x.reported_metrics==="string"?JSON.parse(x.reported_metrics):x.reported_metrics;if(raw&&typeof raw==="object"&&!Array.isArray(raw))r=raw as Record<string,unknown>}catch{}');
+          one('(s.user as any).role','(s.user as SessionUser).role',2);
+          one('(s.user as any).id','(s.user as SessionUser).id',2);
+          one('(contacts as any[]).find','(contacts as ContactRow[]).find');
+          one('(campaignRows as any[]).map','(campaignRows as CampaignRow[]).map');
+          one('(tasks as any[]).filter','(tasks as TaskRow[]).filter',2);
+          one('(calendar as any[]).slice','(calendar as CalendarRow[]).slice');
+          one('(tasks as any[]).map','(tasks as TaskRow[]).map');
+          one('(contacts as any[]).map','(contacts as ContactRow[]).map');
+          one('(activity as any[]).map','(activity as ActivityRow[]).map');
+          one('(finance as any[])[0]','(finance as FinanceRow[])[0]',4);
+          fs.writeFileSync(file,s)
+          NODE
+          git diff --check
+      - name: Acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint 'app/dashboard/clients/[id]/page.tsx' -f json > /tmp/e.json || true
+          node <<'NODE'
+          const r=require('/tmp/e.json'),m=r.flatMap(x=>x.messages||[]);console.log(`target_total=${m.length}`);console.log(`target_any=${m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any').length}`);console.log(JSON.stringify(m.map(x=>[x.ruleId,x.line,x.message]).slice(0,30)));if(m.length)process.exit(1)
+          NODE
+          npx eslint . -f json > /tmp/all.json || true
+          node <<'NODE'
+          const r=require('/tmp/all.json'),m=r.flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any'),w=m.filter(x=>x.severity===1);console.log(`remaining_any=${a.length}`);console.log(`remaining_non_any=${n.length}`);console.log(`remaining_warnings=${w.length}`);if(n.length||w.length||a.length!==346)process.exit(1)
+          NODE
+      - name: Commit source
+        run: |
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git add 'app/dashboard/clients/[id]/page.tsx'
+          git commit -m 'fix(types): type client workspace contracts [skip ci]'
+          git push origin HEAD:feat/vivito-client-page-types-v10-retry

@@ -1,0 +1,56 @@
+name: CTO Media Sync Types V13
+on:
+  push:
+    branches: [feat/vivito-media-sync-types-v13]
+permissions:
+  contents: write
+jobs:
+  remediate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-media-sync-types-v13
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Apply media sync state contracts
+        run: |
+          node <<'NODE'
+          const fs=require('node:fs');const file='app/dashboard/media/sync/page.tsx';let s=fs.readFileSync(file,'utf8');
+          function one(from,to,count=1){const n=s.split(from).length-1;if(n!==count)throw new Error(`expected ${count}, found ${n}: ${from.slice(0,140)}`);s=s.split(from).join(to)}
+          one('const labels:unknown={META:"Meta — Facebook & Instagram",TIKTOK:"TikTok Ads",GOOGLE:"Google & YouTube Ads",SNAPCHAT:"Snapchat Ads",LINKEDIN:"LinkedIn Ads"};','const labels:Record<string,string>={META:"Meta — Facebook & Instagram",TIKTOK:"TikTok Ads",GOOGLE:"Google & YouTube Ads",SNAPCHAT:"Snapchat Ads",LINKEDIN:"LinkedIn Ads"};\ntype SyncClient={id:string;name:string};\ntype SyncConnection={id:string;platform:string;adAccountId?:string|null;accountName?:string|null;lastSyncAt?:string|Date|null;status?:string|null};\ntype SyncCampaign={id:string;name?:string|null;platform?:string|null;externalId?:string|null;lastSyncAt?:string|Date|null};\ntype SyncData={clients:SyncClient[];campaigns:SyncCampaign[];connections:SyncConnection[];integrations:Record<string,unknown>};\ntype CommerceRow={campaign_id?:string;add_to_cart?:unknown;purchases?:unknown};');
+          one('const [data,setData]=useState<any>({clients:[],campaigns:[],connections:[],integrations:{}}),[commerce,setCommerce]=useState<any[]>([])','const [data,setData]=useState<SyncData>({clients:[],campaigns:[],connections:[],integrations:{}}),[commerce,setCommerce]=useState<CommerceRow[]>([])');
+          one('data.connections?.find((x:any)=>','data.connections.find(x=>');
+          one('commerce.find((x:any)=>','commerce.find(x=>');
+          one('data.clients?.map((c:any)=>','data.clients.map(c=>');
+          one('data.connections?.map((x:any)=>','data.connections.map(x=>');
+          one('data.campaigns?.map((c:any)=>','data.campaigns.map(c=>');
+          fs.writeFileSync(file,s)
+          NODE
+          git diff --check
+      - name: Acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint app/dashboard/media/sync/page.tsx -f json > /tmp/target.json || true
+          node <<'NODE'
+          const m=require('/tmp/target.json').flatMap(x=>x.messages||[]);console.log(`target_total=${m.length}`);console.log(JSON.stringify(m.map(x=>[x.ruleId,x.line,x.message]).slice(0,30)));if(m.length)process.exit(1)
+          NODE
+          npx eslint . -f json > /tmp/all.json || true
+          node <<'NODE'
+          const r=require('/tmp/all.json'),m=r.flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any'),w=m.filter(x=>x.severity===1);console.log(`remaining_any=${a.length}`);console.log(`remaining_non_any=${n.length}`);console.log(`remaining_warnings=${w.length}`);if(a.length!==202||n.length||w.length)process.exit(1)
+          NODE
+      - name: Commit source
+        run: |
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git add app/dashboard/media/sync/page.tsx
+          git commit -m 'fix(types): type media sync page state [skip ci]'
+          git push origin HEAD:feat/vivito-media-sync-types-v13

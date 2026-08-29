@@ -12,7 +12,7 @@ const own=(o:unknown,k:string)=>Object.prototype.hasOwnProperty.call(o||{},k);
 const num=(v:unknown)=>{const x=Number(v);if(!Number.isFinite(x)||x<0)throw new VivitoActionError("A valid non-negative number is required.");return Number(x.toFixed(2))};
 const date=(v:unknown,label="date")=>{const d=new Date(String(v||""));if(Number.isNaN(d.getTime()))throw new VivitoActionError(`A valid ${label} is required.`);return d};
 const email=(v:unknown)=>{const s=clean(v,254);if(s&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s))throw new VivitoActionError("Invalid email address.");return s||null};
-async function audit(userId:string,action:string,entity:string,entityId:string,payload:unknown={}){await db.insert(auditLogs).values({workspaceId:tenantId(),userId,action,entity,entityId,newValues:JSON.stringify(payload)} as any)}
+async function audit(userId:string,action:string,entity:string,entityId:string,payload:unknown={}){await db.insert(auditLogs).values({workspaceId:tenantId(),userId,action,entity,entityId,newValues:JSON.stringify(payload)})}
 function authorize(role:string,op:VivitoActionOp){const meta=VIVITO_ACTION_CATALOG[op];if(!meta||!meta.roles.includes(role))throw new VivitoActionError("You do not have permission to execute this action.",403)}
 
 async function client(refRaw:unknown,role:string,userId:string){

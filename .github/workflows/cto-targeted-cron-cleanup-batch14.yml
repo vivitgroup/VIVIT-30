@@ -1,0 +1,52 @@
+name: CTO Targeted Cron Cleanup Batch 14
+
+on:
+  push:
+    branches: [feat/vivito-internal-100]
+    paths:
+      - '.github/workflows/cto-targeted-cron-cleanup-batch14.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-internal-100
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply cron dead-code cleanup
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('app/api/cron/route.ts'); s=p.read_text()
+          replacements=[
+            ('// Fix 33: Which cron schedule triggered this run\ntype CronRun = "morning" | "evening" | "monthly" | "all";\nfunction getCronType(req: NextRequest): CronRun {\n  const t = req.nextUrl.searchParams.get("type") as CronRun;\n  if (t) return t;\n  const h = new Date().getHours();\n  const d = new Date().getDate();\n  if (d === 1 && h === 9) return "monthly";\n  if (h >= 6 && h < 12)  return "morning";\n  if (h >= 16)            return "evening";\n  return "all";\n}\n', ''),
+            ('clientFeedback, creatorProfiles', 'clientFeedback'),
+            ('eq, and, lte, gte, notInArray, sum, count, lt, isNull, or, desc , inArray', 'eq, and, lte, gte, notInArray, sum, count, inArray'),
+            ('  const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);\n  const prevMonthEnd   = new Date(now.getFullYear(), now.getMonth(), 0);\n', ''),
+          ]
+          for old,new in replacements:
+              if old not in s: raise SystemExit(f'missing expected fragment: {old[:180]}')
+              s=s.replace(old,new,1)
+          p.write_text(s)
+          PY
+      - name: TypeScript acceptance
+        run: npx tsc --noEmit
+      - name: Targeted ESLint acceptance
+        run: npx eslint app/api/cron/route.ts --max-warnings=0
+      - name: Commit validated remediation
+        run: |
+          git config user.name 'vivitgroup'
+          git config user.email 'groupvivit@gmail.com'
+          git add app/api/cron/route.ts
+          git diff --cached --quiet && exit 0
+          git commit -m 'chore(lint): remove dead cron code'
+          git push origin HEAD:feat/vivito-internal-100

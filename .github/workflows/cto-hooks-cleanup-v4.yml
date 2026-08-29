@@ -1,0 +1,105 @@
+name: CTO Hooks Cleanup V4
+
+on:
+  push:
+    branches: [feat/vivito-static-hooks-v4]
+    paths:
+      - '.github/workflows/cto-hooks-cleanup-v4.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-static-hooks-v4
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Refactor effect hydration and media loaders
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs=require('node:fs');
+          function one(file,from,to,count=1){let s=fs.readFileSync(file,'utf8');const n=s.split(from).length-1;if(n!==count)throw new Error(`${file}: expected ${count}, found ${n}: ${from.slice(0,120)}`);fs.writeFileSync(file,s.split(from).join(to))}
+
+          one('components/layout/Header.tsx',
+            'useEffect(()=>{try{setHistory(JSON.parse(localStorage.getItem("vivit-search-history")??"[]"));const saved=(localStorage.getItem("vivit-lang") as "en"|"ar")||"en";setLang(saved);document.documentElement.lang=saved;document.documentElement.dir=saved==="ar"?"rtl":"ltr"}catch{}},[]);',
+            'useEffect(()=>{const id=window.setTimeout(()=>{try{setHistory(JSON.parse(localStorage.getItem("vivit-search-history")??"[]"));const saved=(localStorage.getItem("vivit-lang") as "en"|"ar")||"en";setLang(saved);document.documentElement.lang=saved;document.documentElement.dir=saved==="ar"?"rtl":"ltr"}catch{}},0);return()=>window.clearTimeout(id)},[]);');
+
+          one('components/layout/Sidebar.tsx',
+            'useEffect(()=>{const c=localStorage.getItem("vivit-sidebar-collapsed")==="true",t=(localStorage.getItem("vivit-theme") as any)||"light",l=(localStorage.getItem("vivit-lang") as any)||"en";setCollapsed(c);setTheme(t);setLang(l);document.documentElement.classList.toggle("dark",t==="dark");const h=(e:Event)=>setLang((e as CustomEvent).detail);window.addEventListener("vivit-language",h);return()=>window.removeEventListener("vivit-language",h)},[])',
+            'useEffect(()=>{const h=(e:Event)=>setLang((e as CustomEvent).detail);window.addEventListener("vivit-language",h);const id=window.setTimeout(()=>{const c=localStorage.getItem("vivit-sidebar-collapsed")==="true",t=(localStorage.getItem("vivit-theme") as any)||"light",l=(localStorage.getItem("vivit-lang") as any)||"en";setCollapsed(c);setTheme(t);setLang(l);document.documentElement.classList.toggle("dark",t==="dark")},0);return()=>{window.clearTimeout(id);window.removeEventListener("vivit-language",h)}},[])');
+
+          {let file='app/dashboard/media/sync/page.tsx',s=fs.readFileSync(file,'utf8');const prefix='useEffect(()=>{const saved=localStorage.getItem("vivit-meta-connect")';const start=s.indexOf(prefix);if(start<0)throw new Error('media sync effect not found');const end=s.indexOf('},[]);',start);if(end<0)throw new Error('media sync effect end not found');const body=s.slice(start+'useEffect(()=>{'.length,end);s=s.slice(0,start)+`useEffect(()=>{const id=window.setTimeout(()=>{${body}},0);return()=>window.clearTimeout(id)},[]);`+s.slice(end+'},[]);'.length);fs.writeFileSync(file,s)}
+
+          one('components/vivito/DirectOperatorPanel.tsx','useEffect(()=>{void load();const i=setInterval(()=>void load(),30000);return()=>clearInterval(i)},[load]);','useEffect(()=>{const first=window.setTimeout(()=>void load(),0);const i=setInterval(()=>void load(),30000);return()=>{window.clearTimeout(first);clearInterval(i)}},[load]);');
+          one('components/whatsapp/WhatsAppWorkspace.tsx','useEffect(()=>{load()},[]);','useEffect(()=>{const id=window.setTimeout(()=>void load(),0);return()=>window.clearTimeout(id)},[]);');
+          one('components/realtime-notifications.tsx','}, [showToast, router]);','}, [showToast]);');
+
+          for(const file of ['components/media/MediaControlV2.tsx','components/media/MediaIntelligenceWorkspace.tsx','components/media/MediaIntelligenceWorkspaceV2.tsx']){
+            let s=fs.readFileSync(file,'utf8');
+            if(s.includes('import {useEffect,useMemo,useState} from "react";'))s=s.replace('import {useEffect,useMemo,useState} from "react";','import {useCallback,useEffect,useMemo,useState} from "react";');
+            else if(s.includes('import {useEffect,useState} from "react";'))s=s.replace('import {useEffect,useState} from "react";','import {useCallback,useEffect,useState} from "react";');
+            const isControl=file.endsWith('MediaControlV2.tsx');
+            const startOld=isControl?'async function load(start=from,end=to){':'async function load(a=from,b=to){';
+            const startNew=isControl?'const load=useCallback(async(start:string,end:string)=>{':'const load=useCallback(async(a:string,b:string)=>{';
+            if((s.split(startOld).length-1)!==1)throw new Error(`${file}: load start mismatch`);s=s.replace(startOld,startNew);
+            const effectOld=isControl?
+              '}finally{setLoading(false)}}useEffect(()=>{load(defaultFrom,today)},[]);useEffect(()=>{const t=setInterval(()=>load(from,to),30000);return()=>clearInterval(t)},[from,to]);':
+              '}finally{setLoading(false)}}useEffect(()=>{load(defaultFrom,today)},[]);useEffect(()=>{const t=setInterval(()=>load(from,to),30000);return()=>clearInterval(t)},[from,to]);';
+            const effectNew='}finally{setLoading(false)}},[]);useEffect(()=>{const id=window.setTimeout(()=>void load(defaultFrom,today),0);return()=>window.clearTimeout(id)},[defaultFrom,today,load]);useEffect(()=>{const t=setInterval(()=>void load(from,to),30000);return()=>clearInterval(t)},[from,to,load]);';
+            if((s.split(effectOld).length-1)!==1)throw new Error(`${file}: load/effect ending mismatch`);s=s.replace(effectOld,effectNew);
+            const okCount=s.split('if(r.ok)load()').length-1;if(okCount>1)throw new Error(`${file}: too many if(r.ok)load()`);if(okCount===1)s=s.replace('if(r.ok)load()','if(r.ok)load(from,to)');
+            const awaitCount=s.split('await load()').length-1;if(awaitCount>1)throw new Error(`${file}: too many await load()`);if(awaitCount===1)s=s.replace('await load()','await load(from,to)');
+            fs.writeFileSync(file,s);
+          }
+
+          one('components/media/MetaAccountConnectPanel.tsx','import {useEffect,useRef,useState} from "react";','import {useCallback,useEffect,useRef,useState} from "react";');
+          {const file='components/media/MetaAccountConnectPanel.tsx';let s=fs.readFileSync(file,'utf8');const from=` const autoRan=useRef(false);\n async function load(){const to=iso(new Date()),r=await fetch(\`/api/media-control-v2?from=\${CUTOFF}&to=\${to}\`,{cache:"no-store"}),d=await read(r);if(r.ok)setData(d)}\n useEffect(()=>{load();const q=new URLSearchParams(location.search),oauth=q.get("oauth"),connectionId=q.get("connectionId");if(oauth==="success"&&connectionId){setTone("info");setMsg("Meta connected. Updating campaign data…");syncAll(connectionId,true)}else if(oauth==="error"){setTone("warn");setMsg(q.get("message")||"Meta connection failed")};history.replaceState({},"",location.pathname)},[]);\n useEffect(()=>{if(autoRan.current)return;const accounts=(data.accountGroups||[]).filter((a:any)=>a.platform==="META"&&a.status!=="DISABLED"&&(a.status==="CONNECTED"||a.status==="ERROR"));if(!accounts.length)return;autoRan.current=true;const stale=accounts.filter((a:any)=>!a.lastSyncAt||Date.now()-new Date(a.lastSyncAt).getTime()>STALE_MS);if(!stale.length){setTone("ok");setMsg("");return}(async()=>{setTone("info");setMsg("Updating Meta data…");for(let i=0;i<stale.length;i++){const result=await syncAll(stale[i].id,true,false);if(result?.rateLimited){setTone("warn");setMsg("Meta is temporarily rate-limiting requests. Showing the latest successful data; automatic sync will retry later.");break}if(i<stale.length-1)await sleep(1200)}await load();if(!isRateLimit(msg)){setTone("ok");setMsg("")}})()},[data.accountGroups]);\n function connect(a:any){const p=new URLSearchParams({clientId:a.clientId,adAccountId:String(a.adAccountId||"").replace(/^act_/i,""),accountName:a.accountName||"Meta Ad Account"});router.push(\`/api/ad-oauth/meta/start?\${p}\`)}\n async function syncAll(id:string,auto=false,reload=true){setBusy(id);if(!auto){setTone("info");setMsg("")}const r=await fetch("/api/media-discover",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({connectionId:id})}),d=await read(r),rateLimited=isRateLimit(d.error)||isRateLimit(d.failures?.map((x:any)=>x.error).join(" "));if(r.ok&&!rateLimited){if(!auto){setTone("ok");setMsg(\`Updated \${d.synced||0} campaigns from Meta.\`)}}else if(rateLimited){setTone("warn");setMsg("Meta is temporarily rate-limiting requests. Latest successful data is still available and sync will retry automatically.")}else{setTone("warn");setMsg(d.error||"Meta refresh failed")}setBusy("");if(reload)await load();return{ok:r.ok,rateLimited}}\n`;
+          const to=` const autoRan=useRef(false);\n const load=useCallback(async()=>{const to=iso(new Date()),r=await fetch(\`/api/media-control-v2?from=\${CUTOFF}&to=\${to}\`,{cache:"no-store"}),d=await read(r);if(r.ok)setData(d)},[]);\n const syncAll=useCallback(async(id:string,auto=false,reload=true)=>{setBusy(id);if(!auto){setTone("info");setMsg("")}const r=await fetch("/api/media-discover",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({connectionId:id})}),d=await read(r),rateLimited=isRateLimit(d.error)||isRateLimit(d.failures?.map((x:any)=>x.error).join(" "));if(r.ok&&!rateLimited){if(!auto){setTone("ok");setMsg(\`Updated \${d.synced||0} campaigns from Meta.\`)}}else if(rateLimited){setTone("warn");setMsg("Meta is temporarily rate-limiting requests. Latest successful data is still available and sync will retry automatically.")}else{setTone("warn");setMsg(d.error||"Meta refresh failed")}setBusy("");if(reload)await load();return{ok:r.ok,rateLimited}},[load]);\n useEffect(()=>{const id=window.setTimeout(()=>{void (async()=>{await load();const q=new URLSearchParams(location.search),oauth=q.get("oauth"),connectionId=q.get("connectionId");if(oauth==="success"&&connectionId){setTone("info");setMsg("Meta connected. Updating campaign data…");await syncAll(connectionId,true)}else if(oauth==="error"){setTone("warn");setMsg(q.get("message")||"Meta connection failed")};history.replaceState({},"",location.pathname)})()},0);return()=>window.clearTimeout(id)},[load,syncAll]);\n useEffect(()=>{const id=window.setTimeout(()=>{if(autoRan.current)return;const accounts=(data.accountGroups||[]).filter((a:any)=>a.platform==="META"&&a.status!=="DISABLED"&&(a.status==="CONNECTED"||a.status==="ERROR"));if(!accounts.length)return;autoRan.current=true;const stale=accounts.filter((a:any)=>!a.lastSyncAt||Date.now()-new Date(a.lastSyncAt).getTime()>STALE_MS);if(!stale.length){setTone("ok");setMsg("");return}void (async()=>{setTone("info");setMsg("Updating Meta data…");let rateLimited=false;for(let i=0;i<stale.length;i++){const result=await syncAll(stale[i].id,true,false);if(result?.rateLimited){rateLimited=true;setTone("warn");setMsg("Meta is temporarily rate-limiting requests. Showing the latest successful data; automatic sync will retry later.");break}if(i<stale.length-1)await sleep(1200)}await load();if(!rateLimited){setTone("ok");setMsg("")}})()},0);return()=>window.clearTimeout(id)},[data.accountGroups,load,syncAll]);\n function connect(a:any){const p=new URLSearchParams({clientId:a.clientId,adAccountId:String(a.adAccountId||"").replace(/^act_/i,""),accountName:a.accountName||"Meta Ad Account"});router.push(\`/api/ad-oauth/meta/start?\${p}\`)}\n`;
+          if((s.split(from).length-1)!==1)throw new Error('Meta panel block mismatch');s=s.replace(from,to);fs.writeFileSync(file,s)}
+          NODE
+          git diff --check
+      - name: Whole-project acceptance and hook assertion
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          git diff --check
+          npx eslint app/dashboard/media/sync/page.tsx components/layout/Header.tsx components/layout/Sidebar.tsx components/media/MediaControlV2.tsx components/media/MediaIntelligenceWorkspace.tsx components/media/MediaIntelligenceWorkspaceV2.tsx components/media/MetaAccountConnectPanel.tsx components/realtime-notifications.tsx components/vivito/DirectOperatorPanel.tsx components/whatsapp/WhatsAppWorkspace.tsx -f json > /tmp/eslint.json || true
+          node <<'NODE'
+          const fs=require('node:fs');const rows=JSON.parse(fs.readFileSync('/tmp/eslint.json','utf8'));const m=rows.flatMap(r=>r.messages||[]),set=m.filter(x=>x.ruleId==='react-hooks/set-state-in-effect'),deps=m.filter(x=>x.ruleId==='react-hooks/exhaustive-deps');console.log(`set_state_remaining=${set.length}`);console.log(`deps_remaining=${deps.length}`);console.log(JSON.stringify([...set,...deps].map(x=>[x.ruleId,x.line,x.column,x.message])));if(set.length||deps.length)process.exit(1);
+          NODE
+      - name: Measure full lint
+        shell: bash
+        run: |
+          npx eslint . -f json > /tmp/full.json || true
+          node <<'NODE'
+          const fs=require('node:fs');const rows=JSON.parse(fs.readFileSync('/tmp/full.json','utf8'));const m=rows.flatMap(r=>r.messages||[]),c={};for(const x of m)c[x.ruleId||'(parser)']=(c[x.ruleId||'(parser)']||0)+1;console.log(`remaining_total=${m.length}`);console.log(`remaining_errors=${m.filter(x=>x.severity===2).length}`);console.log(`remaining_warnings=${m.filter(x=>x.severity===1).length}`);console.log(`remaining_any=${m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any').length}`);console.log('top_rules='+JSON.stringify(Object.entries(c).sort((a,b)=>b[1]-a[1]).slice(0,10)));
+          NODE
+      - name: Commit verified source fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git add app components
+          if ! git diff --cached --quiet; then
+            git commit -m 'fix(react): close effect state and dependency findings [skip ci]'
+            git push origin HEAD:feat/vivito-static-hooks-v4
+          fi

@@ -1,0 +1,62 @@
+name: CTO Integrate Static V5
+
+on:
+  push:
+    branches: [feat/vivito-static-aggregate-v5]
+    paths: ['.github/workflows/cto-integrate-static-v5.yml']
+  workflow_dispatch:
+
+permissions: {contents: write}
+
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: feat/vivito-static-aggregate-v5, fetch-depth: 0}
+      - uses: actions/setup-node@v4
+        with: {node-version: 22, cache: npm}
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Integrate verified source commits one by one
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          for c in \
+            a4a09a3271ee278733572b5e38587d1289dd264d \
+            5b72ddfa8de80b9195a291b8b56747964db092d7 \
+            5acffef0b31f86bd266d4558570a36bd881b842f \
+            9683123071b771f65fb69ec1aebaad18f912a3b6
+          do
+            echo "candidate=$c"
+            git cherry-pick "$c"
+            npm run type-check
+            node scripts/qa-cto-static-audit.mjs
+            git diff --check HEAD^ HEAD
+          done
+          git push origin HEAD:feat/vivito-static-aggregate-v5
+      - name: Full lint hard assertion
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx eslint . -f json > /tmp/eslint.json || true
+          node <<'NODE'
+          const fs=require('node:fs');
+          const rows=JSON.parse(fs.readFileSync('/tmp/eslint.json','utf8'));
+          const m=rows.flatMap(r=>r.messages||[]), c={};
+          for(const x of m)c[x.ruleId||'(parser)']=(c[x.ruleId||'(parser)']||0)+1;
+          const nonAny=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any');
+          console.log(`remaining_total=${m.length}`);
+          console.log(`remaining_errors=${m.filter(x=>x.severity===2).length}`);
+          console.log(`remaining_warnings=${m.filter(x=>x.severity===1).length}`);
+          console.log(`remaining_any=${m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any').length}`);
+          console.log(`remaining_non_any=${nonAny.length}`);
+          console.log('top_rules='+JSON.stringify(Object.entries(c).sort((a,b)=>b[1]-a[1]).slice(0,20)));
+          if(nonAny.length){console.log(JSON.stringify(nonAny.map(x=>[x.ruleId,x.line,x.column,x.message])));process.exit(1)}
+          NODE

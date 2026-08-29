@@ -17,7 +17,7 @@ const clean=(v:unknown,n=500)=>String(v??"").trim().slice(0,n);
 const amount=(v:unknown)=>{const n=Number(v);if(!Number.isFinite(n)||n<=0)throw new VivitoActionError("Amount must be greater than zero.");return Number(n.toFixed(2))};
 const nonNegative=(v:unknown)=>{const n=Number(v??0);if(!Number.isFinite(n)||n<0)throw new VivitoActionError("Amount cannot be negative.");return Number(n.toFixed(2))};
 const parsedDate=(v:unknown)=>{const d=new Date(String(v||""));if(Number.isNaN(d.getTime()))throw new VivitoActionError("A valid date is required.");return d};
-async function audit(userId:string,action:string,entity:string,entityId:string,payload:unknown={}){await db.insert(auditLogs).values({workspaceId:tenantId(),userId,action,entity,entityId,newValues:JSON.stringify(payload)} as any)}
+async function audit(userId:string,action:string,entity:string,entityId:string,payload:unknown={}){await db.insert(auditLogs).values({workspaceId:tenantId(),userId,action,entity,entityId,newValues:JSON.stringify(payload)})}
 
 function authorizeOp(role:string,op:VivitoActionOp){const meta=VIVITO_ACTION_CATALOG[op];if(!meta)throw new VivitoActionError("Unsupported VIVITO action.",400);if(!meta.roles.includes(role))throw new VivitoActionError("You do not have permission to execute this action.",403)}
 

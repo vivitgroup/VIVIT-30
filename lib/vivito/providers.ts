@@ -53,7 +53,7 @@ export async function generateVivito(prompt:string,system:string,options:Generat
     try{
       if(provider==="mesh"){const result=await generateViaVivitoMesh(prompt,system,options);clearVivitoProviderCooldown(provider);return{text:result.text,provider,attempted,errors:[...errors,...result.errors],latencyMs:Date.now()-started,modelId:result.modelId}}
       const text=provider==="gemini"?await callGemini(prompt,system,options):await callClaude(prompt,system,options);clearVivitoProviderCooldown(provider);return{text,provider,attempted,errors,latencyMs:Date.now()-started};
-    }catch(error:unknown){const failure=classifyVivitoProviderFailure(error,errorStatus(error));markVivitoProviderCooldown(provider,failure);errors.push(safeError(provider,error))}
+    }catch(error){const failure=classifyVivitoProviderFailure(error,errorStatus(error));markVivitoProviderCooldown(provider,failure);errors.push(safeError(provider,error))}
   }
   throw new Error(`all-providers-failed:${errors.join(" | ")}`);
 }

@@ -46,10 +46,9 @@ export default async function MediaPage() {
   if (![Role.SUPER_ADMIN,Role.MEDIA_BUYER,Role.ACCOUNT_MANAGER].includes(role)) redirect("/dashboard");
 
   const now     = new Date();
-  const mo1     = new Date(now.getFullYear(), now.getMonth()-1, 1);
   const moStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-  const [allClients, thisMonth, lastMonth, platformMetrics] = await Promise.all([
+  const [allClients, thisMonth] = await Promise.all([
     db.select({id:clients.id, companyName:clients.companyName, mediaBudget:clients.mediaBudget})
       .from(clients).where(and(eq(clients.workspaceId,workspaceId),eq(clients.isActive,true),role===Role.MEDIA_BUYER?eq(clients.mediaBuyerId,userId):role===Role.ACCOUNT_MANAGER?eq(clients.accountManagerId,userId):eq(clients.workspaceId,workspaceId))),
     db.select({
@@ -58,15 +57,6 @@ export default async function MediaPage() {
       revenue:sum(mediaMetrics.revenue), fee:sum(mediaMetrics.agencyFee),
     }).from(mediaMetrics).where(and(eq(mediaMetrics.workspaceId,workspaceId),gte(mediaMetrics.date, moStart)))
       .groupBy(mediaMetrics.clientId, mediaMetrics.platform),
-    db.select({
-      spend:sum(mediaMetrics.adSpend), leads:sum(mediaMetrics.leads), revenue:sum(mediaMetrics.revenue),
-    }).from(mediaMetrics).where(and(eq(mediaMetrics.workspaceId,workspaceId),gte(mediaMetrics.date,mo1),
-      eq(mediaMetrics.date, new Date(now.getFullYear(), now.getMonth()-1, now.getDate())))),
-    db.select({
-      platform:mediaMetrics.platform,
-      spend:sum(mediaMetrics.adSpend), leads:sum(mediaMetrics.leads), revenue:sum(mediaMetrics.revenue),
-    }).from(mediaMetrics).where(and(eq(mediaMetrics.workspaceId,workspaceId),gte(mediaMetrics.date, moStart)))
-      .groupBy(mediaMetrics.platform),
   ]);
 
   const allowedClientIds=allClients.map(c=>c.id);
@@ -78,7 +68,6 @@ export default async function MediaPage() {
   }
   const visiblePlatformMetrics=Array.from(platformMap.values());
 
-  const clientMap = Object.fromEntries(allClients.map(c=>[c.id,c]));
   const fmt = (n:number) => new Intl.NumberFormat("en-EG",{style:"currency",currency:"EGP",maximumFractionDigits:0}).format(Number(n||0));
 
   const totalSpend   = visibleThisMonth.reduce((s,m)=>s+Number(m.spend),0);

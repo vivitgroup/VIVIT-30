@@ -21,7 +21,6 @@ export default async function DashboardPage() {
   const month    = now.getMonth() + 1;
   const year     = now.getFullYear();
   const moStart  = new Date(year, now.getMonth(), 1);
-  const mo1ago   = new Date(year, now.getMonth()-1, 1);
   const yrStart  = new Date(year, 0, 1);
   const today    = new Date(now); today.setHours(0,0,0,0);
   const period   = `${year}-${String(month).padStart(2,"0")}`;
@@ -69,7 +68,6 @@ export default async function DashboardPage() {
   const ytdPaid       = Number(ytdFin?.[0]?.paid??0);
   const revChange     = lastRevenue>0 ? Math.round((totalRevenue-lastRevenue)/lastRevenue*100) : 0;
   const mediaSpend    = Number(thisMonthMedia?.[0]?.spend??0);
-  const mediaLeads    = Number(thisMonthMedia?.[0]?.leads??0);
   const mediaRevenue  = Number(thisMonthMedia?.[0]?.revenue??0);
   const roas          = mediaSpend>0 ? (mediaRevenue/mediaSpend).toFixed(1) : "—";
   const activeTasksCnt= Number(activeTasks?.[0]?.cnt??0);
@@ -83,7 +81,6 @@ export default async function DashboardPage() {
 
   const clientCount  = (allClients as unknown[]).length;
   const highRisk     = (allClients as unknown[]).filter((c:any)=>c.churnRisk==="HIGH").length;
-  const avgHealth    = clientCount>0 ? Math.round((allClients as any[]).reduce((s:number,c:any)=>s+c.healthScore,0)/clientCount) : 0;
 
   // Agency health score
   const health = (agencyHealth as any[])?.[0];
@@ -248,7 +245,7 @@ export default async function DashboardPage() {
               const W=520,H=150,PAD=36,bW=(W-PAD*2)/12;
               const toY=(v:number)=>PAD+(1-v/maxV)*(H-PAD*0.5);
               const pts=(arr:number[])=>arr.map((v,i)=>`${PAD+i*bW+bW/2},${toY(v)}`).join(" ");
-              const area=(arr:number[],color:string)=>{
+              const area=(arr:number[])=>{
                 const p=arr.map((v,i)=>`${PAD+i*bW+bW/2},${toY(v)}`).join(" L ");
                 return `M ${PAD+bW/2},${toY(arr[0])} L ${p} L ${PAD+(arr.length-1)*bW+bW/2},${H} L ${PAD+bW/2},${H} Z`;
               };
@@ -270,8 +267,8 @@ export default async function DashboardPage() {
                       <text x={PAD-5} y={y+4} textAnchor="end" fontSize={8} fill="var(--text-muted)" fontFamily="Plus Jakarta Sans">{Math.round(maxV*p/100)}k</text>
                     </g>;
                   })}
-                  <path d={area(rev,"blue")} fill="url(#revGrad)"/>
-                  <path d={area(pro,"green")} fill="url(#proGrad)"/>
+                  <path d={area(rev)} fill="url(#revGrad)"/>
+                  <path d={area(pro)} fill="url(#proGrad)"/>
                   <polyline points={pts(rev)} fill="none" stroke="var(--vivit-blue)" strokeWidth={2.5} strokeLinejoin="round"/>
                   <polyline points={pts(exp)} fill="none" stroke="var(--red)" strokeWidth={1.5} strokeDasharray="5,4" strokeLinejoin="round"/>
                   <polyline points={pts(pro)} fill="none" stroke="var(--green)" strokeWidth={2} strokeLinejoin="round"/>

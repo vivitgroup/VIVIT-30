@@ -41,7 +41,7 @@ jobs:
           one('const expenses=rows(await db.execute(sql`select category,coalesce(sum(amount),0) amount from company_expenses where workspace_id=${workspaceId} and date>=date_trunc(\'month\',now()) group by category order by amount desc limit 20`))','const expenses=rows<Record<string,unknown>>(await db.execute(sql`select category,coalesce(sum(amount),0) amount from company_expenses where workspace_id=${workspaceId} and date>=date_trunc(\'month\',now()) group by category order by amount desc limit 20`))');
           one('function resolveAuthorizedClient(clients:any[],nameRaw:string)','function resolveAuthorizedClient(clients:ClientRow[],nameRaw:string)');
           one('function taskAnswer(question:string,tasks:any[])','function taskAnswer(question:string,tasks:TaskRow[])');
-          one('cairoDay(new Date(t.deadline))','cairoDay(new Date(String(t.deadline)))',3);
+          one('cairoDay(new Date(t.deadline))','cairoDay(new Date(String(t.deadline)))',2);
           one('new Date(t.deadline).getTime()','dateMs(t.deadline)',2);
           one('new Date(t.deadline)>=new Date()','dateMs(t.deadline)>=Date.now()');
           one('+new Date(a.deadline)-+new Date(b.deadline)','dateMs(a.deadline)-dateMs(b.deadline)');

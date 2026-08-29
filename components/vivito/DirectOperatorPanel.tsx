@@ -6,7 +6,7 @@ const parse=(v:unknown)=>{try{return typeof v==="string"?JSON.parse(v):v||{}}cat
 export default function DirectOperatorPanel(){
  const [events,setEvents]=useState<EventRow[]>([]),[summary,setSummary]=useState<unknown[]>([]),[escalations,setEscalations]=useState<unknown[]>([]),[busy,setBusy]=useState<string|null>(null),[error,setError]=useState("");
  const load=useCallback(async()=>{try{const r=await fetch("/api/assistant/direct",{cache:"no-store"}),d=await r.json();if(!r.ok)throw new Error(d.error||"Could not load VIVITO Direct Operator");setEvents(d.events||[]);setSummary(d.summary||[]);setEscalations(d.escalations||[]);setError("")}catch(e){setError(String(e?.message||e))}},[]);
- useEffect(()=>{void load();const i=setInterval(()=>void load(),30000);return()=>clearInterval(i)},[load]);
+ useEffect(()=>{const first=window.setTimeout(()=>void load(),0);const i=setInterval(()=>void load(),30000);return()=>{window.clearTimeout(first);clearInterval(i)}},[load]);
  const counts=useMemo(()=>Object.fromEntries(summary.map((x:any)=>[String(x.status),Number(x.count||0)])),[summary]);
  async function decide(id:string,decision:"approve"|"reject"){let reason="";if(decision==="reject"){reason=window.prompt("Reason for rejection")?.trim()||"";if(!reason)return}setBusy(id);setError("");try{const r=await fetch("/api/assistant/direct",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({eventId:id,decision,confirm:decision==="approve",reason})}),d=await r.json();if(!r.ok)throw new Error(d.error||"Decision failed");await load()}catch(e){setError(String(e?.message||e))}finally{setBusy(null)}}
  return <div style={{display:"flex",flexDirection:"column",gap:16}}>

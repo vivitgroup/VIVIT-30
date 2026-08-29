@@ -1,0 +1,44 @@
+name: CTO Integrate Executor Rows V13
+on:
+  push:
+    branches: [feat/vivito-static-integrate-executor-rows-v13]
+permissions:
+  contents: write
+jobs:
+  integrate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-static-integrate-executor-rows-v13
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint . -f json > /tmp/base.json || true
+          node <<'NODE'
+          const r=require('/tmp/base.json'),m=r.flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any'),w=m.filter(x=>x.severity===1);console.log(`baseline_any=${a.length}`);if(a.length!==209||n.length||w.length)process.exit(1)
+          NODE
+      - name: Integrate verified executor row source
+        run: |
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git fetch origin dd5ececb8236cba10c9ce8de1908f8e55be406e9
+          git cherry-pick dd5ececb8236cba10c9ce8de1908f8e55be406e9
+      - name: Final acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint lib/vivito/executor.ts -f json > /tmp/target.json || true
+          npx eslint . -f json > /tmp/all.json || true
+          node <<'NODE'
+          const target=require('/tmp/target.json').flatMap(x=>x.messages||[]),ta=target.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),tn=target.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any');const r=require('/tmp/all.json'),m=r.flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any'),w=m.filter(x=>x.severity===1);console.log(`target_any=${ta.length}`);console.log(`target_non_any=${tn.length}`);console.log(`remaining_any=${a.length}`);console.log(`remaining_non_any=${n.length}`);console.log(`remaining_warnings=${w.length}`);if(ta.length!==15||tn.length||a.length!==204||n.length||w.length)process.exit(1)
+          NODE
+      - name: Push accepted candidate
+        run: git push origin HEAD:feat/vivito-static-integrate-executor-rows-v13

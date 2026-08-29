@@ -1,0 +1,27 @@
+name: CTO Media Control Context V10
+on:
+  push:
+    branches: [feat/vivito-media-control-types-v10]
+    paths: ['.github/workflows/cto-media-control-context-v10.yml']
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-media-control-types-v10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Acceptance and contexts
+        shell: bash
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint components/media/MediaControlV2.tsx -f json > /tmp/e.json || true
+          node <<'NODE'
+          const fs=require('node:fs');const file='components/media/MediaControlV2.tsx',src=fs.readFileSync(file,'utf8'),rows=require('/tmp/e.json');const msgs=rows.flatMap(r=>r.messages||[]).filter(m=>m.ruleId==='@typescript-eslint/no-explicit-any');console.log(`count=${msgs.length}`);for(const [i,m] of msgs.entries()){const sug=(m.suggestions||[]).find(s=>Array.isArray(s?.fix?.range));const r=sug?.fix?.range;if(!r){console.log(`${i+1}: ${m.line}:${m.column} no-range`);continue}const [a,b]=r;console.log(`\n#${i+1} ${m.line}:${m.column} range=${a}:${b}\n${src.slice(Math.max(0,a-140),Math.min(src.length,b+180)).replaceAll('\n','\\n')}`)}
+          NODE

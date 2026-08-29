@@ -1,0 +1,32 @@
+name: CTO Any Context V7
+on:
+  push:
+    branches: [feat/vivito-any-context-v7]
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-any-context-v7
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Print compact contexts for top any hotspots
+        shell: bash
+        run: |
+          npx eslint . -f json > /tmp/e.json || true
+          node <<'NODE'
+          const fs=require('node:fs'),path=require('node:path');
+          const top=new Set(['app/dashboard/portal/page.tsx','app/api/assistant/route.ts','app/api/media-control-v2/route.ts','components/media/MediaIntelligenceWorkspaceV2.tsx','components/media/MediaIntelligenceWorkspace.tsx','lib/vivito/executor-extended.ts','lib/vivito/executor-operator.ts','lib/vivito/executor.ts']);
+          const rows=JSON.parse(fs.readFileSync('/tmp/e.json','utf8'));
+          for(const r of rows){const rel=path.relative(process.cwd(),r.filePath).replaceAll('\\','/');if(!top.has(rel))continue;const src=fs.readFileSync(r.filePath,'utf8');const lines=src.split(/\r?\n/);const ms=(r.messages||[]).filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any');console.log(`FILE\t${rel}\tCOUNT=${ms.length}`);for(const m of ms){const line=lines[(m.line||1)-1]||'';const c=Math.max(0,(m.column||1)-1);const a=Math.max(0,c-110),b=Math.min(line.length,c+150);console.log(`ANY\t${m.line}:${m.column}\t${line.slice(a,b).replace(/\s+/g,' ')}`)}}
+          NODE

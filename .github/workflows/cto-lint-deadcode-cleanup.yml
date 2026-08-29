@@ -43,7 +43,7 @@ jobs:
           }
           edit('app/api/assistant/route.ts',[[`}catch(error){return NextResponse.json({answer:isArabic(question)?`,`}catch{return NextResponse.json({answer:isArabic(question)?`,2]]);
           edit('app/api/quick-action/route.ts',[[`} catch (e) {`,`} catch {`,1]]);
-          edit('app/api/referrals/route.ts',[[`import { NextRequest, NextResponse } from "next/server";`,`import { NextResponse } from "next/server";`,1],[`export async function GET(req: NextRequest) {`,`export async function GET() {`,1]]);
+          edit('app/api/referrals/route.ts',[[`export async function GET(req: NextRequest) {`,`export async function GET() {`,1]]);
           edit('app/dashboard/nps/page.tsx',[[`  const avgScore   = total>0 ? (allFeedback.reduce((s,f)=>s+Number(f.score),0)/total).toFixed(1) : "0.0";\n`, ``,1],[`  const npsColor   = nps>=50?"var(--green)":nps>=0?"var(--amber)":"var(--red)";\n`, ``,1]]);
           edit('app/dashboard/onboarding/page.tsx',[[`].map((step,i)=>(`, `].map(step=>(`,1]]);
           edit('app/dashboard/sales/page.tsx',[[`STAGES.map((stage,idx)=>{`, `STAGES.map(stage=>{`,1]]);

@@ -1,0 +1,141 @@
+name: CTO Compile-Safe Unknown Type Sweep
+
+on:
+  push:
+    branches: [feat/vivito-internal-100]
+    paths:
+      - '.github/workflows/cto-unknown-type-sweep.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout release branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-internal-100
+          fetch-depth: 0
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Capture explicit-any suggestions
+        shell: bash
+        run: npx eslint . -f json > /tmp/eslint-before.json || true
+
+      - name: Apply only compiler-safe unknown substitutions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,re,subprocess
+          from pathlib import Path
+          report=json.load(open('/tmp/eslint-before.json'))
+          candidates={}
+          for item in report:
+            p=Path(item['filePath'])
+            try: rel=p.relative_to(Path.cwd())
+            except ValueError: continue
+            fixes=[]
+            for m in item.get('messages',[]):
+              if m.get('ruleId')!='@typescript-eslint/no-explicit-any': continue
+              for s in m.get('suggestions') or []:
+                fix=s.get('fix') or {}
+                if fix.get('text')=='unknown' and isinstance(fix.get('range'),list):
+                  fixes.append(tuple(fix['range']))
+                  break
+            if fixes: candidates[str(rel)]=sorted(set(fixes),reverse=True)
+          print(f'candidate_files={len(candidates)}')
+          print(f'candidate_any_occurrences={sum(len(v) for v in candidates.values())}')
+          for f,ranges in candidates.items():
+            p=Path(f); text=p.read_text()
+            for start,end in ranges:
+              if text[start:end] != 'any': raise SystemExit(f'unexpected eslint range in {f}: {start}:{end}')
+              text=text[:start]+'unknown'+text[end:]
+            p.write_text(text)
+          remaining=set(candidates)
+          for iteration in range(1,15):
+            proc=subprocess.run(['npm','run','type-check'],text=True,capture_output=True)
+            if proc.returncode==0:
+              print(f'typecheck_green_iteration={iteration}')
+              break
+            out=(proc.stdout or '')+'\n'+(proc.stderr or '')
+            error_files=set()
+            for line in out.splitlines():
+              m=re.match(r'([^\s][^(]+)\(\d+,\d+\): error TS\d+:',line)
+              if m:
+                f=m.group(1).replace('\\','/')
+                if f in remaining: error_files.add(f)
+            if not error_files:
+              ordered=sorted(remaining)
+              if not ordered:
+                print(out); raise SystemExit('typecheck failed with no candidate files remaining')
+              error_files=set(ordered[len(ordered)//2:]) or {ordered[-1]}
+              print(f'iteration={iteration} dependency-errors; conservatively reverting {len(error_files)} candidate files')
+            else:
+              print(f'iteration={iteration} reverting_error_files={len(error_files)}')
+            subprocess.run(['git','checkout','--',*sorted(error_files)],check=True)
+            remaining-=error_files
+          else:
+            raise SystemExit('typecheck did not converge')
+          print(f'accepted_files={len(remaining)}')
+          print(f'reverted_files={len(candidates)-len(remaining)}')
+          PY
+
+      - name: Final TypeScript acceptance
+        run: npm run type-check
+
+      - name: Diff safety
+        run: git diff --check
+
+      - name: Repository static invariant acceptance
+        run: node scripts/qa-cto-static-audit.mjs
+
+      - name: Report remaining lint debt
+        shell: bash
+        run: |
+          npx eslint . -f json > /tmp/eslint-after.json || true
+          node - <<'NODE'
+          const fs=require('node:fs');
+          const rows=JSON.parse(fs.readFileSync('/tmp/eslint-after.json','utf8'));
+          const messages=rows.flatMap(r=>r.messages||[]);
+          console.log(`remaining_total=${messages.length}`);
+          console.log(`remaining_errors=${messages.filter(m=>m.severity===2).length}`);
+          console.log(`remaining_warnings=${messages.filter(m=>m.severity===1).length}`);
+          console.log(`remaining_explicit_any=${messages.filter(m=>m.ruleId==='@typescript-eslint/no-explicit-any').length}`);
+          NODE
+
+      - name: Commit verified type improvements
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then exit 0; fi
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git add app components lib scripts types proxy.ts auth.config.ts 2>/dev/null || true
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix(types): replace compiler-safe explicit any with unknown'
+          git push origin HEAD:feat/vivito-internal-100
+
+      - name: Dispatch release gates on updated branch
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh workflow run cto-pre-release-audit.yml --ref feat/vivito-internal-100
+          gh workflow run cto-static-audit.yml --ref feat/vivito-internal-100
+          gh workflow run vivito-internal-100.yml --ref feat/vivito-internal-100

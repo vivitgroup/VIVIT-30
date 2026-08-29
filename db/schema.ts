@@ -1,4 +1,4 @@
-import { pgTable, text, boolean, timestamp, integer, real, numeric, pgEnum, unique, jsonb, index } from "drizzle-orm/pg-core";
+import { pgTable, text, boolean, timestamp, integer, real, numeric, pgEnum, unique, index } from "drizzle-orm/pg-core";
 
 // ── Enums ──────────────────────────────────────────────────────────────────
 export const roleEnum          = pgEnum("role",           ["SUPER_ADMIN","ACCOUNTANT","ACCOUNT_MANAGER","MEDIA_BUYER","CREATOR","SALES","CLIENT"]);

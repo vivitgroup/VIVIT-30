@@ -2,9 +2,9 @@ export const dynamic = "force-dynamic";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { db, clients, financeRecords, creativeTasks, salesLeads,
-  mediaMetrics, companyExpenses, notifications, users,
-  agencyHealthScores, commissions, payrollLocks } from "@/lib/db";
-import { eq, and, gte, lte, sum, count, desc, notInArray, lt, sql } from "drizzle-orm";
+  mediaMetrics, companyExpenses, notifications,
+  agencyHealthScores, payrollLocks } from "@/lib/db";
+import { eq, and, gte, lte, sum, count, desc, notInArray, lt } from "drizzle-orm";
 import { Role } from "@/lib/types";
 import Link from "next/link";
 

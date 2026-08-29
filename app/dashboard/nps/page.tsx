@@ -2,9 +2,8 @@ export const dynamic = "force-dynamic";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { db, clients, clientFeedback } from "@/lib/db";
-import { eq, desc, avg, count } from "drizzle-orm";
+import {  desc } from "drizzle-orm";
 import { Role } from "@/lib/types";
-import Link from "next/link";
 
 export default async function NPSPage() {
   const session = await auth();

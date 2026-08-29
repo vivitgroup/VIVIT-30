@@ -1,5 +1,5 @@
 "use client";
-import {useEffect,useMemo,useState} from "react";
+import {useEffect,useState} from "react";
 const n=(v:any)=>Number(v||0),iso=(d:Date)=>d.toISOString().slice(0,10),money=(v:any,c="EGP")=>new Intl.NumberFormat("en-EG",{style:"currency",currency:c||"EGP",maximumFractionDigits:2}).format(n(v)),delta=(a:number,b:number)=>b?((a-b)/Math.abs(b))*100:0;
 const aggregate=(items:any[])=>{const x=items.reduce((a:any,c:any)=>{const m=c.metrics||{};for(const k of["spend","results","purchases","revenue","impressions","clicks","reach","addToCart"])a[k]+=n(m[k]);return a},{spend:0,results:0,purchases:0,revenue:0,impressions:0,clicks:0,reach:0,addToCart:0});return{...x,ctr:x.impressions?x.clicks/x.impressions*100:0,cpm:x.impressions?x.spend/x.impressions*1000:0,costPerResult:x.results?x.spend/x.results:0,roas:x.spend?x.revenue/x.spend:0,frequency:x.reach?x.impressions/x.reach:0}};
 function previousRange(from:string,to:string){const a=new Date(from+"T00:00:00Z"),b=new Date(to+"T00:00:00Z"),days=Math.floor((b.getTime()-a.getTime())/86400000)+1,prevTo=new Date(a.getTime()-86400000),prevFrom=new Date(prevTo.getTime()-(days-1)*86400000);return{from:iso(prevFrom),to:iso(prevTo)}}

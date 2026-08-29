@@ -1,16 +1,18 @@
 "use client";
 import {useEffect,useRef,useState} from "react";
+import {useRouter} from "next/navigation";
 
 const CUTOFF="2026-07-25",STALE_MS=10*60*1000,iso=(d:Date)=>d.toISOString().slice(0,10),sleep=(ms:number)=>new Promise(r=>setTimeout(r,ms));
 async function read(r:Response){const t=await r.text();try{return t?JSON.parse(t):{}}catch{return {error:t||`Request failed (${r.status})`}}}
 const isRateLimit=(v:unknown)=>/too many calls|rate.?limit|request limit/i.test(String(v||""));
 export function MetaAccountConnectPanel(){
+ const router=useRouter();
  const [data,setData]=useState<any>({accountGroups:[]}),[busy,setBusy]=useState(""),[msg,setMsg]=useState(""),[tone,setTone]=useState<"info"|"warn"|"ok">("info");
  const autoRan=useRef(false);
  async function load(){const to=iso(new Date()),r=await fetch(`/api/media-control-v2?from=${CUTOFF}&to=${to}`,{cache:"no-store"}),d=await read(r);if(r.ok)setData(d)}
  useEffect(()=>{load();const q=new URLSearchParams(location.search),oauth=q.get("oauth"),connectionId=q.get("connectionId");if(oauth==="success"&&connectionId){setTone("info");setMsg("Meta connected. Updating campaign data…");syncAll(connectionId,true)}else if(oauth==="error"){setTone("warn");setMsg(q.get("message")||"Meta connection failed")};history.replaceState({},"",location.pathname)},[]);
  useEffect(()=>{if(autoRan.current)return;const accounts=(data.accountGroups||[]).filter((a:any)=>a.platform==="META"&&a.status!=="DISABLED"&&(a.status==="CONNECTED"||a.status==="ERROR"));if(!accounts.length)return;autoRan.current=true;const stale=accounts.filter((a:any)=>!a.lastSyncAt||Date.now()-new Date(a.lastSyncAt).getTime()>STALE_MS);if(!stale.length){setTone("ok");setMsg("");return}(async()=>{setTone("info");setMsg("Updating Meta data…");for(let i=0;i<stale.length;i++){const result=await syncAll(stale[i].id,true,false);if(result?.rateLimited){setTone("warn");setMsg("Meta is temporarily rate-limiting requests. Showing the latest successful data; automatic sync will retry later.");break}if(i<stale.length-1)await sleep(1200)}await load();if(!isRateLimit(msg)){setTone("ok");setMsg("")}})()},[data.accountGroups]);
- function connect(a:any){const p=new URLSearchParams({clientId:a.clientId,adAccountId:String(a.adAccountId||"").replace(/^act_/i,""),accountName:a.accountName||"Meta Ad Account"});location.assign(`/api/ad-oauth/meta/start?${p}`)}
+ function connect(a:any){const p=new URLSearchParams({clientId:a.clientId,adAccountId:String(a.adAccountId||"").replace(/^act_/i,""),accountName:a.accountName||"Meta Ad Account"});router.push(`/api/ad-oauth/meta/start?${p}`)}
  async function syncAll(id:string,auto=false,reload=true){setBusy(id);if(!auto){setTone("info");setMsg("")}const r=await fetch("/api/media-discover",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({connectionId:id})}),d=await read(r),rateLimited=isRateLimit(d.error)||isRateLimit(d.failures?.map((x:any)=>x.error).join(" "));if(r.ok&&!rateLimited){if(!auto){setTone("ok");setMsg(`Updated ${d.synced||0} campaigns from Meta.`)}}else if(rateLimited){setTone("warn");setMsg("Meta is temporarily rate-limiting requests. Latest successful data is still available and sync will retry automatically.")}else{setTone("warn");setMsg(d.error||"Meta refresh failed")}setBusy("");if(reload)await load();return{ok:r.ok,rateLimited}}
  const accounts=(data.accountGroups||[]).filter((a:any)=>a.platform==="META"&&a.status!=="DISABLED");
  return <div className="card" style={{padding:14,border:"1px solid rgba(59,130,246,.18)"}}>

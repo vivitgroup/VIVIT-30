@@ -32,7 +32,8 @@ jobs:
           one('function action(row:any,type:string){return n(row?.actions?.find((a:any)=>a.action_type===type)?.value)}','function action(row:MetaInsightRow,type:string){return n(row.actions?.find(a=>a.action_type===type)?.value)}');
           one('function value(row:any,type:string){return n(row?.action_values?.find((a:any)=>a.action_type===type)?.value)}','function value(row:MetaInsightRow,type:string){return n(row.action_values?.find(a=>a.action_type===type)?.value)}');
           one('function firstAction(row:unknown,types:string[])','function firstAction(row:MetaInsightRow,types:string[])');
-          one('function campaignSemantic(remote:any):Semantic{const o=String(remote?.objective||""),nm=String(remote?.name||""),sets=remote?.adsets?.data||[],goals=sets.map((x:any)=>String(x.optimization_goal||"").toUpperCase()),events=sets.map((x:any)=>String(x.promoted_object?.custom_event_type||"").toUpperCase()),destinations=sets.map((x:any)=>String(x.destination_type||"").toUpperCase());','function campaignSemantic(remote:MetaCampaignRemote):Semantic{const o=String(remote.objective||"").toUpperCase(),nm=String(remote.name||"").toUpperCase(),sets=remote.adsets?.data||[],goals=sets.map(x=>String(x.optimization_goal||"").toUpperCase()),events=sets.map(x=>String(x.promoted_object?.custom_event_type||"").toUpperCase()),destinations=sets.map(x=>String(x.destination_type||"").toUpperCase());');
+          one('function campaignSemantic(remote:any):Semantic','function campaignSemantic(remote:MetaCampaignRemote):Semantic');
+          one('sets.map((x:any)=>','sets.map(x=>',3);
           one('function primary(row:any,s:Semantic)','function primary(row:MetaInsightRow,s:Semantic)');
           one('function commerce(row:unknown)','function commerce(row:MetaInsightRow)');
           one('function dayFromRow(row:any,s:Semantic)','function dayFromRow(row:MetaInsightRow,s:Semantic)');

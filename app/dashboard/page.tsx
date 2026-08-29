@@ -50,14 +50,14 @@ export default async function DashboardPage() {
     db.select({id:creativeTasks.id,title:creativeTasks.title,status:creativeTasks.status,priority:creativeTasks.priority,deadline:creativeTasks.deadline,assignedToId:creativeTasks.assignedToId,clientId:creativeTasks.clientId}).from(creativeTasks).where(and(eq(creativeTasks.workspaceId,workspaceId),notInArray(creativeTasks.status,["COMPLETED","REJECTED"]))).orderBy(desc(creativeTasks.createdAt)).limit(6),
     db.select().from(payrollLocks).where(and(eq(payrollLocks.workspaceId,workspaceId),eq(payrollLocks.period,period))).limit(1),
   ]);
-  const dashboardDefaults:any[]=[[],[{total:0,paid:0,outstanding:0}],[{total:0,paid:0}],[{total:0,paid:0}],[{spend:0,leads:0,revenue:0}],[{cnt:0}],[{cnt:0}],[{cnt:0}],[{cnt:0}],[{cnt:0}],[{total:0}],[],[],[],[]];
+  const dashboardDefaults:unknown[]=[[],[{total:0,paid:0,outstanding:0}],[{total:0,paid:0}],[{total:0,paid:0}],[{spend:0,leads:0,revenue:0}],[{cnt:0}],[{cnt:0}],[{cnt:0}],[{cnt:0}],[{cnt:0}],[{total:0}],[],[],[],[]];
   const [
     allClients, thisMonthFin, lastMonthFin, ytdFin,
     thisMonthMedia, activeTasks, inReviewTasks,
     overdueTasks, wonLeads, staleLead,
     totalExpenses, recentNotifs, agencyHealth,
     recentTasks, payrollLock,
-  ] = dashboardResults.map((result,index)=>result.status==="fulfilled"?result.value:dashboardDefaults[index]) as any[];
+  ] = dashboardResults.map((result,index)=>result.status==="fulfilled"?result.value:dashboardDefaults[index]) as unknown[];
 
   const fmt = (n:number) => n>=1000000?`$${(n/1000000).toFixed(1)}M`:n>=1000?`$${(n/1000).toFixed(0)}k`:`$${n.toLocaleString()}`;
 
@@ -81,8 +81,8 @@ export default async function DashboardPage() {
   const collRate      = totalRevenue>0 ? Math.round(totalPaid/totalRevenue*100) : 0;
   const profitability = ytdRevenue>0 ? Math.round((ytdPaid-expenses)/ytdPaid*100) : 0;
 
-  const clientCount  = (allClients as any[]).length;
-  const highRisk     = (allClients as any[]).filter((c:any)=>c.churnRisk==="HIGH").length;
+  const clientCount  = (allClients as unknown[]).length;
+  const highRisk     = (allClients as unknown[]).filter((c:any)=>c.churnRisk==="HIGH").length;
   const avgHealth    = clientCount>0 ? Math.round((allClients as any[]).reduce((s:number,c:any)=>s+c.healthScore,0)/clientCount) : 0;
 
   // Agency health score
@@ -96,7 +96,7 @@ export default async function DashboardPage() {
   const payLock = (payrollLock as any[])?.[0];
   const isPayrollLocked = payLock?.status === "LOCKED";
 
-  const clientMap = Object.fromEntries((allClients as any[]).map((c:any)=>[c.id,c.companyName]));
+  const clientMap = Object.fromEntries((allClients as unknown[]).map((c:any)=>[c.id,c.companyName]));
 
   const STATUS_COLOR: Record<string,string> = {
     PENDING:"gray",IN_PROGRESS:"blue",REVIEW:"amber",APPROVED:"green",REVISION:"red",COMPLETED:"cyan"
@@ -297,7 +297,7 @@ export default async function DashboardPage() {
             <Link href="/dashboard/clients" className="btn btn-ghost btn-sm" style={{textDecoration:"none"}}>All →</Link>
           </div>
           <div className="card-body" style={{padding:"8px 16px",display:"flex",flexDirection:"column",gap:"8px"}}>
-            {(allClients as any[]).sort((a:any,b:any)=>a.healthScore-b.healthScore).slice(0,6).map((c:any)=>{
+            {(allClients as unknown[]).sort((a:any,b:any)=>a.healthScore-b.healthScore).slice(0,6).map((c:any)=>{
               const h=Math.round(c.healthScore);
               const color=h>=80?"var(--green)":h>=60?"var(--amber)":"var(--red)";
               return (
@@ -318,8 +318,8 @@ export default async function DashboardPage() {
             <div className="divider"/>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"6px",textAlign:"center"}}>
               {[
-                {label:"Healthy",val:(allClients as any[]).filter((c:any)=>c.churnRisk==="LOW").length,  color:"var(--green)"},
-                {label:"Monitor",val:(allClients as any[]).filter((c:any)=>c.churnRisk==="MEDIUM").length,color:"var(--amber)"},
+                {label:"Healthy",val:(allClients as unknown[]).filter((c:any)=>c.churnRisk==="LOW").length,  color:"var(--green)"},
+                {label:"Monitor",val:(allClients as unknown[]).filter((c:any)=>c.churnRisk==="MEDIUM").length,color:"var(--amber)"},
                 {label:"At Risk",val:highRisk,                                                            color:"var(--red)"},
               ].map(s=>(
                 <div key={s.label} style={{padding:"8px",borderRadius:"6px",background:"var(--bg-tertiary)"}}>
@@ -344,7 +344,7 @@ export default async function DashboardPage() {
             <table className="data-table">
               <thead><tr><th>Task</th><th>Client</th><th>Status</th><th>Priority</th><th>Deadline</th></tr></thead>
               <tbody>
-                {(recentTasks as any[]).map((t:any)=>{
+                {(recentTasks as unknown[]).map((t:any)=>{
                   const daysLeft=Math.ceil((new Date(t.deadline).getTime()-now.getTime())/86400000);
                   const overdue=daysLeft<0;
                   return (
@@ -372,11 +372,11 @@ export default async function DashboardPage() {
             <Link href="/dashboard/notifications" className="btn btn-ghost btn-sm" style={{textDecoration:"none"}}>All →</Link>
           </div>
           <div style={{maxHeight:"280px",overflowY:"auto"}}>
-            {(recentNotifs as any[]).length===0?(
+            {(recentNotifs as unknown[]).length===0?(
               <div style={{textAlign:"center",padding:"24px",color:"var(--text-muted)",fontSize:"13px"}}>
                 <p style={{fontSize:"24px",marginBottom:"6px"}}>🎉</p>All caught up!
               </div>
-            ):(recentNotifs as any[]).map((n:any)=>{
+            ):(recentNotifs as unknown[]).map((n:any)=>{
               const colors:Record<string,string>={urgent:"var(--red)",high:"var(--amber)",normal:"var(--vivit-blue)",low:"var(--text-muted)"};
               return (
                 <div key={n.id} style={{padding:"10px 16px",display:"flex",gap:"10px",borderBottom:"1px solid var(--card-border)",opacity:n.isRead?0.6:1}}>

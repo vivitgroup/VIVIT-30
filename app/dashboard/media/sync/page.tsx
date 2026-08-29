@@ -2,7 +2,7 @@
 // Production QA marker: Meta OAuth + files + creative + task inbox + CRM pass.
 import {useEffect,useMemo,useState} from "react";
 const platforms=["META","TIKTOK","GOOGLE","SNAPCHAT","LINKEDIN"];
-const labels:any={META:"Meta — Facebook & Instagram",TIKTOK:"TikTok Ads",GOOGLE:"Google & YouTube Ads",SNAPCHAT:"Snapchat Ads",LINKEDIN:"LinkedIn Ads"};
+const labels:unknown={META:"Meta — Facebook & Instagram",TIKTOK:"TikTok Ads",GOOGLE:"Google & YouTube Ads",SNAPCHAT:"Snapchat Ads",LINKEDIN:"LinkedIn Ads"};
 async function json(r:Response){const text=await r.text();try{return text?JSON.parse(text):{}}catch{return {error:text||`Request failed (${r.status})`}}}
 export default function PlatformSync(){
  const [data,setData]=useState<any>({clients:[],campaigns:[],connections:[],integrations:{}}),[commerce,setCommerce]=useState<any[]>([]),[busy,setBusy]=useState(""),[message,setMessage]=useState(""),[selectedPlatform,setSelectedPlatform]=useState("META"),[loading,setLoading]=useState(true),[clientId,setClientId]=useState(""),[adAccountId,setAdAccountId]=useState(""),[campaignId,setCampaignId]=useState(""),[accountName,setAccountName]=useState("");

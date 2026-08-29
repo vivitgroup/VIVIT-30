@@ -1,0 +1,76 @@
+name: CTO Portal Types V7
+on:
+  push:
+    branches: [feat/vivito-portal-types-v7]
+permissions:
+  contents: write
+jobs:
+  remediate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-portal-types-v7
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Apply typed portal row contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs=require('node:fs');
+          const file='app/dashboard/portal/page.tsx';
+          let s=fs.readFileSync(file,'utf8');
+          function one(from,to,count=1){const n=s.split(from).length-1;if(n!==count)throw new Error(`expected ${count}, found ${n}: ${from.slice(0,120)}`);s=s.split(from).join(to)}
+          one('import PortalAutoRefresh from "@/components/portal/PortalAutoRefresh";','import PortalAutoRefresh from "@/components/portal/PortalAutoRefresh";\n\ntype CampaignRow={id:string;name:string;status:string;reported_result_label:unknown;reported_result_type:unknown;last_sync_at:unknown;spend:unknown;results:unknown;add_to_cart:unknown;purchases:unknown;revenue:unknown;impressions:unknown;clicks:unknown;reach:unknown};\ntype TaskRow={id:string;title:string;type:string;status:string;file_url:string|null;caption:string|null;deadline:unknown;platform:string|null;approved_by_client:boolean;revision_notes:unknown;revision_count:unknown;updated_at:unknown};\ntype DocRow={id:string;name:string;category:string;created_at:unknown};\ntype FinanceRow={id:string;month:unknown;year:unknown;total_revenue:unknown;paid:unknown;outstanding:unknown;invoice_number:string|null;invoice_status:string;due_date:unknown;paid_date:unknown};\ntype EventRow={id:string;title:string;date:unknown;platform:string|null;status:string;task_id:string|null};\ntype NoteRow={id:string;type:string;title:string;message:string;link:string|null;is_read:boolean;priority:string;created_at:unknown};\nconst typedRows=<T,>(value:unknown)=>Array.from(value as Iterable<T>);');
+          one('const fmtDate=(v:any)=>v?new Date(v).toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}):"—";','const fmtDate=(v:unknown)=>v?new Date(String(v)).toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}):"—";');
+          one('const labelKind=(label:string)=>','const labelKind=(label:unknown)=>');
+          one('const [campaignRows,taskRows,docRows,financeRows,eventRows,notificationRows]:any=await Promise.all([','const [campaignRows,taskRows,docRows,financeRows,eventRows,notificationRows]=await Promise.all([');
+          one('const campaigns=[...campaignRows].map((x:any)=>','const campaigns=typedRows<CampaignRow>(campaignRows).map(x=>');
+          one('tasks=[...taskRows],docs=[...docRows],finance=[...financeRows],events=[...eventRows],notes=[...notificationRows];','tasks=typedRows<TaskRow>(taskRows),docs=typedRows<DocRow>(docRows),finance=typedRows<FinanceRow>(financeRows),events=typedRows<EventRow>(eventRows),notes=typedRows<NoteRow>(notificationRows);');
+          s=s.split('(x:any)=>').join('x=>');
+          s=s.split('(t:any)=>').join('t=>');
+          s=s.split('(d:any)=>').join('d=>');
+          s=s.split('(c:any)=>').join('c=>');
+          s=s.split('(a:any,b:any)=>').join('(a,b)=>');
+          s=s.split('reduce((s:unknown,x=>').join('reduce((s:number,x)=>');
+          s=s.split('reduce((s:any,x=>').join('reduce((s:number,x)=>');
+          one('new Date(a.deadline).getTime()-new Date(b.deadline).getTime()','new Date(String(a.deadline)).getTime()-new Date(String(b.deadline)).getTime()');
+          one('socials=[["f",client.facebook_url,"Facebook"],["◎",client.instagram_url,"Instagram"],["↗",client.website,"Website"]].filter((x:unknown)=>x[1]);','socials=([["f",String(client.facebook_url||""),"Facebook"],["◎",String(client.instagram_url||""),"Instagram"],["↗",String(client.website||""),"Website"]] as [string,string,string][]).filter(x=>Boolean(x[1]));');
+          one('socials.map(([i,h,l]:any)=>','socials.map(([i,h,l])=>');
+          one('[["Reels / Video",reels,"🎬"],["Statics",statics,"🖼️"],["Carousels",carousels,"📚"]].map(([l,x,icon]:any)=>','([ ["Reels / Video",reels,"🎬"],["Statics",statics,"🖼️"],["Carousels",carousels,"📚"] ] as const).map(([l,x,icon])=>');
+          fs.writeFileSync(file,s);
+          NODE
+          git diff --check
+      - name: Whole-project acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          git diff --check
+      - name: Assert portal lint reduction without new debt
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx eslint app/dashboard/portal/page.tsx -f json > /tmp/target.json || true
+          npx eslint . -f json > /tmp/full.json || true
+          node <<'NODE'
+          const fs=require('node:fs');const target=JSON.parse(fs.readFileSync('/tmp/target.json','utf8')).flatMap(r=>r.messages||[]),full=JSON.parse(fs.readFileSync('/tmp/full.json','utf8')).flatMap(r=>r.messages||[]);const targetAny=target.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),nonAny=full.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any');console.log(`portal_any_remaining=${targetAny.length}`);console.log(`full_any_remaining=${full.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any').length}`);console.log(`full_warnings=${full.filter(x=>x.severity===1).length}`);console.log(`full_non_any=${nonAny.length}`);if(nonAny.length||targetAny.length>=39)process.exit(1);
+          NODE
+      - name: Commit verified portal source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git add app/dashboard/portal/page.tsx
+          git commit -m 'fix(types): define client portal SQL row contracts [skip ci]'
+          git push origin HEAD:feat/vivito-portal-types-v7

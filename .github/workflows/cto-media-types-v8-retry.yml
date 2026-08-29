@@ -82,35 +82,26 @@ jobs:
             ['useState<any>({portfolio:{},accounts:{},archivedSpend:0,archivedCampaigns:0})','useState<MediaPortfolioHistory>({portfolio:{},accounts:{},archivedSpend:0,archivedCampaigns:0})'],
             ['(x:any)=>','(x)=>'],['(a:any)=>','(a)=>'],['(c:any)=>','(c)=>'],['(s:any)=>','(s)=>']
           ]);
+          let s=fs.readFileSync(g,'utf8');
+          const residual='(data.campaigns||[]).reduce((s:number,c:any)=>s+n(c.previousMetrics?.spend),0)';
+          if((s.split(residual).length-1)!==1)throw new Error('residual media campaign callback mismatch');
+          s=s.replace(residual,'(data.campaigns||[]).reduce((s:number,c)=>s+n(c.previousMetrics?.spend),0)');
+          fs.writeFileSync(g,s);
           NODE
-          git diff --check
-      - name: Narrow residual media any
-        shell: bash
-        run: |
-          set -euo pipefail
-          node <<'NODE'
-          const fs=require('node:fs'),path=require('node:path'),{spawnSync}=require('node:child_process');
-          const targets=['components/media/MediaIntelligenceWorkspace.tsx','components/media/MediaIntelligenceWorkspaceV2.tsx','types/media-control.ts'];
-          const lint=spawnSync('npx',['eslint',...targets,'-f','json'],{encoding:'utf8',maxBuffer:16*1024*1024});
-          const rows=JSON.parse(lint.stdout||'[]');const edits=[];
-          for(const row of rows){const rel=path.relative(process.cwd(),row.filePath).replaceAll('\\','/');const src=fs.readFileSync(rel,'utf8');for(const m of row.messages||[]){if(m.ruleId!=='@typescript-eslint/no-explicit-any')continue;console.log(`residual_any=${rel}:${m.line}:${m.column} ${JSON.stringify((src.split('\n')[m.line-1]||'').trim().slice(0,260))}`);const sug=(m.suggestions||[]).find(s=>s?.fix?.text==='unknown'&&Array.isArray(s?.fix?.range));if(!sug)throw new Error(`no unknown suggestion for ${rel}:${m.line}`);edits.push({file:rel,range:sug.fix.range})}}
-          const by=new Map();for(const e of edits){const a=by.get(e.file)||[];a.push(e);by.set(e.file,a)}for(const [file,list] of by){let s=fs.readFileSync(file,'utf8');for(const e of list.sort((a,b)=>b.range[0]-a.range[0])){const [start,end]=e.range;if(s.slice(start,end)!=='any')throw new Error(`unexpected residual range ${file}:${start}:${end}`);s=s.slice(0,start)+'unknown'+s.slice(end)}fs.writeFileSync(file,s)}
-          console.log(`residual_replacements=${edits.length}`);
-          NODE
-          npm run type-check
           git diff --check
       - name: Acceptance
         shell: bash
         run: |
           npm run type-check
           node scripts/qa-cto-static-audit.mjs
+          git diff --check
           npx eslint components/media/MediaIntelligenceWorkspace.tsx components/media/MediaIntelligenceWorkspaceV2.tsx types/media-control.ts -f json > /tmp/e.json || true
           node <<'NODE'
           const path=require('node:path'),r=require('/tmp/e.json'),m=r.flatMap(row=>(row.messages||[]).map(x=>({...x,file:path.relative(process.cwd(),row.filePath)})));console.log(`target_total=${m.length}`);console.log(`target_any=${m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any').length}`);console.log(JSON.stringify(m.map(x=>[x.file,x.ruleId,x.line,x.message]).slice(0,50)));if(m.length)process.exit(1)
           NODE
           npx eslint . -f json > /tmp/all.json || true
           node <<'NODE'
-          const r=require('/tmp/all.json'),m=r.flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any');console.log(`remaining_any=${a.length}`);console.log(`remaining_non_any=${n.length}`);console.log(`remaining_warnings=${m.filter(x=>x.severity===1).length}`);if(n.length)process.exit(1)
+          const r=require('/tmp/all.json'),m=r.flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any');console.log(`remaining_any=${a.length}`);console.log(`remaining_non_any=${n.length}`);console.log(`remaining_warnings=${m.filter(x=>x.severity===1).length}`);if(n.length||m.filter(x=>x.severity===1).length)process.exit(1)
           NODE
       - name: Commit source
         shell: bash

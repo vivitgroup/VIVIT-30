@@ -84,6 +84,21 @@ jobs:
           ]);
           NODE
           git diff --check
+      - name: Narrow residual media any
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs=require('node:fs'),path=require('node:path'),{spawnSync}=require('node:child_process');
+          const targets=['components/media/MediaIntelligenceWorkspace.tsx','components/media/MediaIntelligenceWorkspaceV2.tsx','types/media-control.ts'];
+          const lint=spawnSync('npx',['eslint',...targets,'-f','json'],{encoding:'utf8',maxBuffer:16*1024*1024});
+          const rows=JSON.parse(lint.stdout||'[]');const edits=[];
+          for(const row of rows){const rel=path.relative(process.cwd(),row.filePath).replaceAll('\\','/');const src=fs.readFileSync(rel,'utf8');for(const m of row.messages||[]){if(m.ruleId!=='@typescript-eslint/no-explicit-any')continue;console.log(`residual_any=${rel}:${m.line}:${m.column} ${JSON.stringify((src.split('\n')[m.line-1]||'').trim().slice(0,260))}`);const sug=(m.suggestions||[]).find(s=>s?.fix?.text==='unknown'&&Array.isArray(s?.fix?.range));if(!sug)throw new Error(`no unknown suggestion for ${rel}:${m.line}`);edits.push({file:rel,range:sug.fix.range})}}
+          const by=new Map();for(const e of edits){const a=by.get(e.file)||[];a.push(e);by.set(e.file,a)}for(const [file,list] of by){let s=fs.readFileSync(file,'utf8');for(const e of list.sort((a,b)=>b.range[0]-a.range[0])){const [start,end]=e.range;if(s.slice(start,end)!=='any')throw new Error(`unexpected residual range ${file}:${start}:${end}`);s=s.slice(0,start)+'unknown'+s.slice(end)}fs.writeFileSync(file,s)}
+          console.log(`residual_replacements=${edits.length}`);
+          NODE
+          npm run type-check
+          git diff --check
       - name: Acceptance
         shell: bash
         run: |
@@ -91,7 +106,7 @@ jobs:
           node scripts/qa-cto-static-audit.mjs
           npx eslint components/media/MediaIntelligenceWorkspace.tsx components/media/MediaIntelligenceWorkspaceV2.tsx types/media-control.ts -f json > /tmp/e.json || true
           node <<'NODE'
-          const r=require('/tmp/e.json'),m=r.flatMap(x=>x.messages||[]);console.log(`target_total=${m.length}`);console.log(`target_any=${m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any').length}`);console.log(JSON.stringify(m.map(x=>[x.ruleId,x.line,x.message]).slice(0,50)));if(m.length)process.exit(1)
+          const path=require('node:path'),r=require('/tmp/e.json'),m=r.flatMap(row=>(row.messages||[]).map(x=>({...x,file:path.relative(process.cwd(),row.filePath)})));console.log(`target_total=${m.length}`);console.log(`target_any=${m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any').length}`);console.log(JSON.stringify(m.map(x=>[x.file,x.ruleId,x.line,x.message]).slice(0,50)));if(m.length)process.exit(1)
           NODE
           npx eslint . -f json > /tmp/all.json || true
           node <<'NODE'

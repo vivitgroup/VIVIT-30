@@ -1,0 +1,80 @@
+name: CTO Static Easy Cleanup V2
+
+on:
+  push:
+    branches: [feat/vivito-static-easy-cleanup-v2]
+    paths:
+      - '.github/workflows/cto-static-easy-cleanup-v2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-static-easy-cleanup-v2
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Apply precise deterministic cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs=require('node:fs');
+          function one(file,from,to,count=1){let s=fs.readFileSync(file,'utf8');const n=s.split(from).length-1;if(n!==count)throw new Error(`${file}: expected ${count}, found ${n}: ${from.slice(0,120)}`);s=s.split(from).join(to);fs.writeFileSync(file,s)}
+
+          one('app/api/assistant/route.ts',
+            '}catch(error){return NextResponse.json({answer:isArabic(question)?"مش قادر أفعّل المراقبة بالروابط دي. اتأكد إن الروابط عامة وصحيحة.":"I could not configure monitoring from those links. Use valid public social URLs.",mode:"competitive-error",intelligence:"VIVITO"}',
+            '}catch{return NextResponse.json({answer:isArabic(question)?"مش قادر أفعّل المراقبة بالروابط دي. اتأكد إن الروابط عامة وصحيحة.":"I could not configure monitoring from those links. Use valid public social URLs.",mode:"competitive-error",intelligence:"VIVITO"}',1);
+          one('app/api/assistant/route.ts',
+            '}catch(error){return NextResponse.json({answer:isArabic(question)?"مش قادر أقرأ الصورة دي بأمان دلوقتي. تأكد إنها PNG/JPG/WebP وأقل من 12MB.":"I could not analyze that image safely. Use PNG/JPG/WebP under 12MB.",mode:"vision-error",intelligence:"VIVITO"}',
+            '}catch{return NextResponse.json({answer:isArabic(question)?"مش قادر أقرأ الصورة دي بأمان دلوقتي. تأكد إنها PNG/JPG/WebP وأقل من 12MB.":"I could not analyze that image safely. Use PNG/JPG/WebP under 12MB.",mode:"vision-error",intelligence:"VIVITO"}',1);
+          one('app/dashboard/onboarding/page.tsx','].map((step,i)=>(','].map(step=>(',1);
+          one('app/dashboard/sales/page.tsx','STAGES.map((stage,idx)=>{','STAGES.map(stage=>{',1);
+          one('app/dashboard/revenue-attribution/page.tsx','          const TK = "#E8F4FD";\n','',1);
+          one('components/realtime-notifications.tsx','// Tracks active users via heartbeat — stored in-memory per session\nconst onlineUsers = new Map<string, { name:string; role:string; page:string; ts:number }>();\n\n','',1);
+          one('lib/actions/index.ts','function validateEmail(email: string): boolean {\n  return /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email) && email.length <= 254;\n}\n','',1);
+          one('lib/actions/index.ts','function requireFields(data: Record<string, unknown>, fields: string[]): string | null {\n  for (const f of fields) {\n    if (!data[f] || String(data[f]).trim() === "") return `${f} is required`;\n  }\n  return null;\n}\n','',1);
+          one('app/api/media-discover/route.ts','async function metaPages(url:string,maxPages=100){let next=url,rows:any[]=[];','async function metaPages(url:string,maxPages=100){let next=url;const rows:any[]=[];',1);
+          one('components/reminders/TaskReminderWatcher.tsx','useEffect(()=>{let dead=false,timer:any;async function check()','useEffect(()=>{let dead=false;async function check()',1);
+          one('components/reminders/TaskReminderWatcher.tsx','}catch{}}check();timer=setInterval(check,60000);return()=>{dead=true;clearInterval(timer)}},[]);','}catch{}}check();const timer=setInterval(check,60000);return()=>{dead=true;clearInterval(timer)}},[]);',1);
+          one('app/dashboard/notifications/page.tsx',"They'll appear here when there's activity.","They&apos;ll appear here when there&apos;s activity.",1);
+          fs.writeFileSync('/tmp/source-touched','yes');
+          NODE
+          git diff --check
+      - name: Compiler and CTO acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          git diff --check
+      - name: Measure lint
+        shell: bash
+        run: |
+          npx eslint . -f json > /tmp/eslint.json || true
+          node <<'NODE'
+          const fs=require('node:fs');const rows=JSON.parse(fs.readFileSync('/tmp/eslint.json','utf8'));const m=rows.flatMap(r=>r.messages||[]),c={};for(const x of m)c[x.ruleId||'(parser)']=(c[x.ruleId||'(parser)']||0)+1;console.log(`remaining_total=${m.length}`);console.log(`remaining_errors=${m.filter(x=>x.severity===2).length}`);console.log(`remaining_warnings=${m.filter(x=>x.severity===1).length}`);console.log(`remaining_any=${m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any').length}`);console.log(`remaining_unused=${m.filter(x=>x.ruleId==='@typescript-eslint/no-unused-vars').length}`);console.log('top_rules='+JSON.stringify(Object.entries(c).sort((a,b)=>b[1]-a[1]).slice(0,20)));
+          NODE
+      - name: Commit verified source cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git add app components lib scripts types proxy.ts auth.config.ts 2>/dev/null || true
+          if ! git diff --cached --quiet; then
+            git commit -m 'fix(lint): close precise deterministic findings [skip ci]'
+            git push origin HEAD:feat/vivito-static-easy-cleanup-v2
+          fi

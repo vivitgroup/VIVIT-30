@@ -7,6 +7,12 @@ import { db, clients, financeRecords, creativeTasks, salesLeads,
 import { eq, and, gte, lte, sum, count, desc, notInArray, lt } from "drizzle-orm";
 import { Role } from "@/lib/types";
 import Link from "next/link";
+type ClientDashRow=Pick<typeof clients.$inferSelect,"id"|"companyName"|"healthScore"|"churnRisk"|"monthlyRetainer"|"lifetimeValue"|"accountManagerId">;
+type AgencyHealthRow=typeof agencyHealthScores.$inferSelect;
+type PayrollLockRow=typeof payrollLocks.$inferSelect;
+type RecentTaskRow=Pick<typeof creativeTasks.$inferSelect,"id"|"title"|"status"|"priority"|"deadline"|"assignedToId"|"clientId">;
+type NotificationRow=Pick<typeof notifications.$inferSelect,"id"|"title"|"message"|"priority"|"createdAt"|"isRead"|"link">;
+function typedRows<T>(value:unknown):T[]{return value as T[]}
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -31,9 +37,9 @@ export default async function DashboardPage() {
       lifetimeValue:clients.lifetimeValue, accountManagerId:clients.accountManagerId })
       .from(clients).where(and(eq(clients.workspaceId,workspaceId),eq(clients.isActive,true),role===Role.ACCOUNT_MANAGER?eq(clients.accountManagerId,userId):role===Role.MEDIA_BUYER?eq(clients.mediaBuyerId,userId):eq(clients.workspaceId,workspaceId))),
     db.select({ total:sum(financeRecords.totalRevenue), paid:sum(financeRecords.paid), outstanding:sum(financeRecords.outstanding) })
-      .from(financeRecords).where(and(eq(financeRecords.workspaceId,workspaceId),eq(financeRecords.month as any,month),eq(financeRecords.year as any,year))),
+      .from(financeRecords).where(and(eq(financeRecords.workspaceId,workspaceId),eq(financeRecords.month,month),eq(financeRecords.year,year))),
     db.select({ total:sum(financeRecords.totalRevenue), paid:sum(financeRecords.paid) })
-      .from(financeRecords).where(and(eq(financeRecords.workspaceId,workspaceId),eq(financeRecords.month as any,month===1?12:month-1),eq(financeRecords.year as any,month===1?year-1:year))),
+      .from(financeRecords).where(and(eq(financeRecords.workspaceId,workspaceId),eq(financeRecords.month,month===1?12:month-1),eq(financeRecords.year,month===1?year-1:year))),
     db.select({ total:sum(financeRecords.totalRevenue), paid:sum(financeRecords.paid) })
       .from(financeRecords).where(and(eq(financeRecords.workspaceId,workspaceId),gte(financeRecords.createdAt,yrStart))),
     db.select({ spend:sum(mediaMetrics.adSpend), leads:sum(mediaMetrics.leads), revenue:sum(mediaMetrics.revenue) })
@@ -58,6 +64,8 @@ export default async function DashboardPage() {
     recentTasks, payrollLock,
   ] = dashboardResults.map((result,index)=>result.status==="fulfilled"?result.value:dashboardDefaults[index]) as unknown[];
 
+  const clientRows=typedRows<ClientDashRow>(allClients),healthRows=typedRows<AgencyHealthRow>(agencyHealth),payrollRows=typedRows<PayrollLockRow>(payrollLock),recentTaskRows=typedRows<RecentTaskRow>(recentTasks),notificationRows=typedRows<NotificationRow>(recentNotifs);
+
   const fmt = (n:number) => n>=1000000?`$${(n/1000000).toFixed(1)}M`:n>=1000?`$${(n/1000).toFixed(0)}k`:`$${n.toLocaleString()}`;
 
   const totalRevenue  = Number(thisMonthFin?.[0]?.total??0);
@@ -79,21 +87,21 @@ export default async function DashboardPage() {
   const collRate      = totalRevenue>0 ? Math.round(totalPaid/totalRevenue*100) : 0;
   const profitability = ytdRevenue>0 ? Math.round((ytdPaid-expenses)/ytdPaid*100) : 0;
 
-  const clientCount  = (allClients as unknown[]).length;
-  const highRisk     = (allClients as unknown[]).filter((c:any)=>c.churnRisk==="HIGH").length;
+  const clientCount  = clientRows.length;
+  const highRisk     = clientRows.filter(c=>c.churnRisk==="HIGH").length;
 
   // Agency health score
-  const health = (agencyHealth as any[])?.[0];
+  const health = healthRows[0];
   const healthScore   = Math.round(health?.overallScore??0);
   const mrr           = Number(health?.mrr??0);
   const arr           = Number(health?.arr??0);
   const utilization   = Math.round(health?.employeeUtilization??0);
   let healthRecs:string[]=[];try{const parsed=JSON.parse(health?.recommendations??"[]");healthRecs=Array.isArray(parsed)?parsed:[]}catch{}
 
-  const payLock = (payrollLock as any[])?.[0];
+  const payLock = payrollRows[0];
   const isPayrollLocked = payLock?.status === "LOCKED";
 
-  const clientMap = Object.fromEntries((allClients as unknown[]).map((c:any)=>[c.id,c.companyName]));
+  const clientMap = Object.fromEntries(clientRows.map(c=>[c.id,c.companyName]));
 
   const STATUS_COLOR: Record<string,string> = {
     PENDING:"gray",IN_PROGRESS:"blue",REVIEW:"amber",APPROVED:"green",REVISION:"red",COMPLETED:"cyan"
@@ -294,7 +302,7 @@ export default async function DashboardPage() {
             <Link href="/dashboard/clients" className="btn btn-ghost btn-sm" style={{textDecoration:"none"}}>All →</Link>
           </div>
           <div className="card-body" style={{padding:"8px 16px",display:"flex",flexDirection:"column",gap:"8px"}}>
-            {(allClients as unknown[]).sort((a:any,b:any)=>a.healthScore-b.healthScore).slice(0,6).map((c:any)=>{
+            {clientRows.sort((a,b)=>a.healthScore-b.healthScore).slice(0,6).map(c=>{
               const h=Math.round(c.healthScore);
               const color=h>=80?"var(--green)":h>=60?"var(--amber)":"var(--red)";
               return (
@@ -315,8 +323,8 @@ export default async function DashboardPage() {
             <div className="divider"/>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"6px",textAlign:"center"}}>
               {[
-                {label:"Healthy",val:(allClients as unknown[]).filter((c:any)=>c.churnRisk==="LOW").length,  color:"var(--green)"},
-                {label:"Monitor",val:(allClients as unknown[]).filter((c:any)=>c.churnRisk==="MEDIUM").length,color:"var(--amber)"},
+                {label:"Healthy",val:clientRows.filter(c=>c.churnRisk==="LOW").length,  color:"var(--green)"},
+                {label:"Monitor",val:clientRows.filter(c=>c.churnRisk==="MEDIUM").length,color:"var(--amber)"},
                 {label:"At Risk",val:highRisk,                                                            color:"var(--red)"},
               ].map(s=>(
                 <div key={s.label} style={{padding:"8px",borderRadius:"6px",background:"var(--bg-tertiary)"}}>
@@ -341,7 +349,7 @@ export default async function DashboardPage() {
             <table className="data-table">
               <thead><tr><th>Task</th><th>Client</th><th>Status</th><th>Priority</th><th>Deadline</th></tr></thead>
               <tbody>
-                {(recentTasks as unknown[]).map((t:any)=>{
+                {recentTaskRows.map(t=>{
                   const daysLeft=Math.ceil((new Date(t.deadline).getTime()-now.getTime())/86400000);
                   const overdue=daysLeft<0;
                   return (
@@ -373,7 +381,7 @@ export default async function DashboardPage() {
               <div style={{textAlign:"center",padding:"24px",color:"var(--text-muted)",fontSize:"13px"}}>
                 <p style={{fontSize:"24px",marginBottom:"6px"}}>🎉</p>All caught up!
               </div>
-            ):(recentNotifs as unknown[]).map((n:any)=>{
+            ):notificationRows.map(n=>{
               const colors:Record<string,string>={urgent:"var(--red)",high:"var(--amber)",normal:"var(--vivit-blue)",low:"var(--text-muted)"};
               return (
                 <div key={n.id} style={{padding:"10px 16px",display:"flex",gap:"10px",borderBottom:"1px solid var(--card-border)",opacity:n.isRead?0.6:1}}>

@@ -1,8 +1,8 @@
 import fs from "node:fs";
 const read=p=>fs.readFileSync(p,"utf8"),checks=[],check=(n,o)=>checks.push({name:n,ok:Boolean(o)});
 const team=read("app/dashboard/team/page.tsx"),payrollPage=read("app/dashboard/finance/payroll/page.tsx");
-check("Team page is Super Admin only",team.includes('role!==Role.SUPER_ADMIN')||team.includes('(session.user as any).role!==Role.SUPER_ADMIN'));
-check("Team page derives workspace from authenticated session and fails closed",team.includes('const workspaceId=String((session.user as any).workspaceId||"")')&&team.includes('if(!workspaceId)redirect("/login")'));
+check("Team page is Super Admin only",team.includes('role!==Role.SUPER_ADMIN')||team.includes('session.user.role!==Role.SUPER_ADMIN'));
+check("Team page derives workspace from authenticated session and fails closed",team.includes('const workspaceId=String(session.user.workspaceId||"")')&&team.includes('if(!workspaceId)redirect("/login")'));
 check("Team staff directory is workspace scoped",team.includes("eq(users.workspaceId,workspaceId)")&&team.includes("eq(users.isActive,true)"));
 check("Team size excludes Client portal users",team.includes("EMPLOYEE_ROLES")&&!team.includes('CLIENT"] as const'));
 check("Pending account approvals are workspace scoped",team.includes('eq(users.approvalStatus,"PENDING")')&&team.includes("eq(users.workspaceId,workspaceId)"));
@@ -20,7 +20,7 @@ check("Team payroll is workspace and period scoped",team.includes("eq(payroll.wo
 check("Creator leaderboard is workspace scoped",team.includes("eq(creatorPoints.workspaceId,workspaceId)"));
 check("Creator profiles are restricted to current staff ids",team.includes("inArray(creatorProfiles.userId,staffIds)"));
 check("Confidential payroll is SA/Accountant only",payrollPage.includes("Role.SUPER_ADMIN,Role.ACCOUNTANT"));
-check("Confidential payroll derives workspace and fails closed",payrollPage.includes('const workspaceId=String((session.user as any).workspaceId||"")')&&payrollPage.includes('if(!workspaceId)redirect("/login")'));
+check("Confidential payroll derives workspace and fails closed",payrollPage.includes('const workspaceId=String(session.user.workspaceId||"")')&&payrollPage.includes('if(!workspaceId)redirect("/login")'));
 check("Confidential payroll joins active same-workspace users",payrollPage.includes("eq(users.workspaceId,workspaceId)")&&payrollPage.includes("eq(users.isActive,true)"));
 check("Confidential payroll records are workspace scoped",payrollPage.includes("eq(payroll.workspaceId,workspaceId)"));
 check("Payroll currency is loaded from workspace",payrollPage.includes("workspaces.currency")&&payrollPage.includes("eq(workspaces.id,workspaceId)"));

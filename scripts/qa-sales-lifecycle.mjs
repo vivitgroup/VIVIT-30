@@ -1,7 +1,7 @@
 import fs from "node:fs";
 const s=fs.readFileSync("app/dashboard/sales/page.tsx","utf8"),checks=[],check=(n,o)=>checks.push({name:n,ok:Boolean(o)});
 check("Sales page is SA/Sales only",s.includes("Role.SUPER_ADMIN,Role.SALES"));
-check("Sales server actions derive workspace from authenticated session and fail closed",s.includes("const workspaceOf=(session:any)")&&s.includes("workspaceId=String((session?.user as any)?.workspaceId||\"\")")&&s.includes('throw new Error("Workspace unavailable")'));
+check("Sales server actions derive workspace from authenticated session and fail closed",s.includes("const workspaceOf=(session:")&&s.includes("workspaceId=String(session?.user?.workspaceId||\"\")")&&s.includes('throw new Error("Workspace unavailable")'));
 check("Sales lead reads are workspace scoped",s.includes("eq(salesLeads.workspaceId,workspaceId)"));
 check("Sales lead access rejects archived rows",s.includes("workspace_id=${workspaceId} and archived_at is null"));
 check("Sales role only accesses owned leads",s.includes("lead.salesRepId!==userId")&&s.includes("eq(salesLeads.salesRepId,userId)"));

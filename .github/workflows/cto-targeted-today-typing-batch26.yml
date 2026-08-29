@@ -40,7 +40,7 @@ jobs:
           if old not in s: raise SystemExit('getScope missing')
           s=s.replace(old,new,1)
           old='export default async function TodayPage(){const session=await auth();if(!session?.user)redirect("/login");const role=String((session.user as any).role||""),userId=String((session.user as any).id||""),workspaceId=String((session.user as any).workspaceId||"");if(!workspaceId)redirect("/login?reason=workspace_missing");const clients:any[]=await getScope(role,userId,workspaceId),ids=clients.map(x=>String(x.id)),canSeeFinance=["SUPER_ADMIN","ACCOUNTANT"].includes(role);let tasks:any[]=[];'
-          new='export default async function TodayPage(){const session=await auth();if(!session?.user)redirect("/login");const sessionUser=session.user as unknown as SessionUser,role=String(sessionUser.role||""),userId=String(sessionUser.id||""),workspaceId=String(sessionUser.workspaceId||"");if(!workspaceId)redirect("/login?reason=workspace_missing");const clients=await getScope(role,userId,workspaceId),ids=clients.map(x=>String(x.id)),canSeeFinance=["SUPER_ADMIN","ACCOUNTANT"].includes(role);let tasks:TaskRow[]=[];'
+          new='export default async function TodayPage(){const session=await auth();if(!session?.user)redirect("/login");const sessionUser=session.user as unknown as SessionUser,role=String(sessionUser.role||""),userId=String(sessionUser.id||""),workspaceId=String(sessionUser.workspaceId||"");if(!workspaceId)redirect("/login?reason=workspace_missing");const clients=await getScope(role,userId,workspaceId),ids=clients.map(x=>String(x.id)),canSeeFinance=["SUPER_ADMIN","ACCOUNTANT"].includes(role),[clock]=rows<{now_ms:number|string}>(await db.execute(sql`select (extract(epoch from now())*1000)::bigint now_ms`)),nowMs=num(clock?.now_ms);let tasks:TaskRow[]=[];'
           if old not in s: raise SystemExit('page session/tasks fragment missing')
           s=s.replace(old,new,1)
           s=s.replace('tasks=Array.from(await db.execute(sql`select t.id,t.title,t.status,t.priority,t.deadline,c.company_name from creative_tasks t join clients c on c.id=t.client_id where t.workspace_id=${workspaceId} and c.workspace_id=${workspaceId} and t.archived_at is null and t.deleted_at is null and c.is_active=true and t.assigned_to_id=${userId} and t.status not in (\'COMPLETED\',\'REJECTED\') order by t.deadline asc limit 40`));','tasks=rows<TaskRow>(await db.execute(sql`select t.id,t.title,t.status,t.priority,t.deadline,c.company_name from creative_tasks t join clients c on c.id=t.client_id where t.workspace_id=${workspaceId} and c.workspace_id=${workspaceId} and t.archived_at is null and t.deleted_at is null and c.is_active=true and t.assigned_to_id=${userId} and t.status not in (\'COMPLETED\',\'REJECTED\') order by t.deadline asc limit 40`));',1)
@@ -57,6 +57,8 @@ jobs:
           new='let leads:LeadRow[]=[];if(["SUPER_ADMIN","SALES"].includes(role))leads=rows<LeadRow>(await db.execute('
           if old not in s: raise SystemExit('leads fragment missing')
           s=s.replace(old,new,1)
+          if 'Date.now()' not in s: raise SystemExit('expected Date.now calls missing')
+          s=s.replace('Date.now()','nowMs')
           if ':any' in s or ' as any' in s:
               raise SystemExit('explicit any remains in today dashboard')
           p.write_text(s)

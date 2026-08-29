@@ -4,9 +4,10 @@ import {auth} from "@/lib/auth";
 import {db,auditLogs,sql} from "@/lib/db";
 
 const allowedEntities=new Set(["client","task","lead"]),allowedActions=new Set(["archive","restore","delete"]);
-const clean=(v:any,n=120)=>String(v||"").trim().slice(0,n),rows=async(q:any)=>Array.from(await db.execute(q)) as any[];
-async function sessionScope(){const session=await auth();if(!session?.user)return null;const userId=String((session.user as any).id),role=String((session.user as any).role),workspaceId=clean((session.user as any).workspaceId,160);return workspaceId?{session,userId,role,workspaceId}:null}
-async function audit(workspaceId:string,userId:string,action:string,entity:string,id:string,payload:any={}){await db.insert(auditLogs).values({workspaceId,userId,action,entity,entityId:id,newValues:JSON.stringify(payload)} as any)}
+type DbRow=Record<string,unknown>;
+const clean=(v:unknown,n=120)=>String(v||"").trim().slice(0,n),rows=async(q:Parameters<typeof db.execute>[0]):Promise<DbRow[]>=>Array.from(await db.execute(q)) as DbRow[];
+async function sessionScope(){const session=await auth();if(!session?.user)return null;const userId=String(session.user.id),role=String(session.user.role),workspaceId=clean(session.user.workspaceId,160);return workspaceId?{session,userId,role,workspaceId}:null}
+async function audit(workspaceId:string,userId:string,action:string,entity:string,id:string,payload:Record<string,unknown>={}){await db.insert(auditLogs).values({workspaceId,userId,action,entity,entityId:id,newValues:JSON.stringify(payload)})}
 
 export async function GET(){const s=await sessionScope();if(!s)return NextResponse.json({error:"Unauthorized"},{status:401});const {userId,role,workspaceId}=s;
  const clients=role==="SUPER_ADMIN"?await rows(sql`select id,company_name as name,archived_at from clients where workspace_id=${workspaceId} and archived_at is not null order by archived_at desc limit 100`):role==="ACCOUNT_MANAGER"?await rows(sql`select id,company_name as name,archived_at from clients where workspace_id=${workspaceId} and archived_at is not null and account_manager_id=${userId} order by archived_at desc limit 100`):[];

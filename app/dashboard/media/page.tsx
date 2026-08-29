@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { db, clients, mediaMetrics } from "@/lib/db";
-import { eq, gte, and, sum, desc, avg } from "drizzle-orm";
+import { eq, gte, and, sum } from "drizzle-orm";
 import { Role } from "@/lib/types";
 import Link from "next/link";
 

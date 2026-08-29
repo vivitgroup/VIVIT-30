@@ -1,4 +1,4 @@
-import {db,clients,contacts,users,creativeTasks,notifications,auditLogs,companyExpenses,financeRecords,paymentRecords,fileDocuments,workspaces,sql} from "@/lib/db";
+import {db,clients,contacts,creativeTasks,notifications,auditLogs,companyExpenses,financeRecords,paymentRecords,workspaces,sql} from "@/lib/db";
 import {AsyncLocalStorage} from "node:async_hooks";
 import {and,eq,ilike} from "drizzle-orm";
 import {VIVITO_ACTION_CATALOG,type VivitoActionOp} from "./action-engine";

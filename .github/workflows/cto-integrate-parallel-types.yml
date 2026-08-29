@@ -1,0 +1,91 @@
+name: CTO Integrate Parallel Typing
+
+on:
+  push:
+    branches: [feat/vivito-static-aggregate-parallel]
+    paths:
+      - '.github/workflows/cto-integrate-parallel-types.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-static-aggregate-parallel
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Integrate verified shard source commits one by one
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          start=$(git rev-parse HEAD)
+          accepted=0
+          rejected=0
+          for sha in \
+            a08a80a \
+            0fc5397 \
+            027d937 \
+            0d20f7b \
+            0ef4304 \
+            dd90fd8 \
+            7dc042a \
+            a8122af
+          do
+            base=$(git rev-parse HEAD)
+            echo "candidate=$sha base=$base"
+            if ! git cherry-pick "$sha"; then
+              git cherry-pick --abort || true
+              git reset --hard "$base"
+              echo "candidate_rejected_conflict=$sha"
+              rejected=$((rejected+1))
+              continue
+            fi
+            if npm run type-check && node scripts/qa-cto-static-audit.mjs && git diff --check HEAD^ HEAD; then
+              echo "candidate_accepted=$sha"
+              accepted=$((accepted+1))
+            else
+              git reset --hard "$base"
+              echo "candidate_rejected_acceptance=$sha"
+              rejected=$((rejected+1))
+            fi
+          done
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          git diff --check "$start" HEAD
+          echo "accepted_candidates=$accepted"
+          echo "rejected_candidates=$rejected"
+          if [ "$(git rev-parse HEAD)" != "$start" ]; then
+            git push origin HEAD:feat/vivito-static-aggregate-parallel
+          fi
+      - name: Measure lint
+        shell: bash
+        run: |
+          npx eslint . -f json > /tmp/eslint.json || true
+          node <<'NODE'
+          const fs=require('node:fs');
+          const rows=JSON.parse(fs.readFileSync('/tmp/eslint.json','utf8'));
+          const m=rows.flatMap(r=>r.messages||[]),c={};
+          for(const x of m)c[x.ruleId||'(parser)']=(c[x.ruleId||'(parser)']||0)+1;
+          console.log(`remaining_total=${m.length}`);
+          console.log(`remaining_errors=${m.filter(x=>x.severity===2).length}`);
+          console.log(`remaining_warnings=${m.filter(x=>x.severity===1).length}`);
+          console.log(`remaining_any=${m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any').length}`);
+          console.log(`remaining_unused=${m.filter(x=>x.ruleId==='@typescript-eslint/no-unused-vars').length}`);
+          console.log('top_rules='+JSON.stringify(Object.entries(c).sort((a,b)=>b[1]-a[1]).slice(0,20)));
+          NODE

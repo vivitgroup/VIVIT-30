@@ -1,0 +1,37 @@
+name: CTO Static Any Histogram V13
+on:
+  push:
+    branches: [feat/vivito-static-any-hist-v13]
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-static-any-hist-v13
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Validate and rank explicit any
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint . -f json > /tmp/all.json || true
+          node <<'NODE'
+          const r=require('/tmp/all.json');
+          const msgs=r.flatMap(x=>(x.messages||[]).map(m=>({...m,filePath:x.filePath})));
+          const anys=msgs.filter(m=>m.ruleId==='@typescript-eslint/no-explicit-any');
+          const other=msgs.filter(m=>m.ruleId!=='@typescript-eslint/no-explicit-any');
+          const warnings=msgs.filter(m=>m.severity===1);
+          const root=process.cwd()+'/';
+          const counts=new Map();
+          for(const m of anys){const f=String(m.filePath||'').replace(root,'');counts.set(f,(counts.get(f)||0)+1)}
+          console.log(`remaining_any=${anys.length}`);
+          console.log(`remaining_non_any=${other.length}`);
+          console.log(`remaining_warnings=${warnings.length}`);
+          console.log('TOP_ANY_FILES');
+          [...counts.entries()].sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).slice(0,40).forEach(([f,n])=>console.log(`${n}\t${f}`));
+          if(other.length||warnings.length||anys.length!==265)process.exit(1)
+          NODE

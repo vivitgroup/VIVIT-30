@@ -1,0 +1,33 @@
+name: CTO Current Aggregate Measure V9
+
+on:
+  push:
+    branches: [feat/vivito-static-current-measure-v9]
+    paths: ['.github/workflows/cto-current-measure-v9.yml']
+  workflow_dispatch:
+
+jobs:
+  measure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-static-current-measure-v9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Acceptance and lint measurement
+        shell: bash
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint . -f json > /tmp/e.json || true
+          node <<'NODE'
+          const fs=require('node:fs'),path=require('node:path');const rows=JSON.parse(fs.readFileSync('/tmp/e.json','utf8'));const m=rows.flatMap(r=>r.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any');
+          console.log(`remaining_total=${m.length}`);console.log(`remaining_any=${a.length}`);console.log(`remaining_non_any=${n.length}`);console.log(`remaining_warnings=${m.filter(x=>x.severity===1).length}`);
+          const out=[];for(const r of rows){const ms=(r.messages||[]).filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any');if(ms.length)out.push([path.relative(process.cwd(),r.filePath).replaceAll('\\','/'),ms.length])}out.sort((x,y)=>y[1]-x[1]||x[0].localeCompare(y[0]));console.log('hotspots='+JSON.stringify(out.slice(0,30)));
+          if(n.length||m.filter(x=>x.severity===1).length)process.exit(1)
+          NODE

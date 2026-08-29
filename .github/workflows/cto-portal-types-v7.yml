@@ -37,17 +37,17 @@ jobs:
           one('const [campaignRows,taskRows,docRows,financeRows,eventRows,notificationRows]:any=await Promise.all([','const [campaignRows,taskRows,docRows,financeRows,eventRows,notificationRows]=await Promise.all([');
           one('const campaigns=[...campaignRows].map((x:any)=>','const campaigns=typedRows<CampaignRow>(campaignRows).map(x=>');
           one('tasks=[...taskRows],docs=[...docRows],finance=[...financeRows],events=[...eventRows],notes=[...notificationRows];','tasks=typedRows<TaskRow>(taskRows),docs=typedRows<DocRow>(docRows),finance=typedRows<FinanceRow>(financeRows),events=typedRows<EventRow>(eventRows),notes=typedRows<NoteRow>(notificationRows);');
+          s=s.split('reduce((s:unknown,x:any)=>').join('reduce((s:number,x)=>');
+          s=s.split('reduce((s:any,x:any)=>').join('reduce((s:number,x)=>');
           s=s.split('(x:any)=>').join('x=>');
           s=s.split('(t:any)=>').join('t=>');
           s=s.split('(d:any)=>').join('d=>');
           s=s.split('(c:any)=>').join('c=>');
           s=s.split('(a:any,b:any)=>').join('(a,b)=>');
-          s=s.split('reduce((s:unknown,x=>').join('reduce((s:number,x)=>');
-          s=s.split('reduce((s:any,x=>').join('reduce((s:number,x)=>');
           one('new Date(a.deadline).getTime()-new Date(b.deadline).getTime()','new Date(String(a.deadline)).getTime()-new Date(String(b.deadline)).getTime()');
           one('socials=[["f",client.facebook_url,"Facebook"],["◎",client.instagram_url,"Instagram"],["↗",client.website,"Website"]].filter((x:unknown)=>x[1]);','socials=([["f",String(client.facebook_url||""),"Facebook"],["◎",String(client.instagram_url||""),"Instagram"],["↗",String(client.website||""),"Website"]] as [string,string,string][]).filter(x=>Boolean(x[1]));');
           one('socials.map(([i,h,l]:any)=>','socials.map(([i,h,l])=>');
-          one('[["Reels / Video",reels,"🎬"],["Statics",statics,"🖼️"],["Carousels",carousels,"📚"]].map(([l,x,icon]:any)=>','([ ["Reels / Video",reels,"🎬"],["Statics",statics,"🖼️"],["Carousels",carousels,"📚"] ] as const).map(([l,x,icon])=>');
+          one('[["Reels / Video",reels,"🎬"],["Statics",statics,"🖼️"],["Carousels",carousels,"📚"]].map(([l,x,icon]:any)=>','([["Reels / Video",reels,"🎬"],["Statics",statics,"🖼️"],["Carousels",carousels,"📚"]] as const).map(([l,x,icon])=>');
           fs.writeFileSync(file,s);
           NODE
           git diff --check

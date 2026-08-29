@@ -1,0 +1,48 @@
+name: CTO Integrate Static V4
+on:
+  push:
+    branches: [feat/vivito-static-aggregate-v4]
+permissions:
+  contents: write
+jobs:
+  integrate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-static-aggregate-v4
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Integrate verified source commits one by one
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          for c in \
+            b9dd517acb9f7325cc7fd7b46d204b35c39635c0 \
+            c377fc9f0f43c374fab0bfca0047ef0729bbb7ab
+          do
+            echo "candidate=$c"
+            git cherry-pick "$c"
+            npm run type-check
+            node scripts/qa-cto-static-audit.mjs
+            git diff --check HEAD^ HEAD
+          done
+          git push origin HEAD:feat/vivito-static-aggregate-v4
+      - name: Measure full lint
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx eslint . -f json > /tmp/eslint.json || true
+          node <<'NODE'
+          const fs=require('node:fs');const rows=JSON.parse(fs.readFileSync('/tmp/eslint.json','utf8'));const m=rows.flatMap(r=>r.messages||[]),c={};for(const x of m)c[x.ruleId||'(parser)']=(c[x.ruleId||'(parser)']||0)+1;console.log(`remaining_total=${m.length}`);console.log(`remaining_errors=${m.filter(x=>x.severity===2).length}`);console.log(`remaining_warnings=${m.filter(x=>x.severity===1).length}`);console.log(`remaining_any=${m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any').length}`);console.log(`remaining_set_state=${m.filter(x=>x.ruleId==='react-hooks/set-state-in-effect').length}`);console.log(`remaining_img=${m.filter(x=>x.ruleId==='@next/next/no-img-element').length}`);console.log(`remaining_deps=${m.filter(x=>x.ruleId==='react-hooks/exhaustive-deps').length}`);console.log('top_rules='+JSON.stringify(Object.entries(c).sort((a,b)=>b[1]-a[1]).slice(0,12)));if(m.some(x=>x.ruleId!=='@typescript-eslint/no-explicit-any'&&x.ruleId!=='react-hooks/exhaustive-deps'))process.exit(1);
+          NODE

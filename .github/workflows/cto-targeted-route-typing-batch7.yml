@@ -1,0 +1,67 @@
+name: CTO Targeted Route Typing Batch 7
+
+on:
+  push:
+    branches: [feat/vivito-internal-100]
+    paths:
+      - '.github/workflows/cto-targeted-route-typing-batch7.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-internal-100
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply governance and backup typing remediation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def apply(path, replacements):
+              p=Path(path); s=p.read_text()
+              for old,new in replacements:
+                  if old not in s:
+                      raise SystemExit(f'{path}: missing expected fragment: {old[:120]}')
+                  s=s.replace(old,new,1)
+              p.write_text(s)
+
+          apply('app/api/assistant/direct/governance/route.ts', [
+            ('const rows=(v:any)=>Array.from(v as any) as any[];\nconst clean=(v:any,n=160)=>String(v||"").trim().slice(0,n);', 'type DbRow=Record<string,unknown>;\ntype GovernanceScope="WORKSPACE"|"CLIENT"|"ACTION";\nconst scopeTypes:readonly GovernanceScope[]=["WORKSPACE","CLIENT","ACTION"];\nconst isGovernanceScope=(v:string):v is GovernanceScope=>(scopeTypes as readonly string[]).includes(v);\nconst rows=(v:unknown):DbRow[]=>Array.from(v as Iterable<DbRow>);\nconst clean=(v:unknown,n=160)=>String(v||"").trim().slice(0,n);'),
+            ('async function sa(){const s=await auth();if(!s?.user||String((s.user as any).role)!=="SUPER_ADMIN")return null;const userId=clean((s.user as any).id,160),workspaceId=clean((s.user as any).workspaceId,160);return userId&&workspaceId?{userId,workspaceId}:null}', 'async function sa(){const s=await auth();if(!s?.user||String(s.user.role)!=="SUPER_ADMIN")return null;const userId=clean(s.user.id,160),workspaceId=clean(s.user.workspaceId,160);return userId&&workspaceId?{userId,workspaceId}:null}'),
+            ('if(!["WORKSPACE","CLIENT","ACTION"].includes(scopeType))return NextResponse.json({error:"Invalid scope type."},{status:400});', 'if(!isGovernanceScope(scopeType))return NextResponse.json({error:"Invalid scope type."},{status:400});'),
+            ('scopeType:scopeType as any', 'scopeType'),
+            ('newValues:JSON.stringify({scopeType,scopeId,enabled:b.enabled})} as any)', 'newValues:JSON.stringify({scopeType,scopeId,enabled:b.enabled})})'),
+          ])
+
+          apply('app/api/backup/verify/route.ts', [
+            ('const arr=(v:any)=>Array.isArray(v)?v:[];\nconst clean=(v:any,n=240)=>String(v||"").trim().slice(0,n);', 'type BackupRow=Record<string,unknown>;\nconst isBackupRow=(v:unknown):v is BackupRow=>typeof v==="object"&&v!==null&&!Array.isArray(v);\nconst arr=(v:unknown):BackupRow[]=>Array.isArray(v)?v.filter(isBackupRow):[];\nconst clean=(v:unknown,n=240)=>String(v||"").trim().slice(0,n);'),
+            ('if(!session?.user||(session.user as any).role!=="SUPER_ADMIN")', 'if(!session?.user||session.user.role!=="SUPER_ADMIN")'),
+            ('const workspaceId=clean((session.user as any).workspaceId,160),userId=clean((session.user as any).id,160);', 'const workspaceId=clean(session.user.workspaceId,160),userId=clean(session.user.id,160);'),
+            ('payload.clients.map((x:any)=>String(x.id))', 'payload.clients.map(x=>String(x.id))'),
+            ('payload.users.map((x:any)=>String(x.id))', 'payload.users.map(x=>String(x.id))'),
+            ('const recordCounts={workspace:payload.workspace.length,users:payload.users.length,clients:payload.clients.length,contacts:payload.contacts.length,tasks:payload.tasks.length,salesLeads:payload.salesLeads.length,finance:payload.finance.length,media:payload.media.length},declared=body.manifest.recordCounts||{},countsMatch=Object.entries(recordCounts).every(([k,v])=>Number((declared as any)[k])===Number(v));', 'const recordCounts={workspace:payload.workspace.length,users:payload.users.length,clients:payload.clients.length,contacts:payload.contacts.length,tasks:payload.tasks.length,salesLeads:payload.salesLeads.length,finance:payload.finance.length,media:payload.media.length},declared:Record<string,unknown>=body.manifest.recordCounts&&typeof body.manifest.recordCounts==="object"?body.manifest.recordCounts:{},countsMatch=Object.entries(recordCounts).every(([k,v])=>Number(declared[k])===Number(v));'),
+            ('newValues:JSON.stringify({snapshotKey,checksum,recordCounts})} as any)', 'newValues:JSON.stringify({snapshotKey,checksum,recordCounts})})'),
+          ])
+          PY
+      - name: TypeScript acceptance
+        run: npx tsc --noEmit
+      - name: Targeted ESLint acceptance
+        run: npx eslint app/api/assistant/direct/governance/route.ts app/api/backup/verify/route.ts --max-warnings=0
+      - name: Commit validated remediation
+        run: |
+          git config user.name 'vivitgroup'
+          git config user.email 'groupvivit@gmail.com'
+          git add app/api/assistant/direct/governance/route.ts app/api/backup/verify/route.ts
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix(types): harden governance and backup boundaries'
+          git push origin HEAD:feat/vivito-internal-100

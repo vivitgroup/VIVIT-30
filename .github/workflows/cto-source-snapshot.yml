@@ -10,20 +10,68 @@ permissions:
   contents: read
 
 jobs:
-  snapshot:
+  diagnose:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Upload source snapshot
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Capture lint before fixes
+        shell: bash
+        run: |
+          npx eslint . -f json > eslint-before.json || true
+
+      - name: Apply safe ESLint autofixes
+        shell: bash
+        run: |
+          npx eslint . --fix || true
+          git diff -- . > eslint-autofix.patch
+
+      - name: Capture lint after fixes
+        shell: bash
+        run: |
+          npx eslint . -f json > eslint-after.json || true
+
+      - name: Capture TypeScript gate
+        shell: bash
+        run: |
+          npm run type-check > typecheck.txt 2>&1 || true
+
+      - name: Capture static architecture gate
+        shell: bash
+        run: |
+          node scripts/qa-cto-static-audit.mjs > cto-static.txt 2>&1 || true
+
+      - name: Upload diagnostics and autofixed source
         uses: actions/upload-artifact@v4
         with:
-          name: cto-source-snapshot
+          name: cto-gate-diagnostics
           path: |
-            .
-            !.git/**
-            !node_modules/**
-            !.next/**
+            eslint-before.json
+            eslint-after.json
+            eslint-autofix.patch
+            typecheck.txt
+            cto-static.txt
+            app/**
+            components/**
+            lib/**
+            db/**
+            scripts/**
+            types/**
+            auth.config.ts
+            proxy.ts
+            eslint.config.mjs
+            tsconfig.json
+            package.json
+            package-lock.json
           include-hidden-files: true
           retention-days: 1

@@ -1,0 +1,170 @@
+name: CTO Static Parallel Remediation
+
+on:
+  push:
+    branches: [feat/vivito-static-parallel]
+    paths:
+      - '.github/workflows/cto-static-parallel.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  shard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 48
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0,1,2,3,4,5,6,7]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-static-parallel
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Baseline TypeScript
+        run: npm run type-check
+      - name: Accept explicit-any substitutions in parallel shard
+        env:
+          SHARD: ${{ matrix.shard }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs=require('node:fs');
+          const path=require('node:path');
+          const {spawnSync}=require('node:child_process');
+          const shard=Number(process.env.SHARD||0), shardCount=8;
+          const hash=s=>{let h=0;for(let i=0;i<s.length;i++)h=(h*33+s.charCodeAt(i))>>>0;return h;};
+          const lint=spawnSync('npx',['eslint','.','-f','json'],{encoding:'utf8',maxBuffer:64*1024*1024});
+          if(!lint.stdout.trim())throw new Error(lint.stderr||'ESLint JSON missing');
+          const rows=JSON.parse(lint.stdout);
+          const byFile=new Map();
+          for(const row of rows){
+            const rel=path.relative(process.cwd(),row.filePath).replaceAll('\\','/');
+            if(rel.startsWith('..')||hash(rel)%shardCount!==shard)continue;
+            for(const msg of row.messages||[]){
+              if(msg.ruleId!=='@typescript-eslint/no-explicit-any')continue;
+              const sug=(msg.suggestions||[]).find(s=>s?.fix?.text==='unknown'&&Array.isArray(s?.fix?.range));
+              if(!sug)continue;
+              const [start,end]=sug.fix.range;
+              const key=`${start}:${end}`;
+              const m=byFile.get(rel)||new Map();m.set(key,{file:rel,start,end});byFile.set(rel,m);
+            }
+          }
+          const candidates=[...byFile.values()].flatMap(m=>[...m.values()]);
+          const originals=new Map([...byFile.keys()].map(f=>[f,fs.readFileSync(f,'utf8')]));
+          const apply=(selection)=>{
+            const grouped=new Map();
+            for(const c of selection){const a=grouped.get(c.file)||[];a.push(c);grouped.set(c.file,a);}
+            for(const [file,original] of originals){
+              let out=original;
+              for(const c of (grouped.get(file)||[]).sort((a,b)=>b.start-a.start)){
+                if(out.slice(c.start,c.end)!=='any')throw new Error(`Unexpected range ${file}:${c.start}:${c.end}`);
+                out=out.slice(0,c.start)+'unknown'+out.slice(c.end);
+              }
+              fs.writeFileSync(file,out);
+            }
+          };
+          const tsc=()=>spawnSync('npx',['tsc','--noEmit','--pretty','false'],{encoding:'utf8',maxBuffer:32*1024*1024});
+          const accepted=[], acceptedKeys=new Set(), rejected=[];
+          const key=c=>`${c.file}:${c.start}:${c.end}`;
+          const deadline=Date.now()+38*60*1000;
+          class BudgetStop extends Error{}
+          const tryGroup=(group)=>{
+            if(!group.length)return;
+            if(Date.now()>deadline)throw new BudgetStop();
+            const trial=[...accepted,...group.filter(c=>!acceptedKeys.has(key(c)))];
+            apply(trial);
+            const result=tsc();
+            if(result.status===0){
+              for(const c of group)if(!acceptedKeys.has(key(c))){accepted.push(c);acceptedKeys.add(key(c));}
+              apply(accepted);return;
+            }
+            apply(accepted);
+            if(group.length===1){rejected.push(group[0]);return;}
+            const mid=Math.floor(group.length/2);
+            tryGroup(group.slice(0,mid));tryGroup(group.slice(mid));
+          };
+          try{tryGroup(candidates)}catch(e){if(!(e instanceof BudgetStop))throw e;console.log('time_budget_reached=true')}
+          apply(accepted);
+          const final=tsc();
+          if(final.status!==0){console.error(final.stdout);console.error(final.stderr);process.exit(1)}
+          console.log(`shard=${shard}`);
+          console.log(`candidates=${candidates.length}`);
+          console.log(`accepted=${accepted.length}`);
+          console.log(`rejected=${rejected.length}`);
+          NODE
+          git diff --check
+          git diff -- app components lib types proxy.ts auth.config.ts > /tmp/shard.patch
+          cp /tmp/shard.patch shard.patch
+      - name: Upload verified shard patch
+        uses: actions/upload-artifact@v4
+        with:
+          name: static-shard-${{ matrix.shard }}
+          path: shard.patch
+          retention-days: 1
+
+  combine:
+    needs: shard
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-static-parallel
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Download shard patches
+        uses: actions/download-artifact@v4
+        with:
+          pattern: static-shard-*
+          path: patches
+      - name: Combine only compiler-safe shard patches
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          npm run type-check
+          accepted=0
+          for p in $(find patches -name shard.patch -type f | sort); do
+            if [ ! -s "$p" ]; then continue; fi
+            if ! git apply "$p"; then echo "skip_unappliable=$p"; git reset --hard HEAD; continue; fi
+            if npm run type-check && git diff --check; then
+              git add app components lib types proxy.ts auth.config.ts 2>/dev/null || true
+              if ! git diff --cached --quiet; then
+                git commit -m "fix(types): accept compiler-safe static shard ${accepted} [skip ci]"
+                accepted=$((accepted+1))
+              fi
+            else
+              git reset --hard HEAD
+              echo "rejected_combined_patch=$p"
+            fi
+          done
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint . -f json > /tmp/eslint-after.json || true
+          node <<'NODE'
+          const fs=require('node:fs');
+          const rows=JSON.parse(fs.readFileSync('/tmp/eslint-after.json','utf8'));
+          const m=rows.flatMap(r=>r.messages||[]), c={};
+          for(const x of m)c[x.ruleId||'(parser)']=(c[x.ruleId||'(parser)']||0)+1;
+          console.log(`remaining_total=${m.length}`);
+          console.log(`remaining_errors=${m.filter(x=>x.severity===2).length}`);
+          console.log(`remaining_warnings=${m.filter(x=>x.severity===1).length}`);
+          console.log(`remaining_explicit_any=${m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any').length}`);
+          console.log('top_rules='+JSON.stringify(Object.entries(c).sort((a,b)=>b[1]-a[1]).slice(0,20)));
+          NODE
+          if [ "$accepted" -gt 0 ]; then git push origin HEAD:feat/vivito-static-parallel; fi

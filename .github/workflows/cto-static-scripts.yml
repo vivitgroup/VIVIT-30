@@ -1,0 +1,70 @@
+name: CTO Static Scripts Cleanup
+
+on:
+  push:
+    branches: [feat/vivito-static-scripts]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-static-scripts
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply scripts-only lint cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs=require('node:fs');
+          const edit=(file,repls)=>{let s=fs.readFileSync(file,'utf8');for(const [a,b] of repls){if(!s.includes(a))throw new Error(`${file}: missing ${a}`);s=s.replace(a,b)}fs.writeFileSync(file,s)};
+          edit('scripts/qa-vivito-artifacts-v2.ts',[["ok?pass++:fail++","if(ok)pass++;else fail++"]]);
+          edit('scripts/qa-vivito-competitive-intelligence.ts',[["ok?pass++:fail++","if(ok)pass++;else fail++"]]);
+          edit('scripts/qa-vivito-mastery-13.mjs',[["o?p++:f++","if(o)p++;else f++"]]);
+          edit('scripts/qa-vivito-medical-marketing.mjs',[["o?p++:f++","if(o)p++;else f++"]]);
+          edit('scripts/run-vivito-head-to-head.ts',[
+            ['type OutputMap=Record<string,string>;type Side="A"|"B";type Pair=', 'type OutputMap=Record<string,string>;type Pair='],
+            ['const publicPairs=pairs.map(({mapping,...p})=>p);','const publicPairs=pairs.map(p=>({caseId:p.caseId,domain:p.domain,prompt:p.prompt,A:p.A,B:p.B}));']
+          ]);
+          edit('scripts/qa-media-control.mjs',[[
+            ",link=read('app/api/media-link/route.ts'),sync=read('app/api/media-sync/[campaignId]/route.ts')",
+            ""
+          ],[
+            ",syncUi=read('app/dashboard/media/sync/page.tsx')",
+            ""
+          ]]);
+          edit('scripts/seed.ts',[
+            ['  const MONTHS = ["","January","February","March","April","May","June","July","August","September","October","November","December"];\n',''],
+            ['  const statuses   = ["PENDING","IN_PROGRESS","REVIEW","APPROVED","COMPLETED","REVISION"] as const;\n',''],
+            ['      const days     = { REEL:7, GRAPHIC:3, CAROUSEL:3, STORY:1, UGC:5 };\n',''],
+            ['      ok ? passed++ : failed++;','      if (ok) passed++; else failed++;']
+          ]);
+          NODE
+      - name: Acceptance
+        shell: bash
+        run: |
+          npm run type-check
+          npx eslint scripts
+          node scripts/qa-cto-static-audit.mjs
+          git diff --check
+      - name: Commit scripts cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git add scripts
+          if ! git diff --cached --quiet; then
+            git commit -m 'fix(lint): clean static QA and seed scripts [skip ci]'
+            git push origin HEAD:feat/vivito-static-scripts
+          fi

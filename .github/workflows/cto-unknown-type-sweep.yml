@@ -42,6 +42,19 @@ jobs:
           python - <<'PY'
           import json,re,subprocess
           from pathlib import Path
+
+          def utf16_to_py_index(text, offset):
+            units=0
+            for index,ch in enumerate(text):
+              if units==offset:
+                return index
+              units += 2 if ord(ch)>0xFFFF else 1
+              if units>offset:
+                raise SystemExit(f'ESLint UTF-16 offset {offset} splits a surrogate pair')
+            if units==offset:
+              return len(text)
+            raise SystemExit(f'ESLint UTF-16 offset {offset} exceeds text length {units}')
+
           report=json.load(open('/tmp/eslint-before.json'))
           candidates={}
           for item in report:
@@ -62,8 +75,11 @@ jobs:
           for f,ranges in candidates.items():
             p=Path(f); text=p.read_text()
             for start,end in ranges:
-              if text[start:end] != 'any': raise SystemExit(f'unexpected eslint range in {f}: {start}:{end}')
-              text=text[:start]+'unknown'+text[end:]
+              py_start=utf16_to_py_index(text,start)
+              py_end=utf16_to_py_index(text,end)
+              if text[py_start:py_end] != 'any':
+                raise SystemExit(f'unexpected eslint range in {f}: {start}:{end} -> {text[py_start:py_end]!r}')
+              text=text[:py_start]+'unknown'+text[py_end:]
             p.write_text(text)
           remaining=set(candidates)
           for iteration in range(1,15):

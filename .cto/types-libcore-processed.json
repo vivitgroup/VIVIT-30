@@ -1,6 +1,0 @@
-[
-  "lib/actions/calendar-safe.ts",
-  "lib/actions/index.ts",
-  "lib/ad-oauth.ts",
-  "lib/meta-exact.ts"
-]

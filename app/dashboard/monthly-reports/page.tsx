@@ -4,14 +4,16 @@ import { redirect } from "next/navigation";
 import { db, clients } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
 import { Role } from "@/lib/types";
+type SessionUser={role?:Role|string;id?:string};
 
 export default async function MonthlyReportsPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
-  const role = (session.user as any).role as Role;
+  const sessionUser=session.user as unknown as SessionUser;
+  const role=sessionUser.role as Role;
   if (![Role.SUPER_ADMIN, Role.ACCOUNT_MANAGER].includes(role)) redirect("/dashboard");
 
-  const userId = String((session.user as any).id || "");
+  const userId=String(sessionUser.id||"");
   const allClients = await db.select({ id:clients.id, companyName:clients.companyName, isActive:clients.isActive })
     .from(clients).where(role === Role.ACCOUNT_MANAGER
       ? and(eq(clients.isActive, true), eq(clients.accountManagerId, userId))
@@ -20,8 +22,6 @@ export default async function MonthlyReportsPage() {
   const now = new Date();
   const MONTHS = ["","January","February","March","April","May","June","July","August","September","October","November","December"];
 
-  const prevMonth = now.getMonth() === 0 ? 12 : now.getMonth();
-  const prevYear  = now.getMonth() === 0 ? now.getFullYear()-1 : now.getFullYear();
 
   async function sendAllReports() {
     "use server";
@@ -30,16 +30,16 @@ export default async function MonthlyReportsPage() {
     const {eq,and,gte,sum}=await import("drizzle-orm");
     const MONTHS=["","January","February","March","April","May","June","July","August","September","October","November","December"];
     const current=await getAuth();
-    const currentRole=(current?.user as any)?.role as Role|undefined;
+    const currentUser=current?.user as unknown as SessionUser|undefined;
+    const currentRole=currentUser?.role as Role|undefined;
     if(!current?.user||![Role.SUPER_ADMIN,Role.ACCOUNT_MANAGER].includes(currentRole!))throw new Error("Unauthorized");
     const now2=new Date();
     const pMonth=now2.getMonth()===0?12:now2.getMonth();
     const pYear=now2.getMonth()===0?now2.getFullYear()-1:now2.getFullYear();
-    const currentUserId=String((current.user as any).id||"");
+    const currentUserId=String(currentUser?.id||"");
     const allC=await db.select({id:clients.id,companyName:clients.companyName}).from(clients).where(currentRole===Role.ACCOUNT_MANAGER
       ? and(eq(clients.isActive,true),eq(clients.accountManagerId,currentUserId))
       : eq(clients.isActive,true));
-    let sent=0;
     for(const c of allC){
       const [contact]=await db.select().from(contacts).where(and(eq(contacts.clientId,c.id),eq(contacts.isPrimary,true)));
       if(!contact?.email) continue;
@@ -53,7 +53,6 @@ export default async function MonthlyReportsPage() {
           subject:`📊 ${c.companyName} — ${MONTHS[pMonth]} ${pYear} Performance Report`,
           html:`<div style="font-family:Inter,sans-serif;max-width:600px;margin:0 auto;padding:24px"><div style="background:linear-gradient(135deg,#17345F,#244D87);color:white;padding:24px;border-radius:12px 12px 0 0"><h1 style="margin:0;font-size:20px">📊 ${MONTHS[pMonth]} Report</h1></div><div style="background:#f9f9f9;padding:24px;border-radius:0 0 12px 12px"><h2>${c.companyName}</h2><table style="width:100%;border-collapse:collapse"><tr style="background:#244D87;color:white"><td style="padding:8px 12px">Metric</td><td style="padding:8px 12px">Value</td></tr><tr><td style="padding:8px 12px;border:1px solid #eee">Ad Spend</td><td style="padding:8px 12px;border:1px solid #eee">${spend.toLocaleString()} EGP</td></tr><tr style="background:#f5f5f5"><td style="padding:8px 12px;border:1px solid #eee">Leads</td><td style="padding:8px 12px;border:1px solid #eee">${leads}</td></tr><tr><td style="padding:8px 12px;border:1px solid #eee">Revenue</td><td style="padding:8px 12px;border:1px solid #eee">${rev.toLocaleString()} EGP</td></tr><tr style="background:#f5f5f5"><td style="padding:8px 12px;border:1px solid #eee">ROAS</td><td style="padding:8px 12px;border:1px solid #eee">${spend>0?(rev/spend).toFixed(2):0}×</td></tr>${inv?`<tr><td style="padding:8px 12px;border:1px solid #eee">Invoice</td><td style="padding:8px 12px;border:1px solid #eee">${inv.totalRevenue.toLocaleString()} EGP — ${inv.invoiceStatus}</td></tr>`:"" }</table><a href="${process.env.NEXTAUTH_URL??""}/dashboard/portal" style="background:#244D87;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;display:inline-block;margin-top:16px">View Full Report →</a></div><p style="color:#999;font-size:12px;margin-top:16px;text-align:center">VIVIT GROUP</p></div>`,
         })});
-        sent++;
       }
     }
     const {revalidatePath}=await import("next/cache");
@@ -226,7 +225,8 @@ export default async function MonthlyReportsPage() {
             const {auth:getAuth}=await import("@/lib/auth");
             const {db,emailCampaigns}=await import("@/lib/db");
             const current=await getAuth();
-            const currentRole=(current?.user as any)?.role as Role|undefined;
+            const currentUser=current?.user as unknown as SessionUser|undefined;
+            const currentRole=currentUser?.role as Role|undefined;
             if(!current?.user||![Role.SUPER_ADMIN,Role.ACCOUNT_MANAGER].includes(currentRole!))throw new Error("Unauthorized");
             await db.insert(emailCampaigns).values({
               name:fd.get("name") as string,

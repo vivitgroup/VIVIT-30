@@ -4,7 +4,7 @@ const digits=(v:string)=>v.replace(/[^0-9]/g,"");
 export default function WhatsAppWorkspace(){
  const[phone,setPhone]=useState(""),[body,setBody]=useState(""),[mode,setMode]=useState<"text"|"template">("text"),[templateName,setTemplateName]=useState(""),[languageCode,setLanguageCode]=useState("en_US"),[busy,setBusy]=useState(false),[message,setMessage]=useState(""),[configured,setConfigured]=useState<boolean|null>(null),[recent,setRecent]=useState<unknown[]>([]);
  async function load(){try{const r=await fetch("/api/whatsapp-templates"),d=await r.json();if(!r.ok)throw new Error(d.error||"Could not load WhatsApp status");setConfigured(!!d.hasRealAPI);setRecent(d.recent||[])}catch(e){setMessage(e.message||"Could not load WhatsApp status")}}
- useEffect(()=>{load()},[]);
+ useEffect(()=>{const timer=setTimeout(()=>void load(),0);return()=>clearTimeout(timer)},[]);
  const normalized=digits(phone),directUrl=useMemo(()=>normalized?`https://wa.me/${normalized}${body?`?text=${encodeURIComponent(body)}`:""}`:"",[normalized,body]);
  async function send(){if(!normalized||!body.trim())return setMessage("Phone number and message are required.");setBusy(true);setMessage("");try{const r=await fetch("/api/whatsapp-templates",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({to:normalized,body:body.trim(),mode,templateName,languageCode})}),d=await r.json();if(!r.ok)throw new Error(d.error||"Send failed");setMessage(`Sent from VIVIT successfully · ${d.messageId}`);await load()}catch(e){setMessage(e.message||"Send failed")}finally{setBusy(false)}}
  return <div style={{display:"grid",gap:18,maxWidth:1000}}>

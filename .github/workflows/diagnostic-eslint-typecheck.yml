@@ -1,0 +1,91 @@
+name: Diagnostic ESLint and TypeScript
+
+on:
+  push:
+    branches:
+      - diagnostics/eslint-10ec443
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact diagnostic SHA
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Capture ESLint JSON
+        shell: bash
+        run: |
+          set +e
+          npx eslint . -f json > eslint-report.json
+          echo $? > eslint-exit-code.txt
+          exit 0
+
+      - name: Capture current TypeScript diagnostics
+        shell: bash
+        run: |
+          set +e
+          npm run type-check > typecheck-current.log 2>&1
+          echo $? > typecheck-current-exit-code.txt
+          exit 0
+
+      - name: Remove runtime TypeScript shields in working tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('node:fs');
+          const { execFileSync } = require('node:child_process');
+          const files = execFileSync('git', ['ls-files'], { encoding: 'utf8' })
+            .split(/\r?\n/)
+            .filter(Boolean)
+            .filter((f) => /^(?:app|components|lib)\//.test(f) && /\.(?:ts|tsx)$/.test(f));
+          let changed = 0;
+          for (const file of files) {
+            const source = fs.readFileSync(file, 'utf8');
+            const next = source
+              .replace(/^\s*\/\/\s*@ts-nocheck\s*\r?\n/gm, '')
+              .replace(/^\s*\/\/\s*@ts-ignore\s*\r?\n/gm, '');
+            if (next !== source) {
+              fs.writeFileSync(file, next);
+              changed++;
+            }
+          }
+          fs.writeFileSync('runtime-unshielded-count.txt', String(changed));
+          NODE
+
+      - name: Capture unshielded TypeScript diagnostics
+        shell: bash
+        run: |
+          set +e
+          npm run type-check > typecheck-unshielded.log 2>&1
+          echo $? > typecheck-unshielded-exit-code.txt
+          git diff -- app components lib > runtime-unshielded.patch
+          exit 0
+
+      - name: Upload diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: eslint-typecheck-diagnostics
+          path: |
+            eslint-report.json
+            eslint-exit-code.txt
+            typecheck-current.log
+            typecheck-current-exit-code.txt
+            typecheck-unshielded.log
+            typecheck-unshielded-exit-code.txt
+            runtime-unshielded-count.txt
+            runtime-unshielded.patch
+          if-no-files-found: error

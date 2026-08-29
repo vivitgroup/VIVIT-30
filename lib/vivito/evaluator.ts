@@ -69,7 +69,7 @@ export function scoreVivitoBenchmark(results:Array<{test:VivitoBenchmarkCase;ans
   const dimensions:VivitoBenchmarkScore["dimensions"]={};
   for(const c of cases){
     const d=dimensions[c.dimension]||{score:0,maxScore:0,percent:0,passed:0,failed:0};
-    d.score+=c.score;d.maxScore+=c.maxScore;c.passed?d.passed++:d.failed++;dimensions[c.dimension]=d;
+    d.score+=c.score;d.maxScore+=c.maxScore;if(c.passed)d.passed++;else d.failed++;dimensions[c.dimension]=d;
   }
   for(const d of Object.values(dimensions))d.percent=d.maxScore?Math.round((d.score/d.maxScore)*1000)/10:0;
   const score=Math.round(cases.reduce((s,c)=>s+c.score,0)*100)/100;

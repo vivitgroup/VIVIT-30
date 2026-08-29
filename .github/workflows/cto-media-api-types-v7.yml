@@ -32,7 +32,7 @@ jobs:
           const file='app/api/media-control-v2/route.ts';
           const beforeAll=fs.readFileSync(file,'utf8');
           const marker='const ROLES=["SUPER_ADMIN","MEDIA_BUYER","ACCOUNT_MANAGER"],n=(v:unknown)=>Number(v||0),iso=(d:Date)=>d.toISOString().slice(0,10),DATE=/^\\d{4}-\\d{2}-\\d{2}$/;';
-          const types='type MetricRow=Record<string,unknown>;\ntype MetaAction={action_type?:string;value?:unknown};\ntype MetaInsight=MetricRow&{actions?:MetaAction[];action_values?:MetaAction[];date_start?:string;adset_id?:string;ad_id?:string};\ntype CampaignRef={id:string;externalId:string;platform?:string|null};\ntype DbIdRow={id:string;external_id:string};\n';
+          const types='type MetricRow=Record<string,unknown>;\ntype MetaAction={action_type?:string;value?:unknown};\ntype MetaInsight=MetricRow&{actions?:MetaAction[];action_values?:MetaAction[];date_start?:string;adset_id?:string;ad_id?:string};\ntype CampaignRef={id:string;externalId:string;platform?:string|null};\n';
           if(!beforeAll.includes(marker))throw new Error('type insertion marker missing');
           fs.writeFileSync(file,beforeAll.replace(marker,marker+'\n'+types));
           const tsc=()=>spawnSync('npx',['tsc','--noEmit','--pretty','false'],{encoding:'utf8',maxBuffer:32*1024*1024});
@@ -47,7 +47,6 @@ jobs:
             ['value-row','function value(row:any,type:string){return n(row?.action_values?.find((a:any)=>a.action_type===type)?.value)}','function value(row:MetaInsight,type:string){return n(row.action_values?.find(a=>a.action_type===type)?.value)}'],
             ['hierarchy-row','function hierarchyMetric(row:any,resultType?:string)','function hierarchyMetric(row:MetaInsight,resultType?:string)'],
             ['sync-campaign','async function syncMetaHierarchy(campaign:any,token:string','async function syncMetaHierarchy(campaign:CampaignRef,token:string'],
-            ['db-set-row','Array.from(await db.execute(sql`insert into ad_sets','Array.from(await db.execute(sql`insert into ad_sets'],
             ['reported-map','reportedRows.map((x:any)=>[x.id,x])','reportedRows.map(x=>[String((x as Record<string,unknown>).id),x])'],
             ['perf-filter','perf.filter((p:any)=>','perf.filter(p=>'],
             ['set-filter','setRows.filter((s:any)=>','setRows.filter(s=>'],

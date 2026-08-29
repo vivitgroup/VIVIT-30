@@ -1,0 +1,43 @@
+name: CTO Integrate Media V8
+on:
+  push:
+    branches: [feat/vivito-static-media-integrate-v8]
+permissions:
+  contents: write
+jobs:
+  integrate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-static-media-integrate-v8
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Integrate verified media source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git cherry-pick a2047b3
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          git diff --check HEAD^ HEAD
+          git push origin HEAD:feat/vivito-static-media-integrate-v8
+      - name: Full lint acceptance
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx eslint . -f json > /tmp/e.json || true
+          node <<'NODE'
+          const fs=require('node:fs');const rows=JSON.parse(fs.readFileSync('/tmp/e.json','utf8'));const m=rows.flatMap(r=>r.messages||[]);const any=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),nonAny=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any');console.log(`remaining_total=${m.length}`);console.log(`remaining_errors=${m.filter(x=>x.severity===2).length}`);console.log(`remaining_warnings=${m.filter(x=>x.severity===1).length}`);console.log(`remaining_any=${any.length}`);console.log(`remaining_non_any=${nonAny.length}`);if(nonAny.length||m.some(x=>x.severity===1)||any.length>404)process.exit(1);
+          NODE

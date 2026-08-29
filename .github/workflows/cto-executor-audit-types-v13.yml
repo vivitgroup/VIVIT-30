@@ -1,0 +1,54 @@
+name: CTO Executor Audit Types V13
+on:
+  push:
+    branches: [feat/vivito-executor-audit-types-v13]
+permissions:
+  contents: write
+jobs:
+  remediate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-executor-audit-types-v13
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Remove executor audit casts
+        run: |
+          node <<'NODE'
+          const fs=require('node:fs');
+          for(const file of ['lib/vivito/executor.ts','lib/vivito/executor-operator.ts','lib/vivito/executor-extended.ts']){
+            let s=fs.readFileSync(file,'utf8');
+            const from='newValues:JSON.stringify(payload)} as any';
+            const n=s.split(from).length-1;if(n!==1)throw new Error(`${file}: expected audit cast once, found ${n}`);
+            s=s.replace(from,'newValues:JSON.stringify(payload)}');
+            fs.writeFileSync(file,s);
+          }
+          NODE
+          git diff --check
+      - name: Acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint lib/vivito/executor.ts lib/vivito/executor-operator.ts lib/vivito/executor-extended.ts -f json > /tmp/target.json || true
+          node <<'NODE'
+          const r=require('/tmp/target.json'),m=r.flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any');console.log(`executor_any=${a.length}`);console.log(JSON.stringify(m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any').map(x=>[x.ruleId,x.line,x.message]).slice(0,30)));if(a.length!==66||m.some(x=>x.ruleId!=='@typescript-eslint/no-explicit-any'))process.exit(1)
+          NODE
+          npx eslint . -f json > /tmp/all.json || true
+          node <<'NODE'
+          const r=require('/tmp/all.json'),m=r.flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any'),w=m.filter(x=>x.severity===1);console.log(`remaining_any=${a.length}`);console.log(`remaining_non_any=${n.length}`);console.log(`remaining_warnings=${w.length}`);if(a.length!==235||n.length||w.length)process.exit(1)
+          NODE
+      - name: Commit source
+        run: |
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git add lib/vivito/executor.ts lib/vivito/executor-operator.ts lib/vivito/executor-extended.ts
+          git commit -m 'fix(types): type executor audit payload inserts [skip ci]'
+          git push origin HEAD:feat/vivito-executor-audit-types-v13

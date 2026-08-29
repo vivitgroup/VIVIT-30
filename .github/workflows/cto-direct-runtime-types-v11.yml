@@ -1,0 +1,66 @@
+name: CTO Direct Runtime Types V11
+on:
+  push:
+    branches: [feat/vivito-direct-runtime-types-v11]
+permissions:
+  contents: write
+jobs:
+  remediate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-direct-runtime-types-v11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Apply direct runtime contracts
+        run: |
+          node <<'NODE'
+          const fs=require('node:fs');const file='lib/vivito/direct-runtime.ts';let s=fs.readFileSync(file,'utf8');
+          function one(from,to,count=1){const n=s.split(from).length-1;if(n!==count)throw new Error(`expected ${count}, found ${n}: ${from.slice(0,140)}`);s=s.split(from).join(to)}
+          one('import {assertAutonomyAllowed,claimNotification,consumeResource,preflightDecision,recordValue} from "./enterprise-governance";','import {assertAutonomyAllowed,claimNotification,consumeResource,preflightDecision,recordValue} from "./enterprise-governance";\nimport type {SQL} from "drizzle-orm";');
+          one('const rows=(v:unknown)=>Array.from(v as any) as any[];','const rows=<T=Record<string,unknown>>(v:unknown):T[]=>Array.from(v as Iterable<T>);');
+          one('type Actor={id:string;name:string;role:string;workspace_id:string};','type Actor={id:string;name:string;role:string;workspace_id:string};\ntype EnterpriseDecisionMeta={decisionVersion?:string;evidenceQuality?:number;confidence?:number;route?:unknown;simulation?:unknown};\ntype ProposalResult={duplicate:boolean;mode:string;eventId:string|null;executed?:boolean;retryScheduled?:boolean};\ntype ObservedOutcome={kind:"TASK";entityId:string;status:unknown;completedAt:unknown}|{kind:"MEDIA";campaignId:string;status:unknown;spend24h:number;results24h:number;revenue24h:number;baseline:unknown}|{kind:"GENERIC";baseline:unknown};');
+          one('const a=rows(await db.execute(sql`select id,name,role,workspace_id from users where id=${id} and role=\'SUPER_ADMIN\' and is_active=true and approval_status=\'APPROVED\' limit 1`))[0];','const a=rows<Actor>(await db.execute(sql`select id,name,role,workspace_id from users where id=${id} and role=\'SUPER_ADMIN\' and is_active=true and approval_status=\'APPROVED\' limit 1`))[0];');
+          one('return a as Actor','return a');
+          one('async function audit(workspaceId:string,userId:string,action:string,entityId:string,payload:unknown){await db.insert(auditLogs).values({workspaceId,userId,action,entity:"VIVITO_DIRECT",entityId,newValues:JSON.stringify(payload)} as any)}','async function audit(workspaceId:string,userId:string,action:string,entityId:string,payload:unknown){const value:typeof auditLogs.$inferInsert={workspaceId,userId,action,entity:"VIVITO_DIRECT",entityId,newValues:JSON.stringify(payload)};await db.insert(auditLogs).values(value)}');
+          one('} as any).onConflictDoNothing();','}).onConflictDoNothing();');
+          one('expectedOutcome?:string,enterprise?:any)','expectedOutcome?:string,enterprise?:EnterpriseDecisionMeta)');
+          one('async function persistProposal(input:{workspaceId:string;key:string;signalType:string;clientId:string|null;op:VivitoActionOp;args:unknown;evidence:unknown;actor:Actor;confidence?:number;expectedOutcome?:string}){','async function persistProposal(input:{workspaceId:string;key:string;signalType:string;clientId:string|null;op:VivitoActionOp;args:unknown;evidence:unknown;actor:Actor;confidence?:number;expectedOutcome?:string}):Promise<ProposalResult>{');
+          one('await notifyTargets(workspaceId,input.clientId,`VIVITO acted automatically · ${input.op}`,`${clean((result as any)?.message||"Safe AUTO action completed.",700)}','const resultMessage=result&&typeof result==="object"&&"message" in result?(result as {message?:unknown}).message:undefined;\n  await notifyTargets(workspaceId,input.clientId,`VIVITO acted automatically · ${input.op}`,`${clean(resultMessage||"Safe AUTO action completed.",700)}');
+          one('function competitorSignals(report:any){const data=j(report.report_json),details=Array.isArray(data.details)?data.details:[];return details.flatMap((d:any)=>{if(d?.error)return[];const newPosts=Array.isArray(d?.newPosts)?d.newPosts.length:0,fd=d?.delta?.followers==null?null:Number(d.delta.followers);if(newPosts<2&&(fd==null||Math.abs(fd)<50))return[];return[{competitor:clean(d.competitor,160)||"Competitor",newPosts,followerDelta:fd,profileUrl:clean(d.profileUrl,900),source:d?.source||\'PUBLIC_MONITOR\'}]})}','function competitorSignals(report:Record<string,unknown>){const data=j(report.report_json),record=(v:unknown):Record<string,unknown>=>v&&typeof v==="object"&&!Array.isArray(v)?v as Record<string,unknown>:{},root=record(data),details=Array.isArray(root.details)?root.details:[];return details.flatMap(raw=>{const d=record(raw);if(d.error)return[];const newPosts=Array.isArray(d.newPosts)?d.newPosts.length:0,delta=record(d.delta),fd=delta.followers==null?null:Number(delta.followers);if(newPosts<2&&(fd==null||Math.abs(fd)<50))return[];return[{competitor:clean(d.competitor,160)||"Competitor",newPosts,followerDelta:fd,profileUrl:clean(d.profileUrl,900),source:clean(d.source,120)||\'PUBLIC_MONITOR\'}]})}');
+          one('if((p as any).executed)autoExecuted++;else if(!(p as any).duplicate&&["CONFIRM","SUPER_ADMIN_CONFIRM"].includes(String((p as any).mode)))queued++','if(p.executed)autoExecuted++;else if(!p.duplicate&&["CONFIRM","SUPER_ADMIN_CONFIRM"].includes(String(p.mode)))queued++');
+          one('if((sync as any).executed)autoExecuted++;','if(sync.executed)autoExecuted++;');
+          one('if(!(pause as any).duplicate&&["CONFIRM","SUPER_ADMIN_CONFIRM"].includes(String((pause as any).mode)))queued++','if(!pause.duplicate&&["CONFIRM","SUPER_ADMIN_CONFIRM"].includes(String(pause.mode)))queued++');
+          one('async function observe(workspaceId:string,event:any){','async function observe(workspaceId:string,event:Record<string,unknown>):Promise<ObservedOutcome>{');
+          one('Number((observed as any).spend24h||0),Number((observed as any).revenue24h||0)','Number(observed.spend24h||0),Number(observed.revenue24h||0)');
+          one('async function scopedEvent(eventId:string,workspaceId:string,role:string,userId:string){let q:any;','async function scopedEvent(eventId:string,workspaceId:string,role:string,userId:string){let q:SQL;');
+          fs.writeFileSync(file,s)
+          NODE
+          git diff --check
+      - name: Acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint lib/vivito/direct-runtime.ts -f json > /tmp/e.json || true
+          node <<'NODE'
+          const r=require('/tmp/e.json'),m=r.flatMap(x=>x.messages||[]);console.log(`target_total=${m.length}`);console.log(`target_any=${m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any').length}`);console.log(JSON.stringify(m.map(x=>[x.ruleId,x.line,x.message]).slice(0,40)));if(m.length)process.exit(1)
+          NODE
+          npx eslint . -f json > /tmp/all.json || true
+          node <<'NODE'
+          const r=require('/tmp/all.json'),m=r.flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any'),w=m.filter(x=>x.severity===1);console.log(`remaining_any=${a.length}`);console.log(`remaining_non_any=${n.length}`);console.log(`remaining_warnings=${w.length}`);if(n.length||w.length||a.length!==311)process.exit(1)
+          NODE
+      - name: Commit source
+        run: |
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git add lib/vivito/direct-runtime.ts
+          git commit -m 'fix(types): type direct runtime contracts [skip ci]'
+          git push origin HEAD:feat/vivito-direct-runtime-types-v11

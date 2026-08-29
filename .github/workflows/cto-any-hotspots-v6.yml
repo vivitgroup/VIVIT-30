@@ -1,0 +1,35 @@
+name: CTO Any Hotspots V6
+
+on:
+  push:
+    branches: [feat/vivito-any-hotspots-v6]
+    paths: ['.github/workflows/cto-any-hotspots-v6.yml']
+  workflow_dispatch:
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: feat/vivito-any-hotspots-v6}
+      - uses: actions/setup-node@v4
+        with: {node-version: 22, cache: npm}
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Print explicit-any hotspots
+        shell: bash
+        run: |
+          npx eslint . -f json > /tmp/e.json || true
+          node <<'NODE'
+          const fs=require('node:fs'),path=require('node:path');
+          const rows=JSON.parse(fs.readFileSync('/tmp/e.json','utf8'));
+          const out=[];let total=0;
+          for(const r of rows){const ms=(r.messages||[]).filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any');if(!ms.length)continue;const rel=path.relative(process.cwd(),r.filePath).replaceAll('\\','/');out.push([rel,ms.length]);total+=ms.length}
+          out.sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0]));
+          console.log(`explicit_any_total=${total}`);console.log(`files_with_any=${out.length}`);
+          for(const [f,n] of out)console.log(`${n}\t${f}`);
+          NODE

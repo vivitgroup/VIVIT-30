@@ -1,0 +1,63 @@
+name: CTO Lint Text Cleanup
+
+on:
+  push:
+    branches: [feat/vivito-lint-text-cleanup]
+    paths:
+      - '.github/workflows/cto-lint-text-cleanup.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-lint-text-cleanup
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run type-check
+      - name: Apply narrow lint fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs=require('node:fs');
+          function one(file,from,to,count=1){let s=fs.readFileSync(file,'utf8');const n=s.split(from).length-1;if(n!==count)throw new Error(`${file}: expected ${count}, found ${n}`);s=s.split(from).join(to);fs.writeFileSync(file,s)}
+          one('app/api/media-discover/route.ts','async function metaPages(url:string,maxPages=100){let next=url,rows:any[]=[];','async function metaPages(url:string,maxPages=100){let next=url;const rows:any[]=[];');
+          one('components/reminders/TaskReminderWatcher.tsx','useEffect(()=>{let dead=false,timer:any;async function check()','useEffect(()=>{let dead=false;async function check()');
+          one('components/reminders/TaskReminderWatcher.tsx','}catch{}}check();timer=setInterval(check,60000);return()=>{dead=true;clearInterval(timer)}},[]);','}catch{}}check();const timer=setInterval(check,60000);return()=>{dead=true;clearInterval(timer)}},[]);');
+          one('app/dashboard/notifications/page.tsx',"No notifications yet. They'll appear here when there's activity.","No notifications yet. They&apos;ll appear here when there&apos;s activity.");
+          one('app/terms/page.tsx',"VIVIT ERP's control.","VIVIT ERP&apos;s control.");
+          NODE
+          git diff --check
+      - name: Acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Lint report
+        shell: bash
+        run: |
+          npx eslint . -f json > /tmp/eslint-after.json || true
+          node <<'NODE'
+          const fs=require('node:fs');const rows=JSON.parse(fs.readFileSync('/tmp/eslint-after.json','utf8'));const m=rows.flatMap(r=>r.messages||[]),c={};for(const x of m)c[x.ruleId||'(parser)']=(c[x.ruleId||'(parser)']||0)+1;console.log(`remaining_total=${m.length}`);console.log(`remaining_any=${m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any').length}`);console.log('top_rules='+JSON.stringify(Object.entries(c).sort((a,b)=>b[1]-a[1]).slice(0,20)));
+          NODE
+      - name: Commit verified cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git add app components lib scripts types proxy.ts auth.config.ts 2>/dev/null || true
+          if ! git diff --cached --quiet; then
+            git commit -m 'fix(lint): close verified text and const findings [skip ci]'
+            git push origin HEAD:feat/vivito-lint-text-cleanup
+          fi

@@ -1,0 +1,45 @@
+name: CTO Non-Any Diagnostic V3
+
+on:
+  push:
+    branches: [feat/vivito-static-nonany-diagnostic-v3]
+    paths:
+      - '.github/workflows/cto-nonany-diagnostic-v3.yml'
+  workflow_dispatch:
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-static-nonany-diagnostic-v3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Validate baseline
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Print non-any lint map
+        shell: bash
+        run: |
+          npx eslint . -f json > /tmp/eslint.json || true
+          node <<'NODE'
+          const fs=require('node:fs'),path=require('node:path');
+          const rows=JSON.parse(fs.readFileSync('/tmp/eslint.json','utf8'));
+          let total=0;
+          for(const row of rows){
+            const rel=path.relative(process.cwd(),row.filePath).replaceAll('\\','/');
+            const msgs=(row.messages||[]).filter(m=>m.ruleId!=='@typescript-eslint/no-explicit-any');
+            if(!msgs.length)continue;
+            for(const m of msgs){
+              total++;
+              console.log(`${rel}:${m.line||0}:${m.column||0}\t${m.ruleId||'(parser)'}\t${String(m.message||'').replaceAll('\n',' ')}`);
+            }
+          }
+          console.log(`non_any_total=${total}`);
+          NODE

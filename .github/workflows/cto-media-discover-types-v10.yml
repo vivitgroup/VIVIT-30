@@ -1,0 +1,67 @@
+name: CTO Media Discover Types V10
+on:
+  push:
+    branches: [feat/vivito-media-discover-types-v10]
+permissions:
+  contents: write
+jobs:
+  remediate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-media-discover-types-v10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Apply Meta discovery contracts
+        run: |
+          node <<'NODE'
+          const fs=require('node:fs');const file='app/api/media-discover/route.ts';let s=fs.readFileSync(file,'utf8');
+          function one(from,to,count=1){const n=s.split(from).length-1;if(n!==count)throw new Error(`expected ${count}, found ${n}: ${from.slice(0,120)}`);s=s.split(from).join(to)}
+          one('const ROLES=["SUPER_ADMIN","MEDIA_BUYER","ACCOUNT_MANAGER"],MEDIA_CUTOFF="2026-07-25";','const ROLES=["SUPER_ADMIN","MEDIA_BUYER","ACCOUNT_MANAGER"],MEDIA_CUTOFF="2026-07-25";\ntype SessionUser={role?:unknown;id?:unknown};\ntype MetaAction={action_type?:string;value?:unknown};\ntype MetaInsightRow={campaign_id?:unknown;date_start?:unknown;spend?:unknown;impressions?:unknown;reach?:unknown;clicks?:unknown;frequency?:unknown;ctr?:unknown;cpc?:unknown;cpm?:unknown;actions?:MetaAction[];action_values?:MetaAction[]};\ntype MetaAdSetRemote={optimization_goal?:unknown;promoted_object?:{custom_event_type?:unknown}|null;destination_type?:unknown};\ntype MetaCampaignRemote={id?:unknown;name?:unknown;status?:unknown;objective?:unknown;adsets?:{data?:MetaAdSetRemote[]}|null};\ntype PersistCampaign={id:string};\ntype Failure={name:string;error:string};');
+          one('async function metaPages(url:string,maxPages=100){let next=url;const rows:any[]=[];for(let i=0;next&&i<maxPages;i++){const d=await metaJson(next);rows.push(...(d.data||[]));next=String(d?.paging?.next||"")}if(next)throw new Error("Meta response exceeded safe pagination limit");return rows}','async function metaPages<T>(url:string,maxPages=100):Promise<T[]>{let next=url;const rows:T[]=[];for(let i=0;next&&i<maxPages;i++){const d=await metaJson(next);rows.push(...((d.data||[]) as T[]));next=String(d?.paging?.next||"")}if(next)throw new Error("Meta response exceeded safe pagination limit");return rows}');
+          one('return metaPages(`https://graph.facebook.com/${process.env.META_GRAPH_VERSION||"v23.0"}/act_${id}/campaigns?','return metaPages<MetaCampaignRemote>(`https://graph.facebook.com/${process.env.META_GRAPH_VERSION||"v23.0"}/act_${id}/campaigns?');
+          one('return metaPages(`https://graph.facebook.com/${process.env.META_GRAPH_VERSION||"v23.0"}/act_${id}/insights?','return metaPages<MetaInsightRow>(`https://graph.facebook.com/${process.env.META_GRAPH_VERSION||"v23.0"}/act_${id}/insights?');
+          one('function action(row:any,type:string){return n(row?.actions?.find((a:any)=>a.action_type===type)?.value)}','function action(row:MetaInsightRow,type:string){return n(row.actions?.find(a=>a.action_type===type)?.value)}');
+          one('function value(row:any,type:string){return n(row?.action_values?.find((a:any)=>a.action_type===type)?.value)}','function value(row:MetaInsightRow,type:string){return n(row.action_values?.find(a=>a.action_type===type)?.value)}');
+          one('function firstAction(row:unknown,types:string[])','function firstAction(row:MetaInsightRow,types:string[])');
+          one('function campaignSemantic(remote:any):Semantic{const o=String(remote?.objective||""),nm=String(remote?.name||""),sets=remote?.adsets?.data||[],goals=sets.map((x:any)=>String(x.optimization_goal||"").toUpperCase()),events=sets.map((x:any)=>String(x.promoted_object?.custom_event_type||"").toUpperCase()),destinations=sets.map((x:any)=>String(x.destination_type||"").toUpperCase());','function campaignSemantic(remote:MetaCampaignRemote):Semantic{const o=String(remote.objective||"").toUpperCase(),nm=String(remote.name||"").toUpperCase(),sets=remote.adsets?.data||[],goals=sets.map(x=>String(x.optimization_goal||"").toUpperCase()),events=sets.map(x=>String(x.promoted_object?.custom_event_type||"").toUpperCase()),destinations=sets.map(x=>String(x.destination_type||"").toUpperCase());');
+          one('function primary(row:any,s:Semantic)','function primary(row:MetaInsightRow,s:Semantic)');
+          one('function commerce(row:unknown)','function commerce(row:MetaInsightRow)');
+          one('function dayFromRow(row:any,s:Semantic)','function dayFromRow(row:MetaInsightRow,s:Semantic)');
+          one('function summaryFromDays(days:any[],s:Semantic)','function summaryFromDays(days:ReturnType<typeof dayFromRow>[],s:Semantic)');
+          one('async function persist(c:any,days:any[])','async function persist(c:PersistCampaign,days:ReturnType<typeof dayFromRow>[])');
+          one('(s.user as any).role','(s.user as SessionUser).role');
+          one('(s.user as any).id','(s.user as SessionUser).id');
+          one('by=new Map<string,unknown[]>()','by=new Map<string,MetaInsightRow[]>()');
+          one('let synced=0,failed=0;const failures=[];','let synced=0,failed=0;const failures:Failure[]=[];');
+          one('failures.slice(0,2).map((x:any)=>','failures.slice(0,2).map(x=>');
+          fs.writeFileSync(file,s)
+          NODE
+          git diff --check
+      - name: Acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint app/api/media-discover/route.ts -f json > /tmp/e.json || true
+          node <<'NODE'
+          const r=require('/tmp/e.json'),m=r.flatMap(x=>x.messages||[]);console.log(`target_total=${m.length}`);console.log(`target_any=${m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any').length}`);console.log(JSON.stringify(m.map(x=>[x.ruleId,x.line,x.message]).slice(0,40)));if(m.length)process.exit(1)
+          NODE
+          npx eslint . -f json > /tmp/all.json || true
+          node <<'NODE'
+          const r=require('/tmp/all.json'),m=r.flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any'),w=m.filter(x=>x.severity===1);console.log(`remaining_any=${a.length}`);console.log(`remaining_non_any=${n.length}`);console.log(`remaining_warnings=${w.length}`);if(n.length||w.length||a.length!==331)process.exit(1)
+          NODE
+      - name: Commit source
+        run: |
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git add app/api/media-discover/route.ts
+          git commit -m 'fix(types): type Meta discovery contracts [skip ci]'
+          git push origin HEAD:feat/vivito-media-discover-types-v10

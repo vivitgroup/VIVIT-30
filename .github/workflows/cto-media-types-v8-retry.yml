@@ -1,0 +1,106 @@
+name: CTO Media Types V8 Retry
+
+on:
+  push:
+    branches: [feat/vivito-media-types-v8]
+    paths: ['.github/workflows/cto-media-types-v8-retry.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-media-types-v8
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Add shared media contracts and type workspaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p types
+          cat > types/media-control.ts <<'TS'
+          export type MediaMetrics={
+            [key:string]:unknown;
+            spend?:unknown;results?:unknown;purchases?:unknown;revenue?:unknown;impressions?:unknown;clicks?:unknown;reach?:unknown;addToCart?:unknown;
+            ctr?:unknown;cpm?:unknown;cpc?:unknown;costPerResult?:unknown;roas?:unknown;frequency?:unknown;resultKind?:string|null;resultLabel?:string|null;
+          };
+          export type MediaMetricCarrier={metrics?:MediaMetrics};
+          export type MediaMetricTotals={spend:number;results:number;purchases:number;revenue:number;impressions:number;clicks:number;reach:number;addToCart:number;ctr?:number;cpm?:number;costPerResult?:number;roas?:number;frequency?:number};
+          export type MediaAd={id:string;externalId?:string|null;name?:string|null;status?:string|null;metrics?:MediaMetrics};
+          export type MediaAdSet={id:string;externalId?:string|null;name?:string|null;status?:string|null;metrics?:MediaMetrics;ads?:MediaAd[]};
+          export type MediaCampaign={id:string;connectionId?:string|null;platform?:string|null;clientName?:string|null;name?:string|null;externalId?:string|null;metricSource?:string|null;currency?:string|null;metrics?:MediaMetrics;previousMetrics?:MediaMetrics;adSets?:MediaAdSet[];reportedResultLabel?:string|null};
+          export type MediaAccountGroup={id:string;platform?:string|null;clientName?:string|null;accountName?:string|null;adAccountId?:string|null;campaignCount?:number;currency?:string|null;metrics?:MediaMetrics;previousMetrics?:MediaMetrics;campaigns?:MediaCampaign[]};
+          export type MediaRange={start?:string;end?:string};
+          export type MediaControlData={campaigns:MediaCampaign[];accountGroups:MediaAccountGroup[];archivedCampaigns:MediaCampaign[];range:MediaRange;compareRange?:MediaRange;access?:Record<string,unknown>;error?:string};
+          export type MediaPortfolioHistory={portfolio:MediaMetrics;accounts:Record<string,MediaMetrics>;archivedSpend:number;archivedCampaigns:number;error?:string};
+          TS
+          node <<'NODE'
+          const fs=require('node:fs');
+          function apply(file,repls){let s=fs.readFileSync(file,'utf8');for(const [from,to] of repls){const n=s.split(from).length-1;if(!n)throw new Error(`${file}: missing ${from.slice(0,120)}`);s=s.split(from).join(to)}fs.writeFileSync(file,s)}
+          const f='components/media/MediaIntelligenceWorkspace.tsx';
+          apply(f,[
+            ['import {useCallback,useEffect,useState} from "react";','import {useCallback,useEffect,useState} from "react";\nimport type {MediaAccountGroup,MediaAdSet,MediaCampaign,MediaControlData,MediaMetrics,MediaMetricCarrier,MediaMetricTotals} from "@/types/media-control";'],
+            ['const aggregate=(items:any[])=>{const x=items.reduce((a:unknown,c:any)=>','const aggregate=(items:MediaMetricCarrier[])=>{const x=items.reduce((a:MediaMetricTotals,c)=>'],
+            ['function mergePeriods(cur:any,prev:any)','function mergePeriods(cur:MediaControlData,prev:MediaControlData)'],
+            ['function metricsGrid(m:any,c="EGP")','function metricsGrid(m:MediaMetrics|undefined,c="EGP")'],
+            ['function insight(c:any)','function insight(c:MediaCampaign)'],
+            ['reduce((s:number,x:any)=>','reduce((s:number,x)=>'],
+            ['function healthState(m:any,p:any)','function healthState(m:MediaMetrics|undefined,p:MediaMetrics|undefined)'],
+            ['function AccountCard({a,onOpen}:{a:any;onOpen:()=>void})','function AccountCard({a,onOpen}:{a:MediaAccountGroup;onOpen:()=>void})'],
+            ['function Hierarchy({sets,currency}:{sets:unknown[];currency:string})','function Hierarchy({sets,currency}:{sets:MediaAdSet[];currency:string})'],
+            ['function CampaignCard({c,onSync,onArchive,syncing}:{c:any;onSync:()=>void;onArchive:()=>void;syncing:boolean})','function CampaignCard({c,onSync,onArchive,syncing}:{c:MediaCampaign;onSync:()=>void;onArchive:()=>void;syncing:boolean})'],
+            ['useState<any>({campaigns:[],accountGroups:[],archivedCampaigns:[],range:{start:defaultFrom,end:today}})','useState<MediaControlData>({campaigns:[],accountGroups:[],archivedCampaigns:[],range:{start:defaultFrom,end:today}})'],
+            ['(x:any)=>','(x)=>'],['(a:any)=>','(a)=>'],['(c:any)=>','(c)=>'],['(s:any)=>','(s)=>']
+          ]);
+          const g='components/media/MediaIntelligenceWorkspaceV2.tsx';
+          apply(g,[
+            ['import {useCallback,useEffect,useState} from "react";','import {useCallback,useEffect,useState} from "react";\nimport type {MediaAccountGroup,MediaAdSet,MediaCampaign,MediaControlData,MediaMetrics,MediaPortfolioHistory} from "@/types/media-control";'],
+            ['const semanticKind=(c:any)=>','const semanticKind=(c:MediaCampaign)=>'],
+            ['const semanticTotals=(items:any[])=>items.reduce((a:any,c:any)=>','const semanticTotals=(items:MediaCampaign[])=>items.reduce((a,c)=>'],
+            ['function mergePeriods(cur:any,prev:any)','function mergePeriods(cur:MediaControlData,prev:MediaControlData)'],
+            ['function recommendation(c:any)','function recommendation(c:MediaCampaign)'],
+            ['reduce((s:number,x:any)=>','reduce((s:number,x)=>'],
+            ['function motionState(c:any)','function motionState(c:MediaCampaign)'],
+            ['function Metrics({m,c="EGP",label="Results"}:{m:any;c?:string;label?:string})','function Metrics({m,c="EGP",label="Results"}:{m:MediaMetrics|undefined;c?:string;label?:string})'],
+            ['function Hierarchy({sets,currency}:{sets:unknown[];currency:string})','function Hierarchy({sets,currency}:{sets:MediaAdSet[];currency:string})'],
+            ['function AccountCard({a,total,onOpen}:{a:any;total:unknown;onOpen:()=>void})','function AccountCard({a,total,onOpen}:{a:MediaAccountGroup;total:MediaMetrics|undefined;onOpen:()=>void})'],
+            ['function CampaignCard({c,syncing,onSync,onArchive}:{c:any;syncing:boolean;onSync:()=>void;onArchive:()=>void})','function CampaignCard({c,syncing,onSync,onArchive}:{c:MediaCampaign;syncing:boolean;onSync:()=>void;onArchive:()=>void})'],
+            ['useState<any>({campaigns:[],accountGroups:[],archivedCampaigns:[],access:{},range:{start:defaultFrom,end:today}})','useState<MediaControlData>({campaigns:[],accountGroups:[],archivedCampaigns:[],access:{},range:{start:defaultFrom,end:today}})'],
+            ['useState<any>({portfolio:{},accounts:{},archivedSpend:0,archivedCampaigns:0})','useState<MediaPortfolioHistory>({portfolio:{},accounts:{},archivedSpend:0,archivedCampaigns:0})'],
+            ['(x:any)=>','(x)=>'],['(a:any)=>','(a)=>'],['(c:any)=>','(c)=>'],['(s:any)=>','(s)=>']
+          ]);
+          NODE
+          git diff --check
+      - name: Acceptance
+        shell: bash
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint components/media/MediaIntelligenceWorkspace.tsx components/media/MediaIntelligenceWorkspaceV2.tsx types/media-control.ts -f json > /tmp/e.json || true
+          node <<'NODE'
+          const r=require('/tmp/e.json'),m=r.flatMap(x=>x.messages||[]);console.log(`target_total=${m.length}`);console.log(`target_any=${m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any').length}`);console.log(JSON.stringify(m.map(x=>[x.ruleId,x.line,x.message]).slice(0,50)));if(m.length)process.exit(1)
+          NODE
+          npx eslint . -f json > /tmp/all.json || true
+          node <<'NODE'
+          const r=require('/tmp/all.json'),m=r.flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any');console.log(`remaining_any=${a.length}`);console.log(`remaining_non_any=${n.length}`);console.log(`remaining_warnings=${m.filter(x=>x.severity===1).length}`);if(n.length)process.exit(1)
+          NODE
+      - name: Commit source
+        shell: bash
+        run: |
+          git config user.name 'VIVIT CTO Gate Bot';git config user.email 'groupvivit@gmail.com'
+          git add types/media-control.ts components/media/MediaIntelligenceWorkspace.tsx components/media/MediaIntelligenceWorkspaceV2.tsx
+          git commit -m 'fix(types): model media intelligence workspace contracts [skip ci]'
+          git push origin HEAD:feat/vivito-media-types-v8

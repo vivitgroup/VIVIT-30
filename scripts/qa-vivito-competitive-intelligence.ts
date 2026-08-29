@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import {platformFromUrl} from "../lib/vivito/competitive-intelligence";
 import {likelyCompetitiveChatIntent,parseCompetitiveChatPlan} from "../lib/vivito/competitive-chat";
-let pass=0,fail=0;const check=(name:string,ok:boolean)=>{console.log(`${ok?"PASS":"FAIL"}  ${name}`);ok?pass++:fail++};
+let pass=0,fail=0;const check=(name:string,ok:boolean)=>{console.log(`${ok?"PASS":"FAIL"}  ${name}`);if(ok)pass++;else fail++};
 check("Instagram platform detection",platformFromUrl("https://www.instagram.com/example/")==="INSTAGRAM");
 check("TikTok platform detection",platformFromUrl("https://www.tiktok.com/@example")==="TIKTOK");
 check("LinkedIn platform detection",platformFromUrl("https://www.linkedin.com/company/example/")==="LINKEDIN");

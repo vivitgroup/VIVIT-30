@@ -1,10 +1,10 @@
 import {createHash} from "node:crypto";
 import {db,sql} from "@/lib/db";
 
-const rows=(x:any)=>Array.from(x as any) as any[];
-const clean=(v:any,n=2000)=>String(v??"").replace(/\s+/g," ").trim().slice(0,n);
+const rows=(x:unknown)=>Array.from(x as any) as any[];
+const clean=(v:unknown,n=2000)=>String(v??"").replace(/\s+/g," ").trim().slice(0,n);
 const clamp=(n:number,min=0,max=1)=>Math.min(max,Math.max(min,n));
-const hash=(v:any)=>createHash("sha256").update(typeof v==="string"?v:JSON.stringify(v??null)).digest("hex");
+const hash=(v:unknown)=>createHash("sha256").update(typeof v==="string"?v:JSON.stringify(v??null)).digest("hex");
 
 export type GovernanceScope={workspaceId:string;clientId?:string|null;actionOp?:string|null};
 export type EvidenceAssessment={quality:number;sources:number;stale:boolean;contradictory:boolean;missing:boolean};
@@ -35,9 +35,9 @@ export function routeByConfidence(confidence:number,evidenceQuality:number):Deci
  return{mode:"POLICY",reason:"confidence-sufficient"};
 }
 
-export function simulateDecision(input:{baseline:any;action:any}){return{mode:"SANDBOX",executed:false,baseline:input.baseline??null,proposed:input.action,warning:"Counterfactual estimate only; no causal claim and no external write."}}
+export function simulateDecision(input:{baseline:unknown;action:unknown}){return{mode:"SANDBOX",executed:false,baseline:input.baseline??null,proposed:input.action,warning:"Counterfactual estimate only; no causal claim and no external write."}}
 
-export async function recordProvenance(input:{workspaceId:string;scopeType:string;scopeId?:string|null;sourceType:string;sourceId?:string|null;sourceVersion?:string|null;content:any;confidence?:number;expiresAt?:Date|null;metadata?:any}){
+export async function recordProvenance(input:{workspaceId:string;scopeType:string;scopeId?:string|null;sourceType:string;sourceId?:string|null;sourceVersion?:string|null;content:unknown;confidence?:number;expiresAt?:Date|null;metadata?:unknown}){
  const w=workspaceId(input.workspaceId),id=crypto.randomUUID(),contentHash=hash(input.content);
  await db.execute(sql`insert into vivito_knowledge_provenance(id,workspace_id,scope_type,scope_id,source_type,source_id,source_version,content_hash,expires_at,confidence,metadata) values(${id},${w},${clean(input.scopeType,80)},${input.scopeId||null},${clean(input.sourceType,120)},${input.sourceId||null},${input.sourceVersion||null},${contentHash},${input.expiresAt||null},${clamp(Number(input.confidence??1))},${JSON.stringify(input.metadata||{})}::jsonb)`);
  return{id,contentHash};
@@ -55,13 +55,13 @@ export async function supersedeProvenance(input:{workspaceId:string;oldId:string
  return{ok:true};
 }
 
-export async function journal(input:{workspaceId:string;clientId?:string|null;eventId?:string|null;version:string;provider?:string|null;evidence:any;decision:any;confidence:number;simulation?:any;decisionType?:string;signalType?:string;rationale?:string;expectedOutcome?:string|null;status?:string}){
+export async function journal(input:{workspaceId:string;clientId?:string|null;eventId?:string|null;version:string;provider?:string|null;evidence:unknown;decision:any;confidence:number;simulation?:unknown;decisionType?:string;signalType?:string;rationale?:string;expectedOutcome?:string|null;status?:string}){
  const w=workspaceId(input.workspaceId),assessment=assessEvidence(input.evidence),id=crypto.randomUUID();
  await db.execute(sql`insert into vivito_decision_journal(id,workspace_id,client_id,event_id,decision_type,signal_type,evidence_summary,rationale_summary,expected_outcome,decision_status,decision_version,model_provider,evidence_quality,confidence,evidence,decision,simulation) values(${id},${w},${input.clientId||null},${input.eventId||null},${input.decisionType||clean(input.decision?.op||'enterprise_decision',120)},${input.signalType||'ENTERPRISE'},${JSON.stringify(input.evidence||{})}::jsonb,${clean(input.rationale||'Enterprise governance decision.',1800)},${input.expectedOutcome||null},${input.status||'PROPOSED'},${input.version},${input.provider||null},${assessment.quality},${clamp(Number(input.confidence))},${JSON.stringify(input.evidence||{})}::jsonb,${JSON.stringify(input.decision||{})}::jsonb,${JSON.stringify(input.simulation||null)}::jsonb)`);
  return{id,evidenceQuality:assessment.quality};
 }
 
-export async function saveCheckpoint(workspace:string,runKey:string,state:any,status="RUNNING",lastError?:string|null){
+export async function saveCheckpoint(workspace:string,runKey:string,state:unknown,status="RUNNING",lastError?:string|null){
  const w=workspaceId(workspace);
  await db.execute(sql`insert into vivito_runtime_checkpoints(id,workspace_id,run_key,state,status,lease_until,last_error) values(${crypto.randomUUID()},${w},${clean(runKey,240)},${JSON.stringify(state||{})}::jsonb,${status},now()+interval '10 minutes',${lastError||null}) on conflict(workspace_id,run_key) do update set state=excluded.state,status=excluded.status,attempt=vivito_runtime_checkpoints.attempt+1,lease_until=excluded.lease_until,last_error=excluded.last_error,updated_at=now()`);
 }
@@ -81,14 +81,14 @@ export async function recentNegativeLearning(input:{workspaceId:string;clientId?
  return r[0]||null;
 }
 
-export async function preflightDecision(input:{workspaceId:string;clientId?:string|null;actionOp:string;signalType:string;evidence:any;confidence:number;baseline?:any;decisionVersion?:string}){
+export async function preflightDecision(input:{workspaceId:string;clientId?:string|null;actionOp:string;signalType:string;evidence:unknown;confidence:number;baseline?:unknown;decisionVersion?:string}){
  const w=workspaceId(input.workspaceId),governance=await assertAutonomyAllowed({workspaceId:w,clientId:input.clientId,actionOp:input.actionOp}),assessment=assessEvidence(input.evidence),route=routeByConfidence(input.confidence,assessment.quality),simulation=simulateDecision({baseline:input.baseline??input.evidence,action:{op:input.actionOp}}),negative=await recentNegativeLearning({workspaceId:w,clientId:input.clientId,signalType:input.signalType,actionOp:input.actionOp});
  const provenance=await recordProvenance({workspaceId:w,scopeType:input.clientId?'CLIENT':'WORKSPACE',scopeId:input.clientId||null,sourceType:'DIRECT_OPERATOR_EVIDENCE',sourceId:`${input.signalType}:${input.actionOp}`,sourceVersion:input.decisionVersion||'direct-v3',content:input.evidence,confidence:assessment.quality,metadata:{signalType:input.signalType,actionOp:input.actionOp}});
  if(negative)return{allowed:false,route:{mode:'HUMAN_REVIEW' as const,reason:'negative-learning-history'},evidenceQuality:assessment.quality,simulation,provenance,policyVersion:governance.policyVersion,negativeLearning:negative};
  return{allowed:route.mode==='POLICY',route,evidenceQuality:assessment.quality,simulation,provenance,policyVersion:governance.policyVersion,negativeLearning:null};
 }
 
-export async function recordEval(workspace:string,metric:string,value:number,baseline:number,evidence:any={}){
+export async function recordEval(workspace:string,metric:string,value:number,baseline:number,evidence:unknown={}){
  const w=workspaceId(workspace),drift=baseline>0&&Math.abs(value-baseline)/baseline>.2;
  await db.execute(sql`insert into vivito_eval_metrics(id,workspace_id,metric_name,value,baseline,drift_detected,evidence) values(${crypto.randomUUID()},${w},${clean(metric,160)},${value},${baseline},${drift},${JSON.stringify(evidence||{})}::jsonb) on conflict(workspace_id,metric_date,metric_name) do update set value=excluded.value,baseline=excluded.baseline,drift_detected=excluded.drift_detected,evidence=excluded.evidence`);
  if(drift)await db.execute(sql`insert into vivito_escalations(id,workspace_id,event_id,client_id,assigned_to_id,severity,status,dedupe_key,message) values(${crypto.randomUUID()},${w},null,null,null,'HIGH','OPEN',${`eval-drift:${metric}:${new Date().toISOString().slice(0,10)}`},${`Evaluation drift detected for ${clean(metric,120)}: value ${value}, baseline ${baseline}.`}) on conflict(workspace_id,dedupe_key) do update set message=excluded.message,severity='HIGH',updated_at=now() where vivito_escalations.status<>'RESOLVED'`);
@@ -107,17 +107,17 @@ export async function claimNotification(workspace:string,dedupeKey:string,ttlHou
  return r.length>0;
 }
 
-export async function securityEvent(input:{workspaceId:string;actorId?:string|null;eventType:string;severity:"LOW"|"MEDIUM"|"HIGH"|"CRITICAL";fingerprint?:string|null;evidence?:any}){
+export async function securityEvent(input:{workspaceId:string;actorId?:string|null;eventType:string;severity:"LOW"|"MEDIUM"|"HIGH"|"CRITICAL";fingerprint?:string|null;evidence?:unknown}){
  const w=workspaceId(input.workspaceId);
  await db.execute(sql`insert into vivito_security_events(id,workspace_id,actor_id,event_type,severity,fingerprint,evidence) values(${crypto.randomUUID()},${w},${input.actorId||null},${clean(input.eventType,160)},${input.severity},${input.fingerprint||null},${JSON.stringify(input.evidence||{})}::jsonb)`);
 }
 
-export async function recordBackupManifest(input:{workspaceId:string;snapshotKey:string;checksum:string;recordCounts:any;status?:string}){
+export async function recordBackupManifest(input:{workspaceId:string;snapshotKey:string;checksum:string;recordCounts:unknown;status?:string}){
  const w=workspaceId(input.workspaceId);
  await db.execute(sql`insert into vivito_backup_manifests(id,workspace_id,snapshot_key,status,checksum,record_counts,format_version) values(${crypto.randomUUID()},${w},${clean(input.snapshotKey,240)},${input.status||'EXPORTED'},${input.checksum},${JSON.stringify(input.recordCounts||{})}::jsonb,1) on conflict(workspace_id,snapshot_key) do update set status=excluded.status,checksum=excluded.checksum,record_counts=excluded.record_counts`);
 }
 
-export async function verifyBackupRestore(input:{workspaceId:string;snapshotKey:string;checksum:string;recordCounts:any;details:any}){
+export async function verifyBackupRestore(input:{workspaceId:string;snapshotKey:string;checksum:string;recordCounts:unknown;details:unknown}){
  const w=workspaceId(input.workspaceId);
  const r=rows(await db.execute(sql`update vivito_backup_manifests set status='RESTORE_VERIFIED',verified_checksum=${input.checksum},restore_record_counts=${JSON.stringify(input.recordCounts||{})}::jsonb,verification_details=${JSON.stringify(input.details||{})}::jsonb,restore_verified_at=now() where workspace_id=${w} and snapshot_key=${clean(input.snapshotKey,240)} and checksum=${input.checksum} returning id`));
  if(!r.length)throw new Error('vivito-backup-manifest-checksum-mismatch');

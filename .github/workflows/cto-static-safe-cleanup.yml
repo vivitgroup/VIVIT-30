@@ -1,0 +1,85 @@
+name: CTO Static Safe Cleanup
+
+on:
+  push:
+    branches: [feat/vivito-static-safe-cleanup]
+    paths:
+      - '.github/workflows/cto-static-safe-cleanup.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-static-safe-cleanup
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply only low-risk ESLint suggestions
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx eslint . -f json > /tmp/eslint.json || true
+          node <<'NODE'
+          const fs=require('node:fs');
+          const path=require('node:path');
+          const rows=JSON.parse(fs.readFileSync('/tmp/eslint.json','utf8'));
+          let files=0,fixes=0;
+          for(const row of rows){
+            const rel=path.relative(process.cwd(),row.filePath).replaceAll('\\','/');
+            if(rel.startsWith('..')||!fs.existsSync(rel))continue;
+            const edits=[];
+            for(const msg of row.messages||[]){
+              let s=null;
+              if(msg.ruleId==='@typescript-eslint/no-unused-vars'){
+                s=(msg.suggestions||[]).find(x=>String(x.desc||'').startsWith('Remove unused')&&Array.isArray(x?.fix?.range));
+              }else if(msg.ruleId==='react/no-unescaped-entities'){
+                s=(msg.suggestions||[]).find(x=>String(x.desc||'').includes('&apos;')&&Array.isArray(x?.fix?.range));
+              }
+              if(s)edits.push({range:s.fix.range,text:s.fix.text,rule:msg.ruleId});
+            }
+            const unique=[...new Map(edits.map(e=>[`${e.range[0]}:${e.range[1]}:${e.text}`,e])).values()].sort((a,b)=>b.range[0]-a.range[0]);
+            if(!unique.length)continue;
+            let src=fs.readFileSync(rel,'utf8');
+            for(const e of unique){src=src.slice(0,e.range[0])+e.text+src.slice(e.range[1]); fixes++;}
+            fs.writeFileSync(rel,src);files++;
+          }
+          console.log(`safe_cleanup_files=${files}`);
+          console.log(`safe_cleanup_fixes=${fixes}`);
+          NODE
+      - name: Acceptance
+        run: |
+          npm run type-check
+          git diff --check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Report remaining lint
+        shell: bash
+        run: |
+          npx eslint . -f json > /tmp/eslint-after.json || true
+          node <<'NODE'
+          const fs=require('node:fs');
+          const rows=JSON.parse(fs.readFileSync('/tmp/eslint-after.json','utf8'));
+          const msgs=rows.flatMap(r=>r.messages||[]);const c={};
+          for(const m of msgs)c[m.ruleId||'(parser)']=(c[m.ruleId||'(parser)']||0)+1;
+          console.log(`remaining_total=${msgs.length}`);
+          console.log('top_rules='+JSON.stringify(Object.entries(c).sort((a,b)=>b[1]-a[1]).slice(0,20)));
+          NODE
+      - name: Commit accepted cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git add app components lib db 2>/dev/null || true
+          if ! git diff --cached --quiet; then
+            git commit -m 'fix(lint): remove verified unused code and escape text [skip ci]'
+            git push origin HEAD:feat/vivito-static-safe-cleanup
+          fi

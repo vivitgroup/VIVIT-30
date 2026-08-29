@@ -1,24 +1,25 @@
 import type { DefaultSession } from "next-auth";
+import type { Role } from "@/lib/types";
 
 declare module "next-auth" {
   interface Session {
     user: {
       id: string;
-      role?: string;
+      role?: Role;
       workspaceId?: string;
       authValid?: boolean;
     } & DefaultSession["user"];
   }
 
   interface User {
-    role?: string;
+    role?: Role;
     workspaceId?: string;
   }
 }
 
 declare module "next-auth/jwt" {
   interface JWT {
-    role?: string;
+    role?: Role;
     workspaceId?: string;
     authValid?: boolean;
   }

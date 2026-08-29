@@ -1,0 +1,57 @@
+name: CTO Executor Args V8
+
+on:
+  push:
+    branches: [feat/vivito-executor-args-v8]
+    paths: ['.github/workflows/cto-executor-args-v8.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-executor-args-v8
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Compiler-bisect action argument contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs=require('node:fs');const {spawnSync}=require('node:child_process');
+          const files=['lib/vivito/executor.ts','lib/vivito/executor-operator.ts','lib/vivito/executor-extended.ts'];
+          const originals=new Map(files.map(f=>[f,fs.readFileSync(f,'utf8')]));
+          const candidates=[];
+          for(const f of files){const s=originals.get(f);let i=0;while((i=s.indexOf('args:any',i))>=0){candidates.push({file:f,start:i,end:i+8});i+=8}}
+          const key=c=>`${c.file}:${c.start}`;const accepted=[],acceptedKeys=new Set(),rejected=[];
+          const apply=(sel)=>{const by=new Map();for(const c of sel){const a=by.get(c.file)||[];a.push(c);by.set(c.file,a)}for(const f of files){let out=originals.get(f);for(const c of (by.get(f)||[]).sort((a,b)=>b.start-a.start)){if(out.slice(c.start,c.end)!=='args:any')throw new Error(`mismatch ${key(c)}`);out=out.slice(0,c.start)+'args:Record<string,unknown>'+out.slice(c.end)}fs.writeFileSync(f,out)}};
+          const tsc=()=>spawnSync('npx',['tsc','--noEmit','--pretty','false'],{encoding:'utf8',maxBuffer:32*1024*1024});
+          const tryGroup=(group)=>{if(!group.length)return;const fresh=group.filter(c=>!acceptedKeys.has(key(c)));if(!fresh.length)return;apply([...accepted,...fresh]);const r=tsc();if(r.status===0){for(const c of fresh){accepted.push(c);acceptedKeys.add(key(c))}apply(accepted);return}apply(accepted);if(fresh.length===1){rejected.push(fresh[0]);return}const mid=Math.floor(fresh.length/2);tryGroup(fresh.slice(0,mid));tryGroup(fresh.slice(mid))};
+          tryGroup(candidates);apply(accepted);const final=tsc();if(final.status!==0){console.error(final.stdout);process.exit(1)}
+          console.log(`candidates=${candidates.length}`);console.log(`accepted=${accepted.length}`);console.log(`rejected=${rejected.length}`);console.log('accepted_files='+JSON.stringify(accepted.reduce((a,c)=>(a[c.file]=(a[c.file]||0)+1,a),{})));
+          NODE
+          git diff --check
+      - name: Acceptance and commit
+        shell: bash
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint lib/vivito/executor.ts lib/vivito/executor-operator.ts lib/vivito/executor-extended.ts -f json > /tmp/e.json || true
+          node <<'NODE'
+          const r=require('/tmp/e.json'),m=r.flatMap(x=>x.messages||[]);console.log(`executor_remaining=${m.length}`);console.log(`executor_any=${m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any').length}`);if(m.some(x=>x.ruleId!=='@typescript-eslint/no-explicit-any'))process.exit(1)
+          NODE
+          git config user.name 'VIVIT CTO Gate Bot';git config user.email 'groupvivit@gmail.com'
+          if ! git diff --quiet; then git add lib/vivito/executor.ts lib/vivito/executor-operator.ts lib/vivito/executor-extended.ts;git commit -m 'fix(types): narrow vivito action argument contracts [skip ci]';git push origin HEAD:feat/vivito-executor-args-v8;fi

@@ -15,7 +15,7 @@ async function main(){
      try{
        const out=await executeVivitoOperatorAction(op,{},role,`rbac-${role.toLowerCase()}`);
        criticalFailures++;failures.push({op,role,reason:'unauthorized action returned success/result',out});
-     }catch(error:any){
+     }catch(error){
        const status=Number(error?.status||error?.statusCode||0);
        const msg=String(error?.message||error);
        if(status===403||/permission|not have permission|forbidden/i.test(msg))blocked++;
@@ -32,7 +32,7 @@ async function main(){
      if(cases>=120)break;
      cases++;
      try{await executeVivitoOperatorAction(op,hostile,role,`attack-${role.toLowerCase()}`);criticalFailures++;failures.push({op,role,reason:'hostile unauthorized action was not blocked'});}
-     catch(error:any){const status=Number(error?.status||error?.statusCode||0),msg=String(error?.message||error);if(status===403||/permission|forbidden/i.test(msg))blocked++;else{criticalFailures++;failures.push({op,role,reason:`hostile payload reached deeper layer: ${msg}`,status});}}
+     catch(error){const status=Number(error?.status||error?.statusCode||0),msg=String(error?.message||error);if(status===403||/permission|forbidden/i.test(msg))blocked++;else{criticalFailures++;failures.push({op,role,reason:`hostile payload reached deeper layer: ${msg}`,status});}}
    }
    if(cases>=120)break;
  }

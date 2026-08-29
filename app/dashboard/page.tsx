@@ -11,9 +11,9 @@ import Link from "next/link";
 export default async function DashboardPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
-  const role   = (session.user as any).role as Role;
-  const userId = (session.user as any).id as string;
-  const workspaceId=String((session.user as any).workspaceId||"");if(!workspaceId)redirect("/login");
+  const role   = session.user.role as Role;
+  const userId = session.user.id as string;
+  const workspaceId=String(session.user.workspaceId||"");if(!workspaceId)redirect("/login");
   const roleHomes:Record<string,string>={CLIENT:"/dashboard/portal",CREATOR:"/dashboard/creative",ACCOUNTANT:"/dashboard/finance",MEDIA_BUYER:"/dashboard/media/control-center",SALES:"/dashboard/sales",ACCOUNT_MANAGER:"/dashboard/clients"};
   if(roleHomes[role])redirect(roleHomes[role]);
 

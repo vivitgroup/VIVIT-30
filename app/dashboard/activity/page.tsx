@@ -8,7 +8,7 @@ import { Role } from "@/lib/types";
 export default async function ActivityPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
-  if ((session.user as any).role !== Role.SUPER_ADMIN) redirect("/dashboard");
+  if (session.user.role !== Role.SUPER_ADMIN) redirect("/dashboard");
 
   const logs = await db.select({
     id:auditLogs.id, action:auditLogs.action, entity:auditLogs.entity,

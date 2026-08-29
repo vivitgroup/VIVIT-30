@@ -211,7 +211,7 @@ export function CalendarClient({ events, clients, approvedTasks, canManage }: Pr
       await createCalendarEvent(fd);
       setShowAdd(false);
       window.location.reload();
-    } catch (error: any) {
+    } catch(error) {
       setActionError(error?.message || "The post could not be scheduled.");
     } finally {
       setSaving(false);
@@ -247,7 +247,7 @@ export function CalendarClient({ events, clients, approvedTasks, canManage }: Pr
       if (!completeResponse.ok) throw new Error(complete.error || "Could not save the uploaded media.");
       setAssetFileId(complete.file?.id || complete.fileId);
       setAssetName(file.name);
-    } catch (error: any) {
+    } catch(error) {
       setUploadError(error.message || "The media upload failed.");
     } finally {
       setUploading(false);

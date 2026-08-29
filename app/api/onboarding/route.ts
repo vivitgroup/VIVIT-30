@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
 
   const computed=await computeProgress(clientId);
   if(!Object.keys(computed).length)return NextResponse.json({error:"Client not found"},{status:404});
-  const completedBy=String((session.user as any).id||"");
+  const completedBy=String(session.user.id||"");
   const existingRows=await db.select().from(onboardingProgress).where(eq(onboardingProgress.clientId,clientId));
   for(const [stepId,isDone] of Object.entries(computed)){
     const existing=existingRows.find(r=>r.stepId===stepId);
@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
   if(!(await canAccessClient(session,clientId,{write:true})))return NextResponse.json({error:"Forbidden"},{status:403});
   const value=body.value??true;
   const [existing]=await db.select().from(onboardingProgress).where(and(eq(onboardingProgress.clientId,clientId),eq(onboardingProgress.stepId,step))).limit(1);
-  const update={completed:value,completedAt:value?new Date():null,completedBy:value?String((session.user as any).id):null};
+  const update={completed:value,completedAt:value?new Date():null,completedBy:value?String(session.user.id):null};
   if(existing)await db.update(onboardingProgress).set(update).where(eq(onboardingProgress.id,existing.id));
   else await db.insert(onboardingProgress).values({clientId,stepId:step,...update});
   const rows=await db.select().from(onboardingProgress).where(eq(onboardingProgress.clientId,clientId));

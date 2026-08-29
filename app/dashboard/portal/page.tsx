@@ -12,8 +12,8 @@ const labelKind=(label:string)=>{const x=String(label||"").toLowerCase();if(x.in
 
 async function portalAction(fd:FormData){
  "use server";
- const session=await auth();if(!session?.user||(session.user as any).role!=="CLIENT")throw new Error("Unauthorized");
- const userId=String((session.user as any).id),workspaceId=String((session.user as any).workspaceId||"");if(!workspaceId)throw new Error("Workspace unavailable");const taskId=String(fd.get("taskId")||""),decision=String(fd.get("decision")||""),comment=String(fd.get("comment")||"").trim().slice(0,1000);
+ const session=await auth();if(!session?.user||session.user.role!=="CLIENT")throw new Error("Unauthorized");
+ const userId=String(session.user.id),workspaceId=String(session.user.workspaceId||"");if(!workspaceId)throw new Error("Workspace unavailable");const taskId=String(fd.get("taskId")||""),decision=String(fd.get("decision")||""),comment=String(fd.get("comment")||"").trim().slice(0,1000);
  if(!taskId||!["APPROVED","REVISION"].includes(decision))throw new Error("Invalid review request");
  const clientRows:any=await db.execute(sql`select id from clients where workspace_id=${workspaceId} and user_id=${userId} and is_active=true limit 1`),client=clientRows?.[0];if(!client)throw new Error("Client not found");
  const rows:any=await db.execute(sql`select id,title,status,file_url,assigned_to_id from creative_tasks where id=${taskId} and client_id=${client.id} and workspace_id=${workspaceId} and archived_at is null limit 1`),task=rows?.[0];
@@ -26,8 +26,8 @@ async function portalAction(fd:FormData){
 }
 
 export default async function PortalPage(){
- const session=await auth();if(!session?.user)redirect("/login");if((session.user as any).role!=="CLIENT")redirect("/dashboard");
- const userId=String((session.user as any).id),workspaceId=String((session.user as any).workspaceId||"");if(!workspaceId)redirect("/login?reason=workspace_missing");
+ const session=await auth();if(!session?.user)redirect("/login");if(session.user.role!=="CLIENT")redirect("/dashboard");
+ const userId=String(session.user.id),workspaceId=String(session.user.workspaceId||"");if(!workspaceId)redirect("/login?reason=workspace_missing");
  const clientRows:any=await db.execute(sql`select id,company_name,industry,currency,logo,facebook_url,instagram_url,website,health_score,contract_start,contract_end from clients where workspace_id=${workspaceId} and user_id=${userId} and is_active=true limit 1`),client=clientRows?.[0];
  if(!client)return <div className="card"><div className="card-body" style={{padding:48,textAlign:"center"}}><h1 className="page-title">Client Portal</h1><p className="page-subtitle">No active client workspace is linked to this account.</p></div></div>;
  const now=new Date(),monthStart=`${now.getUTCFullYear()}-${String(now.getUTCMonth()+1).padStart(2,"0")}-01`,today=now.toISOString().slice(0,10);

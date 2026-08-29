@@ -9,12 +9,12 @@ import Link from "next/link";
 async function addMetrics(fd: FormData) {
   "use server";
   const session=await auth();
-  if(!session?.user||![Role.SUPER_ADMIN,Role.MEDIA_BUYER,Role.ACCOUNT_MANAGER].includes((session.user as any).role)) throw new Error("Unauthorized");
+  if(!session?.user||![Role.SUPER_ADMIN,Role.MEDIA_BUYER,Role.ACCOUNT_MANAGER].includes(session.user.role)) throw new Error("Unauthorized");
   const { db, mediaMetrics, clients } = await import("@/lib/db");
   const { eq, and } = await import("drizzle-orm");
-  const role=(session.user as any).role as Role;
-  const userId=String((session.user as any).id||"");
-  const workspaceId=String((session.user as any).workspaceId||"");if(!workspaceId)throw new Error("Workspace unavailable");
+  const role=session.user.role as Role;
+  const userId=String(session.user.id||"");
+  const workspaceId=String(session.user.workspaceId||"");if(!workspaceId)throw new Error("Workspace unavailable");
   const clientId = String(fd.get("clientId")||"");
   const platform = String(fd.get("platform")||"");
   const allowedPlatforms=["meta","instagram","tiktok","google","snapchat","linkedin","twitter"];
@@ -40,9 +40,9 @@ async function addMetrics(fd: FormData) {
 export default async function MediaPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
-  const role = (session.user as any).role as Role;
-  const userId = (session.user as any).id as string;
-  const workspaceId=String((session.user as any).workspaceId||"");if(!workspaceId)redirect("/login");
+  const role = session.user.role as Role;
+  const userId = session.user.id as string;
+  const workspaceId=String(session.user.workspaceId||"");if(!workspaceId)redirect("/login");
   if (![Role.SUPER_ADMIN,Role.MEDIA_BUYER,Role.ACCOUNT_MANAGER].includes(role)) redirect("/dashboard");
 
   const now     = new Date();

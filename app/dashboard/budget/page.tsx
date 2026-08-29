@@ -9,7 +9,7 @@ import Link from "next/link";
 export default async function BudgetPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
-  const role = (session.user as any).role as Role;
+  const role = session.user.role as Role;
   if (![Role.SUPER_ADMIN,Role.MEDIA_BUYER,Role.ACCOUNT_MANAGER].includes(role)) redirect("/dashboard");
 
   const now     = new Date();
@@ -18,7 +18,7 @@ export default async function BudgetPage() {
   const daysElapsed  = now.getDate();
   const daysRemaining = daysInMonth - daysElapsed;
 
-  const userId=String((session.user as any).id||"");
+  const userId=String(session.user.id||"");
   const clientScope=role===Role.ACCOUNT_MANAGER
     ? and(eq(clients.isActive,true),eq(clients.accountManagerId,userId))
     : role===Role.MEDIA_BUYER

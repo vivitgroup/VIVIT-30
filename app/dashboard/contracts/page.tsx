@@ -13,7 +13,7 @@ const RENEWAL_DAYS=[7,14,30,60];
 async function createContract(fd: FormData) {
   "use server";
   const session=await auth();
-  if(!session?.user||![Role.SUPER_ADMIN,Role.ACCOUNTANT].includes((session.user as any).role))throw new Error("Unauthorized");
+  if(!session?.user||![Role.SUPER_ADMIN,Role.ACCOUNTANT].includes(session.user.role))throw new Error("Unauthorized");
   const clientId=String(fd.get("clientId")||"");
   const title=String(fd.get("title")||"").trim().slice(0,140);
   const startDateRaw=String(fd.get("startDate")||"");
@@ -44,7 +44,7 @@ async function createContract(fd: FormData) {
 export default async function ContractsPage(){
   const session=await auth();
   if(!session?.user)redirect("/login");
-  if(![Role.SUPER_ADMIN,Role.ACCOUNTANT].includes((session.user as any).role))redirect("/dashboard");
+  if(![Role.SUPER_ADMIN,Role.ACCOUNTANT].includes(session.user.role))redirect("/dashboard");
 
   const [allContracts,allClients]=await Promise.all([
     db.select().from(contracts).orderBy(desc(contracts.endDate)),

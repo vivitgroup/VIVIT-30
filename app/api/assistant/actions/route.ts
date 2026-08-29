@@ -21,7 +21,7 @@ async function applyExternalCampaignWrite(op:VivitoActionOp,args:any,result:Vivi
 export async function POST(req:NextRequest){
  const session=await auth();if(!session?.user)return NextResponse.json({error:"Unauthorized"},{status:401});
  const body=await req.json().catch(()=>null);if(!body)return NextResponse.json({error:"Invalid request."},{status:400});
- const role=String((session.user as any).role||""),userId=String((session.user as any).id||""),workspaceId=String((session.user as any).workspaceId||"");if(!workspaceId)return NextResponse.json({error:"Workspace unavailable"},{status:403,headers:noStore});
+ const role=String(session.user.role||""),userId=String(session.user.id||""),workspaceId=String(session.user.workspaceId||"");if(!workspaceId)return NextResponse.json({error:"Workspace unavailable"},{status:403,headers:noStore});
  if(body.retryOf){const retryId=clean(body.retryOf,120);const owner=role==="SUPER_ADMIN"?sql``:sql`and user_id=${userId}`;const prior=Array.from(await db.execute(sql`select new_values from audit_logs where workspace_id=${workspaceId} and id=${retryId} and action='vivito_action_failed' ${owner} limit 1`)) as any[];if(!prior[0])return NextResponse.json({error:"Retry source was not found or is not accessible."},{status:404,headers:noStore});let saved:any={};try{saved=JSON.parse(String(prior[0].new_values||"{}"))}catch{}body.op=saved.op;body.args=saved.args||{};body.requestId=`retry:${retryId}`;}
  const requestId=clean(body.requestId,100),plan=Array.isArray(body.plan)?body.plan.slice(0,8):null;
  if(plan?.length){

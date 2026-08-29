@@ -14,12 +14,12 @@ export default function SignupPage() {
     if(form.password.length<8)return setError("Password must be at least 8 characters.");
     if(form.password!==form.confirmPassword)return setError("Passwords do not match.");
     setLoading(true);
-    try{const res=await fetch("/api/signup",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(form)});const data=await res.json();if(!res.ok)throw new Error(data.error||"Could not send your request.");setSent(true);}catch(e:any){setError(e.message);}finally{setLoading(false);}
+    try{const res=await fetch("/api/signup",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(form)});const data=await res.json();if(!res.ok)throw new Error(data.error||"Could not send your request.");setSent(true);}catch(e){setError(e.message);}finally{setLoading(false);}
   }
   async function sendOtp(){
     if(!/^[a-z0-9._%+-]+@gmail\.com$/i.test(form.email))return setError("Use a valid Gmail address first.");
     setLoading(true);setError("");
-    try{const res=await fetch("/api/signup/otp",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:form.email})});const data=await res.json();if(!res.ok)throw new Error(data.error||"Could not send verification code.");setOtpSent(true);}catch(e:any){setError(e.message);}finally{setLoading(false);}
+    try{const res=await fetch("/api/signup/otp",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:form.email})});const data=await res.json();if(!res.ok)throw new Error(data.error||"Could not send verification code.");setOtpSent(true);}catch(e){setError(e.message);}finally{setLoading(false);}
   }
   return <main className="access-layout" style={{minHeight:"100vh",display:"grid",gridTemplateColumns:"minmax(300px,.85fr) minmax(420px,1.15fr)",background:"#F8F5ED",fontFamily:"Inter,system-ui,sans-serif"}}>
     <section className="login-brand-panel" style={{padding:48,background:"linear-gradient(150deg,#201F20 0%,#7D1820 45%,#C52A31 100%)",color:"white",display:"flex",flexDirection:"column",justifyContent:"space-between",position:"relative",overflow:"hidden"}}>

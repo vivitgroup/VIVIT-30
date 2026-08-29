@@ -9,7 +9,7 @@ import Link from "next/link";
 export default async function NPSPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
-  const role = (session.user as any).role as Role;
+  const role = session.user.role as Role;
   if (role !== Role.SUPER_ADMIN) redirect("/dashboard");
 
   const allFeedback = await db.select({

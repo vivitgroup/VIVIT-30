@@ -83,7 +83,7 @@ async function readUploadedImageForVivito(userId:string,attachment:any,workspace
 export async function POST(req:NextRequest){
  const session=await auth();if(!session?.user)return NextResponse.json({error:"Unauthorized"},{status:401});
  const body=await req.json().catch(()=>({})),question=String(body.question||"").trim().slice(0,1600);if(!question)return NextResponse.json({error:"Ask a question first."},{status:400});
- const role=String((session.user as any).role||""),userId=String((session.user as any).id||""),workspaceId=String((session.user as any).workspaceId||"");if(!workspaceId)return NextResponse.json({error:"Workspace unavailable"},{status:403});
+ const role=String(session.user.role||""),userId=String(session.user.id||""),workspaceId=String(session.user.workspaceId||"");if(!workspaceId)return NextResponse.json({error:"Workspace unavailable"},{status:403});
  const attachments=Array.isArray(body.attachments)?body.attachments.slice(0,5).map((x:any)=>({fileId:String(x?.fileId||"").slice(0,100),name:String(x?.name||"").slice(0,255),mimeType:String(x?.mimeType||"").slice(0,120)})).filter((x:any)=>x.fileId):[];
  const clients=await clientScope(role,userId,workspaceId),ids=clients.map((c:any)=>String(c.id));
  const [tasks,campaigns,tracking,clientHealth,sales,finance,memories]=await Promise.all([taskContext(role,userId,ids,workspaceId),mediaContext(role,ids,workspaceId),trackingContext(role,ids,workspaceId),clientHealthContext(role,ids,workspaceId),salesContext(role,userId,workspaceId),financeContext(role,ids,workspaceId),loadVivitoMemories(userId,role,ids,workspaceId)]);
@@ -97,7 +97,7 @@ export async function POST(req:NextRequest){
     let added=0;for(const comp of cp.competitors){if(!comp.urls.length)continue;const w=Array.from(await db.execute(sql`insert into competitor_watchlists(workspace_id,client_id,competitor_name,created_by) values(${workspaceId},${String(client.id)},${comp.name||"Competitor"},${userId}) returning id`) as any)[0] as any;for(const url of comp.urls){const platform=platformFromUrl(url);await db.execute(sql`insert into competitor_social_profiles(watchlist_id,platform,profile_url) values(${String(w.id)},${platform},${url}) on conflict do nothing`);added++}}
     return NextResponse.json({answer:isArabic(question)?"تم تفعيل مراقبة المنافسين: "+added+" حساب/رابط. VIVITO هيخزن snapshots يومية ويطلع التغييرات والتقرير.":"Competitive monitoring enabled for "+added+" social profile(s). Daily snapshots and deltas are now configured.",mode:"competitive-setup",intelligence:"VIVITO",sources:["VIVITO Competitive Intelligence"]},{headers:{"Cache-Control":"private, no-store"}})
    }
-  }catch(error:any){return NextResponse.json({answer:isArabic(question)?"مش قادر أفعّل المراقبة بالروابط دي. اتأكد إن الروابط عامة وصحيحة.":"I could not configure monitoring from those links. Use valid public social URLs.",mode:"competitive-error",intelligence:"VIVITO"},{headers:{"Cache-Control":"private, no-store"}})}
+  }catch(error){return NextResponse.json({answer:isArabic(question)?"مش قادر أفعّل المراقبة بالروابط دي. اتأكد إن الروابط عامة وصحيحة.":"I could not configure monitoring from those links. Use valid public social URLs.",mode:"competitive-error",intelligence:"VIVITO"},{headers:{"Cache-Control":"private, no-store"}})}
  }
 
  if(likelyVivitoArtifactIntent(question)){
@@ -127,7 +127,7 @@ export async function POST(req:NextRequest){
     const saved=await saveVivitoMemory({kind:memoryPlan.kind,scopeType:memoryPlan.scopeType,scopeId,text:memoryPlan.text},userId,role,workspaceId);return NextResponse.json({answer:arabic?`اتحفظت في ذاكرة VIVITO: ${saved.text}`:`Saved to VIVITO memory: ${saved.text}`,mode:"memory-saved",intelligence:"VIVITO",memory:{id:saved.id,kind:saved.kind,scopeType:saved.scopeType}},{headers:{"Cache-Control":"private, no-store"}})
    }
    if(memoryPlan?.op==="forget"){const result=await forgetVivitoMemory(memoryPlan.query,userId,role,ids,workspaceId);return NextResponse.json({answer:arabic?`تم حذف ${result.forgotten} عنصر من ذاكرة VIVITO.`:`Removed ${result.forgotten} VIVITO memory item(s).`,mode:"memory-forgotten",intelligence:"VIVITO"},{headers:{"Cache-Control":"private, no-store"}})}
-  }catch(error:any){return NextResponse.json({answer:String(error?.message||"VIVITO could not update memory safely."),mode:"memory-rejected",intelligence:"VIVITO"},{headers:{"Cache-Control":"private, no-store"}})}
+  }catch(error){return NextResponse.json({answer:String(error?.message||"VIVITO could not update memory safely."),mode:"memory-rejected",intelligence:"VIVITO"},{headers:{"Cache-Control":"private, no-store"}})}
  }
 
  if(likelyVivitoActionIntent(question,attachments.length)){

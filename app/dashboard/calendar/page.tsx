@@ -8,7 +8,7 @@ import {CalendarClient} from "@/components/calendar/CalendarClient";
 
 export default async function CalendarPage({searchParams}:{searchParams:Promise<{clientId?:string}>}){
  const session=await auth();if(!session?.user)redirect("/login");
- const role=(session.user as any).role as Role,userId=String((session.user as any).id),workspaceId=String((session.user as any).workspaceId||""),q=await searchParams;if(!workspaceId)redirect("/login?reason=workspace_missing");
+ const role=session.user.role as Role,userId=String(session.user.id),workspaceId=String(session.user.workspaceId||""),q=await searchParams;if(!workspaceId)redirect("/login?reason=workspace_missing");
  if(![Role.SUPER_ADMIN,Role.ACCOUNT_MANAGER,Role.MEDIA_BUYER,Role.CREATOR,Role.SALES,Role.CLIENT].includes(role))redirect("/dashboard");
  const now=new Date(),start=new Date(now.getFullYear(),now.getMonth()-1,1),end=new Date(now.getFullYear(),now.getMonth()+2,0);
  const activeClientBase=and(eq(clients.workspaceId,workspaceId),eq(clients.isActive,true));

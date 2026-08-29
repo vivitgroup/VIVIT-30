@@ -6,7 +6,7 @@ import DirectOperatorPanel from "@/components/vivito/DirectOperatorPanel";
 import {resolveVivitoWorkspaceForUser} from "@/lib/vivito/direct-runtime";
 const rows=(v:any)=>Array.from(v as any) as any[];
 export default async function VivitoOperationsPage(){
- const session=await auth();if(!session?.user)redirect("/login");const role=String((session.user as any).role||""),userId=String((session.user as any).id||"");
+ const session=await auth();if(!session?.user)redirect("/login");const role=String(session.user.role||""),userId=String(session.user.id||"");
  if(!["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"].includes(role))redirect("/dashboard/ai-studio");
  const workspaceId=await resolveVivitoWorkspaceForUser(userId);const owner=role==="SUPER_ADMIN"?sql``:sql`and user_id=${userId}`;
  const raw=rows(await db.execute(sql`select id,user_id,action,entity,entity_id,new_values,created_at from audit_logs where workspace_id=${workspaceId} and action like 'vivito_%' ${owner} order by created_at desc limit 120`));

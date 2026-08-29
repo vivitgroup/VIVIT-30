@@ -8,7 +8,7 @@ async function discoverSnapAccount(accessToken:string){const headers={Authorizat
 
 export async function GET(req:NextRequest,{params}:{params:Promise<{platform:string}>}){const home=new URL("/dashboard/media/control-center",req.url);try{
  const session=await auth();if(!session?.user)throw new Error("Session expired — sign in and try again");
- const role=String((session.user as any).role||""),userId=String((session.user as any).id||""),workspaceId=String((session.user as any).workspaceId||"").trim();
+ const role=String(session.user.role||""),userId=String(session.user.id||""),workspaceId=String(session.user.workspaceId||"").trim();
  if(!workspaceId)throw new Error("Workspace context is missing");
  if(!["SUPER_ADMIN","MEDIA_BUYER","ACCOUNT_MANAGER"].includes(role))throw new Error("You no longer have permission to connect ad accounts");
  const {platform:raw}=await params,platform=raw.toUpperCase() as OAuthPlatform;const state=verifyState(req.nextUrl.searchParams.get("state")||"");if(state.platform!==platform||state.userId!==userId)throw new Error("OAuth state mismatch");
@@ -20,4 +20,4 @@ export async function GET(req:NextRequest,{params}:{params:Promise<{platform:str
  const [row]=await db.insert(adPlatformConnections).values({workspaceId,clientId:state.clientId,platform,adAccountId,accountName,accessTokenEncrypted:encryptToken(tokens.accessToken),refreshTokenEncrypted:encryptToken(tokens.refreshToken),tokenExpiresAt:tokens.expiresIn?new Date(Date.now()+tokens.expiresIn*1000):null,status:"CONNECTED",createdBy:userId}).onConflictDoUpdate({target:[adPlatformConnections.platform,adPlatformConnections.adAccountId],set:{workspaceId,clientId:state.clientId,accountName,accessTokenEncrypted:encryptToken(tokens.accessToken),refreshTokenEncrypted:encryptToken(tokens.refreshToken),tokenExpiresAt:tokens.expiresIn?new Date(Date.now()+tokens.expiresIn*1000):null,status:"CONNECTED",syncError:null,updatedAt:new Date()}}).returning();
  await db.insert(auditLogs).values({workspaceId,userId,action:"ad_platform_oauth_connected",entity:"ad_platform_connections",entityId:row.id,newValues:JSON.stringify({platform,adAccountId,clientId:state.clientId})});
  home.searchParams.set("oauth","success");home.searchParams.set("platform",platform);home.searchParams.set("connectionId",row.id);return NextResponse.redirect(home);
- }catch(e:any){home.searchParams.set("oauth","error");home.searchParams.set("message",String(e.message||"Connection failed").slice(0,180));return NextResponse.redirect(home);}}
+ }catch(e){home.searchParams.set("oauth","error");home.searchParams.set("message",String(e.message||"Connection failed").slice(0,180));return NextResponse.redirect(home);}}

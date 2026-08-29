@@ -19,7 +19,7 @@ export async function analyzeVivitoImage(input:VisionInput){
 async function researchArgs(workspaceOrPrompt:string,promptMaybe?:string){
  if(promptMaybe!==undefined){const workspaceId=String(workspaceOrPrompt||"").trim(),prompt=String(promptMaybe||"").trim();if(!workspaceId)throw new Error("workspace-required-for-grounded-research");if(!prompt)throw new Error("prompt-required-for-grounded-research");return{workspaceId,prompt}}
  const prompt=String(workspaceOrPrompt||"").trim();if(!prompt)throw new Error("prompt-required-for-grounded-research");
- const {auth}=await import("@/lib/auth");const session=await auth(),workspaceId=String((session?.user as any)?.workspaceId||"").trim();if(!workspaceId)throw new Error("workspace-required-for-grounded-research");return{workspaceId,prompt};
+ const {auth}=await import("@/lib/auth");const session=await auth(),workspaceId=String(session?.user?.workspaceId||"").trim();if(!workspaceId)throw new Error("workspace-required-for-grounded-research");return{workspaceId,prompt};
 }
 
 export async function groundedVivitoResearch(workspaceId:string,prompt:string):Promise<VivitoGroundedResearch>;

@@ -29,10 +29,10 @@ async function toggleStep(clientId: string, stepId: string, completed: boolean) 
   const { db, onboardingProgress, clients } = await import("@/lib/db");
   const { eq, and } = await import("drizzle-orm");
   const session = await getAuth();
-  const role = (session?.user as any)?.role as Role | undefined;
+  const role = session?.user?.role as Role | undefined;
   if (!session?.user || ![Role.SUPER_ADMIN, Role.ACCOUNT_MANAGER].includes(role!)) throw new Error("Unauthorized");
   if (!STEPS.some(step => step.id === stepId)) throw new Error("Invalid onboarding step");
-  const userId = (session.user as any).id as string;
+  const userId = session.user.id as string;
   if (role === Role.ACCOUNT_MANAGER) {
     const [ownedClient] = await db.select({ id: clients.id }).from(clients)
       .where(and(eq(clients.id, clientId), eq(clients.accountManagerId, userId), eq(clients.isActive, true))).limit(1);
@@ -59,10 +59,10 @@ async function toggleStep(clientId: string, stepId: string, completed: boolean) 
 export default async function OnboardingPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
-  const role = (session.user as any).role as Role;
+  const role = session.user.role as Role;
   if (![Role.SUPER_ADMIN, Role.ACCOUNT_MANAGER].includes(role)) redirect("/dashboard");
 
-  const userId = String((session.user as any).id || "");
+  const userId = String(session.user.id || "");
   const allClients = await db.select({ id: clients.id, companyName: clients.companyName, createdAt: clients.createdAt })
     .from(clients).where(role === Role.ACCOUNT_MANAGER
       ? and(eq(clients.isActive, true), eq(clients.accountManagerId, userId))

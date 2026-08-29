@@ -9,7 +9,7 @@ import {NewClientForm} from "@/components/clients/NewClientForm";
 export default async function NewClientPage(){
   const session=await auth();
   if(!session?.user)redirect("/login");
-  const role=String((session.user as any).role);
+  const role=String(session.user.role);
   if(!["SUPER_ADMIN","ACCOUNT_MANAGER","ACCOUNTANT"].includes(role))redirect("/dashboard/clients");
   const [team,portalUsers,linked]=await Promise.all([
     db.select({id:users.id,name:users.name,role:users.role}).from(users).where(and(eq(users.isActive,true),inArray(users.role,["ACCOUNT_MANAGER","MEDIA_BUYER"] as any))),

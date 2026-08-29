@@ -7,7 +7,7 @@ import {and,eq,sql} from "drizzle-orm";
 export async function GET(){
  try{
   const session=await auth();if(!session?.user)return NextResponse.json({error:"Unauthorized"},{status:401});
-  const role=String((session.user as any).role||""),userId=String((session.user as any).id||""),workspaceId=String((session.user as any).workspaceId||"").trim();if(!workspaceId)return NextResponse.json({error:"Workspace context is required"},{status:403});if(!["SUPER_ADMIN","MEDIA_BUYER","ACCOUNT_MANAGER"].includes(role))return NextResponse.json({error:"Forbidden"},{status:403});
+  const role=String(session.user.role||""),userId=String(session.user.id||""),workspaceId=String(session.user.workspaceId||"").trim();if(!workspaceId)return NextResponse.json({error:"Workspace context is required"},{status:403});if(!["SUPER_ADMIN","MEDIA_BUYER","ACCOUNT_MANAGER"].includes(role))return NextResponse.json({error:"Forbidden"},{status:403});
   const roleScope=role==="MEDIA_BUYER"?eq(clients.mediaBuyerId,userId):role==="ACCOUNT_MANAGER"?eq(clients.accountManagerId,userId):eq(clients.workspaceId,workspaceId);
   const owned=await db.select({id:clients.id}).from(clients).where(and(eq(clients.workspaceId,workspaceId),eq(clients.isActive,true),roleScope));
   const ids=owned.map(x=>x.id);if(!ids.length)return NextResponse.json({campaigns:[]},{headers:{"Cache-Control":"private, no-store"}});

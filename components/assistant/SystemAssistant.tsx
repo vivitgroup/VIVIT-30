@@ -24,13 +24,13 @@ export function SystemAssistant({role}:{role:string}){
  async function executeAction(messageId:string,action:ActionProposal,requestId?:string){
   const id=requestId||crypto.randomUUID();setMsgs(m=>m.map(x=>x.id===messageId?{...x,actionRequestId:id,actionState:"running"}:x));
   try{const r=await fetch("/api/assistant/actions",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({op:action.op,args:action.args,confirm:true,requestId:id}),cache:"no-store"}),d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||"Action failed");const text=d?.result?.message||"Action completed.";setMsgs(m=>m.map(x=>x.id===messageId?{...x,actionState:"done",actionResult:text}:x))}
-  catch(e:any){setMsgs(m=>m.map(x=>x.id===messageId?{...x,actionState:"failed",actionResult:e?.message||"Action failed safely."}:x))}
+  catch(e){setMsgs(m=>m.map(x=>x.id===messageId?{...x,actionState:"failed",actionResult:e?.message||"Action failed safely."}:x))}
  }
 
  async function executePlan(messageId:string,plan:ActionPlan,requestId?:string){
   const id=requestId||crypto.randomUUID();setMsgs(m=>m.map(x=>x.id===messageId?{...x,planRequestId:id,planState:"running"}:x));
   try{const r=await fetch("/api/assistant/actions",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({plan:plan.steps.map(s=>({op:s.op,args:s.args,summary:s.summary})),confirm:true,requestId:id}),cache:"no-store"}),d=await r.json().catch(()=>({}));if(!r.ok){const completed=Array.isArray(d.completedSteps)?d.completedSteps.length:0;throw new Error(`${d.error||"Plan stopped safely."}${completed?` · ${completed} step(s) completed`:""}`)}const text=`${Array.isArray(d.results)?d.results.length:plan.steps.length} step(s) completed successfully.`;setMsgs(m=>m.map(x=>x.id===messageId?{...x,planState:"done",planResult:text}:x))}
-  catch(e:any){setMsgs(m=>m.map(x=>x.id===messageId?{...x,planState:"failed",planResult:e?.message||"Plan stopped safely."}:x))}
+  catch(e){setMsgs(m=>m.map(x=>x.id===messageId?{...x,planState:"failed",planResult:e?.message||"Plan stopped safely."}:x))}
  }
 
  async function generateArtifact(messageId:string,a:ArtifactProposal){
@@ -39,7 +39,7 @@ export function SystemAssistant({role}:{role:string}){
    const r=await fetch(endpoint,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload),cache:"no-store"});if(!r.ok){const d=await r.json().catch(()=>({}));throw new Error(d.error||"Artifact generation failed")};const ct=String(r.headers.get("content-type")||"");
    if(isPdf&&ct.includes("text/html")){const html=await r.text();if(!preview)throw new Error("Popup was blocked. Allow popups to print this PDF.");preview.document.open();preview.document.write(html);preview.document.close();setTimeout(()=>{preview.focus();preview.print()},450);setMsgs(m=>m.map(x=>x.id===messageId?{...x,artifactState:"done",artifactResult:"Print-ready PDF opened with professional RTL/browser rendering."}:x));return}
    preview?.close();const blob=await r.blob(),url=URL.createObjectURL(blob),link=document.createElement("a");link.href=url;const ext=isPdf?"pdf":isPptx?"pptx":"xlsx";link.download=(a.fileName||"vivito-artifact")+"."+ext;document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);const label=isPdf?"PDF":isPptx?"PowerPoint presentation":"Excel workbook";setMsgs(m=>m.map(x=>x.id===messageId?{...x,artifactState:"done",artifactResult:label+" generated."}:x))
-  }catch(e:any){preview?.close();setMsgs(m=>m.map(x=>x.id===messageId?{...x,artifactState:"failed",artifactResult:e?.message||"Artifact generation failed safely."}:x))}
+  }catch(e){preview?.close();setMsgs(m=>m.map(x=>x.id===messageId?{...x,artifactState:"failed",artifactResult:e?.message||"Artifact generation failed safely."}:x))}
  }
 
  async function send(text=q){
@@ -50,7 +50,7 @@ export function SystemAssistant({role}:{role:string}){
  }
 
  async function uploadFile(file:File){if(file.size>500*1024*1024)throw new Error("Maximum file size is 500 MB.");const sign=await fetch("/api/files",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({op:"sign",name:file.name,size:file.size,mimeType:file.type})}),signed=await sign.json().catch(()=>({}));if(!sign.ok)throw new Error(signed.error||"Could not prepare upload");await new Promise<void>((resolve,reject)=>{const xhr=new XMLHttpRequest();xhr.open("PUT",signed.uploadUrl);xhr.setRequestHeader("x-upsert","false");xhr.onerror=()=>reject(new Error("Network error while uploading."));xhr.onload=()=>xhr.status>=200&&xhr.status<300?resolve():reject(new Error(`Storage rejected the file (${xhr.status}).`));const body=new FormData();body.append("cacheControl","3600");body.append("",file,file.name);xhr.send(body)});const complete=await fetch("/api/files",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({op:"complete",path:signed.path,name:file.name,size:file.size,mimeType:file.type,category:"GENERAL",clientId:null,taskId:null})}),done=await complete.json().catch(()=>({}));if(!complete.ok)throw new Error(done.error||"Could not save file details");return{fileId:String(done.file?.id||done.fileId||""),name:file.name,mimeType:file.type||"application/octet-stream"}}
- async function chooseFile(e:ChangeEvent<HTMLInputElement>){const file=e.target.files?.[0];e.target.value="";if(!file)return;setUploading(true);try{const a=await uploadFile(file);if(!a.fileId)throw new Error("Upload completed without a file reference.");setAttachments([a])}catch(err:any){setMsgs(m=>[...m,{id:mid(),who:"vivito",text:err?.message||"File upload failed."}])}finally{setUploading(false)}}
+ async function chooseFile(e:ChangeEvent<HTMLInputElement>){const file=e.target.files?.[0];e.target.value="";if(!file)return;setUploading(true);try{const a=await uploadFile(file);if(!a.fileId)throw new Error("Upload completed without a file reference.");setAttachments([a])}catch(err){setMsgs(m=>[...m,{id:mid(),who:"vivito",text:err?.message||"File upload failed."}])}finally{setUploading(false)}}
 
  const intro=isClient?"أنا VIVITO. شايف حسابك والتاسكات والريفيو والديدلاينز المسموح لك بيها.":isAdmin?"أنا VIVITO — VIVIT Operating Intelligence. بفهم، بفتكر القواعد المصرّح بها، وبنفّذ workflows حقيقية جوه السيستم بصلاحياتك.":"أنا VIVITO. هربط سؤالك بالداتا، أفتكر قواعدك المصرّح بها، وأنفّذ العمليات المسموح بها لدورك.";
  const artifactLabel=(a:ArtifactProposal)=>a.kind==="pdf"?"PROFESSIONAL PDF":a.kind==="pptx"?"POWERPOINT · PPTX":a.kind==="content-plan"?"CONTENT PLAN · XLSX":"EXCEL WORKBOOK";

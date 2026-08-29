@@ -7,7 +7,7 @@ import {and,eq} from "drizzle-orm";
 const allowed=["META","TIKTOK","GOOGLE","SNAPCHAT","LINKEDIN"];
 export async function GET(req:NextRequest,{params}:{params:Promise<{platform:string}>}){
  const session=await auth();if(!session?.user)return NextResponse.redirect(new URL("/login",req.url));
- const role=String((session.user as any).role||""),userId=String((session.user as any).id||""),workspaceId=String((session.user as any).workspaceId||"").trim();
+ const role=String(session.user.role||""),userId=String(session.user.id||""),workspaceId=String(session.user.workspaceId||"").trim();
  if(!workspaceId)return NextResponse.redirect(new URL("/dashboard?oauth=workspace-missing",req.url));
  if(!["SUPER_ADMIN","MEDIA_BUYER","ACCOUNT_MANAGER"].includes(role))return NextResponse.redirect(new URL("/dashboard?oauth=forbidden",req.url));
  const {platform:raw}=await params,platform=raw.toUpperCase() as OAuthPlatform;if(!allowed.includes(platform))return NextResponse.json({error:"Unsupported platform"},{status:400});

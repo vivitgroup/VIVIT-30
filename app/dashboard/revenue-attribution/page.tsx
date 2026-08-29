@@ -10,7 +10,7 @@ import Link from "next/link";
 export default async function RevenueAttributionPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
-  if ((session.user as any).role !== Role.SUPER_ADMIN) redirect("/dashboard");
+  if (session.user.role !== Role.SUPER_ADMIN) redirect("/dashboard");
 
   const year = new Date().getFullYear();
 

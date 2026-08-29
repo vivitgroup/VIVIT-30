@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
   }
   if (req.nextUrl.searchParams.get("type") === "health") {
     const session=await auth();
-    if(!session?.user||(session.user as any).role!=="SUPER_ADMIN") return NextResponse.json({error:"Forbidden"},{status:403});
+    if(!session?.user||session.user.role!=="SUPER_ADMIN") return NextResponse.json({error:"Forbidden"},{status:403});
     try {
       const { db, users } = await import("@/lib/db");
       const { count } = await import("drizzle-orm");
@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
   const body=await req.json().catch(()=>null);
   if(!body) return NextResponse.json({error:"Invalid JSON body"},{status:400});
   const action=String(body.action||"");
-  const role=String((session.user as any).role||"");
+  const role=String(session.user.role||"");
 
   switch (action) {
     case "mark_all_read": {

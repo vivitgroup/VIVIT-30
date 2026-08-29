@@ -28,7 +28,7 @@ function requireFields(data: Record<string, any>, fields: string[]): string | nu
   }
   return null;
 }
-function roleOf(session:any):string { return String((session?.user as any)?.role||""); }
+function roleOf(session:any):string { return String(session?.user?.role||""); }
 function requireRole(session:any, allowed:string[]) {
   if (!session?.user) throw new Error("Unauthorized");
   if (!allowed.includes(roleOf(session))) throw new Error("Forbidden");
@@ -311,7 +311,7 @@ export async function submitTaskFile(taskId: string, fileName: string, fileUrl: 
   const session = await auth();
   requireRole(session,["CREATOR","SUPER_ADMIN","ACCOUNT_MANAGER"]);
   const taskBefore=await taskForAccess(taskId);
-  const role=String((session!.user as any).role);
+  const role=String(session!.user.role);
   const isManager=["SUPER_ADMIN","ACCOUNT_MANAGER"].includes(role);
   const allowedStatuses=role==="SUPER_ADMIN"
     ? ["PENDING","IN_PROGRESS","REVIEW","REVISION","APPROVED","COMPLETED"]

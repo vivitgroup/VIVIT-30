@@ -9,8 +9,8 @@ export const dynamic="force-dynamic";
 export default async function TaskDetailGuard({children,params}:{children:ReactNode;params:Promise<{id:string}>}){
   const session=await auth();
   if(!session?.user)redirect("/login");
-  const role=String((session.user as any).role) as Role;
-  const userId=String((session.user as any).id);
+  const role=String(session.user.role) as Role;
+  const userId=String(session.user.id);
   const {id}=await params;
   const rows=Array.from(await db.execute(sql`
     select t.id,t.client_id,t.assigned_to_id,c.account_manager_id,c.user_id as client_user_id,c.is_active as client_active

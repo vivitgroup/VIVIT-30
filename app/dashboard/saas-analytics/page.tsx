@@ -9,8 +9,8 @@ import { formatCurrency } from "@/lib/utils";
 export default async function SaaSAnalyticsPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
-  if ((session.user as any).role !== Role.SUPER_ADMIN) redirect("/dashboard");
-  const workspaceId = String((session.user as any).workspaceId || "");
+  if (session.user.role !== Role.SUPER_ADMIN) redirect("/dashboard");
+  const workspaceId = String(session.user.workspaceId || "");
   if (!workspaceId) redirect("/login");
 
   const now   = new Date();

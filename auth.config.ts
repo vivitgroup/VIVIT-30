@@ -33,7 +33,12 @@ const authConfig={
    return token;
   },
   session({session,token}){
-   if(session.user){session.user.id=token.sub??"";session.user.role=token.role;session.user.workspaceId=token.workspaceId;session.user.authValid=token.authValid===true}
+   if(session.user){
+    session.user.id=token.sub??"";
+    session.user.role=typeof token.role==="string"?token.role:undefined;
+    session.user.workspaceId=typeof token.workspaceId==="string"?token.workspaceId:undefined;
+    session.user.authValid=token.authValid===true;
+   }
    return session;
   },
  },

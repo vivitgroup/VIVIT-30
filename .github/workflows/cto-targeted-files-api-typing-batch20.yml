@@ -38,6 +38,7 @@ jobs:
             ('newValues:JSON.stringify({name:row.name,size,mime,category,clientId,taskId})} as any)', 'newValues:JSON.stringify({name:row.name,size,mime,category,clientId,taskId})}'),
             ('newValues:JSON.stringify({name:row.name})} as any)', 'newValues:JSON.stringify({name:row.name})}'),
             ('newValues:JSON.stringify({name,category,clientId,taskId})} as any)', 'newValues:JSON.stringify({name,category,clientId,taskId})}'),
+            ('oldValues:JSON.stringify({name:row.name,storagePath:row.storagePath,size:row.sizeBytes})} as any)', 'oldValues:JSON.stringify({name:row.name,storagePath:row.storagePath,size:row.sizeBytes})}'),
           ]
           for old,new in replacements:
               if old not in s: raise SystemExit(f'missing expected fragment: {old[:200]}')

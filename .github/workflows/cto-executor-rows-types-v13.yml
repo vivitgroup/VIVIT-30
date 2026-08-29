@@ -1,0 +1,65 @@
+name: CTO Executor Rows Types V13
+on:
+  push:
+    branches: [feat/vivito-executor-rows-types-v13]
+permissions:
+  contents: write
+jobs:
+  remediate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-executor-rows-types-v13
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Apply executor row contracts
+        run: |
+          node <<'NODE'
+          const fs=require('node:fs');const file='lib/vivito/executor.ts';let s=fs.readFileSync(file,'utf8');
+          function one(from,to,count=1){const n=s.split(from).length-1;if(n!==count)throw new Error(`expected ${count}, found ${n}: ${from.slice(0,140)}`);s=s.split(from).join(to)}
+          one('import {and,eq,ilike} from "drizzle-orm";','import {and,eq,ilike,type SQL} from "drizzle-orm";');
+          one('const rows=(v:unknown)=>Array.from(v as any) as any[];','type ClientLookupRow={id:string;company_name:string;workspace_id?:string;is_active?:boolean;archived_at?:unknown;account_manager_id?:string|null;media_buyer_id?:string|null;user_id?:string|null};\ntype UserLookupRow={id:string;name:string;role:string};\ntype TaskLookupRow={id:string;title:string;client_id:string;archived_at?:unknown;assigned_to_id?:string|null;company_name:string;account_manager_id?:string|null;client_active?:boolean};\ntype ClientDependencyRow={tasks?:unknown;files?:unknown;calendar?:unknown;finance?:unknown;campaigns?:unknown;contacts?:unknown;converted_leads?:unknown};\ntype TaskDependencyRow={files?:unknown;calendar?:unknown;comments?:unknown};\ntype InvoiceRow={id:string;total_revenue?:unknown;paid?:unknown;outstanding?:unknown;invoice_status?:string|null;due_date?:unknown;created_at?:unknown};\ntype FileLookupRow={id:string;name:string;uploaded_by:string;client_id?:string|null;task_id?:string|null;archived_at?:unknown};\ntype IdRow={id:string};\nconst rows=<T>(v:unknown):T[]=>Array.from(v as Iterable<T>);');
+          one('let found=rows(await db.execute(sql`select id,company_name,workspace_id,is_active,archived_at,account_manager_id,media_buyer_id,user_id from clients','let found=rows<ClientLookupRow>(await db.execute(sql`select id,company_name,workspace_id,is_active,archived_at,account_manager_id,media_buyer_id,user_id from clients');
+          one('found=rows(await db.execute(sql`select id,company_name,workspace_id,is_active,archived_at,account_manager_id,media_buyer_id,user_id from clients','found=rows<ClientLookupRow>(await db.execute(sql`select id,company_name,workspace_id,is_active,archived_at,account_manager_id,media_buyer_id,user_id from clients');
+          one('let found=rows(await db.execute(sql`select id,name,role from users','let found=rows<UserLookupRow>(await db.execute(sql`select id,name,role from users');
+          one('found=rows(await db.execute(sql`select id,name,role from users','found=rows<UserLookupRow>(await db.execute(sql`select id,name,role from users');
+          one('let client:any=null;','let client:ClientLookupRow|null=null;');
+          one('let q:any;','let q:SQL;');
+          one('let found=rows(await db.execute(q));','let found=rows<TaskLookupRow>(await db.execute(q));');
+          one('found=rows(await db.execute(sql`select t.id,t.title,t.client_id,t.archived_at,t.assigned_to_id,c.company_name,c.account_manager_id,c.is_active as client_active from creative_tasks','found=rows<TaskLookupRow>(await db.execute(sql`select t.id,t.title,t.client_id,t.archived_at,t.assigned_to_id,c.company_name,c.account_manager_id,c.is_active as client_active from creative_tasks');
+          one('const [deps]=rows(await db.execute(sql`select (select count(*)::int from creative_tasks','const [deps]=rows<ClientDependencyRow>(await db.execute(sql`select (select count(*)::int from creative_tasks');
+          one('const [deps]=rows(await db.execute(sql`select (select count(*)::int from file_documents where task_id','const [deps]=rows<TaskDependencyRow>(await db.execute(sql`select (select count(*)::int from file_documents where task_id');
+          one('const invoices=rows(await db.execute(sql`select id,total_revenue,paid,outstanding,invoice_status,due_date,created_at from finance_records','const invoices=rows<InvoiceRow>(await db.execute(sql`select id,total_revenue,paid,outstanding,invoice_status,due_date,created_at from finance_records');
+          one('newValues:JSON.stringify({clientName:client.company_name,amount:value,currency,method,allocations})} as any','newValues:JSON.stringify({clientName:client.company_name,amount:value,currency,method,allocations})}');
+          one('const files=rows(await db.execute(sql`select id,name,uploaded_by,client_id,task_id,archived_at from file_documents','const files=rows<FileLookupRow>(await db.execute(sql`select id,name,uploaded_by,client_id,task_id,archived_at from file_documents');
+          one('const assigned=rows(await db.execute(sql`select id from creative_tasks','const assigned=rows<IdRow>(await db.execute(sql`select id from creative_tasks');
+          fs.writeFileSync(file,s)
+          NODE
+          git diff --check
+      - name: Acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint lib/vivito/executor.ts -f json > /tmp/target.json || true
+          node <<'NODE'
+          const m=require('/tmp/target.json').flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any');console.log(`target_any=${a.length}`);console.log(`target_non_any=${n.length}`);console.log(JSON.stringify(m.map(x=>[x.ruleId,x.line,x.message]).slice(0,40)));if(a.length!==15||n.length)process.exit(1)
+          NODE
+          npx eslint . -f json > /tmp/all.json || true
+          node <<'NODE'
+          const r=require('/tmp/all.json'),m=r.flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any'),w=m.filter(x=>x.severity===1);console.log(`remaining_any=${a.length}`);console.log(`remaining_non_any=${n.length}`);console.log(`remaining_warnings=${w.length}`);if(a.length!==219||n.length||w.length)process.exit(1)
+          NODE
+      - name: Commit source
+        run: |
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git add lib/vivito/executor.ts
+          git commit -m 'fix(types): type executor DB row boundaries [skip ci]'
+          git push origin HEAD:feat/vivito-executor-rows-types-v13

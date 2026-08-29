@@ -25,8 +25,9 @@ jobs:
           node <<'NODE'
           const fs=require('node:fs');const file='app/dashboard/sales/page.tsx';let s=fs.readFileSync(file,'utf8');
           function one(from,to,count=1){const n=s.split(from).length-1;if(n!==count)throw new Error(`expected ${count}, found ${n}: ${from.slice(0,140)}`);s=s.split(from).join(to)}
-          one('const workspaceOf=(session:any)=>','type AuthSession=NonNullable<Awaited<ReturnType<typeof auth>>>;\nconst workspaceOf=(session:AuthSession)=>');
-          one('async function allowedLead(id:string,session:any)','async function allowedLead(id:string,session:AuthSession)');
+          one('import {Role} from "@/lib/types";','import {Role} from "@/lib/types";\nimport type {Session} from "next-auth";');
+          one('const workspaceOf=(session:any)=>','const workspaceOf=(session:Session)=>');
+          one('async function allowedLead(id:string,session:any)','async function allowedLead(id:string,session:Session)');
           one('stage:stage as any','stage:cfg.key');
           one('newValues:JSON.stringify({from:lead.stage,to:stage,clientId})} as any','newValues:JSON.stringify({from:lead.stage,to:stage,clientId})}');
           one('newValues:JSON.stringify({phone,notes})} as any','newValues:JSON.stringify({phone,notes})}');

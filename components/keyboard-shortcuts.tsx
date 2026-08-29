@@ -22,13 +22,13 @@ export function KeyboardShortcutsModal() {
   const router  = useRouter();
   const [open, setOpen]   = useState(false);
   const [theme, setTheme] = useState<"dark"|"light">("dark");
-  const keyBuf  = { current: "" as string };
 
   // Theme persistence
   useEffect(() => {
     const saved = localStorage.getItem("vivit-theme") as "dark"|"light" || "dark";
-    setTheme(saved);
+    const timer=setTimeout(()=>setTheme(saved),0);
     document.documentElement.classList.toggle("light", saved === "light");
+    return()=>clearTimeout(timer);
   }, []);
 
   const toggleTheme = useCallback(() => {

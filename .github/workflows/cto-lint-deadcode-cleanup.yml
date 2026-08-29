@@ -1,0 +1,77 @@
+name: CTO Lint Dead-Code Cleanup
+
+on:
+  push:
+    branches: [feat/vivito-lint-deadcode-cleanup]
+    paths:
+      - '.github/workflows/cto-lint-deadcode-cleanup.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-lint-deadcode-cleanup
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Baseline TypeScript
+        run: npm run type-check
+      - name: Remove verified dead code and unused parameters
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs=require('node:fs');
+          function edit(file, transforms){
+            let s=fs.readFileSync(file,'utf8');
+            for(const [from,to,count=1] of transforms){
+              const actual=s.split(from).length-1;
+              if(actual!==count)throw new Error(`${file}: expected ${count} occurrence(s), found ${actual}: ${from.slice(0,80)}`);
+              s=s.split(from).join(to);
+            }
+            fs.writeFileSync(file,s);
+          }
+          edit('app/api/assistant/route.ts',[[`}catch(error){return NextResponse.json({answer:isArabic(question)?`,`}catch{return NextResponse.json({answer:isArabic(question)?`,2]]);
+          edit('app/api/quick-action/route.ts',[[`} catch (e) {`,`} catch {`,1]]);
+          edit('app/api/referrals/route.ts',[[`import { NextRequest, NextResponse } from "next/server";`,`import { NextResponse } from "next/server";`,1],[`export async function GET(req: NextRequest) {`,`export async function GET() {`,1]]);
+          edit('app/dashboard/nps/page.tsx',[[`  const avgScore   = total>0 ? (allFeedback.reduce((s,f)=>s+Number(f.score),0)/total).toFixed(1) : "0.0";\n`, ``,1],[`  const npsColor   = nps>=50?"var(--green)":nps>=0?"var(--amber)":"var(--red)";\n`, ``,1]]);
+          edit('app/dashboard/onboarding/page.tsx',[[`].map((step,i)=>(`, `].map(step=>(`,1]]);
+          edit('app/dashboard/sales/page.tsx',[[`STAGES.map((stage,idx)=>{`, `STAGES.map(stage=>{`,1]]);
+          edit('components/keyboard-shortcuts.tsx',[[`  const keyBuf  = { current: "" as string };\n`, ``,1]]);
+          edit('components/realtime-notifications.tsx',[[`// Tracks active users via heartbeat — stored in-memory per session\nconst onlineUsers = new Map<string, { name:string; role:string; page:string; ts:number }>();\n\n`, ``,1]]);
+          edit('lib/actions/index.ts',[[`function validateEmail(email: string): boolean {\n  return /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email) && email.length <= 254;\n}\n`, ``,1],[`function requireFields(data: Record<string, any>, fields: string[]): string | null {\n  for (const f of fields) {\n    if (!data[f] || String(data[f]).trim() === "") return \`${'${f}'} is required\`;\n  }\n  return null;\n}\n`, ``,1]]);
+          edit('app/dashboard/revenue-attribution/page.tsx',[[`          const TK = "#E8F4FD";\n`, ``,1]]);
+          NODE
+          git diff --check
+      - name: Compiler and static invariant acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Lint report
+        shell: bash
+        run: |
+          npx eslint . -f json > /tmp/eslint-after.json || true
+          node <<'NODE'
+          const fs=require('node:fs');const rows=JSON.parse(fs.readFileSync('/tmp/eslint-after.json','utf8'));const m=rows.flatMap(r=>r.messages||[]),c={};for(const x of m)c[x.ruleId||'(parser)']=(c[x.ruleId||'(parser)']||0)+1;console.log(`remaining_total=${m.length}`);console.log(`remaining_unused=${m.filter(x=>x.ruleId==='@typescript-eslint/no-unused-vars').length}`);console.log(`remaining_any=${m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any').length}`);console.log('top_rules='+JSON.stringify(Object.entries(c).sort((a,b)=>b[1]-a[1]).slice(0,20)));
+          NODE
+      - name: Commit verified cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git add app components lib scripts types proxy.ts auth.config.ts 2>/dev/null || true
+          if ! git diff --cached --quiet; then
+            git commit -m 'fix(lint): remove verified dead code and unused parameters [skip ci]'
+            git push origin HEAD:feat/vivito-lint-deadcode-cleanup
+          fi

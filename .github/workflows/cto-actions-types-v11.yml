@@ -1,0 +1,56 @@
+name: CTO Actions Types V11
+on:
+  push:
+    branches: [feat/vivito-actions-types-v11]
+permissions:
+  contents: write
+jobs:
+  remediate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-actions-types-v11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Apply server action contracts
+        run: |
+          node <<'NODE'
+          const fs=require('node:fs');const file='lib/actions/index.ts';let s=fs.readFileSync(file,'utf8');
+          function one(from,to,count=1){const n=s.split(from).length-1;if(n!==count)throw new Error(`expected ${count}, found ${n}: ${from.slice(0,120)}`);s=s.split(from).join(to)}
+          one('import { eq, and } from "drizzle-orm";','import { eq, and } from "drizzle-orm";\ntype ActionSession={user?:{id?:string|null;role?:unknown;name?:string|null}|null}|null;\ntype CreativeTaskInsert=typeof creativeTasks.$inferInsert;\ntype CreativeType=CreativeTaskInsert["type"];\ntype CreativePriority=CreativeTaskInsert["priority"];');
+          one('function roleOf(session:any):string','function roleOf(session:ActionSession):string');
+          one('function requireRole(session:any, allowed:string[])','function requireRole(session:ActionSession, allowed:string[])');
+          one('async function requireClientAccess(session:any, clientId:string, write=false)','async function requireClientAccess(session:ActionSession, clientId:string, write=false)');
+          one('  const uid=session.user.id;','  const uid=session?.user?.id;if(!uid)throw new Error("Unauthorized");');
+          one('type: type as unknown, brief, tov: tov || null,\n    priority: priority as unknown,','type: type as CreativeType, brief, tov: tov || null,\n    priority: priority as CreativePriority,');
+          const count=(s.match(/\} as any\)/g)||[]).length;if(count!==11)throw new Error(`expected 11 insert any casts, found ${count}`);s=s.replaceAll('} as any)', '})');
+          fs.writeFileSync(file,s)
+          NODE
+          git diff --check
+      - name: Acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint lib/actions/index.ts -f json > /tmp/e.json || true
+          node <<'NODE'
+          const r=require('/tmp/e.json'),m=r.flatMap(x=>x.messages||[]);console.log(`target_total=${m.length}`);console.log(`target_any=${m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any').length}`);console.log(JSON.stringify(m.map(x=>[x.ruleId,x.line,x.message]).slice(0,40)));if(m.length)process.exit(1)
+          NODE
+          npx eslint . -f json > /tmp/all.json || true
+          node <<'NODE'
+          const r=require('/tmp/all.json'),m=r.flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any'),w=m.filter(x=>x.severity===1);console.log(`remaining_any=${a.length}`);console.log(`remaining_non_any=${n.length}`);console.log(`remaining_warnings=${w.length}`);if(n.length||w.length||a.length!==283)process.exit(1)
+          NODE
+      - name: Commit source
+        run: |
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git add lib/actions/index.ts
+          git commit -m 'fix(types): type server action contracts [skip ci]'
+          git push origin HEAD:feat/vivito-actions-types-v11

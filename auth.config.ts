@@ -1,7 +1,9 @@
 import type {NextAuthConfig} from "next-auth";
+import {Role} from "@/lib/types";
 
 type LiveState={role?:string;workspace_id?:string;is_active?:boolean;approval_status?:string;passwordChangedAt?:string|null};
 type PasswordAudit={created_at?:string|null};
+const isRole=(value:unknown):value is Role=>typeof value==="string"&&Object.values(Role).some(role=>role===value);
 async function liveUserState(userId:string):Promise<LiveState|null>{
  const url=process.env.SUPABASE_URL,key=process.env.SUPABASE_SERVICE_KEY;if(!url||!key)return null;
  const headers={apikey:key,Authorization:`Bearer ${key}`};
@@ -27,7 +29,7 @@ const authConfig={
    if(token.sub){
     const live=await liveUserState(token.sub),issuedAtMs=Number(token.iat||0)*1000,passwordChangedMs=live?.passwordChangedAt?new Date(live.passwordChangedAt).getTime():0;
     token.authValid=Boolean(live?.is_active)&&String(live?.approval_status||"")==="APPROVED"&&(!passwordChangedMs||passwordChangedMs<=issuedAtMs);
-    if(live?.role)token.role=live.role;
+    if(isRole(live?.role))token.role=live.role;
     if(live?.workspace_id)token.workspaceId=live.workspace_id;
    }else token.authValid=false;
    return token;
@@ -36,7 +38,7 @@ const authConfig={
    if(session.user){
     const role=token.role,workspaceId=token.workspaceId;
     session.user.id=token.sub??"";
-    session.user.role=typeof role==="string"?role:undefined;
+    session.user.role=isRole(role)?role:undefined;
     session.user.workspaceId=typeof workspaceId==="string"?workspaceId:undefined;
     session.user.authValid=token.authValid===true;
    }

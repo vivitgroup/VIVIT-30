@@ -1,0 +1,43 @@
+name: CTO Static Integrate Actions V11
+on:
+  push:
+    branches: [feat/vivito-static-integrate-actions-v11]
+permissions:
+  contents: write
+jobs:
+  integrate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-static-integrate-actions-v11
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Integrate server action source
+        run: |
+          set -euo pipefail
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git fetch origin feat/vivito-actions-types-v11
+          git cherry-pick 745abd3
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          git diff --check HEAD^ HEAD
+      - name: Final lint acceptance
+        run: |
+          npx eslint . -f json > /tmp/e.json || true
+          node <<'NODE'
+          const r=require('/tmp/e.json'),m=r.flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any'),w=m.filter(x=>x.severity===1);console.log(`remaining_total=${m.length}`);console.log(`remaining_any=${a.length}`);console.log(`remaining_non_any=${n.length}`);console.log(`remaining_warnings=${w.length}`);if(n.length||w.length||a.length!==283)process.exit(1)
+          NODE
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Push accepted candidate
+        run: git push origin HEAD:feat/vivito-static-integrate-actions-v11

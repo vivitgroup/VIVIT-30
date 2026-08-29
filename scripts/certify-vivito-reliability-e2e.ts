@@ -6,9 +6,10 @@ import {executeVivitoPlanRuntime,type VivitoPlanStep} from "../lib/vivito/plan-r
 async function main(){
  fs.mkdirSync('.vivito',{recursive:true});
  const userId='cert-admin',role='SUPER_ADMIN';
- const executeStep=(op:any,args:any,r:string,u:string)=>executeVivitoOperatorAction(op,args,r,u) as any;
+ type OperatorCall=Parameters<typeof executeVivitoOperatorAction>;
+ const executeStep=(op:OperatorCall[0],args:OperatorCall[1],r:OperatorCall[2],u:OperatorCall[3])=>executeVivitoOperatorAction(op,args,r,u);
  let multiStepCases=0,replayCases=0,idempotencyPassed=true,rollbackRecoveryPassed=false,knownCriticalDefects=0;
- const failures:any[]=[];
+ const failures:unknown[]=[];
  for(let i=0;i<50;i++){
    const a=`Cert User ${(i%8)+1}`,b=`Cert User ${((i+1)%8)+1}`;
    const steps:VivitoPlanStep[]=[
@@ -39,7 +40,7 @@ async function main(){
    rollbackRecoveryPassed=!!resumed.success&&resumed.duplicateSteps===1;
    if(!rollbackRecoveryPassed){knownCriticalDefects++;failures.push({phase:'resume',resumed});}
  }
- const duplicateAudit=Array.from(await db.execute(sql`select count(*)::int count from audit_logs where workspace_id='default' and user_id=${userId} and action='vivito_plan_step_executed' and ((new_values::jsonb->>'requestId') like 'cert-reliability-%' or (new_values::jsonb->>'requestId')=${failureId})`) as any)[0]?.count??0;
+ const duplicateAudit=Array.from(await db.execute(sql`select count(*)::int count from audit_logs where workspace_id='default' and user_id=${userId} and action='vivito_plan_step_executed' and ((new_values::jsonb->>'requestId') like 'cert-reliability-%' or (new_values::jsonb->>'requestId')=${failureId})`) as unknown as Iterable<{count:number|string}>)[0]?.count??0;
  // 50 plans x 2 unique steps = 100, plus two unique recovery steps (one before failure, one after resume) = 102.
  const passed=multiStepCases===50&&replayCases===50&&idempotencyPassed&&rollbackRecoveryPassed&&knownCriticalDefects===0&&Number(duplicateAudit)===102;
  const report={passed,multiStepCases,replayCases,idempotencyPassed,rollbackRecoveryPassed,knownCriticalDefects,uniqueExecutedSteps:Number(duplicateAudit),expectedUniqueExecutedSteps:102,failures:failures.slice(0,20),database:'ephemeral-postgres',productionDataUsed:false};

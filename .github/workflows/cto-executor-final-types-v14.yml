@@ -28,8 +28,8 @@ jobs:
           one('type IdRow={id:string};','type IdRow={id:string};\ntype ActionArgs=Record<string,unknown>;\ntype CreativeTaskInsert=typeof creativeTasks.$inferInsert;\nconst objectRecord=(value:unknown):ActionArgs=>value&&typeof value==="object"&&!Array.isArray(value)?value as ActionArgs:{};');
           one('async function findTask(args:any,role:string,userId:string,includeArchived=false)','async function findTask(args:ActionArgs,role:string,userId:string,includeArchived=false)');
           one('async function createClientAction(args:any,role:string,userId:string)','async function createClientAction(args:ActionArgs,role:string,userId:string)');
-          one('} as any).returning();','}).returning();',1);
-          one('} as any);','});',1);
+          one('internalNotes:canSetupMarketing?(clean(args.internalNotes,2000)||null):null} as any).returning();','internalNotes:canSetupMarketing?(clean(args.internalNotes,2000)||null):null}).returning();');
+          one('whatsapp:clean(args.contactPhone,60)||null,isPrimary:true} as any);','whatsapp:clean(args.contactPhone,60)||null,isPrimary:true});');
           one('async function clientLifecycle(op:VivitoActionOp,args:any,role:string,userId:string)','async function clientLifecycle(op:VivitoActionOp,args:ActionArgs,role:string,userId:string)');
           one('async function createTaskAction(args:any,role:string,userId:string)','async function createTaskAction(args:ActionArgs,role:string,userId:string)');
           one('type:type as unknown,brief,priority:priority as unknown','type:type as CreativeTaskInsert["type"],brief,priority:priority as CreativeTaskInsert["priority"]');

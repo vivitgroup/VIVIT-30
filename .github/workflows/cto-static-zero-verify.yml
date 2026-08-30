@@ -1,0 +1,26 @@
+name: CTO Static Zero Verify
+on:
+  push:
+    branches: [feat/vivito-static-zero-verify]
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-static-zero-verify
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: TypeScript
+        run: npm run type-check
+      - name: CTO static
+        run: node scripts/qa-cto-static-audit.mjs
+      - name: ESLint zero
+        run: |
+          npx eslint . -f json > /tmp/all.json || true
+          node <<'NODE'
+          const rows=require('/tmp/all.json');const m=rows.flatMap(x=>x.messages||[]);console.log(`eslint_total=${m.length} errors=${m.filter(x=>x.severity===2).length} warnings=${m.filter(x=>x.severity===1).length}`);if(m.length)process.exit(1)
+          NODE

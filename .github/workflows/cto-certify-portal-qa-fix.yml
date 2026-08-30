@@ -1,0 +1,63 @@
+name: CTO Certify Portal QA Fix
+
+on:
+  push:
+    branches: [feat/vivito-internal-100]
+    paths:
+      - .github/workflows/cto-certify-portal-qa-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: vivito
+          POSTGRES_PASSWORD: vivito
+          POSTGRES_DB: vivito_internal
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U vivito -d vivito_internal"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://vivito:vivito@127.0.0.1:5432/vivito_internal
+      DRIZZLE_DATABASE_URL: postgresql://vivito:vivito@127.0.0.1:5432/vivito_internal
+      DATABASE_SSL_DISABLED: 1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-internal-100
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Target portal archive invariant
+        run: node scripts/qa-tasks-archive.mjs
+      - name: TypeScript acceptance
+        run: npm run type-check
+      - name: Full release build
+        run: |
+          npx drizzle-kit push --force
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/20260828_vivito_direct_operator.sql
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/20260828_vivito_direct_operator_v2.sql
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/20260828_vivito_enterprise_governance.sql
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/20260828_vivito_gap_closure.sql
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/20260828_data_propagation_scope.sql
+          npm run build
+      - name: Remove transient certification workflow
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/cto-certify-portal-qa-fix.yml
+          git commit -m "chore(cto): retain portal QA fix as source-only"
+          git push origin HEAD:feat/vivito-internal-100

@@ -120,7 +120,6 @@ async function main() {
   console.log(`✅ Media metrics: ${metricsCount} records`);
 
   // ── Finance Records — 6 months ───────────────────────────────
-  const MONTHS = ["","January","February","March","April","May","June","July","August","September","October","November","December"];
   let finCount = 0;
   for (const cl of Object.values(C)) {
     for (let mo = 0; mo < 6; mo++) {
@@ -130,10 +129,10 @@ async function main() {
       const ret  = cl.monthlyRetainer;
       const mediaFee = Math.floor(cl.mediaBudget * 0.2);
       const total = ret + mediaFee;
-      const isPaid = mo > 0; // current month pending, rest paid
+      const isPaid = mo > 0;
       const paid = isPaid ? total : Math.floor(total * 0.5);
       const outstanding = total - paid;
-      const dueDate = new Date(year, month, 5); // 5th of following month
+      const dueDate = new Date(year, month, 5);
 
       await db.insert(schema.financeRecords).values({
         clientId: cl.id, month, year,
@@ -157,7 +156,6 @@ async function main() {
   const clientList = Object.values(C);
   const creators   = [U["samo@vivitgroup.com"], U["fathy@vivitgroup.com"]];
   const taskTypes  = ["REEL","GRAPHIC","CAROUSEL","STORY","UGC","REEL","GRAPHIC"] as const;
-  const statuses   = ["PENDING","IN_PROGRESS","REVIEW","APPROVED","COMPLETED","REVISION"] as const;
   const priorities = ["HIGH","MEDIUM","MEDIUM","LOW","URGENT"] as const;
   let taskCount = 0;
 
@@ -167,7 +165,6 @@ async function main() {
       const creator  = creators[i % creators.length];
       const status   = i < 2 ? "REVIEW" : i < 4 ? "IN_PROGRESS" : i < 6 ? "APPROVED" : "PENDING";
       const deadline = new Date(now.getTime() + (i - 3) * 2 * 86400000);
-      const days     = { REEL:7, GRAPHIC:3, CAROUSEL:3, STORY:1, UGC:5 };
       const revCount = status === "REVISION" ? Math.floor(Math.random() * 3) + 1 : 0;
 
       await db.insert(schema.creativeTasks).values({
@@ -191,7 +188,6 @@ async function main() {
   }
   console.log(`✅ Creative tasks: ${taskCount} tasks`);
 
-  // ── Sales Leads ──────────────────────────────────────────────
   const LEADS = [
     { company:"TechCorp Egypt",   contact:"Ahmed Sayed",  phone:"+201001234567", source:"REFERRAL"  as const, value:45000, stage:"NEGOTIATION"  as const, prob:75, industry:"Technology" },
     { company:"Nile Retail",      contact:"Sara Hassan",  phone:"+201112345678", source:"INSTAGRAM" as const, value:18000, stage:"PROPOSAL_SENT"as const, prob:50, industry:"Retail" },
@@ -226,7 +222,6 @@ async function main() {
   }
   console.log(`✅ Sales leads: ${leadCount} leads`);
 
-  // ── Calendar Events — this month ────────────────────────────
   const AM = U["sondos@vivitgroup.com"];
   let calCount = 0;
   for (const cl of clientList.slice(0, 3)) {
@@ -246,7 +241,6 @@ async function main() {
   }
   console.log(`✅ Calendar events: ${calCount} events`);
 
-  // ── NPS Feedback ─────────────────────────────────────────────
   const NPS_SCORES = [9, 7, 10, 6, 8];
   let npsCount = 0;
   for (let i = 0; i < clientList.length && i < NPS_SCORES.length; i++) {
@@ -266,7 +260,6 @@ async function main() {
   }
   console.log(`✅ NPS feedback: ${npsCount} records`);
 
-  // ── Notifications ─────────────────────────────────────────────
   const admins = [U["asem@vivitgroup.com"], U["islam@vivitgroup.com"]];
   const NOTIFS = [
     { title:"🚀 Welcome to Vivit ERP!", message:"System seeded with demo data. Explore all 70 pages.", priority:"normal" as const },
@@ -293,7 +286,6 @@ async function main() {
   }
   console.log(`✅ Notifications: ${notifCount} records`);
 
-  // ── Creator Profiles ─────────────────────────────────────────
   await db.insert(schema.creatorProfiles).values([
     { userId: U["samo@vivitgroup.com"].id,  rating: 4.8, ratePerTask: 500, isAvailable: true,  specialties: "REEL,GRAPHIC,UGC" },
     { userId: U["fathy@vivitgroup.com"].id, rating: 4.5, ratePerTask: 450, isAvailable: true,  specialties: "REEL,CAROUSEL,MOTION" },
@@ -303,7 +295,6 @@ async function main() {
   });
   console.log("✅ Creator profiles: 2 records");
 
-  // ── Company Expenses ─────────────────────────────────────────
   const EXPENSES = [
     { cat:"Salaries",    desc:"Team salaries — October",    amount:85000 },
     { cat:"Tools",       desc:"Adobe CC + Canva Pro + Notion",amount:1200},
@@ -321,7 +312,6 @@ async function main() {
   }
   console.log(`✅ Company expenses: ${EXPENSES.length} records`);
 
-  // ── Audit Log Entries ────────────────────────────────────────
   const EVENTS = [
     { action:"client_created",    entity:"clients",       msg:"West Court onboarded" },
     { action:"task_approved",     entity:"creative_tasks",msg:"Reel approved by client" },
@@ -353,9 +343,6 @@ async function main() {
   console.log("CLIENT       → client@misfive.com");
 }
 
-// ═══════════════════════════════════════════════════════════════
-// TEST SUITE (run with: npx tsx scripts/seed.ts --test)
-// ═══════════════════════════════════════════════════════════════
 async function runTests() {
   console.log("\n🧪 Running Vivit ERP Test Suite...\n");
   let passed = 0, failed = 0;
@@ -364,14 +351,13 @@ async function runTests() {
     try {
       const ok = await fn();
       console.log(`  ${ok ? "✅" : "❌ FAIL"} ${name}`);
-      ok ? passed++ : failed++;
+      if (ok) passed++; else failed++;
     } catch (e) {
       console.log(`  ❌ ERROR ${name}: ${e}`);
       failed++;
     }
   }
 
-  // Environment checks
   await test("AUTH_SECRET is 32+ chars", async () =>
     (process.env.AUTH_SECRET ?? "").length >= 32 || process.env.AUTH_SECRET === undefined);
   await test("DATABASE_URL uses port 6543 (pooler)", async () => {
@@ -379,7 +365,6 @@ async function runTests() {
     return url === "" || url.includes(":6543");
   });
 
-  // DB connectivity
   const { count } = await import("drizzle-orm");
   await test("DB connection works", async () => {
     const [r] = await db.select({ cnt: count() }).from(schema.users);
@@ -420,7 +405,6 @@ async function runTests() {
   else console.log("✅ All tests passed! System is healthy.");
 }
 
-// ── Entry point ─────────────────────────────────────────────────
 const isTest = process.argv.includes("--test");
 (isTest ? runTests() : main())
   .catch(console.error)

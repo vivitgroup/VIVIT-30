@@ -1,0 +1,55 @@
+name: CTO Meta Panel Types V14
+on:
+  push:
+    branches: [feat/vivito-meta-panel-types-v14]
+permissions:
+  contents: write
+jobs:
+  remediate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-meta-panel-types-v14
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Apply panel contracts
+        run: |
+          node <<'NODE'
+          const fs=require('node:fs');const file='components/media/MetaAccountConnectPanel.tsx';let s=fs.readFileSync(file,'utf8');
+          function one(from,to,count=1){const n=s.split(from).length-1;if(n!==count)throw new Error(`expected ${count}, found ${n}: ${from.slice(0,150)}`);s=s.split(from).join(to)}
+          one('async function read(r:Response){const t=await r.text();try{return t?JSON.parse(t):{}}catch{return {error:t||`Request failed (${r.status})`}}}','type MetaAccountGroup={id:string;platform:string;status:string;clientId:string;adAccountId?:string|null;accountName?:string|null;clientName?:string|null;campaignCount?:number|null;lastSyncAt?:string|null;syncError?:string|null};\ntype PanelData={accountGroups:MetaAccountGroup[]};\ntype DiscoverFailure={error?:string};\ntype DiscoverResult={error?:string;failures?:DiscoverFailure[];synced?:number};\nasync function read<T>(r:Response):Promise<T>{const t=await r.text();try{return (t?JSON.parse(t):{}) as T}catch{return {error:t||`Request failed (${r.status})`} as T}}');
+          one('useState<any>({accountGroups:[]})','useState<PanelData>({accountGroups:[]})');
+          one('d=await read(r);if(r.ok)setData(d)','d=await read<PanelData>(r);if(r.ok)setData(d)');
+          one('d=await read(r),rateLimited=isRateLimit(d.error)||isRateLimit(d.failures?.map((x:any)=>x.error).join(" "))','d=await read<DiscoverResult>(r),rateLimited=isRateLimit(d.error)||isRateLimit(d.failures?.map(x=>x.error).join(" "))');
+          one('.filter((a:any)=>a.platform==="META"&&a.status!=="DISABLED"&&(a.status==="CONNECTED"||a.status==="ERROR"))','.filter(a=>a.platform==="META"&&a.status!=="DISABLED"&&(a.status==="CONNECTED"||a.status==="ERROR"))');
+          one('accounts.filter((a:any)=>!a.lastSyncAt||Date.now()-new Date(a.lastSyncAt).getTime()>STALE_MS)','accounts.filter(a=>!a.lastSyncAt||Date.now()-new Date(a.lastSyncAt).getTime()>STALE_MS)');
+          one('function connect(a:any)','function connect(a:MetaAccountGroup)');
+          one('(data.accountGroups||[]).filter((a:any)=>a.platform==="META"&&a.status!=="DISABLED")','data.accountGroups.filter(a=>a.platform==="META"&&a.status!=="DISABLED")');
+          one('accounts.map((a:any)=>','accounts.map(a=>');
+          fs.writeFileSync(file,s)
+          NODE
+          git diff --check
+      - name: Acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint components/media/MetaAccountConnectPanel.tsx -f json > /tmp/target.json || true
+          npx eslint . -f json > /tmp/all.json || true
+          node <<'NODE'
+          const target=require('/tmp/target.json').flatMap(x=>x.messages||[]),r=require('/tmp/all.json'),m=r.flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any'),w=m.filter(x=>x.severity===1);console.log(`target_total=${target.length}`);console.log(`remaining_any=${a.length}`);console.log(`non_any=${n.length} warnings=${w.length}`);console.log(JSON.stringify(target.map(x=>[x.ruleId,x.line,x.message]).slice(0,30)));if(target.length||a.length!==183||n.length||w.length)process.exit(1)
+          NODE
+      - name: Commit source
+        run: |
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git add components/media/MetaAccountConnectPanel.tsx
+          git commit -m 'fix(types): type Meta account panel [skip ci]'
+          git push origin HEAD:feat/vivito-meta-panel-types-v14

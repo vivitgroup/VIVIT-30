@@ -1,0 +1,74 @@
+name: CTO Tail Components V17
+on:
+  push:
+    branches: [feat/vivito-tail-components-v17]
+permissions:
+  contents: write
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-tail-components-v17
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint . -f json > /tmp/base.json || true
+          node <<'NODE'
+          const m=require('/tmp/base.json').flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any'),w=m.filter(x=>x.severity===1);console.log(`baseline_any=${a.length} non_any=${n.length} warnings=${w.length}`);if(a.length!==41||n.length||w.length)process.exit(1)
+          NODE
+      - name: Apply component contracts
+        run: |
+          node <<'NODE'
+          const fs=require('node:fs');
+          function patch(file,ops){let s=fs.readFileSync(file,'utf8');for(const [from,to,count=1] of ops){const n=s.split(from).length-1;if(n!==count)throw new Error(`${file}: expected ${count}, found ${n}: ${from.slice(0,170)}`);s=s.split(from).join(to)}fs.writeFileSync(file,s)}
+          patch('components/ai/CopilotActionCenter.tsx',[
+            ['import {useState} from "react";','import {useState,type FormEvent} from "react";\ntype ClientOption={id:string;companyName:string};\ntype CreatorOption={id:string;name:string};'],
+            ['export default function CopilotActionCenter({clients,creators}:{clients:any[];creators:any[]})','export default function CopilotActionCenter({clients,creators}:{clients:ClientOption[];creators:CreatorOption[]})'],
+            ['async function submit(e:any)','async function submit(e:FormEvent<HTMLFormElement>)']
+          ]);
+          patch('components/clients/ClientLogoManager.tsx',[
+            ['import {useEffect,useState} from "react";','import {useEffect,useState,type ChangeEvent} from "react";'],
+            ['async function file(e:any)','async function file(e:ChangeEvent<HTMLInputElement>)']
+          ]);
+          patch('components/creative/NewTaskForm.tsx',[
+            ['type Client={id:string;companyName:string};','type Client={id:string;companyName:string};\ntype TaskTemplate=(typeof TASK_TEMPLATES)[number];'],
+            ['function applyTemplate(t:any)','function applyTemplate(t:TaskTemplate)']
+          ]);
+          patch('components/vivito/DirectOperatorPanel.tsx',[
+            ['type EventRow={id:string;signal_type:string;action_op:string;approval_mode:string;status:string;client_id?:string|null;evidence?:unknown;last_error?:string|null;retry_count?:number;created_at:string;outcome_state?:string|null;confidence_before?:number|null;confidence_after?:number|null};','type EventRow={id:string;signal_type:string;action_op:string;approval_mode:string;status:string;client_id?:string|null;evidence?:unknown;last_error?:string|null;retry_count?:number;created_at:string;outcome_state?:string|null;confidence_before?:number|null;confidence_after?:number|null};\ntype SummaryRow={status:string;count?:number|string|null};\ntype EscalationRow={id:string;severity:string;message:string;created_at:string};'],
+            ['[summary,setSummary]=useState<unknown[]>([]),[escalations,setEscalations]=useState<unknown[]>([])','[summary,setSummary]=useState<SummaryRow[]>([]),[escalations,setEscalations]=useState<EscalationRow[]>([])'],
+            ['summary.map((x:any)=>[String(x.status),Number(x.count||0)])','summary.map(x=>[String(x.status),Number(x.count||0)])'],
+            ['escalations.map((x:any)=><div','escalations.map(x=><div']
+          ]);
+          patch('components/whatsapp/WhatsAppWorkspace.tsx',[
+            ['const digits=(v:string)=>v.replace(/[^0-9]/g,"");','const digits=(v:string)=>v.replace(/[^0-9]/g,"");\ntype RecentMessage={id:string;to:string;body?:string|null;createdAt?:string|Date|null;status:string};'],
+            ['[recent,setRecent]=useState<unknown[]>([])','[recent,setRecent]=useState<RecentMessage[]>([])'],
+            ['onChange={e=>setMode(e.target.value as any)}','onChange={e=>{const v=e.target.value;if(v==="text"||v==="template")setMode(v)}}'],
+            ['recent.map((x:any)=><div','recent.map(x=><div']
+          ]);
+          NODE
+          git diff --check
+      - name: Acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint . -f json > /tmp/all.json || true
+          node <<'NODE'
+          const m=require('/tmp/all.json').flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any'),w=m.filter(x=>x.severity===1);console.log(`remaining_any=${a.length} non_any=${n.length} warnings=${w.length}`);if(a.length!==32||n.length||w.length)process.exit(1)
+          NODE
+      - name: Commit source
+        run: |
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git add components/ai/CopilotActionCenter.tsx components/clients/ClientLogoManager.tsx components/creative/NewTaskForm.tsx components/vivito/DirectOperatorPanel.tsx components/whatsapp/WhatsAppWorkspace.tsx
+          git commit -m 'fix(types): close remaining UI component contracts [skip ci]'
+          git push origin HEAD:feat/vivito-tail-components-v17

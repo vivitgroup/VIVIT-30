@@ -9,6 +9,7 @@ const SECTIONS:{label:string;items:Item[]}[]=[
  {label:"MAIN",items:[
   {icon:"🏠",label:"Dashboard",href:"/dashboard",roles:["SUPER_ADMIN"]},
   {icon:"🏢",label:"Clients",href:"/dashboard/universe",roles:OPS},
+  {icon:"🏢",label:"Clients",href:"/dashboard/clients",roles:["ACCOUNTANT"]},
   {icon:"🎯",label:"Sales CRM",href:"/dashboard/sales",roles:["SUPER_ADMIN","SALES"]},
   {icon:"💬",label:"WhatsApp",href:"/dashboard/whatsapp",roles:[...OPS,"SALES"]},
   {icon:"📣",label:"Media Control",href:"/dashboard/media/control-center",roles:OPS},
@@ -17,26 +18,9 @@ const SECTIONS:{label:string;items:Item[]}[]=[
   {icon:"📥",label:"Tasks Inbox",href:"/dashboard/tasks-inbox",roles:OPS},
   {icon:"📅",label:"Calendar",href:"/dashboard/calendar",roles:[...OPS,"CREATOR","SALES","CLIENT"]}
  ]},
- {label:"FINANCE & HR",items:[
-  {icon:"💰",label:"Finance",href:"/dashboard/finance",roles:["SUPER_ADMIN","ACCOUNTANT"]},
-  {icon:"💳",label:"Accounts Payment",href:"/dashboard/clients/accounts-payment",roles:["SUPER_ADMIN","ACCOUNTANT"]},
-  {icon:"📋",label:"Contracts",href:"/dashboard/contracts",roles:["SUPER_ADMIN","ACCOUNTANT"]},
-  {icon:"👥",label:"HR & Team",href:"/dashboard/team",roles:["SUPER_ADMIN"]},
-  {icon:"💎",label:"LTV & Revenue",href:"/dashboard/ltv",roles:["SUPER_ADMIN","ACCOUNTANT"]}
- ]},
- {label:"ANALYTICS",items:[
-  {icon:"📊",label:"Analytics",href:"/dashboard/analytics",roles:["SUPER_ADMIN"]},
-  {icon:"📈",label:"Forecast",href:"/dashboard/forecast",roles:["SUPER_ADMIN","ACCOUNTANT"]},
-  {icon:"🎯",label:"KPIs & BI",href:"/dashboard/kpis",roles:["SUPER_ADMIN"]},
-  {icon:"📋",label:"Reports",href:"/dashboard/reports",roles:["SUPER_ADMIN","ACCOUNTANT","ACCOUNT_MANAGER","MEDIA_BUYER","SALES"]}
- ]},
- {label:"INTELLIGENCE & TOOLS",items:[
-  {icon:"✦",label:"VIVITO",href:"/dashboard/ai-studio",roles:["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CREATOR","SALES","ACCOUNTANT","CLIENT"]},
-  {icon:"📁",label:"Files",href:"/dashboard/files",roles:["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CREATOR","SALES","ACCOUNTANT","CLIENT"]},
-  {icon:"🗄️",label:"Archive",href:"/dashboard/archive",roles:["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","SALES"]},
-  {icon:"🔔",label:"Notifications",href:"/dashboard/notifications",roles:["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CREATOR","SALES","ACCOUNTANT","CLIENT"]},
-  {icon:"⚙️",label:"Settings",href:"/dashboard/settings",roles:["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CREATOR","ACCOUNTANT","SALES","CLIENT"]}
- ]},
+ {label:"FINANCE & HR",items:[{icon:"💰",label:"Finance",href:"/dashboard/finance",roles:["SUPER_ADMIN","ACCOUNTANT"]},{icon:"💳",label:"Accounts Payment",href:"/dashboard/clients/accounts-payment",roles:["SUPER_ADMIN","ACCOUNTANT"]},{icon:"📋",label:"Contracts",href:"/dashboard/contracts",roles:["SUPER_ADMIN","ACCOUNTANT"]},{icon:"👥",label:"HR & Team",href:"/dashboard/team",roles:["SUPER_ADMIN"]},{icon:"💎",label:"LTV & Revenue",href:"/dashboard/ltv",roles:["SUPER_ADMIN","ACCOUNTANT"]}]},
+ {label:"ANALYTICS",items:[{icon:"📊",label:"Analytics",href:"/dashboard/analytics",roles:["SUPER_ADMIN"]},{icon:"📈",label:"Forecast",href:"/dashboard/forecast",roles:["SUPER_ADMIN","ACCOUNTANT"]},{icon:"🎯",label:"KPIs & BI",href:"/dashboard/kpis",roles:["SUPER_ADMIN"]},{icon:"📋",label:"Reports",href:"/dashboard/reports",roles:["SUPER_ADMIN","ACCOUNTANT","ACCOUNT_MANAGER","MEDIA_BUYER","SALES"]}]},
+ {label:"INTELLIGENCE & TOOLS",items:[{icon:"✦",label:"VIVITO",href:"/dashboard/ai-studio",roles:["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CREATOR","SALES","ACCOUNTANT","CLIENT"]},{icon:"📁",label:"Files",href:"/dashboard/files",roles:["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CREATOR","SALES","ACCOUNTANT","CLIENT"]},{icon:"🗄️",label:"Archive",href:"/dashboard/archive",roles:["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","SALES"]},{icon:"🔔",label:"Notifications",href:"/dashboard/notifications",roles:["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CREATOR","SALES","ACCOUNTANT","CLIENT"]},{icon:"⚙️",label:"Settings",href:"/dashboard/settings",roles:["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CREATOR","ACCOUNTANT","SALES","CLIENT"]}]},
  {label:"CLIENT PORTAL",items:[{icon:"🌐",label:"My Portal",href:"/dashboard/portal",roles:["CLIENT"]}]}
 ];
 const AR:Record<string,string>={MAIN:"الرئيسية","FINANCE & HR":"المالية والموارد البشرية",ANALYTICS:"التحليلات","INTELLIGENCE & TOOLS":"الذكاء والأدوات","CLIENT PORTAL":"بوابة العميل",Dashboard:"لوحة التحكم",Clients:"العملاء","Sales CRM":"المبيعات",WhatsApp:"واتساب","Media Control":"إدارة الإعلانات","Platform Sync":"ربط المنصات",Creative:"الإبداع","Tasks Inbox":"صندوق المهام",Calendar:"التقويم",Finance:"المالية","Accounts Payment":"تحصيلات العملاء",Contracts:"العقود","HR & Team":"الفريق","LTV & Revenue":"القيمة والإيرادات",Analytics:"التحليلات",Forecast:"التوقعات","KPIs & BI":"مؤشرات الأداء",Reports:"التقارير",VIVITO:"VIVITO",Files:"الملفات",Archive:"الأرشيف",Notifications:"الإشعارات",Settings:"الإعدادات","My Portal":"بوابتي"};

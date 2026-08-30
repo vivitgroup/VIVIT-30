@@ -16,32 +16,27 @@ function createClient() {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) throw new Error("DATABASE_URL is required");
 
-  // Use the same explicit connection parsing that the production DB gate uses.
-  // This preserves pooler usernames such as postgres.<project-ref> exactly.
+  // Parse and rebuild the URI so Supabase pooler usernames such as
+  // postgres.<project-ref> survive URL parsing exactly. Passing the raw URI
+  // to postgres.js has previously authenticated production as plain postgres.
   const parsed = new URL(databaseUrl);
   if (!["postgres:", "postgresql:"].includes(parsed.protocol)) {
     throw new Error("DATABASE_URL must use postgres:// or postgresql://");
   }
-  const connection = {
-    host: parsed.hostname,
-    port: parsed.port ? Number(parsed.port) : 5432,
-    database: decodeURIComponent(parsed.pathname.replace(/^\//, "") || "postgres"),
-    username: decodeURIComponent(parsed.username),
-    password: decodeURIComponent(parsed.password),
-  };
-  if (!connection.host || !connection.username || !connection.password) {
+  const username = decodeURIComponent(parsed.username);
+  const password = decodeURIComponent(parsed.password);
+  const host = parsed.hostname;
+  const port = parsed.port ? Number(parsed.port) : 5432;
+  const database = decodeURIComponent(parsed.pathname.replace(/^\//, "") || "postgres");
+  if (!host || !username || !password) {
     throw new Error("DATABASE_URL is missing host, username, or password");
   }
+  const runtimeUrl = `${parsed.protocol}//${encodeURIComponent(username)}:${encodeURIComponent(password)}@${host}:${port}/${encodeURIComponent(database)}`;
 
   const ssl = process.env.DATABASE_SSL_DISABLED === "1"
     ? false
     : { rejectUnauthorized: false };
-  return postgres(databaseUrl, {
-    host: connection.host,
-    port: connection.port,
-    database: connection.database,
-    username: connection.username,
-    password: connection.password,
+  return postgres(runtimeUrl, {
     ssl,
     max:             3,
     idle_timeout:    20,

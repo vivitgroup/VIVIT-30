@@ -1,0 +1,87 @@
+name: CTO Integrate Wave V15
+on:
+  push:
+    branches: [feat/vivito-static-integrate-wave-v15]
+permissions:
+  contents: write
+jobs:
+  integrate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-static-integrate-wave-v15
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint . -f json > /tmp/all.json || true
+          EXPECTED=132 node <<'NODE'
+          const m=require('/tmp/all.json').flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any'),w=m.filter(x=>x.severity===1);console.log(`remaining_any=${a.length} non_any=${n.length} warnings=${w.length}`);if(a.length!==Number(process.env.EXPECTED)||n.length||w.length)process.exit(1)
+          NODE
+      - name: Integrate operator
+        run: |
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git fetch origin 1c777b920b52c1288f04461573bbfaea53893661
+          git cherry-pick 1c777b920b52c1288f04461573bbfaea53893661
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint lib/vivito/executor-operator.ts -f json > /tmp/target.json || true
+          npx eslint . -f json > /tmp/all.json || true
+          EXPECTED=111 node <<'NODE'
+          const t=require('/tmp/target.json').flatMap(x=>x.messages||[]),m=require('/tmp/all.json').flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any'),w=m.filter(x=>x.severity===1);console.log(`operator target=${t.length} any=${a.length} non_any=${n.length} warnings=${w.length}`);if(t.length||a.length!==Number(process.env.EXPECTED)||n.length||w.length)process.exit(1)
+          NODE
+      - name: Integrate dashboard UI
+        run: |
+          git fetch origin 389bb0503b414f5ff55d1c9a61b1fb5795dd69b2
+          git cherry-pick 389bb0503b414f5ff55d1c9a61b1fb5795dd69b2
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint app/dashboard/creative/quality/page.tsx app/dashboard/operations/page.tsx app/dashboard/universe/page.tsx -f json > /tmp/target.json || true
+          npx eslint . -f json > /tmp/all.json || true
+          EXPECTED=94 node <<'NODE'
+          const t=require('/tmp/target.json').flatMap(x=>x.messages||[]),m=require('/tmp/all.json').flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any'),w=m.filter(x=>x.severity===1);console.log(`ui target=${t.length} any=${a.length} non_any=${n.length} warnings=${w.length}`);if(t.length||a.length!==Number(process.env.EXPECTED)||n.length||w.length)process.exit(1)
+          NODE
+      - name: Integrate finance and team
+        run: |
+          git fetch origin d3573f84270befc56aaefe6d803b3b60dbd90ada
+          git cherry-pick d3573f84270befc56aaefe6d803b3b60dbd90ada
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint app/dashboard/finance/page.tsx app/dashboard/team/page.tsx -f json > /tmp/target.json || true
+          npx eslint . -f json > /tmp/all.json || true
+          EXPECTED=83 node <<'NODE'
+          const t=require('/tmp/target.json').flatMap(x=>x.messages||[]),m=require('/tmp/all.json').flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any'),w=m.filter(x=>x.severity===1);console.log(`finance-team target=${t.length} any=${a.length} non_any=${n.length} warnings=${w.length}`);if(t.length||a.length!==Number(process.env.EXPECTED)||n.length||w.length)process.exit(1)
+          NODE
+      - name: Integrate governance memory mesh
+        run: |
+          git fetch origin 9c3ba7957dd2bbf214adffb4c35935a5a776bbf0
+          git cherry-pick 9c3ba7957dd2bbf214adffb4c35935a5a776bbf0
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint lib/vivito/enterprise-governance.ts lib/vivito/memory.ts lib/vivito/model-mesh-v1.ts -f json > /tmp/target.json || true
+          npx eslint . -f json > /tmp/all.json || true
+          EXPECTED=71 node <<'NODE'
+          const t=require('/tmp/target.json').flatMap(x=>x.messages||[]),m=require('/tmp/all.json').flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any'),w=m.filter(x=>x.severity===1);console.log(`governance target=${t.length} any=${a.length} non_any=${n.length} warnings=${w.length}`);if(t.length||a.length!==Number(process.env.EXPECTED)||n.length||w.length)process.exit(1)
+          NODE
+      - name: Integrate knowledge competitive
+        run: |
+          git fetch origin dcc79dda59c76c96b223342f320124a1d2feabe7
+          git cherry-pick dcc79dda59c76c96b223342f320124a1d2feabe7
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          git diff --check HEAD~5 HEAD
+          npx eslint lib/vivito/live-knowledge-fabric.ts lib/vivito/competitive-intelligence.ts -f json > /tmp/target.json || true
+          npx eslint . -f json > /tmp/all.json || true
+          EXPECTED=60 node <<'NODE'
+          const t=require('/tmp/target.json').flatMap(x=>x.messages||[]),m=require('/tmp/all.json').flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any'),w=m.filter(x=>x.severity===1);console.log(`knowledge target=${t.length} any=${a.length} non_any=${n.length} warnings=${w.length}`);if(t.length||a.length!==Number(process.env.EXPECTED)||n.length||w.length)process.exit(1)
+          NODE
+      - name: Push accepted candidate
+        run: git push origin HEAD:feat/vivito-static-integrate-wave-v15

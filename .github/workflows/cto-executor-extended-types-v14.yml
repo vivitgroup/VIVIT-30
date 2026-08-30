@@ -1,0 +1,65 @@
+name: CTO Executor Extended Types V14
+on:
+  push:
+    branches: [feat/vivito-executor-extended-types-v14]
+permissions:
+  contents: write
+jobs:
+  remediate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-executor-extended-types-v14
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Apply extended executor contracts
+        run: |
+          node <<'NODE'
+          const fs=require('node:fs');const file='lib/vivito/executor-extended.ts';let s=fs.readFileSync(file,'utf8');
+          function one(from,to,count=1){const n=s.split(from).length-1;if(n!==count)throw new Error(`expected ${count}, found ${n}: ${from.slice(0,170)}`);s=s.split(from).join(to)}
+          one('const rows=(v:unknown)=>Array.from(v as any) as any[];','type ActionArgs=Record<string,unknown>;\ntype LookupRow={id:string;name?:string;role?:string;company_name?:string;account_manager_id?:string|null;media_buyer_id?:string|null;user_id?:string|null;is_active?:boolean;archived_at?:string|Date|null;title?:string;client_id?:string|null;status?:string;assigned_to_id?:string|null;uploaded_by?:string;mime_type?:string|null;stage?:string;industry?:string|null;notes?:string|null;contact_person?:string|null;email?:string|null;phone?:string|null;[key:string]:unknown};\ntype ClientUpdateSet={contract_start?:Date|null;contract_end?:Date|null;account_manager_id?:string|null;media_buyer_id?:string|null;[key:string]:unknown};\ntype TaskUpdateSet={title?:string;brief?:string;deadline?:Date;priority?:string;type?:string;status?:string;completed_at?:Date;[key:string]:unknown};\ntype LeadUpdateSet={email?:string|null;estimated_value?:number;next_follow_up?:Date|null;expected_close?:Date|null;[key:string]:unknown};\ntype SalesLeadInsert=typeof salesLeads.$inferInsert;\nconst objectRecord=(v:unknown):ActionArgs=>v&&typeof v==="object"&&!Array.isArray(v)?v as ActionArgs:{};\nconst rows=(v:unknown):LookupRow[]=>Array.from(v as Iterable<LookupRow>);');
+          one('async function updateClient(args:any,role:string,userId:string){\n const c=await client(args.clientName,role,userId),sets:any={},changed:any={};','async function updateClient(args:ActionArgs,role:string,userId:string){\n const c=await client(args.clientName,role,userId),sets:ClientUpdateSet={},changed:Record<string,unknown>={};');
+          one('async function addContact(args:any,role:string,userId:string)','async function addContact(args:ActionArgs,role:string,userId:string)');
+          one('newValues:JSON.stringify({clientId:c.id,clientName:c.company_name,name,isPrimary})} as any','newValues:JSON.stringify({clientId:c.id,clientName:c.company_name,name,isPrimary})}');
+          one('async function updateTask(args:any,role:string,userId:string){const t=await task(args,role,userId),sets:any={},changed:any={};','async function updateTask(args:ActionArgs,role:string,userId:string){const t=await task(args,role,userId),sets:TaskUpdateSet={},changed:Record<string,unknown>={};');
+          one('async function reassignTask(args:any,role:string,userId:string)','async function reassignTask(args:ActionArgs,role:string,userId:string)');
+          one('newValues:JSON.stringify({assigneeId:u.id,assigneeName:u.name})} as any','newValues:JSON.stringify({assigneeId:u.id,assigneeName:u.name})}');
+          one('async function schedulePost(args:any,role:string,userId:string)','async function schedulePost(args:ActionArgs,role:string,userId:string)');
+          one('hashtags:`asset:${fileId}`,status:"scheduled"} as any).returning();','hashtags:`asset:${fileId}`,status:"scheduled"}).returning();');
+          one('newValues:JSON.stringify({clientId:c.id,clientName:c.company_name,fileId,taskId,title,date:when.toISOString(),platform})} as any','newValues:JSON.stringify({clientId:c.id,clientName:c.company_name,fileId,taskId,title,date:when.toISOString(),platform})}');
+          one('async function markPosted(args:any,role:string,userId:string)','async function markPosted(args:ActionArgs,role:string,userId:string)');
+          one('async function createLead(args:any,userId:string)','async function createLead(args:ActionArgs,userId:string)');
+          one('source:(clean(args.source,40)||"WEBSITE") as any','source:(clean(args.source,40)||"WEBSITE") as SalesLeadInsert["source"]');
+          one('async function updateLead(args:any,role:string,userId:string){const l=await lead(args.leadCompanyName,role,userId),sets:any={},changed:any={};','async function updateLead(args:ActionArgs,role:string,userId:string){const l=await lead(args.leadCompanyName,role,userId),sets:LeadUpdateSet={},changed:Record<string,unknown>={};');
+          one('newValues:JSON.stringify(changed)} as any','newValues:JSON.stringify(changed)}');
+          one('async function moveLead(args:any,role:string,userId:string)','async function moveLead(args:ActionArgs,role:string,userId:string)');
+          one('newValues:JSON.stringify({from:l.stage,to:stage,clientId})} as any','newValues:JSON.stringify({from:l.stage,to:stage,clientId})}');
+          one('async function archiveLead(args:any,role:string,userId:string)','async function archiveLead(args:ActionArgs,role:string,userId:string)');
+          one('return workspaceContext.run(workspaceId,async()=>{authorize(role,op);if(op==="update_client")return updateClient(args,role,userId);if(op==="add_client_contact")return addContact(args,role,userId);if(op==="update_task")return updateTask(args,role,userId);if(op==="reassign_task")return reassignTask(args,role,userId);if(op==="schedule_post")return schedulePost(args,role,userId);if(op==="mark_posted")return markPosted(args,role,userId);if(op==="create_lead")return createLead(args,userId);if(op==="update_lead")return updateLead(args,role,userId);if(op==="move_lead")return moveLead(args,role,userId);if(op==="archive_lead")return archiveLead(args,role,userId);','return workspaceContext.run(workspaceId,async()=>{authorize(role,op);const input=objectRecord(args);if(op==="update_client")return updateClient(input,role,userId);if(op==="add_client_contact")return addContact(input,role,userId);if(op==="update_task")return updateTask(input,role,userId);if(op==="reassign_task")return reassignTask(input,role,userId);if(op==="schedule_post")return schedulePost(input,role,userId);if(op==="mark_posted")return markPosted(input,role,userId);if(op==="create_lead")return createLead(input,userId);if(op==="update_lead")return updateLead(input,role,userId);if(op==="move_lead")return moveLead(input,role,userId);if(op==="archive_lead")return archiveLead(input,role,userId);');
+          fs.writeFileSync(file,s)
+          NODE
+          git diff --check
+      - name: Acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint lib/vivito/executor-extended.ts -f json > /tmp/target.json || true
+          npx eslint . -f json > /tmp/all.json || true
+          node <<'NODE'
+          const target=require('/tmp/target.json').flatMap(x=>x.messages||[]),m=require('/tmp/all.json').flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any'),w=m.filter(x=>x.severity===1);console.log(`target_total=${target.length}`);console.log(`remaining_any=${a.length}`);console.log(`non_any=${n.length} warnings=${w.length}`);console.log(JSON.stringify(target.map(x=>[x.ruleId,x.line,x.message]).slice(0,60)));if(target.length||a.length!==147||n.length||w.length)process.exit(1)
+          NODE
+      - name: Commit source
+        run: |
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git add lib/vivito/executor-extended.ts
+          git commit -m 'fix(types): close extended executor contracts [skip ci]'
+          git push origin HEAD:feat/vivito-executor-extended-types-v14

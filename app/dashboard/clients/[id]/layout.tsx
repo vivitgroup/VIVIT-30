@@ -14,6 +14,8 @@ export default async function ClientDetailGuard({children,params}:{children:Reac
 
   const role=session.user.role as Role;
   const userId=String(session.user.id);
+  const workspaceId=String(session.user.workspaceId||"");
+  if(!workspaceId)redirect("/login?reason=workspace_missing");
   if(![Role.SUPER_ADMIN,Role.ACCOUNT_MANAGER,Role.MEDIA_BUYER,Role.ACCOUNTANT].includes(role))redirect("/dashboard");
 
   const {id}=await params;
@@ -22,7 +24,7 @@ export default async function ClientDetailGuard({children,params}:{children:Reac
     isActive:clients.isActive,
     accountManagerId:clients.accountManagerId,
     mediaBuyerId:clients.mediaBuyerId,
-  }).from(clients).where(and(eq(clients.id,id),eq(clients.isActive,true))).limit(1);
+  }).from(clients).where(and(eq(clients.id,id),eq(clients.workspaceId,workspaceId),eq(clients.isActive,true))).limit(1);
 
   if(!client)redirect("/dashboard/clients");
   if(role===Role.ACCOUNT_MANAGER&&client.accountManagerId!==userId)redirect("/dashboard/clients");

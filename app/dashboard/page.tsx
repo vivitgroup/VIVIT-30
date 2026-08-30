@@ -117,8 +117,26 @@ export default async function DashboardPage() {
   return (
     <div className="dashboard-home">
 
+      <section className="vone-command-hero">
+        <div className="vone-hero-copy">
+          <span className="vone-kicker"><i/> VIVIT ONE · AGENCY CLEAR</span>
+          <h1>Your agency is moving.<br/><em>Stay in the flow.</em></h1>
+          <p>{overdueCnt > 0 ? `${overdueCnt} overdue items need attention before the next delivery window.` : "Everything important is moving on schedule. Vivito is watching the details."}</p>
+          <div className="vone-command-bar"><span className="vone-command-spark">✦</span><span>Ask Vivito anything, find a client, or run an action…</span><kbd>⌘ K</kbd></div>
+        </div>
+        <div className="vone-hero-orbit" aria-label="Agency pulse">
+          <span className="vone-orbit-line line-a"/><span className="vone-orbit-line line-b"/>
+          <div className="vone-pulse-core"><b>{healthScore}</b><small>AGENCY<br/>PULSE</small></div>
+          <span className="vone-client-orb orb-1">C</span><span className="vone-client-orb orb-2">M</span><span className="vone-client-orb orb-3">V</span>
+        </div>
+      </section>
+
+      <nav className="vone-mode-nav" aria-label="VIVIT ONE modes">
+        <Link href="/dashboard/today" className="is-active"><span>01</span> Now</Link><Link href="/dashboard/universe"><span>02</span> Clients</Link><Link href="/dashboard/analytics"><span>03</span> Intelligence</Link><Link href="/dashboard/executive"><span>04</span> Control Tower</Link>
+      </nav>
+
       {/* ── Agency Command Center Header ── */}
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:"12px"}}>
+      <div className="vone-section-heading" style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:"12px"}}>
         <div>
           <h1 className="page-title">Agency Command Center</h1>
           <p className="page-subtitle">

@@ -1,0 +1,76 @@
+name: CTO Client Workspace Typing V3
+
+on:
+  push:
+    branches: [feat/vivito-internal-100]
+    paths:
+      - .github/workflows/cto-client-workspace-typing-v3.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-internal-100
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply client workspace row contracts
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('app/dashboard/clients/[id]/page.tsx')
+          s=p.read_text()
+          s=s.replace('import Link from "next/link";','import Link from "next/link";\nimport Image from "next/image";')
+          old='''const n=(v:any)=>Number(v||0),money=(v:any)=>`${Math.round(n(v)).toLocaleString("en-EG")} EGP`,fmt=(v:any)=>v?new Intl.DateTimeFormat("en-GB",{day:"2-digit",month:"short",year:"numeric"}).format(new Date(v)):"—";\nconst safeUrl=(v:any)=>{const s=String(v||"").trim();if(!s)return"";try{const u=new URL(s);return /^https?:$/.test(u.protocol)?u.toString():""}catch{return""}};\nconst metric=(x:any)=>{let r:any={};try{r=typeof x.reported_metrics==="string"?JSON.parse(x.reported_metrics):x.reported_metrics||{}}catch{}const monthKey=new Date().toISOString().slice(0,7),sameMonth=String(x.reported_period_start||"").slice(0,7)===monthKey&&String(x.reported_period_end||"").slice(0,7)===monthKey;return sameMonth&&Object.keys(r).length?{spend:n(r.spend),results:n(r.results),atc:n(r.addToCart),purchases:n(r.purchases),impressions:n(r.impressions),clicks:n(r.clicks),revenue:n(r.revenue)}:{spend:n(x.spend),results:n(x.results),atc:n(x.atc),purchases:n(x.purchases),impressions:n(x.impressions),clicks:n(x.clicks),revenue:n(x.revenue)}};'''
+          new='''type Numberish=number|string|null|undefined;\ntype Dateish=Date|string|null|undefined;\ntype ClientAccessRow={id:string;account_manager_id:string|null;media_buyer_id:string|null};\ntype ClientWorkspaceRow=ClientAccessRow&{company_name:string;industry:string|null;website:string|null;logo:string|null;facebook_url:string|null;instagram_url:string|null;tiktok_ads_link:string|null;account_manager_name:string|null;media_buyer_name:string|null};\ntype ContactRow={id:string;name:string;title:string|null;email:string|null;phone:string|null;whatsapp:string|null;is_primary:boolean};\ntype TaskRow={id:string;title:string;type:string;status:string;priority:string;deadline:Dateish;file_url:string|null;revision_count:number|null};\ntype CalendarRow={id:string;title:string;date:Dateish;platform:string|null;status:string;task_id:string|null};\ntype CampaignRow={id:string;name:string;status:string;objective:string;reported_result_label:string|null;reported_metrics:string|null;reported_period_start:Dateish;reported_period_end:Dateish;last_sync_at:Dateish;spend:Numberish;results:Numberish;atc:Numberish;purchases:Numberish;impressions:Numberish;clicks:Numberish;revenue:Numberish};\ntype ActivityRow={type:string;notes:string|null;created_at:Dateish;user_name:string|null};\ntype FinanceRow={amount_due:Numberish;amount_paid:Numberish;amount_remaining:Numberish;payment_status:string|null;payment_day:number|null;currency:string|null};\ntype SocialLink=[label:string,href:string];\ntype CampaignMetric={spend:number;results:number;atc:number;purchases:number;impressions:number;clicks:number;revenue:number};\nconst n=(v:Numberish)=>Number(v||0),money=(v:Numberish)=>`${Math.round(n(v)).toLocaleString("en-EG")} EGP`,fmt=(v:Dateish)=>v?new Intl.DateTimeFormat("en-GB",{day:"2-digit",month:"short",year:"numeric"}).format(new Date(v)):"—";\nconst safeUrl=(v:string|null|undefined)=>{const value=String(v||"").trim();if(!value)return"";try{const u=new URL(value);return /^https?:$/.test(u.protocol)?u.toString():""}catch{return""}};\nconst asRecord=(value:unknown):Record<string,unknown>=>value!==null&&typeof value==="object"&&!Array.isArray(value)?value as Record<string,unknown>:{};\nconst numeric=(value:unknown)=>typeof value==="number"?value:typeof value==="string"?Number(value)||0:0;\nconst metric=(x:CampaignRow):CampaignMetric=>{let r:Record<string,unknown>={};try{const parsed:unknown=typeof x.reported_metrics==="string"?JSON.parse(x.reported_metrics):{};r=asRecord(parsed)}catch{}const monthKey=new Date().toISOString().slice(0,7),sameMonth=String(x.reported_period_start||"").slice(0,7)===monthKey&&String(x.reported_period_end||"").slice(0,7)===monthKey;return sameMonth&&Object.keys(r).length?{spend:numeric(r.spend),results:numeric(r.results),atc:numeric(r.addToCart),purchases:numeric(r.purchases),impressions:numeric(r.impressions),clicks:numeric(r.clicks),revenue:numeric(r.revenue)}:{spend:n(x.spend),results:n(x.results),atc:n(x.atc),purchases:n(x.purchases),impressions:n(x.impressions),clicks:n(x.clicks),revenue:n(x.revenue)}};'''
+          if old not in s: raise SystemExit('helper block not found')
+          s=s.replace(old,new)
+          s=s.replace('const role=String((s.user as any).role||""),uid=String((s.user as any).id||"")','const role=String(s.user.role||""),uid=String(s.user.id||"")')
+          s=s.replace('const rows:any=await db.execute(sql`select id,account_manager_id,media_buyer_id from clients where id=${clientId} and is_active=true limit 1`),c=rows?.[0]','const rows=Array.from(await db.execute<ClientAccessRow>(sql`select id,account_manager_id,media_buyer_id from clients where id=${clientId} and is_active=true limit 1`)),c=rows[0]')
+          s=s.replace('const role=String((s.user as any).role||""),uid=String((s.user as any).id||""),{id}=await params','const role=String(s.user.role||""),uid=String(s.user.id||""),{id}=await params')
+          s=s.replace('const rows:any=await db.execute(sql`select c.*,am.name account_manager_name,mb.name media_buyer_name from clients c left join users am on am.id=c.account_manager_id left join users mb on mb.id=c.media_buyer_id where c.id=${id} and c.is_active=true limit 1`),client=rows?.[0]','const rows=Array.from(await db.execute<ClientWorkspaceRow>(sql`select c.*,am.name account_manager_name,mb.name media_buyer_name from clients c left join users am on am.id=c.account_manager_id left join users mb on mb.id=c.media_buyer_id where c.id=${id} and c.is_active=true limit 1`)),client=rows[0]')
+          old='''const [contacts,tasks,calendar,campaignRows,activity,finance]=await Promise.all([db.execute(sql`select id,name,title,email,phone,whatsapp,is_primary from contacts where client_id=${id} order by is_primary desc,name`),role==="ACCOUNTANT"?Promise.resolve([]):db.execute(sql`select id,title,type,status,priority,deadline,file_url,revision_count from creative_tasks where client_id=${id} and archived_at is null and deleted_at is null order by deadline asc limit 40`),role==="ACCOUNTANT"?Promise.resolve([]):db.execute(sql`select id,title,date,platform,status,task_id from calendar_events where client_id=${id} order by date asc limit 30`),role==="ACCOUNTANT"?Promise.resolve([]):db.execute(sql`select a.id,a.name,a.status,a.objective,a.reported_result_label,a.reported_metrics,a.reported_period_start,a.reported_period_end,a.last_sync_at,coalesce(sum(p.spend),0) spend,coalesce(sum(p.results),0) results,coalesce(sum(p.add_to_cart),0) atc,coalesce(sum(p.purchases),0) purchases,coalesce(sum(p.impressions),0) impressions,coalesce(sum(p.clicks),0) clicks,coalesce(sum(p.revenue),0) revenue from ad_campaigns a left join ad_performance_daily p on p.campaign_id=a.id and p.date>=date_trunc('month',now()) and p.breakdown_type='TOTAL' and p.ad_set_id is null and p.ad_id is null where a.client_id=${id} and a.archived_at is null group by a.id,a.name,a.status,a.objective,a.reported_result_label,a.reported_metrics,a.reported_period_start,a.reported_period_end,a.last_sync_at order by spend desc`),role==="ACCOUNTANT"?Promise.resolve([]):db.execute(sql`select a.type,a.notes,a.created_at,u.name user_name from sales_activities a left join users u on u.id=a.user_id where a.lead_id=${id} order by a.created_at desc limit 12`),canFinance?db.execute(sql`select amount_due,amount_paid,amount_remaining,payment_status,payment_day,currency from client_payment_profiles where client_id=${id} limit 1`):Promise.resolve([])]);'''
+          new='''const [contacts,tasks,calendar,campaignRows,activity,finance]=await Promise.all([db.execute<ContactRow>(sql`select id,name,title,email,phone,whatsapp,is_primary from contacts where client_id=${id} order by is_primary desc,name`).then(rows=>Array.from(rows)),role==="ACCOUNTANT"?Promise.resolve<TaskRow[]>([]):db.execute<TaskRow>(sql`select id,title,type,status,priority,deadline,file_url,revision_count from creative_tasks where client_id=${id} and archived_at is null and deleted_at is null order by deadline asc limit 40`).then(rows=>Array.from(rows)),role==="ACCOUNTANT"?Promise.resolve<CalendarRow[]>([]):db.execute<CalendarRow>(sql`select id,title,date,platform,status,task_id from calendar_events where client_id=${id} order by date asc limit 30`).then(rows=>Array.from(rows)),role==="ACCOUNTANT"?Promise.resolve<CampaignRow[]>([]):db.execute<CampaignRow>(sql`select a.id,a.name,a.status,a.objective,a.reported_result_label,a.reported_metrics,a.reported_period_start,a.reported_period_end,a.last_sync_at,coalesce(sum(p.spend),0) spend,coalesce(sum(p.results),0) results,coalesce(sum(p.add_to_cart),0) atc,coalesce(sum(p.purchases),0) purchases,coalesce(sum(p.impressions),0) impressions,coalesce(sum(p.clicks),0) clicks,coalesce(sum(p.revenue),0) revenue from ad_campaigns a left join ad_performance_daily p on p.campaign_id=a.id and p.date>=date_trunc('month',now()) and p.breakdown_type='TOTAL' and p.ad_set_id is null and p.ad_id is null where a.client_id=${id} and a.archived_at is null group by a.id,a.name,a.status,a.objective,a.reported_result_label,a.reported_metrics,a.reported_period_start,a.reported_period_end,a.last_sync_at order by spend desc`).then(rows=>Array.from(rows)),role==="ACCOUNTANT"?Promise.resolve<ActivityRow[]>([]):db.execute<ActivityRow>(sql`select a.type,a.notes,a.created_at,u.name user_name from sales_activities a left join users u on u.id=a.user_id where a.lead_id=${id} order by a.created_at desc limit 12`).then(rows=>Array.from(rows)),canFinance?db.execute<FinanceRow>(sql`select amount_due,amount_paid,amount_remaining,payment_status,payment_day,currency from client_payment_profiles where client_id=${id} limit 1`).then(rows=>Array.from(rows)):Promise.resolve<FinanceRow[]>([])]);'''
+          if old not in s: raise SystemExit('query block not found')
+          s=s.replace(old,new)
+          old='''const primary=(contacts as any[]).find(x=>x.is_primary)||(contacts as any[])[0],campaigns=(campaignRows as any[]).map(x=>({...x,...metric(x)})),mt=campaigns.reduce((a,x)=>({spend:a.spend+n(x.spend),atc:a.atc+n(x.atc),purchases:a.purchases+n(x.purchases),revenue:a.revenue+n(x.revenue)}),{spend:0,atc:0,purchases:0,revenue:0}),spend=n(mt.spend),revenue=n(mt.revenue),roas=spend?revenue/spend:0,activeTasks=(tasks as any[]).filter(x=>!["COMPLETED","APPROVED"].includes(x.status)).length,review=(tasks as any[]).filter(x=>["REVIEW","REVISION"].includes(x.status)).length,socials=[["Facebook",safeUrl(client.facebook_url)],["Instagram",safeUrl(client.instagram_url)],["TikTok",safeUrl(client.tiktok_ads_link)],["Website",safeUrl(client.website)],["WhatsApp",primary?.whatsapp?`https://wa.me/${String(primary.whatsapp).replace(/\\D/g,"")}`:""]].filter(x=>x[1]) as any[];'''
+          new='''const primary=contacts.find(x=>x.is_primary)||contacts[0],campaigns=campaignRows.map(x=>({...x,...metric(x)})),mt=campaigns.reduce((a,x)=>({spend:a.spend+n(x.spend),atc:a.atc+n(x.atc),purchases:a.purchases+n(x.purchases),revenue:a.revenue+n(x.revenue)}),{spend:0,atc:0,purchases:0,revenue:0}),spend=n(mt.spend),revenue=n(mt.revenue),roas=spend?revenue/spend:0,activeTasks=tasks.filter(x=>!["COMPLETED","APPROVED"].includes(x.status)).length,review=tasks.filter(x=>["REVIEW","REVISION"].includes(x.status)).length,socials=([ ["Facebook",safeUrl(client.facebook_url)],["Instagram",safeUrl(client.instagram_url)],["TikTok",safeUrl(client.tiktok_ads_link)],["Website",safeUrl(client.website)],["WhatsApp",primary?.whatsapp?`https://wa.me/${String(primary.whatsapp).replace(/\\D/g,"")}`:""] ] satisfies SocialLink[]).filter(([,href])=>Boolean(href));'''
+          if old not in s: raise SystemExit('derived block not found')
+          s=s.replace(old,new)
+          s=s.replace('(calendar as any[]).slice(0,10)','calendar.slice(0,10)').replace('!(calendar as any[]).length','!calendar.length')
+          s=s.replace('(tasks as any[]).map','tasks.map').replace('(contacts as any[]).map','contacts.map').replace('(activity as any[]).map','activity.map')
+          s=s.replace('(finance as any[])[0]','finance[0]')
+          s=s.replace('<img src={client.logo} alt={`${client.company_name} logo`}/>','<Image unoptimized src={client.logo} alt={`${client.company_name} logo`} width={64} height={64}/>')
+          s=s.replace('<img src={x.file_url} alt=""/>','<Image unoptimized src={x.file_url} alt="" width={72} height={72}/>')
+          p.write_text(s)
+          PY
+      - name: Verify target contracts
+        run: |
+          if grep -nE 'as any|: *any\b|<[^>]*\bany\b' 'app/dashboard/clients/[id]/page.tsx'; then echo 'explicit any remains'; exit 1; fi
+          npx eslint 'app/dashboard/clients/[id]/page.tsx' --max-warnings=0
+          npm run type-check
+      - name: Commit source-only client workspace typing
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/cto-client-workspace-typing-v3.yml
+          git add 'app/dashboard/clients/[id]/page.tsx'
+          git commit -m "fix(types): type client workspace data contracts"
+          git push origin HEAD:feat/vivito-internal-100
+      - name: Remove transient workflow after failed gate
+        if: failure()
+        run: |
+          git reset --hard HEAD
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/cto-client-workspace-typing-v3.yml
+          git commit -m "chore(cto): remove failed client workspace typing v3 workflow"
+          git push origin HEAD:feat/vivito-internal-100

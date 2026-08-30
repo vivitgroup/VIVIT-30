@@ -6,6 +6,7 @@ import {TASK_TEMPLATES} from "@/lib/task-templates";
 
 type Option={id:string;name:string};
 type Client={id:string;companyName:string};
+type TaskTemplate=(typeof TASK_TEMPLATES)[number];
 const types=["REEL","GRAPHIC","CAROUSEL","MOTION_GRAPHIC","VIDEO_EDIT","PHOTO_SESSION","STORY","UGC"];
 const typeLabels:Record<string,string>={REEL:"🎬 Reel",GRAPHIC:"🎨 Graphic",CAROUSEL:"📊 Carousel",MOTION_GRAPHIC:"✨ Motion Graphic",VIDEO_EDIT:"🎥 Video Edit",PHOTO_SESSION:"📸 Photo Session",STORY:"📱 Story",UGC:"👤 UGC"};
 const pad=(n:number)=>String(n).padStart(2,"0");
@@ -18,7 +19,7 @@ export default function NewTaskForm({clients,creators}:{clients:Client[];creator
  const [title,setTitle]=useState(""),[type,setType]=useState(""),[priority,setPriority]=useState("MEDIUM"),[brief,setBrief]=useState(""),[tov,setTov]=useState(""),[reference,setReference]=useState(""),[deadlineText,setDeadlineText]=useState(""),[activeTemplate,setActiveTemplate]=useState("");
  const deadline=useMemo(()=>toIso(deadlineText),[deadlineText]);
  const combinedBrief=useMemo(()=>reference.trim()?`${brief.trim()}\n\nREFERENCE / INSPIRATION\n${reference.trim()}`:brief,[brief,reference]);
- function applyTemplate(t:any){setActiveTemplate(t.id);setTitle(String(t.name||"").replace(/^[^\s]+\s/,""));setType(t.type);setPriority(t.priority);setBrief(t.brief);setTov(t.tov||"");setDeadlineText(toDisplay(addDays(Number(t.daysToDeadline||3))));setTimeout(()=>document.getElementById("taskForm")?.scrollIntoView({behavior:"smooth",block:"start"}),50)}
+ function applyTemplate(t:TaskTemplate){setActiveTemplate(t.id);setTitle(String(t.name||"").replace(/^[^\s]+\s/,""));setType(t.type);setPriority(t.priority);setBrief(t.brief);setTov(t.tov||"");setDeadlineText(toDisplay(addDays(Number(t.daysToDeadline||3))));setTimeout(()=>document.getElementById("taskForm")?.scrollIntoView({behavior:"smooth",block:"start"}),50)}
  return <div className="animate-fade-up" style={{display:"grid",gap:18,maxWidth:980}}>
   <div className="flex items-center gap-3"><Link href="/dashboard/creative" className="text-[#6B8FAF] text-xl">←</Link><div><h1 className="page-title">New Creative Task</h1><p className="page-subtitle">Create a clear task, add a reference and set an exact deadline.</p></div></div>
   <div className="card"><div className="card-header"><div><p className="card-title">⚡ Quick Templates</p><p className="page-subtitle" style={{margin:0}}>Click once to fill the title, type, brief, priority and suggested deadline.</p></div></div><div className="card-body" style={{display:"flex",flexWrap:"wrap",gap:8}}>{TASK_TEMPLATES.map(t=><button key={t.id} type="button" onClick={()=>applyTemplate(t)} className={activeTemplate===t.id?"btn btn-primary btn-sm":"btn btn-ghost btn-sm"} style={{cursor:"pointer"}}>{t.name}</button>)}</div></div>

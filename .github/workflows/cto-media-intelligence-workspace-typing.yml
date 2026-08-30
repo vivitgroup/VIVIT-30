@@ -1,0 +1,51 @@
+name: CTO Media Intelligence Workspace Typing
+on:
+  push:
+    branches: [feat/vivito-internal-100]
+    paths: ['.github/workflows/cto-media-intelligence-workspace-typing.yml']
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-internal-100
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply typed media workspace candidate
+        run: |
+          git fetch origin feat/vivito-media-types-v8
+          mkdir -p types
+          git show origin/feat/vivito-media-types-v8:types/media-control.ts > types/media-control.ts
+          git show origin/feat/vivito-media-types-v8:components/media/MediaIntelligenceWorkspace.tsx > components/media/MediaIntelligenceWorkspace.tsx
+      - name: Verify target contracts
+        run: |
+          if grep -nE 'as any|: *any\b|<[^>]*\bany\b' components/media/MediaIntelligenceWorkspace.tsx types/media-control.ts; then echo 'explicit any remains'; exit 1; fi
+          npx eslint components/media/MediaIntelligenceWorkspace.tsx types/media-control.ts --max-warnings=0
+          npm run type-check
+      - name: Commit source-only media typing
+        if: success()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add components/media/MediaIntelligenceWorkspace.tsx types/media-control.ts
+          git commit -m "refactor(media): type intelligence workspace contracts"
+          git push origin HEAD:feat/vivito-internal-100
+      - name: Remove transient workflow
+        if: always()
+        run: |
+          git fetch origin feat/vivito-internal-100
+          git reset --hard origin/feat/vivito-internal-100
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ -f .github/workflows/cto-media-intelligence-workspace-typing.yml ]; then
+            git rm .github/workflows/cto-media-intelligence-workspace-typing.yml
+            git commit -m "chore(cto): retain media intelligence typing as source-only"
+            git push origin HEAD:feat/vivito-internal-100
+          fi

@@ -8,7 +8,22 @@ permissions:
   contents: write
 jobs:
   fix:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: vivito
+          POSTGRES_PASSWORD: vivito
+          POSTGRES_DB: vivito_internal
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U vivito -d vivito_internal"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://vivito:vivito@127.0.0.1:5432/vivito_internal
+      DRIZZLE_DATABASE_URL: postgresql://vivito:vivito@127.0.0.1:5432/vivito_internal
+      DATABASE_SSL_DISABLED: "1"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -19,6 +34,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Build ephemeral database
+        run: npx drizzle-kit push --force
       - name: Apply typed Media Control candidate
         run: |
           set -euo pipefail

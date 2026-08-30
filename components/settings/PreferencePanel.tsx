@@ -6,9 +6,6 @@ export function PreferencePanel(){
 
   useEffect(()=>{
     const timer=setTimeout(()=>{
-      localStorage.setItem("vivit-lang","en");
-      document.documentElement.lang="en";
-      document.documentElement.dir="ltr";
       setTheme(localStorage.getItem("vivit-theme")||"light");
       setReminder(localStorage.getItem("vivit-task-reminder-minutes")||"60");
       setDesktop(localStorage.getItem("vivit-reminder-enabled")!=="false");
@@ -25,7 +22,7 @@ export function PreferencePanel(){
   return <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(250px,1fr))",gap:14}}>
     <section className="card"><div className="card-body">
       <h2 className="card-title">Appearance</h2>
-      <p className="page-subtitle">The workspace interface stays in English. Navigation labels in the desktop sidebar are Arabic by design.</p>
+      <p className="page-subtitle">Use the language switch in the top bar for English or Arabic. Your choice is saved on this device.</p>
       <label className="form-label" style={{marginTop:12}}>Theme</label>
       <select className="form-select" value={theme} onChange={e=>applyTheme(e.target.value)}><option value="light">Light</option><option value="dark">Dark</option></select>
     </div></section>

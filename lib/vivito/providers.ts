@@ -1,7 +1,8 @@
 import {classifyVivitoProviderFailure,clearVivitoProviderCooldown,markVivitoProviderCooldown,vivitoProviderCooldownRemaining} from "./quota-resilience";
 import {generateViaVivitoMesh,vivitoMeshSummary,type VivitoMeshTask} from "./model-mesh-v1";
+import {generateLocalVivito} from "./local-provider";
 
-export type VivitoProviderName="gemini"|"claude"|"mesh";
+export type VivitoProviderName="gemini"|"claude"|"mesh"|"local";
 export type VivitoGeneration={text:string;provider:VivitoProviderName;attempted:VivitoProviderName[];errors:string[];latencyMs:number;modelId?:string};
 
 type GenerateOptions={temperature?:number;maxTokens?:number;preferred?:VivitoProviderName[];timeoutMs?:number;task?:VivitoMeshTask};
@@ -41,19 +42,22 @@ async function callGemini(prompt:string,system:string,options:GenerateOptions){
 
 export function configuredVivitoProviders():VivitoProviderName[]{const providers:VivitoProviderName[]=[];if(process.env.GEMINI_API_KEY)providers.push("gemini");if(vivitoMeshSummary().configured>0)providers.push("mesh");if(process.env.ANTHROPIC_API_KEY)providers.push("claude");return providers}
 function safeError(provider:VivitoProviderName,error:unknown){const failure=classifyVivitoProviderFailure(error,errorStatus(error));return `${provider}:${failure.safeCode}`}
+function localFallback(prompt:string,system:string,attempted:VivitoProviderName[],errors:string[],started:number){const local=generateLocalVivito(prompt,system);if(!local)return null;const next=[...attempted,"local" as const];console.warn("VIVITO provider fallback",{attempted:next,errors:errors.slice(-6),localModel:local.modelId});return{text:local.text,provider:"local" as const,attempted:next,errors,latencyMs:Date.now()-started,modelId:local.modelId}}
 
 export async function generateVivito(prompt:string,system:string,options:GenerateOptions={}):Promise<VivitoGeneration>{
-  const configured=configuredVivitoProviders();if(!configured.length)throw new Error("provider-not-configured");
-  const preferred=(options.preferred||["gemini","mesh","claude"]).filter(p=>configured.includes(p));const baseOrder=[...preferred,...configured.filter(p=>!preferred.includes(p))];
+  const started=Date.now(),configured=configuredVivitoProviders(),attempted:VivitoProviderName[]=[],errors:string[]=[];
+  if(!configured.length){errors.push("external:provider-not-configured");const local=localFallback(prompt,system,attempted,errors,started);if(local)return local;throw new Error("provider-not-configured")}
+  const preferred=(options.preferred||["gemini","mesh","claude"]).filter(p=>p!=="local"&&configured.includes(p));const baseOrder=[...preferred,...configured.filter(p=>!preferred.includes(p))];
   const order=[...baseOrder.filter(p=>vivitoProviderCooldownRemaining(p)===0),...baseOrder.filter(p=>vivitoProviderCooldownRemaining(p)>0)];
-  const attempted:VivitoProviderName[]=[];const errors:string[]=[];const started=Date.now();
   for(const provider of order){
-    if(vivitoProviderCooldownRemaining(provider)>0&&order.some(p=>p!==provider&&vivitoProviderCooldownRemaining(p)===0)){errors.push(`${provider}:provider-cooldown-active`);continue}
+    if(provider==="local")continue;
+    if(vivitoProviderCooldownRemaining(provider)>0&&order.some(p=>p!==provider&&p!=="local"&&vivitoProviderCooldownRemaining(p)===0)){errors.push(`${provider}:provider-cooldown-active`);continue}
     attempted.push(provider);
     try{
       if(provider==="mesh"){const result=await generateViaVivitoMesh(prompt,system,options);clearVivitoProviderCooldown(provider);return{text:result.text,provider,attempted,errors:[...errors,...result.errors],latencyMs:Date.now()-started,modelId:result.modelId}}
       const text=provider==="gemini"?await callGemini(prompt,system,options):await callClaude(prompt,system,options);clearVivitoProviderCooldown(provider);return{text,provider,attempted,errors,latencyMs:Date.now()-started};
     }catch(error:unknown){const failure=classifyVivitoProviderFailure(error,errorStatus(error));markVivitoProviderCooldown(provider,failure);errors.push(safeError(provider,error))}
   }
+  const local=localFallback(prompt,system,attempted,errors,started);if(local)return local;
   throw new Error(`all-providers-failed:${errors.join(" | ")}`);
 }

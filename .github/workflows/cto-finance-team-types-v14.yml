@@ -1,0 +1,62 @@
+name: CTO Finance Team Types V14
+on:
+  push:
+    branches: [feat/vivito-finance-team-types-v14]
+permissions:
+  contents: write
+jobs:
+  remediate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-finance-team-types-v14
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Apply finance and team contracts
+        run: |
+          node <<'NODE'
+          const fs=require('node:fs');
+          function patch(file,ops){let s=fs.readFileSync(file,'utf8');for(const [from,to,count=1] of ops){const n=s.split(from).length-1;if(n!==count)throw new Error(`${file}: expected ${count}, found ${n}: ${from.slice(0,160)}`);s=s.split(from).join(to)}fs.writeFileSync(file,s)}
+          patch('app/dashboard/finance/page.tsx',[
+            ['const MONTHS=["","January","February","March","April","May","June","July","August","September","October","November","December"];','const MONTHS=["","January","February","March","April","May","June","July","August","September","October","November","December"];\ntype FinanceRecord=typeof financeRecords.$inferSelect;\ntype AgingKey="current"|"1-30"|"31-60"|"60+";'],
+            ['newValues:JSON.stringify({clientId,month,year,retainer,adSpend,mediaBuyingFee,extraServices,feePercent,total,currency:workspace?.currency||"EGP"})} as any','newValues:JSON.stringify({clientId,month,year,retainer,adSpend,mediaBuyingFee,extraServices,feePercent,total,currency:workspace?.currency||"EGP"})}'],
+            ['newValues:JSON.stringify({category,description,amount,ledger:true})} as any','newValues:JSON.stringify({category,description,amount,ledger:true})}'],
+            ['newValues:JSON.stringify({paid:total,outstanding:0,status:"PAID",method,legacyReconciled:legacyGap})} as any','newValues:JSON.stringify({paid:total,outstanding:0,status:"PAID",method,legacyReconciled:legacyGap})}'],
+            ['const bucket=(r:any)=>{if(!r.dueDate||Number(r.outstanding)<=0)return"paid";const days=Math.floor((now.getTime()-new Date(r.dueDate).getTime())/86400000);return days<=0?"current":days<=30?"1-30":days<=60?"31-60":"60+"},aging:unknown={current:[],"1-30":[],"31-60":[],"60+":[]};','const bucket=(r:FinanceRecord):AgingKey|"paid"=>{if(!r.dueDate||Number(r.outstanding)<=0)return"paid";const days=Math.floor((now.getTime()-new Date(r.dueDate).getTime())/86400000);return days<=0?"current":days<=30?"1-30":days<=60?"31-60":"60+"},aging:Record<AgingKey,FinanceRecord[]>={current:[],"1-30":[],"31-60":[],"60+":[]};'],
+            ['Object.entries(aging).map(([label,items]:any)=>','Object.entries(aging).map(([label,items])=>'],
+            ['items.reduce((s:number,r:any)=>s+Number(r.outstanding||0),0)','items.reduce((s,r)=>s+Number(r.outstanding||0),0)']
+          ]);
+          patch('app/dashboard/team/page.tsx',[
+            ['const EMPLOYEE_ROLES=["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CREATOR","ACCOUNTANT","SALES"] as const;','type LeaveStatus=typeof leaveRequests.$inferInsert["status"];\ntype UserRole=typeof users.$inferInsert["role"];\nconst EMPLOYEE_ROLES=["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CREATOR","ACCOUNTANT","SALES"] as const;'],
+            ['status:status as any,approvedBy','status:status as LeaveStatus,approvedBy'],
+            ['newValues:JSON.stringify({status,approvedAt:now.toISOString()})} as any','newValues:JSON.stringify({status,approvedAt:now.toISOString()})}'],
+            ['role:finalRole as any,isActive:true','role:finalRole as UserRole,isActive:true'],
+            ['newValues:JSON.stringify({selectedRole,reviewNote})} as any','newValues:JSON.stringify({selectedRole,reviewNote})}'],
+            ['inArray(users.role,[...EMPLOYEE_ROLES] as any)','inArray(users.role,[...EMPLOYEE_ROLES] as UserRole[])']
+          ]);
+          NODE
+          git diff --check
+      - name: Acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint app/dashboard/finance/page.tsx app/dashboard/team/page.tsx -f json > /tmp/target.json || true
+          npx eslint . -f json > /tmp/all.json || true
+          node <<'NODE'
+          const target=require('/tmp/target.json').flatMap(x=>x.messages||[]),r=require('/tmp/all.json'),m=r.flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any'),w=m.filter(x=>x.severity===1);console.log(`target_total=${target.length}`);console.log(`remaining_any=${a.length}`);console.log(`non_any=${n.length} warnings=${w.length}`);console.log(JSON.stringify(target.map(x=>[x.ruleId,x.line,x.message]).slice(0,40)));if(target.length||a.length!==179||n.length||w.length)process.exit(1)
+          NODE
+      - name: Commit source
+        run: |
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git add app/dashboard/finance/page.tsx app/dashboard/team/page.tsx
+          git commit -m 'fix(types): type finance and team contracts [skip ci]'
+          git push origin HEAD:feat/vivito-finance-team-types-v14

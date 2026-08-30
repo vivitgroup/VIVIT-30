@@ -1,0 +1,74 @@
+name: CTO UI Core Types V14
+on:
+  push:
+    branches: [feat/vivito-ui-core-types-v14]
+permissions:
+  contents: write
+jobs:
+  remediate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-ui-core-types-v14
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Apply UI contracts
+        run: |
+          node <<'NODE'
+          const fs=require('node:fs');
+          function patch(file,ops){let s=fs.readFileSync(file,'utf8');for(const [from,to,count=1] of ops){const n=s.split(from).length-1;if(n!==count)throw new Error(`${file}: expected ${count}, found ${n}: ${from.slice(0,140)}`);s=s.split(from).join(to)}fs.writeFileSync(file,s)}
+          patch('app/dashboard/creative/quality/page.tsx',[
+            ['const num=(v:unknown)=>Number(v||0),fmt=(v:any)=>v?new Intl.DateTimeFormat("en-GB",{day:"2-digit",month:"short"}).format(new Date(v)):"—";','type QualityRow={id:string;title:string;type:string;status:string;priority:string;deadline:unknown;file_url?:string|null;revision_count?:unknown;updated_at?:unknown;company_name:string};\nconst num=(v:unknown)=>Number(v||0),fmt=(v:unknown)=>v?new Intl.DateTimeFormat("en-GB",{day:"2-digit",month:"short"}).format(new Date(String(v))):"—";'],
+            ['String((s.user as any).workspaceId||"")','String(s.user.workspaceId||"")'],
+            ['String((s.user as any).role||"")','String(s.user.role||"")'],
+            ['String((s.user as any).id||"")','String(s.user.id||"")'],
+            ['const rows:any[]=Array.from(await db.execute(','const rows=Array.from(await db.execute('],
+            ["limit 120`));const now=", "limit 120`)) as QualityRow[];const now="],
+            ['score=(t:any)=>','score=(t:QualityRow)=>']
+          ]);
+          patch('app/dashboard/operations/page.tsx',[
+            ['export default async function OperationsPage(){','type PersonRow={id:string;name:string;role:string};\ntype WorkRow={id:string;title:string;status:string;priority:string;deadline:unknown;assigned_to_id?:string|null;account_manager_id?:string|null;media_buyer_id?:string|null;company_name:string};\nexport default async function OperationsPage(){'],
+            ['String((s.user as any).workspaceId||"")','String(s.user.workspaceId||"")'],
+            ['String((s.user as any).role||"")','String(s.user.role||"")'],
+            ['String((s.user as any).id||"")','String(s.user.id||"")'],
+            ['const people:any[]=Array.from(await db.execute(','const people=Array.from(await db.execute('],
+            ["order by role,name`));\n const work:any[]=Array.from(await db.execute(","order by role,name`)) as PersonRow[];\n const work=Array.from(await db.execute("],
+            ["status not in ('COMPLETED','REJECTED')`));\n const now=","status not in ('COMPLETED','REJECTED')`)) as WorkRow[];\n const now="]
+          ]);
+          patch('app/dashboard/universe/page.tsx',[
+            ['const n=(v:unknown)=>Number(v||0),money=(v:unknown)=>`${Math.round(n(v)).toLocaleString("en-EG")} EGP`;','type UniverseClient={id:string;company_name:string;industry?:string|null;health_score?:unknown;logo?:string|null;website?:string|null;account_manager_id?:string|null;media_buyer_id?:string|null};\ntype UniverseTask={client_id:string;status:string;deadline:unknown;revision_count?:unknown};\ntype UniverseMedia={client_id:string;spend?:unknown;results?:unknown;atc?:unknown;purchases?:unknown};\nconst n=(v:unknown)=>Number(v||0),money=(v:unknown)=>`${Math.round(n(v)).toLocaleString("en-EG")} EGP`;'],
+            ['String((s.user as any).workspaceId||"")','String(s.user.workspaceId||"")'],
+            ['String((s.user as any).role||"")','String(s.user.role||"")'],
+            ['String((s.user as any).id||"")','String(s.user.id||"")'],
+            ['const clients:any[]=Array.from(await db.execute(','const clients=Array.from(await db.execute('],
+            ['order by c.company_name`));const ids=','order by c.company_name`)) as UniverseClient[];const ids='],
+            ['let tasks:any[]=[],media:any[]=[];','let tasks:UniverseTask[]=[],media:UniverseMedia[]=[];'],
+            ["status not in ('COMPLETED','REJECTED')`));media=Array.from(await db.execute(","status not in ('COMPLETED','REJECTED')`)) as UniverseTask[];media=Array.from(await db.execute("],
+            ['group by a.client_id`));}const now=','group by a.client_id`)) as UniverseMedia[];}const now=']
+          ]);
+          NODE
+          git diff --check
+      - name: Acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint app/dashboard/creative/quality/page.tsx app/dashboard/operations/page.tsx app/dashboard/universe/page.tsx -f json > /tmp/target.json || true
+          npx eslint . -f json > /tmp/all.json || true
+          node <<'NODE'
+          const target=require('/tmp/target.json').flatMap(x=>x.messages||[]),r=require('/tmp/all.json'),m=r.flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any'),w=m.filter(x=>x.severity===1);console.log(`target_total=${target.length}`);console.log(`remaining_any=${a.length}`);console.log(`non_any=${n.length} warnings=${w.length}`);console.log(JSON.stringify(target.map(x=>[x.ruleId,x.line,x.message]).slice(0,40)));if(target.length||a.length!==173||n.length||w.length)process.exit(1)
+          NODE
+      - name: Commit source
+        run: |
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git add app/dashboard/creative/quality/page.tsx app/dashboard/operations/page.tsx app/dashboard/universe/page.tsx
+          git commit -m 'fix(types): type core dashboard views [skip ci]'
+          git push origin HEAD:feat/vivito-ui-core-types-v14

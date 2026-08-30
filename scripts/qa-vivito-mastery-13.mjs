@@ -1,7 +1,7 @@
 import fs from "node:fs";
 const batch=fs.readFileSync("lib/vivito/training-batch-13-mastery.ts","utf8");
 const academy=fs.readFileSync("lib/vivito/academy.ts","utf8");
-let p=0,f=0;const c=(n,o)=>{console.log(`${o?"PASS":"FAIL"}  ${n}`);o?p++:f++};
+let p=0,f=0;const c=(n,o)=>{console.log(`${o?"PASS":"FAIL"}  ${n}`);if(o)p++;else f++};
 const cases=(batch.match(/\bM\("/g)||[]).length;
 c("Batch 13 contains at least 50 integrated mastery cases",cases>=50);
 c("Batch 13 spans enterprise strategy finance marketing research media creative content sales account operations DBA artifacts competitive vision web and AI",["Enterprise Strategy","Managerial Finance","Marketing Strategy","Market Research","Media Buying","Creative Strategy","Content Strategy","Sales Diagnosis","Account Management","Operations","Research Design","Executive PDF","Executive Presentation","Spreadsheet Modeling","Competitive Intelligence","Vision & Design QA","Web Research","AI Judgment"].every(x=>batch.includes(`\"${x}\"`)));

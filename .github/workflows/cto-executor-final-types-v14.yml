@@ -1,0 +1,74 @@
+name: CTO Executor Final Types V14
+on:
+  push:
+    branches: [feat/vivito-executor-final-types-v14]
+permissions:
+  contents: write
+jobs:
+  remediate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-executor-final-types-v14
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Apply executor contracts
+        run: |
+          node <<'NODE'
+          const fs=require('node:fs');const file='lib/vivito/executor.ts';let s=fs.readFileSync(file,'utf8');
+          function one(from,to,count=1){const n=s.split(from).length-1;if(n!==count)throw new Error(`expected ${count}, found ${n}: ${from.slice(0,160)}`);s=s.split(from).join(to)}
+          one('type IdRow={id:string};','type IdRow={id:string};\ntype ActionArgs=Record<string,unknown>;\ntype CreativeTaskInsert=typeof creativeTasks.$inferInsert;\nconst objectRecord=(value:unknown):ActionArgs=>value&&typeof value==="object"&&!Array.isArray(value)?value as ActionArgs:{};');
+          one('async function findTask(args:any,role:string,userId:string,includeArchived=false)','async function findTask(args:ActionArgs,role:string,userId:string,includeArchived=false)');
+          one('async function createClientAction(args:any,role:string,userId:string)','async function createClientAction(args:ActionArgs,role:string,userId:string)');
+          one('} as any).returning();','}).returning();',1);
+          one('} as any);','});',1);
+          one('async function clientLifecycle(op:VivitoActionOp,args:any,role:string,userId:string)','async function clientLifecycle(op:VivitoActionOp,args:ActionArgs,role:string,userId:string)');
+          one('async function createTaskAction(args:any,role:string,userId:string)','async function createTaskAction(args:ActionArgs,role:string,userId:string)');
+          one('type:type as unknown,brief,priority:priority as unknown','type:type as CreativeTaskInsert["type"],brief,priority:priority as CreativeTaskInsert["priority"]');
+          one('createdById:userId} as any).returning();','createdById:userId}).returning();');
+          one('priority:priority==="URGENT"?"high":"normal"} as any);','priority:priority==="URGENT"?"high":"normal"});');
+          one('const t=await findTask(args,role,userId,true);','const t=await findTask(objectRecord(args),role,userId,true);');
+          one('async function logExpenseAction(args:any,userId:string)','async function logExpenseAction(args:ActionArgs,userId:string)');
+          one('newValues:JSON.stringify({category,description,amount:value,ledger:true})} as any','newValues:JSON.stringify({category,description,amount:value,ledger:true})}');
+          one('async function recordPaymentAction(args:any,role:string,userId:string)','async function recordPaymentAction(args:ActionArgs,role:string,userId:string)');
+          one('async function createInvoiceAction(args:any,role:string,userId:string)','async function createInvoiceAction(args:ActionArgs,role:string,userId:string)');
+          one('async function attachFileAction(args:any,role:string,userId:string)','async function attachFileAction(args:ActionArgs,role:string,userId:string)');
+          one('async function reminderAction(args:any,userId:string)','async function reminderAction(args:ActionArgs,userId:string)');
+          one('priority:"normal"} as any).returning();','priority:"normal"}).returning();');
+          one(' authorizeOp(role,op);',' authorizeOp(role,op);\n const input=objectRecord(args);');
+          one('return createClientAction(args,role,userId);','return createClientAction(input,role,userId);');
+          one('return clientLifecycle(op,args,role,userId);','return clientLifecycle(op,input,role,userId);');
+          one('return createTaskAction(args,role,userId);','return createTaskAction(input,role,userId);');
+          one('return taskLifecycle(op,args,role,userId);','return taskLifecycle(op,input,role,userId);');
+          one('return logExpenseAction(args,userId);','return logExpenseAction(input,userId);');
+          one('return recordPaymentAction(args,role,userId);','return recordPaymentAction(input,role,userId);');
+          one('return createInvoiceAction(args,role,userId);','return createInvoiceAction(input,role,userId);');
+          one('return attachFileAction(args,role,userId);','return attachFileAction(input,role,userId);');
+          one('return reminderAction(args,userId);','return reminderAction(input,userId);');
+          fs.writeFileSync(file,s)
+          NODE
+          git diff --check
+      - name: Acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint lib/vivito/executor.ts -f json > /tmp/target.json || true
+          npx eslint . -f json > /tmp/all.json || true
+          node <<'NODE'
+          const target=require('/tmp/target.json').flatMap(x=>x.messages||[]),r=require('/tmp/all.json'),m=r.flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any'),w=m.filter(x=>x.severity===1);console.log(`target_total=${target.length}`);console.log(`remaining_any=${a.length}`);console.log(`remaining_non_any=${n.length}`);console.log(`remaining_warnings=${w.length}`);console.log(JSON.stringify(target.map(x=>[x.ruleId,x.line,x.message]).slice(0,40)));if(target.length||a.length!==175||n.length||w.length)process.exit(1)
+          NODE
+      - name: Commit source
+        run: |
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git add lib/vivito/executor.ts
+          git commit -m 'fix(types): close executor contracts [skip ci]'
+          git push origin HEAD:feat/vivito-executor-final-types-v14

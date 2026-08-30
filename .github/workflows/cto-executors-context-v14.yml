@@ -1,0 +1,25 @@
+name: CTO Executors Context V14
+on:
+  push:
+    branches: [feat/vivito-executors-context-v14]
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-executors-context-v14
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Validate and print contexts
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint lib/vivito/executor-extended.ts lib/vivito/executor-operator.ts lib/vivito/executor.ts -f json > /tmp/ex.json || true
+          node <<'NODE'
+          const fs=require('node:fs'),r=require('/tmp/ex.json');
+          for(const f of r){const file=f.filePath.replace(process.cwd()+'/', ''),src=fs.readFileSync(f.filePath,'utf8').split('\n'),a=(f.messages||[]).filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any');console.log(`\nFILE ${file} COUNT ${a.length}`);for(const m of a){const lo=Math.max(0,m.line-2),hi=Math.min(src.length,m.line+1);console.log(`\nANY ${m.line}:${m.column}\n${src.slice(lo,hi).map((x,i)=>`${lo+i+1}: ${x}`).join('\n')}`)}}
+          NODE

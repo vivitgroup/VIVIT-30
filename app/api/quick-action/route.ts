@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
       const { count } = await import("drizzle-orm");
       const [r] = await db.select({ cnt: count() }).from(users).limit(1);
       return NextResponse.json({status:"healthy",db:"connected",users:Number(r?.cnt??0),ts:new Date().toISOString()});
-    } catch (e) {
+    } catch {
       return NextResponse.json({ status:"unhealthy" }, { status:503 });
     }
   }

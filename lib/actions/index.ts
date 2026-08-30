@@ -6,8 +6,12 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db, clients, contacts, auditLogs, notifications, calendarEvents,
-  creativeTasks, users, webhooks, fileDocuments } from "@/lib/db";
-import { eq, and, inArray, notInArray, desc } from "drizzle-orm";
+  creativeTasks, users, fileDocuments } from "@/lib/db";
+import { eq, and } from "drizzle-orm";
+type ActionSession={user?:{id?:string|null;role?:unknown;name?:string|null}|null}|null;
+type CreativeTaskInsert=typeof creativeTasks.$inferInsert;
+type CreativeType=CreativeTaskInsert["type"];
+type CreativePriority=CreativeTaskInsert["priority"];
 
 // ── Input Validation Helpers ─────────────────────────────────
 function sanitize(str: string | null | undefined, maxLen = 500): string {
@@ -16,28 +20,19 @@ function sanitize(str: string | null | undefined, maxLen = 500): string {
     .replace(/</g, "&lt;").replace(/>/g, "&gt;")
     .replace(/javascript:/gi, "").replace(/on\w+=/gi, "");
 }
-function validateEmail(email: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length <= 254;
-}
 function validateUrl(url: string): boolean {
   try { const u = new URL(url); return ["http:","https:"].includes(u.protocol); } catch { return false; }
 }
-function requireFields(data: Record<string, any>, fields: string[]): string | null {
-  for (const f of fields) {
-    if (!data[f] || String(data[f]).trim() === "") return `${f} is required`;
-  }
-  return null;
-}
-function roleOf(session:any):string { return String(session?.user?.role||""); }
-function requireRole(session:any, allowed:string[]) {
+function roleOf(session:ActionSession):string { return String(session?.user?.role||""); }
+function requireRole(session:ActionSession, allowed:string[]) {
   if (!session?.user) throw new Error("Unauthorized");
   if (!allowed.includes(roleOf(session))) throw new Error("Forbidden");
 }
-async function requireClientAccess(session:any, clientId:string, write=false) {
+async function requireClientAccess(session:ActionSession, clientId:string, write=false) {
   requireRole(session, write?["SUPER_ADMIN","ACCOUNT_MANAGER"]:["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"]);
   if (roleOf(session)==="SUPER_ADMIN") return;
   const [row]=await db.select({accountManagerId:clients.accountManagerId,mediaBuyerId:clients.mediaBuyerId}).from(clients).where(eq(clients.id,clientId)).limit(1);
-  const uid=session.user.id;
+  const uid=session?.user?.id;if(!uid)throw new Error("Unauthorized");
   if (!row || (roleOf(session)==="ACCOUNT_MANAGER"?row.accountManagerId!==uid:row.mediaBuyerId!==uid)) throw new Error("Client access denied");
 }
 async function taskForAccess(taskId:string){
@@ -73,7 +68,7 @@ export async function createClient(formData: FormData) {
     internalNotes:    formData.get("internalNotes") as string || null,
     contractStart:    formData.get("contractStart") ? new Date(formData.get("contractStart") as string) : null,
     contractEnd:      formData.get("contractEnd")   ? new Date(formData.get("contractEnd")   as string) : null,
-  } as any).returning();
+  }).returning();
 
   const contactName = formData.get("contactName") as string;
   if (contactName) {
@@ -83,14 +78,14 @@ export async function createClient(formData: FormData) {
       phone:    formData.get("contactPhone")   as string || null,
       whatsapp: formData.get("contactWhatsapp")as string || null,
       title:    formData.get("contactTitle")   as string || null,
-    } as any);
+    });
   }
 
   await db.insert(auditLogs).values({
     userId: session.user.id!, action: "client_created",
     entity: "Client", entityId: client.id,
     newValues: JSON.stringify({ companyName: client.companyName }),
-  } as any);
+  });
 
   revalidatePath("/dashboard/clients");
   redirect(`/dashboard/clients/${client.id}`);
@@ -124,7 +119,7 @@ export async function updateClient(clientId: string, formData: FormData) {
     googleAdsLink:    formData.get("googleAdsLink")    as string || null,
     internalNotes:    formData.get("internalNotes")    as string || null,
     updatedAt: new Date(),
-  } as any).where(eq(clients.id, clientId));
+  } as unknown).where(eq(clients.id, clientId));
 
   revalidatePath(`/dashboard/clients/${clientId}`);
   revalidatePath("/dashboard/clients");
@@ -182,7 +177,7 @@ export async function createCalendarEvent(formData: FormData) {
     taskId:   sanitize(formData.get("taskId") as string,100) || null,
     hashtags: `asset:${assetFileId}`,
     status:   "scheduled",
-  } as any);
+  });
   revalidatePath("/dashboard/calendar");
 }
 
@@ -219,11 +214,11 @@ export async function createTask(formData: FormData) {
   if(assignedToId){const [creator]=await db.select({id:users.id}).from(users).where(and(eq(users.id,assignedToId),eq(users.role,"CREATOR"),eq(users.isActive,true))).limit(1);if(!creator)throw new Error("Invalid creator assignment");}
 
   const [task] = await db.insert(creativeTasks).values({
-    title, clientId, type: type as any, brief, tov: tov || null,
-    priority: priority as any, status: "PENDING",
+    title, clientId, type: type as CreativeType, brief, tov: tov || null,
+    priority: priority as CreativePriority, status: "PENDING",
     assignedToId, deadline: deadlineDate, caption,
     createdById: session.user.id!,
-  } as any).returning();
+  }).returning();
 
   if (assignedToId) {
     await db.insert(notifications).values({
@@ -231,14 +226,14 @@ export async function createTask(formData: FormData) {
       title: `New task assigned: ${title}`,
       message: `Deadline: ${new Date(deadline).toLocaleDateString()}`,
       link: `/dashboard/creative/${task.id}`,
-    } as any);
+    });
   }
 
   await db.insert(auditLogs).values({
     userId: session.user.id!, action: "task_created",
     entity: "CreativeTask", entityId: task.id,
     newValues: JSON.stringify({ title, clientId, type, priority }),
-  } as any);
+  });
 
   revalidatePath("/dashboard/creative");
   redirect(`/dashboard/creative/${task.id}`);
@@ -272,12 +267,12 @@ export async function updateTaskStatus(taskId: string, status: string, revisionN
 
   const [task] = await db.update(creativeTasks)
     .set({
-      status: status as any,
+      status: status as unknown,
       completedAt: ["APPROVED","COMPLETED"].includes(status) ? new Date() : undefined,
       revisionCount: status === "REVISION" ? (currentTask?.revisionCount ?? 0) + 1 : undefined,
       revisionNotes: status === "REVISION" ? (revisionNotes ?? null) : undefined,
       updatedAt: new Date(),
-    } as any)
+    } as unknown)
     .where(eq(creativeTasks.id, taskId))
     .returning();
 
@@ -294,14 +289,14 @@ export async function updateTaskStatus(taskId: string, status: string, revisionN
       title: msgs[status] ?? `Task updated: ${status}`,
       message: `Status: ${status}`,
       link: `/dashboard/creative/${taskId}`,
-    } as any);
+    });
   }
 
   await db.insert(auditLogs).values({
     userId: session.user.id!, action: `task_${status.toLowerCase()}`,
     entity: "CreativeTask", entityId: taskId,
     newValues: JSON.stringify({ status }),
-  } as any);
+  });
 
   revalidatePath(`/dashboard/creative/${taskId}`);
   revalidatePath("/dashboard/creative");
@@ -323,7 +318,7 @@ export async function submitTaskFile(taskId: string, fileName: string, fileUrl: 
   if(!validateUrl(String(fileUrl||"")))throw new Error("A valid uploaded file URL is required");
 
   const [task] = await db.update(creativeTasks)
-    .set({ status: "REVIEW", fileUrl: fileUrl || null, updatedAt: new Date() } as any)
+    .set({ status: "REVIEW", fileUrl: fileUrl || null, updatedAt: new Date() } as unknown)
     .where(eq(creativeTasks.id, taskId))
     .returning();
 
@@ -333,7 +328,7 @@ export async function submitTaskFile(taskId: string, fileName: string, fileUrl: 
       title: `📤 "${task.title}" submitted for review`,
       message: `${session.user.name} submitted. File: ${fileName}. ${notes}`,
       link: `/dashboard/creative/${taskId}`,
-    } as any);
+    });
 
     const [client] = await db.select({ userId: clients.userId }).from(clients).where(eq(clients.id, task.clientId));
     if (client?.userId) {
@@ -342,7 +337,7 @@ export async function submitTaskFile(taskId: string, fileName: string, fileUrl: 
         title: `🎨 New creative ready for review`,
         message: `${task.title} is ready. Please review and approve.`,
         link: `/dashboard/portal`,
-      } as any);
+      });
     }
   }
 
@@ -360,7 +355,7 @@ export async function updateTaskCaption(taskId: string, caption: string) {
     await requireClientAccess(session,task.clientId,true);
     if(role!=="SUPER_ADMIN"&&!["PENDING","IN_PROGRESS","REVIEW","REVISION"].includes(task.status))throw new Error("Approved or completed work is locked.");
   }
-  await db.update(creativeTasks).set({ caption, updatedAt: new Date() } as any).where(eq(creativeTasks.id, taskId));
+  await db.update(creativeTasks).set({ caption, updatedAt: new Date() } as unknown).where(eq(creativeTasks.id, taskId));
   revalidatePath(`/dashboard/creative/${taskId}`);
 }
 
@@ -370,7 +365,7 @@ export async function markTaskPosted(taskId: string) {
   await requireClientAccess(session,task.clientId,true);
   if(task.status!=="APPROVED")throw new Error("Only approved tasks can be marked posted");
   await db.update(creativeTasks)
-    .set({ isPosted: true, postedAt: new Date(), status: "COMPLETED", updatedAt: new Date() } as any)
+    .set({ isPosted: true, postedAt: new Date(), status: "COMPLETED", updatedAt: new Date() } as unknown)
     .where(eq(creativeTasks.id, taskId));
   revalidatePath(`/dashboard/creative/${taskId}`);
   revalidatePath("/dashboard/creative");

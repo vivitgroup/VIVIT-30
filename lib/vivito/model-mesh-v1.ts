@@ -20,6 +20,8 @@ export type VivitoMeshCandidate=VivitoMeshModel&{score:number;configured:boolean
 
 type MeshOptions={task?:VivitoMeshTask;maxTokens?:number;temperature?:number;timeoutMs?:number};
 type MeshHealthState={health:VivitoMeshHealth;cooldownUntil:number;failures:number;successes:number;lastLatencyMs?:number;lastErrorCode?:string};
+type MeshApiResponse={error?:{message?:string};message?:string;choices?:Array<{message?:{content?:string}}>};
+const objectRecord=(v:unknown):Record<string,unknown>=>v&&typeof v==="object"&&!Array.isArray(v)?v as Record<string,unknown>:{};
 
 const MIN_TIMEOUT_MS=2000;
 const DEFAULT_TIMEOUT_MS=25000;
@@ -34,9 +36,9 @@ function stateFor(id:string){return healthLedger.get(id)||{health:"HEALTHY" as V
 function sanitizeErrorCode(code:string){return code.replace(/[^a-z0-9_-]/gi,"-").slice(0,48).toLowerCase()}
 function defaultPoolEnabled(){return env("VIVITO_DEFAULT_MODEL_POOL")!=="0"}
 
-function normalizeModel(m:any):VivitoMeshModel|null{
-  if(!m||typeof m.id!=="string"||typeof m.provider!=="string"||typeof m.model!=="string"||typeof m.baseUrl!=="string"||typeof m.apiKeyEnv!=="string")return null;
-  const tasks=Array.isArray(m.tasks)?m.tasks.filter((t:any)=>["general","reasoning","creative","research","finance","coding","arabic"].includes(String(t))):undefined;
+function normalizeModel(value:unknown):VivitoMeshModel|null{
+  const m=objectRecord(value);if(typeof m.id!=="string"||typeof m.provider!=="string"||typeof m.model!=="string"||typeof m.baseUrl!=="string"||typeof m.apiKeyEnv!=="string")return null;
+  const tasks=Array.isArray(m.tasks)?m.tasks.filter((t:unknown)=>["general","reasoning","creative","research","finance","coding","arabic"].includes(String(t))):undefined;
   const normalized:VivitoMeshModel={
     id:m.id.trim(),provider:m.provider.trim(),model:m.model.trim(),baseUrl:m.baseUrl.replace(/\/+$/,"").trim(),apiKeyEnv:m.apiKeyEnv.trim(),enabled:m.enabled!==false,
     quality:clamp(Number(m.quality??70),0,100),cost:clamp(Number(m.cost??50),0,100),latency:clamp(Number(m.latency??50),0,100),tasks,
@@ -96,12 +98,12 @@ export async function generateViaVivitoMesh(prompt:string,system:string,options:
     const started=Date.now();
     try{
       const r=await fetch(`${candidate.baseUrl}/chat/completions`,{method:"POST",signal:AbortSignal.timeout(boundedTimeout(options)),headers:{"Content-Type":"application/json","Authorization":`Bearer ${env(candidate.apiKeyEnv)}`},body:JSON.stringify({model:candidate.model,temperature:options.temperature??0.18,max_tokens:Math.min(options.maxTokens||3200,candidate.maxTokens||options.maxTokens||3200),messages:[{role:"system",content:system},{role:"user",content:prompt}]})});
-      const d:any=await r.json().catch(()=>({}));
+      const d=(await r.json().catch(()=>({}))) as MeshApiResponse;
       if(!r.ok){const raw=String(d?.error?.message||d?.message||`http-${r.status}`);const code=markMeshFailure(candidate.id,r.status,raw);errors.push(`${candidate.id}:${code}`);continue}
       const text=String(d?.choices?.[0]?.message?.content||"").trim();
       if(!text){markMeshFailure(candidate.id,0,"empty-response");errors.push(`${candidate.id}:empty-response`);continue}
       markMeshSuccess(candidate.id,Date.now()-started);return {text,modelId:candidate.id,provider:candidate.provider,errors};
-    }catch(error){const raw=(error as any)?.name==="TimeoutError"?"timeout":String((error as any)?.message||"failed");const code=markMeshFailure(candidate.id,0,raw);errors.push(`${candidate.id}:${code}`)}
+    }catch(error){const err=objectRecord(error),raw=err.name==="TimeoutError"?"timeout":String(err.message||"failed");const code=markMeshFailure(candidate.id,0,raw);errors.push(`${candidate.id}:${code}`)}
   }
   throw new Error(`mesh-all-models-failed:${errors.join("|")}`);
 }

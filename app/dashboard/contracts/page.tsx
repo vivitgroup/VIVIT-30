@@ -22,7 +22,7 @@ async function createContract(fd: FormData) {
   const value=Number(fd.get("value")||0);
   const renewalDays=Number(fd.get("renewalDays")||30);
   if(!clientId||!title||!startDateRaw||!endDateRaw)throw new Error("Complete the required contract fields");
-  if(!CONTRACT_TYPES.includes(type as any)) throw new Error("Invalid contract type");
+  if(!(CONTRACT_TYPES as readonly string[]).includes(type)) throw new Error("Invalid contract type");
   if(!Number.isFinite(value)||value<0) throw new Error("Contract value must be zero or greater");
   if(!RENEWAL_DAYS.includes(renewalDays)) throw new Error("Invalid renewal alert period");
   const startDate=new Date(startDateRaw),endDate=new Date(endDateRaw);

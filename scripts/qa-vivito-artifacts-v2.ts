@@ -4,7 +4,7 @@ import {renderVivitoXlsx} from "../lib/vivito/xlsx-renderer";
 import {contentPlanToWorkbook,type VivitoContentPlan,type VivitoPdfSpec} from "../lib/vivito/artifact-intelligence";
 import {likelyVivitoArtifactIntent,likelyVivitoResearchIntent,likelyVivitoVisionIntent,requestedArtifactKind} from "../lib/vivito/artifact-router";
 
-let pass=0,fail=0;const check=(name:string,ok:boolean)=>{console.log(`${ok?"PASS":"FAIL"}  ${name}`);ok?pass++:fail++};
+let pass=0,fail=0;const check=(name:string,ok:boolean)=>{console.log(`${ok?"PASS":"FAIL"}  ${name}`);if(ok)pass++;else fail++};
 const latin:VivitoPdfSpec={title:"VIVITO Strategy",pages:[{title:"Growth requires focus",blocks:[{type:"metric",text:"+24%"},{type:"body",text:"Prioritize profitable segments."}]}]};
 const arabic:VivitoPdfSpec={title:"استراتيجية النمو",pages:[{title:"النمو يحتاج تركيز",blocks:[{type:"callout",text:"ركز على الشرائح الأعلى ربحية"},{type:"chart",title:"الأداء",data:[{label:"وعي",value:30},{label:"تحويل",value:70}]},{type:"table",headers:["المحور","القرار"],rows:[["السعر","اختبار مرن"]]}]}]};
 const pdf=renderVivitoPdf(latin);check("Latin PDF renderer emits real PDF bytes",new TextDecoder().decode(pdf.slice(0,5))==="%PDF-");

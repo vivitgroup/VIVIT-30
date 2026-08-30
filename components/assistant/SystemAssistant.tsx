@@ -9,17 +9,19 @@ const TEAM_QUICK=["تاسكاتي الحالية","إيه المتأخر؟","Rec
 type Risk="low"|"medium"|"high"|"destructive";
 type ActionProposal={op:string;summary:string;args:Record<string,unknown>;risk:Risk;requiresConfirmation:true;missingFields:string[]};
 type ActionPlan={summary:string;steps:ActionProposal[];risk:Risk;requiresConfirmation:true;missingFields:string[]};
-type ArtifactProposal={kind:"pdf"|"pptx"|"xlsx"|"content-plan";title:string;fileName:string;summary:string;pdf?:any;presentation?:any;workbook?:any;contentPlan?:any};
+type ArtifactProposal={kind:"pdf"|"pptx"|"xlsx"|"content-plan";title:string;fileName:string;summary:string;pdf?:unknown;presentation?:unknown;workbook?:unknown;contentPlan?:unknown};
 type RunState="ready"|"running"|"done"|"failed";
 type ChatMsg={id:string;who:"you"|"vivito";text:string;sources?:string[];action?:ActionProposal;plan?:ActionPlan;artifact?:ArtifactProposal;artifactState?:RunState;artifactResult?:string;actionRequestId?:string;actionState?:RunState;actionResult?:string;planRequestId?:string;planState?:RunState;planResult?:string};
 type Attachment={fileId:string;name:string;mimeType:string};
+type AssistantResponse={answer?:string;error?:string;sources?:string[];actionProposal?:ActionProposal;actionPlan?:ActionPlan;artifactProposal?:ArtifactProposal};
+type AssistantRequestResult={ok:boolean;data:AssistantResponse};
 const mid=()=>crypto.randomUUID();
 
 export function SystemAssistant({role}:{role:string}){
  const [open,setOpen]=useState(false),[q,setQ]=useState(""),[busy,setBusy]=useState(false),[uploading,setUploading]=useState(false),[attachments,setAttachments]=useState<Attachment[]>([]),[msgs,setMsgs]=useState<ChatMsg[]>([]);
  const fileRef=useRef<HTMLInputElement>(null),isClient=role==="CLIENT",isAdmin=role==="SUPER_ADMIN",quick=useMemo(()=>isClient?CLIENT_QUICK:isAdmin?ADMIN_QUICK:TEAM_QUICK,[isClient,isAdmin]);
 
- async function ask(v:string,atts:Attachment[],attempt=0):Promise<any>{try{const r=await fetch("/api/assistant",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({question:v,attachments:atts}),cache:"no-store"}),d=await r.json().catch(()=>({}));if(!r.ok&&attempt<1)return ask(v,atts,attempt+1);return{ok:r.ok,data:d}}catch{if(attempt<1)return ask(v,atts,attempt+1);return{ok:false,data:{error:"Connection interrupted. Try again."}}}}
+ async function ask(v:string,atts:Attachment[],attempt=0):Promise<AssistantRequestResult>{try{const r=await fetch("/api/assistant",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({question:v,attachments:atts}),cache:"no-store"}),d:AssistantResponse=await r.json().catch(()=>({}));if(!r.ok&&attempt<1)return ask(v,atts,attempt+1);return{ok:r.ok,data:d}}catch{if(attempt<1)return ask(v,atts,attempt+1);return{ok:false,data:{error:"Connection interrupted. Try again."}}}}
 
  async function executeAction(messageId:string,action:ActionProposal,requestId?:string){
   const id=requestId||crypto.randomUUID();setMsgs(m=>m.map(x=>x.id===messageId?{...x,actionRequestId:id,actionState:"running"}:x));

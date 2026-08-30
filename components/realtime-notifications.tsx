@@ -4,9 +4,6 @@ import { useRouter } from "next/navigation";
 
 
 // ── Who's Online (Feature 16) ─────────────────────────────────
-// Tracks active users via heartbeat — stored in-memory per session
-const onlineUsers = new Map<string, { name:string; role:string; page:string; ts:number }>();
-
 export function useOnlinePresence(userId: string, userName: string, role: string) {
   useEffect(() => {
     const report = () => {
@@ -64,7 +61,7 @@ const P: Record<string,{bg:string;border:string;icon:string;sound:number}> = {
 
 function playNotificationSound(priority: string) {
   try {
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const AudioContextCtor=window.AudioContext||(window as Window & typeof globalThis & {webkitAudioContext?:typeof AudioContext}).webkitAudioContext;if(!AudioContextCtor)return;const ctx=new AudioContextCtor();
     const tones = { urgent:[880,660,880], high:[660,880], normal:[440,550], low:[330] };
     const freqs = tones[priority as keyof typeof tones] ?? [440];
     freqs.forEach((freq, i) => {
@@ -119,7 +116,7 @@ export function RealtimeNotifications() {
         notifs.slice(0, 3).forEach(n => showToast(n));
       }
     } catch {}
-  }, [showToast, router]);
+  }, [showToast]);
 
   useEffect(() => {
     let interval = 30000;

@@ -18,7 +18,7 @@ export default async function TaskDetailGuard({children,params}:{children:ReactN
     left join clients c on c.id=t.client_id
     where t.id=${id} and t.archived_at is null
     limit 1
-  `)) as any[];
+  `)).map(r=>({id:String(r.id||""),client_id:String(r.client_id||""),assigned_to_id:r.assigned_to_id==null?null:String(r.assigned_to_id),account_manager_id:r.account_manager_id==null?null:String(r.account_manager_id),client_user_id:r.client_user_id==null?null:String(r.client_user_id),client_active:r.client_active===true}));
   const task=rows[0];
   if(!task)redirect("/dashboard/creative");
   if(task.client_active===false)redirect("/dashboard/creative");

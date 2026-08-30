@@ -151,7 +151,6 @@ export default async function RevenueAttributionPage() {
               )}
             </div>
           );
-          const TK = "#E8F4FD";
         })}
 
         {amStats.length === 0 && (
@@ -171,15 +170,15 @@ export default async function RevenueAttributionPage() {
           <table className="data-table">
             <thead><tr><th>Account Manager</th><th>Clients</th><th>MTD Revenue</th><th>MTD Collected</th><th>Commission Rate</th><th>Commission Earned</th><th>Status</th></tr></thead>
             <tbody>
-              {amStats.map((am:any)=>{
-                const commission = Math.round((am.totalPaid ?? am.collected ?? 0) * 0.10);
+              {amStats.map((am:(typeof amStats)[number])=>{
+                const commission = Math.round(am.totalPaid * 0.10);
                 const isPaid = true; // Commission paid with payroll
                 return(
                   <tr key={am.am.id}>
                     <td className="font-semibold">{am.am.name}</td>
                     <td>{am.clientCount ?? 0}</td>
-                    <td>${(am.totalRevenue ?? am.revenue ?? 0).toLocaleString()}</td>
-                    <td className="text-green-400 font-bold">${(am.totalPaid ?? am.collected ?? 0).toLocaleString()}</td>
+                    <td>${am.totalRevenue.toLocaleString()}</td>
+                    <td className="text-green-400 font-bold">${am.totalPaid.toLocaleString()}</td>
                     <td className="text-center">10%</td>
                     <td className="font-black grad-text text-lg">${commission.toLocaleString()}</td>
                     <td>
@@ -196,7 +195,7 @@ export default async function RevenueAttributionPage() {
         <div className="mt-3 p-3 rounded-xl bg-white/[0.02] border border-white/5 flex justify-between">
           <span className="text-sm text-muted">Total Commission This Month</span>
           <span className="font-black text-green-400 text-lg">
-            ${amStats.reduce((s:number,am:any)=>s+Math.round((am.totalPaid??am.collected??0)*0.10),0).toLocaleString()}
+            ${amStats.reduce((s:number,am:(typeof amStats)[number])=>s+Math.round(am.totalPaid*0.10),0).toLocaleString()}
           </span>
         </div>
       </div>

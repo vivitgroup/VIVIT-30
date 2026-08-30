@@ -120,7 +120,6 @@ async function main() {
   console.log(`✅ Media metrics: ${metricsCount} records`);
 
   // ── Finance Records — 6 months ───────────────────────────────
-  const MONTHS = ["","January","February","March","April","May","June","July","August","September","October","November","December"];
   let finCount = 0;
   for (const cl of Object.values(C)) {
     for (let mo = 0; mo < 6; mo++) {
@@ -157,7 +156,6 @@ async function main() {
   const clientList = Object.values(C);
   const creators   = [U["samo@vivitgroup.com"], U["fathy@vivitgroup.com"]];
   const taskTypes  = ["REEL","GRAPHIC","CAROUSEL","STORY","UGC","REEL","GRAPHIC"] as const;
-  const statuses   = ["PENDING","IN_PROGRESS","REVIEW","APPROVED","COMPLETED","REVISION"] as const;
   const priorities = ["HIGH","MEDIUM","MEDIUM","LOW","URGENT"] as const;
   let taskCount = 0;
 
@@ -167,7 +165,6 @@ async function main() {
       const creator  = creators[i % creators.length];
       const status   = i < 2 ? "REVIEW" : i < 4 ? "IN_PROGRESS" : i < 6 ? "APPROVED" : "PENDING";
       const deadline = new Date(now.getTime() + (i - 3) * 2 * 86400000);
-      const days     = { REEL:7, GRAPHIC:3, CAROUSEL:3, STORY:1, UGC:5 };
       const revCount = status === "REVISION" ? Math.floor(Math.random() * 3) + 1 : 0;
 
       await db.insert(schema.creativeTasks).values({
@@ -364,7 +361,7 @@ async function runTests() {
     try {
       const ok = await fn();
       console.log(`  ${ok ? "✅" : "❌ FAIL"} ${name}`);
-      ok ? passed++ : failed++;
+      if (ok) passed++; else failed++;
     } catch (e) {
       console.log(`  ❌ ERROR ${name}: ${e}`);
       failed++;

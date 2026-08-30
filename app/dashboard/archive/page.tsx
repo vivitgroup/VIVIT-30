@@ -1,5 +1,5 @@
 "use client";
-import {useEffect,useState} from "react";
+import {useCallback,useEffect,useState} from "react";
 
 type Row={id:string;name:string;archived_at:string};
 type Data={clients:Row[];tasks:Row[];leads:Row[]};
@@ -7,8 +7,8 @@ const EMPTY:Data={clients:[],tasks:[],leads:[]};
 
 export default function ArchivePage(){
  const [data,setData]=useState<Data>(EMPTY),[role,setRole]=useState(""),[loading,setLoading]=useState(true),[busy,setBusy]=useState(""),[error,setError]=useState("");
- async function load(){setLoading(true);setError("");try{const [r,sr]=await Promise.all([fetch("/api/lifecycle",{cache:"no-store"}),fetch("/api/auth/session",{cache:"no-store"})]);const d=await r.json().catch(()=>({})),s=await sr.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||"Could not load archive");setData({clients:d.clients||[],tasks:d.tasks||[],leads:d.leads||[]});setRole(String(s?.user?.role||""))}catch(e){setError(e.message)}finally{setLoading(false)}}
- useEffect(()=>{load()},[]);
+ const load=useCallback(async()=>{setLoading(true);setError("");try{const [r,sr]=await Promise.all([fetch("/api/lifecycle",{cache:"no-store"}),fetch("/api/auth/session",{cache:"no-store"})]);const d=await r.json().catch(()=>({})),s=await sr.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||"Could not load archive");setData({clients:d.clients||[],tasks:d.tasks||[],leads:d.leads||[]});setRole(String(s?.user?.role||""))}catch(e){setError(e.message)}finally{setLoading(false)}},[]);
+ useEffect(()=>{const timer=setTimeout(()=>void load(),0);return()=>clearTimeout(timer)},[load]);
  async function act(entity:"client"|"task"|"lead",row:Row,action:"restore"|"delete"){
   if(action==="delete"&&!confirm(`Permanently delete “${row.name}”? This cannot be undone.`))return;
   setBusy(`${entity}:${row.id}`);setError("");

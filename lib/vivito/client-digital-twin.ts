@@ -1,11 +1,11 @@
-export type VivitoTwinSignal={kind:string;text:string;createdAt:string;source:string};
+export type VivitoTwinSignal={kind:string;text:string;createdAt:string;source:string;scopeId?:string};
 export type VivitoClientTwin={clientId:string;signalCount:number;profile:string[];preferences:string[];corrections:string[];facts:string[];lessons:string[];confidence:"LOW"|"MEDIUM"|"HIGH"};
 
 const clean=(v:unknown,n=600)=>String(v??"").replace(/\s+/g," ").trim().slice(0,n);
 const uniq=(xs:string[])=>[...new Set(xs.map(x=>clean(x)).filter(Boolean))];
 
 export function buildVivitoClientTwin(clientId:string,signals:VivitoTwinSignal[]):VivitoClientTwin{
- const scoped=signals.filter(s=>s.text&&String((s as any).scopeId||clientId)===clientId).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt))).slice(0,120);
+ const scoped=signals.filter(s=>s.text&&String(s.scopeId||clientId)===clientId).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt))).slice(0,120);
  const by=(kind:string)=>uniq(scoped.filter(s=>s.kind===kind).map(s=>s.text)).slice(0,12);
  const facts=by("FACT"),preferences=by("PREFERENCE"),corrections=by("CORRECTION"),lessons=uniq(scoped.filter(s=>["LEARNING","OUTCOME"].includes(s.kind)).map(s=>s.text)).slice(0,16);
  const profile=uniq([...facts,...preferences,...corrections,...lessons]).slice(0,24);

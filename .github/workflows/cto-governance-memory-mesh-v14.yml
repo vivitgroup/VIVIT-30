@@ -1,0 +1,71 @@
+name: CTO Governance Memory Mesh V14
+on:
+  push:
+    branches: [feat/vivito-governance-memory-mesh-v14]
+permissions:
+  contents: write
+jobs:
+  remediate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-governance-memory-mesh-v14
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Apply contracts
+        run: |
+          node <<'NODE'
+          const fs=require('node:fs');
+          function patch(file,ops){let s=fs.readFileSync(file,'utf8');for(const [from,to,count=1] of ops){const n=s.split(from).length-1;if(n!==count)throw new Error(`${file}: expected ${count}, found ${n}: ${from.slice(0,160)}`);s=s.split(from).join(to)}fs.writeFileSync(file,s)}
+          patch('lib/vivito/enterprise-governance.ts',[
+            ['const rows=(x:unknown)=>Array.from(x as any) as any[];','type GovernanceControlRow={scope_type:string;autonomy_enabled?:boolean;kill_switch?:boolean;max_daily_actions?:unknown;max_daily_ai_calls?:unknown;policy_version?:unknown};\ntype IdRow={id:string};\ntype UsageRow={used:unknown};\ntype NegativeLearningRow={id:string;outcome_state?:string|null;lesson?:string|null;confidence?:unknown;created_at?:unknown};\nconst rows=<T>(x:unknown):T[]=>Array.from(x as Iterable<T>);\nconst record=(v:unknown):Record<string,unknown>=>v&&typeof v==="object"&&!Array.isArray(v)?v as Record<string,unknown>:{};'],
+            ['const c=rows(await db.execute(','const c=rows<GovernanceControlRow>(await db.execute(',1],
+            ['export function assessEvidence(e:any):EvidenceAssessment{\n const sources=Array.isArray(e?.sources)?e.sources.filter(Boolean):[];\n const stale=Boolean(e?.stale),contradictory=Boolean(e?.contradictory),missing=Boolean(e?.missing);\n let q=Math.min(1,sources.length?0.45+Math.min(.45,sources.length*.2):0.35);\n if(e?.observed===true||e?.source||e?.profileUrl||e?.campaignId)q+=.2;','export function assessEvidence(e:unknown):EvidenceAssessment{\n const data=record(e),sources=Array.isArray(data.sources)?data.sources.filter(Boolean):[];\n const stale=Boolean(data.stale),contradictory=Boolean(data.contradictory),missing=Boolean(data.missing);\n let q=Math.min(1,sources.length?0.45+Math.min(.45,sources.length*.2):0.35);\n if(data.observed===true||data.source||data.profileUrl||data.campaignId)q+=.2;'],
+            ['return rows(await db.execute(sql`select * from vivito_knowledge_provenance','return rows<unknown>(await db.execute(sql`select * from vivito_knowledge_provenance'],
+            ['const r=rows(await db.execute(sql`update vivito_knowledge_provenance','const r=rows<IdRow>(await db.execute(sql`update vivito_knowledge_provenance'],
+            ['export async function journal(input:{workspaceId:string;clientId?:string|null;eventId?:string|null;version:string;provider?:string|null;evidence:unknown;decision:any;confidence:number;simulation?:unknown;decisionType?:string;signalType?:string;rationale?:string;expectedOutcome?:string|null;status?:string}){','export async function journal(input:{workspaceId:string;clientId?:string|null;eventId?:string|null;version:string;provider?:string|null;evidence:unknown;decision:unknown;confidence:number;simulation?:unknown;decisionType?:string;signalType?:string;rationale?:string;expectedOutcome?:string|null;status?:string}){'],
+            ["${input.decisionType||clean(input.decision?.op||'enterprise_decision',120)}","${input.decisionType||clean(record(input.decision).op||'enterprise_decision',120)}"],
+            ['const result=rows(await db.execute(sql`insert into vivito_resource_usage','const result=rows<UsageRow>(await db.execute(sql`insert into vivito_resource_usage'],
+            ['const r=rows(await db.execute(sql`select l.id,l.outcome_state','const r=rows<NegativeLearningRow>(await db.execute(sql`select l.id,l.outcome_state'],
+            ['const r=rows(await db.execute(sql`insert into vivito_notification_dedupe','const r=rows<IdRow>(await db.execute(sql`insert into vivito_notification_dedupe'],
+            ['const r=rows(await db.execute(sql`update vivito_backup_manifests','const r=rows<IdRow>(await db.execute(sql`update vivito_backup_manifests']
+          ]);
+          patch('lib/vivito/memory.ts',[
+            ['export type VivitoMemory={id:string;kind:VivitoMemoryKind;scopeType:VivitoMemoryScope;scopeId:string|null;text:string;createdBy:string;createdAt:string};','export type VivitoMemory={id:string;kind:VivitoMemoryKind;scopeType:VivitoMemoryScope;scopeId:string|null;text:string;createdBy:string;createdAt:string};\ntype MemoryAuditRow={action:string;entity_id:string;new_values?:unknown;user_id?:string|null;created_at?:unknown};\nconst objectRecord=(v:unknown):Record<string,unknown>=>v&&typeof v==="object"&&!Array.isArray(v)?v as Record<string,unknown>:{};'],
+            ['newValues:JSON.stringify({...payload,memoryId:id})} as any','newValues:JSON.stringify({...payload,memoryId:id})}'],
+            ['newValues:JSON.stringify({memoryId:m.id,forgottenBy:userId,forgottenAt:new Date().toISOString()})} as any','newValues:JSON.stringify({memoryId:m.id,forgottenBy:userId,forgottenAt:new Date().toISOString()})}'],
+            ['const raw=Array.from(await db.execute(sql`select action,entity_id,new_values,user_id,created_at from audit_logs where workspace_id=${workspaceId} and entity=\'vivito_memory\' and action in (\'vivito_memory_saved\',\'vivito_memory_forgotten\') order by created_at desc limit 500`)) as any[];','const raw=Array.from(await db.execute(sql`select action,entity_id,new_values,user_id,created_at from audit_logs where workspace_id=${workspaceId} and entity=\'vivito_memory\' and action in (\'vivito_memory_saved\',\'vivito_memory_forgotten\') order by created_at desc limit 500`)) as MemoryAuditRow[];'],
+            ['let p:any={};try{p=typeof row.new_values==="string"?JSON.parse(row.new_values):row.new_values||{}}catch{continue}','let p:Record<string,unknown>={};try{p=objectRecord(typeof row.new_values==="string"?JSON.parse(row.new_values):row.new_values)}catch{continue}']
+          ]);
+          patch('lib/vivito/model-mesh-v1.ts',[
+            ['type MeshHealthState={health:VivitoMeshHealth;cooldownUntil:number;failures:number;successes:number;lastLatencyMs?:number;lastErrorCode?:string};','type MeshHealthState={health:VivitoMeshHealth;cooldownUntil:number;failures:number;successes:number;lastLatencyMs?:number;lastErrorCode?:string};\ntype MeshApiResponse={error?:{message?:string};message?:string;choices?:Array<{message?:{content?:string}}>};\nconst objectRecord=(v:unknown):Record<string,unknown>=>v&&typeof v==="object"&&!Array.isArray(v)?v as Record<string,unknown>:{};'],
+            ['function normalizeModel(m:any):VivitoMeshModel|null{\n  if(!m||typeof m.id!=="string"||typeof m.provider!=="string"||typeof m.model!=="string"||typeof m.baseUrl!=="string"||typeof m.apiKeyEnv!=="string")return null;','function normalizeModel(value:unknown):VivitoMeshModel|null{\n  const m=objectRecord(value);if(typeof m.id!=="string"||typeof m.provider!=="string"||typeof m.model!=="string"||typeof m.baseUrl!=="string"||typeof m.apiKeyEnv!=="string")return null;'],
+            ['const d:any=await r.json().catch(()=>({}));','const d=(await r.json().catch(()=>({}))) as MeshApiResponse;'],
+            ['}catch(error){const raw=(error as any)?.name==="TimeoutError"?"timeout":String((error as any)?.message||"failed");','}catch(error){const err=objectRecord(error),raw=err.name==="TimeoutError"?"timeout":String(err.message||"failed");']
+          ]);
+          NODE
+          git diff --check
+      - name: Acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint lib/vivito/enterprise-governance.ts lib/vivito/memory.ts lib/vivito/model-mesh-v1.ts -f json > /tmp/target.json || true
+          npx eslint . -f json > /tmp/all.json || true
+          node <<'NODE'
+          const target=require('/tmp/target.json').flatMap(x=>x.messages||[]),r=require('/tmp/all.json'),m=r.flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any'),w=m.filter(x=>x.severity===1);console.log(`target_total=${target.length}`);console.log(`remaining_any=${a.length}`);console.log(`non_any=${n.length} warnings=${w.length}`);console.log(JSON.stringify(target.map(x=>[x.ruleId,x.line,x.message]).slice(0,40)));if(target.length||a.length!==178||n.length||w.length)process.exit(1)
+          NODE
+      - name: Commit source
+        run: |
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git add lib/vivito/enterprise-governance.ts lib/vivito/memory.ts lib/vivito/model-mesh-v1.ts
+          git commit -m 'fix(types): type governance memory mesh contracts [skip ci]'
+          git push origin HEAD:feat/vivito-governance-memory-mesh-v14

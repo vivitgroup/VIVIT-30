@@ -3,6 +3,8 @@ import {db,sql} from "../lib/db";
 import {executeVivitoOperatorAction} from "../lib/vivito/executor-operator";
 import {executeVivitoPlanRuntime,type VivitoPlanStep} from "../lib/vivito/plan-runtime";
 
+type AuditCountRow={count:number|string};
+
 async function main(){
  fs.mkdirSync('.vivito',{recursive:true});
  const userId='cert-admin',role='SUPER_ADMIN';
@@ -40,7 +42,7 @@ async function main(){
    rollbackRecoveryPassed=!!resumed.success&&resumed.duplicateSteps===1;
    if(!rollbackRecoveryPassed){knownCriticalDefects++;failures.push({phase:'resume',resumed});}
  }
- const duplicateAudit=Array.from(await db.execute(sql`select count(*)::int count from audit_logs where workspace_id='default' and user_id=${userId} and action='vivito_plan_step_executed' and ((new_values::jsonb->>'requestId') like 'cert-reliability-%' or (new_values::jsonb->>'requestId')=${failureId})`) as unknown as Iterable<{count:number|string}>)[0]?.count??0;
+ const duplicateAudit=(await db.execute(sql<AuditCountRow>`select count(*)::int count from audit_logs where workspace_id='default' and user_id=${userId} and action='vivito_plan_step_executed' and ((new_values::jsonb->>'requestId') like 'cert-reliability-%' or (new_values::jsonb->>'requestId')=${failureId})`))[0]?.count??0;
  // 50 plans x 2 unique steps = 100, plus two unique recovery steps (one before failure, one after resume) = 102.
  const passed=multiStepCases===50&&replayCases===50&&idempotencyPassed&&rollbackRecoveryPassed&&knownCriticalDefects===0&&Number(duplicateAudit)===102;
  const report={passed,multiStepCases,replayCases,idempotencyPassed,rollbackRecoveryPassed,knownCriticalDefects,uniqueExecutedSteps:Number(duplicateAudit),expectedUniqueExecutedSteps:102,failures:failures.slice(0,20),database:'ephemeral-postgres',productionDataUsed:false};

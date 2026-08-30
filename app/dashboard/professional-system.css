@@ -1,0 +1,73 @@
+/* VIVIT Professional System — final visual authority */
+:root{
+  --pro-navy:#12233f;
+  --pro-blue:#244d87;
+  --pro-red:#b8232d;
+  --pro-gold:#d7a21f;
+  --pro-line:#e4e8ef;
+  --pro-canvas:#f5f6f8;
+  --pro-surface:#fff;
+  --pro-shadow:0 8px 28px rgba(18,35,63,.07);
+}
+
+body:has(.app-main-shell){background:var(--pro-canvas)!important;background-image:none!important}
+body:has(.app-main-shell) .app-main-shell{background:var(--pro-canvas)!important}
+body:has(.app-main-shell) .app-content{max-width:1520px!important;padding:24px 28px 64px!important}
+body:has(.app-main-shell) .app-sidebar{background:#fff!important;border-right:1px solid var(--pro-line)!important;box-shadow:none!important}
+body:has(.app-main-shell) .app-header{height:64px!important;background:rgba(255,255,255,.96)!important;border-bottom:1px solid var(--pro-line)!important;box-shadow:none!important;backdrop-filter:blur(14px)}
+body:has(.app-main-shell) .sidebar-logo{min-height:64px!important}
+body:has(.app-main-shell) .nav-item{min-height:40px!important;margin:2px 10px!important;border-radius:9px!important;font-weight:650!important}
+body:has(.app-main-shell) .nav-item.active{background:#f8eef0!important;color:var(--pro-red)!important;box-shadow:inset 3px 0 0 var(--pro-red)!important}
+body:has(.app-main-shell) .nav-item:hover{background:#f4f6f9!important;color:var(--pro-navy)!important}
+
+body:has(.app-main-shell) .page-title{font:750 clamp(1.45rem,2vw,2rem)/1.15 'Sora',sans-serif!important;color:var(--pro-navy)!important;background:none!important;-webkit-text-fill-color:var(--pro-navy)!important;letter-spacing:-.035em}
+body:has(.app-main-shell) .page-subtitle{font-size:12.5px!important;color:#68768a!important}
+body:has(.app-main-shell) .card,
+body:has(.app-main-shell) .card-vivit,
+body:has(.app-main-shell) .kpi-card,
+body:has(.app-main-shell) .cw-section,
+body:has(.app-main-shell) .campaign-card,
+body:has(.app-main-shell) .creative-card,
+body:has(.app-main-shell) .attention{background:var(--pro-surface)!important;border:1px solid var(--pro-line)!important;border-radius:14px!important;box-shadow:0 1px 2px rgba(18,35,63,.025)!important;backdrop-filter:none!important;transform:none!important;transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease!important}
+body:has(.app-main-shell) .card:hover,
+body:has(.app-main-shell) .kpi-card:hover,
+body:has(.app-main-shell) .cw-section:hover,
+body:has(.app-main-shell) .campaign-card:hover,
+body:has(.app-main-shell) .creative-card:hover,
+body:has(.app-main-shell) .attention:hover{transform:translateY(-2px)!important;border-color:#cfd6e1!important;box-shadow:var(--pro-shadow)!important}
+body:has(.app-main-shell) .card-header{min-height:50px!important;padding:13px 18px!important;background:#fafbfc!important;border-bottom:1px solid var(--pro-line)!important;border-radius:14px 14px 0 0!important}
+body:has(.app-main-shell) .card-body{padding:18px!important}
+body:has(.app-main-shell) .btn{min-height:38px!important;border-radius:9px!important;font-weight:700!important;box-shadow:none!important}
+body:has(.app-main-shell) .btn-primary,
+body:has(.app-main-shell) .btn-grad{background:var(--pro-red)!important;border-color:var(--pro-red)!important;color:#fff!important}
+body:has(.app-main-shell) .btn-primary:hover{background:#941c24!important}
+body:has(.app-main-shell) .form-input,
+body:has(.app-main-shell) .form-select,
+body:has(.app-main-shell) textarea{border:1px solid #d7dde6!important;border-radius:9px!important;background:#fff!important;box-shadow:0 1px 2px rgba(18,35,63,.025)!important}
+body:has(.app-main-shell) .form-input:focus,
+body:has(.app-main-shell) .form-select:focus,
+body:has(.app-main-shell) textarea:focus{border-color:var(--pro-blue)!important;box-shadow:0 0 0 3px rgba(36,77,135,.1)!important}
+body:has(.app-main-shell) .data-table thead th{background:#f7f8fa!important;color:#536176!important;font-size:10px!important;letter-spacing:.05em!important}
+body:has(.app-main-shell) .data-table tbody tr:hover{background:#fafbfc!important}
+
+.vone-command-hero{min-height:250px!important;padding:34px 38px!important;border-radius:20px!important;background:linear-gradient(118deg,#101f37 0%,#18355f 72%,#244d87 100%)!important;box-shadow:0 16px 42px rgba(18,35,63,.16)!important}
+.vone-command-hero:before{display:none!important}.vone-command-hero:after{opacity:.12!important;background-size:52px 52px!important}
+.vone-hero-copy h1{font-size:clamp(2.15rem,4vw,3.7rem)!important;line-height:1.02!important;letter-spacing:-.05em!important}
+.vone-hero-copy>p{font-size:13px!important;color:#bdc9d9!important}
+.vone-command-bar{min-height:50px!important;margin-top:20px!important;border-radius:12px!important;background:rgba(255,255,255,.07)!important;box-shadow:none!important}
+.vone-hero-orbit{width:min(24vw,260px)!important}.vone-pulse-core{width:98px!important;height:98px!important;box-shadow:0 0 0 10px rgba(255,255,255,.04),0 12px 35px rgba(0,0,0,.2)!important}
+.vone-client-orb{animation:none!important;box-shadow:0 8px 20px rgba(0,0,0,.2)!important}
+.vone-mode-nav{border-radius:13px!important;padding:6px!important;box-shadow:none!important;background:#fff!important}
+.vone-mode-nav a{min-height:44px!important;border-radius:9px!important}
+.vone-mode-nav a:hover,.vone-mode-nav a.is-active{transform:none!important;background:var(--pro-navy)!important;box-shadow:none!important}
+.vone-section-heading .page-title:before{content:"OPERATIONS / "!important;color:var(--pro-red)!important}
+
+.sales-page{gap:20px!important}.sales-kpis{gap:14px!important}.sales-kpi{border:1px solid var(--pro-line)!important;border-radius:14px!important;padding:18px!important;background:#fff!important}.sales-kpi span{color:#6a788c!important}.sales-kpi b{font-family:'Sora',sans-serif!important;color:var(--pro-navy)!important}.stage{border:1px solid var(--pro-line)!important;border-radius:13px!important;background:#f7f8fa!important}.stage-head{padding:13px 14px!important}.stage-list{padding:10px!important}.lead-card{border:1px solid var(--pro-line)!important;border-radius:10px!important;padding:13px!important;box-shadow:0 1px 2px rgba(18,35,63,.03)!important}
+
+.dashboard-skeleton,.skeleton{animation-duration:1.4s!important}.dashboard-skeleton{opacity:.72}
+.vivit-atmosphere{opacity:.18!important;pointer-events:none!important}.vivito-marketing-quote,.vivito-campaign-status-badge{display:none!important}
+
+@media(max-width:900px){body:has(.app-main-shell) .app-content{padding:16px 14px 94px!important}.vone-command-hero{min-height:0!important;padding:27px 24px!important}.vone-hero-orbit{display:none!important}.sales-kpis{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+@media(max-width:560px){body:has(.app-main-shell) .app-content{padding:12px 10px 98px!important}.vone-command-hero{padding:23px 19px!important;border-radius:16px!important}.vone-hero-copy h1{font-size:2.15rem!important}.vone-mode-nav{grid-template-columns:repeat(2,minmax(0,1fr))!important}.sales-kpis{grid-template-columns:1fr 1fr!important}.sales-kpi{padding:14px!important}.sales-kpi b{font-size:18px!important}}
+
+@media(prefers-reduced-motion:reduce){body:has(.app-main-shell) *{scroll-behavior:auto!important}}

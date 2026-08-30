@@ -2,6 +2,10 @@ import fs from "node:fs";
 import {db,sql} from "../lib/db";
 import {executeVivitoOperatorAction} from "../lib/vivito/executor-operator";
 
+type CertifiedUserRow={id:string;name:string;is_active:boolean};
+type CertifiedReferralRow={id:string;referrer_id:string};
+type CertifiedAuditRow={id:string};
+
 async function main(){
  fs.mkdirSync('.vivito',{recursive:true});
  const adminId='cert-admin';
@@ -20,9 +24,9 @@ async function main(){
   for(let i=0;i<8;i++)await run('set_user_active',{userName:names[i],active:false});
   for(let i=0;i<8;i++)await run('set_user_active',{userName:names[i],active:true});
   for(let i=0;i<18;i++)await run('create_referral',{email:`referral-${i+1}@vivito.test`,discountPct:20});
-  const users=Array.from(await db.execute(sql`select id,name,is_active from users where workspace_id='default' and email like 'cert-user-%@vivito.test' order by email` ) as unknown as Iterable<{id:string;name:string;is_active:boolean}>);
-  const refs=Array.from(await db.execute(sql`select id,referrer_id from referrals where referred_email like 'referral-%@vivito.test'` ) as unknown as Iterable<{id:string;referrer_id:string}>);
-  const audits=Array.from(await db.execute(sql`select id from audit_logs where workspace_id='default' and user_id=${adminId} and action like 'vivito_%'` ) as unknown as Iterable<{id:string}>);
+  const users=Array.from(await db.execute(sql<CertifiedUserRow>`select id,name,is_active from users where workspace_id='default' and email like 'cert-user-%@vivito.test' order by email`));
+  const refs=Array.from(await db.execute(sql<CertifiedReferralRow>`select id,referrer_id from referrals where referred_email like 'referral-%@vivito.test'`));
+  const audits=Array.from(await db.execute(sql<CertifiedAuditRow>`select id from audit_logs where workspace_id='default' and user_id=${adminId} and action like 'vivito_%'`));
   const allActive=users.length===8&&users.every(u=>u.is_active===true);
   const referralOwner=refs.length===18&&refs.every(r=>r.referrer_id===adminId);
   const passed=cases===50&&allActive&&referralOwner&&audits.length>=50;

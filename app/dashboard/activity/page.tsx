@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { db, auditLogs, users } from "@/lib/db";
-import { eq, desc } from "drizzle-orm";
+import { desc } from "drizzle-orm";
 import { Role } from "@/lib/types";
 
 export default async function ActivityPage() {

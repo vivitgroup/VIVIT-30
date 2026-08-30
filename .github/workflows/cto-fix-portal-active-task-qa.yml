@@ -1,0 +1,43 @@
+name: CTO Fix Portal Active Task QA
+
+on:
+  push:
+    branches: [feat/vivito-internal-100]
+    paths:
+      - .github/workflows/cto-fix-portal-active-task-qa.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-internal-100
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Replace brittle portal matcher with typed invariant
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('scripts/qa-tasks-archive.mjs')
+          s=p.read_text()
+          old='check("Client Portal deliverable counts derive only from active task query",portal.includes("tasks=[...taskRows]")&&/taskRows[\\s\\S]*creative_tasks[\\s\\S]*archived_at is null/.test(portal));'
+          new='check("Client Portal deliverable counts derive only from active task query",/db\\.execute<TaskRow>\\(sql`[\\s\\S]*from creative_tasks where workspace_id=\\$\\{workspaceId\\}[\\s\\S]*client_id=\\$\\{client\\.id\\}[\\s\\S]*archived_at is null/.test(portal)&&/tasks=Array\\.from\\(taskResult\\)/.test(portal));'
+          if old not in s:
+              raise SystemExit('expected legacy matcher not found')
+          p.write_text(s.replace(old,new))
+          PY
+          node scripts/qa-tasks-archive.mjs
+      - name: Commit source-only fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/cto-fix-portal-active-task-qa.yml
+          git add scripts/qa-tasks-archive.mjs
+          git commit -m "fix(qa): accept typed portal active-task derivation"
+          git push origin HEAD:feat/vivito-internal-100

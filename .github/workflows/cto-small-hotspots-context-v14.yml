@@ -1,0 +1,25 @@
+name: CTO Small Hotspots Context V14
+on:
+  push:
+    branches: [feat/vivito-small-hotspots-context-v14]
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-small-hotspots-context-v14
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Validate and print contexts
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint components/media/MetaAccountConnectPanel.tsx app/dashboard/creative/quality/page.tsx app/dashboard/finance/page.tsx app/dashboard/universe/page.tsx lib/meta-exact.ts lib/vivito/competitive-intelligence.ts app/dashboard/operations/page.tsx app/dashboard/team/page.tsx lib/vivito/live-knowledge-fabric.ts lib/vivito/multimodal.ts lib/vivito/enterprise-governance.ts lib/vivito/memory.ts lib/vivito/model-mesh-v1.ts -f json > /tmp/small.json || true
+          node <<'NODE'
+          const fs=require('node:fs'),r=require('/tmp/small.json');
+          for(const f of r){const file=f.filePath.replace(process.cwd()+'/', ''),src=fs.readFileSync(f.filePath,'utf8').split('\n'),a=(f.messages||[]).filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any');if(!a.length)continue;console.log(`\nFILE ${file} COUNT ${a.length}`);for(const m of a){const lo=Math.max(0,m.line-2),hi=Math.min(src.length,m.line+1);console.log(`\nANY ${m.line}:${m.column}\n${src.slice(lo,hi).map((x,i)=>`${lo+i+1}: ${x}`).join('\n')}`)}}
+          NODE

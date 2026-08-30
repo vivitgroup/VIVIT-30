@@ -5,13 +5,13 @@ import { unstable_cache, revalidateTag } from "next/cache";
 import { eq, and, gte, lte, inArray, notInArray,
   desc, asc, count, sum, sql, ne, avg, ilike, or } from "drizzle-orm";
 
+declare global {
+  var _pgClient: ReturnType<typeof postgres> | undefined;
+}
+
 // ── Connection Pool ────────────────────────────────────────────
 // prepare:false required for Supabase Transaction Pooler (port 6543)
 // Keep the per-function pool small in serverless environments.
-const globalForDb = globalThis as unknown as {
-  _pgClient: ReturnType<typeof postgres> | undefined;
-};
-
 function createClient() {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) throw new Error("DATABASE_URL is required");
@@ -55,7 +55,7 @@ function createClient() {
 
 const _pgClient = process.env.NODE_ENV === "production"
   ? createClient()
-  : (globalForDb._pgClient ??= createClient());
+  : (globalThis._pgClient ??= createClient());
 
 export const db = drizzle(_pgClient, { schema });
 

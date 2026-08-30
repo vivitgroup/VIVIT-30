@@ -1,0 +1,45 @@
+name: CTO Integrate Executor Final V14
+on:
+  push:
+    branches: [feat/vivito-static-integrate-executor-final-v14]
+permissions:
+  contents: write
+jobs:
+  integrate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-static-integrate-executor-final-v14
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint . -f json > /tmp/base.json || true
+          node <<'NODE'
+          const m=require('/tmp/base.json').flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any'),w=m.filter(x=>x.severity===1);console.log(`baseline_any=${a.length}`);if(a.length!==172||n.length||w.length)process.exit(1)
+          NODE
+      - name: Integrate verified source
+        run: |
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git fetch origin 175ab9b9b328d371037acaacbbd05f2efb36916a
+          git cherry-pick 175ab9b9b328d371037acaacbbd05f2efb36916a
+      - name: Final acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          git diff --check HEAD~1 HEAD
+          npx eslint lib/vivito/executor.ts -f json > /tmp/target.json || true
+          npx eslint . -f json > /tmp/all.json || true
+          node <<'NODE'
+          const target=require('/tmp/target.json').flatMap(x=>x.messages||[]),m=require('/tmp/all.json').flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any'),w=m.filter(x=>x.severity===1);console.log(`target_total=${target.length}`);console.log(`remaining_any=${a.length}`);console.log(`non_any=${n.length} warnings=${w.length}`);if(target.length||a.length!==157||n.length||w.length)process.exit(1)
+          NODE
+      - name: Push accepted candidate
+        run: git push origin HEAD:feat/vivito-static-integrate-executor-final-v14

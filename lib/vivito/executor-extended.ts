@@ -1,4 +1,4 @@
-import {db,clients,contacts,users,creativeTasks,calendarEvents,fileDocuments,salesLeads,salesActivities,auditLogs,workspaces,sql} from "@/lib/db";
+import {db,clients,contacts,calendarEvents,salesLeads,salesActivities,auditLogs,workspaces,sql} from "@/lib/db";
 import {AsyncLocalStorage} from "node:async_hooks";
 import {VIVITO_ACTION_CATALOG,type VivitoActionOp} from "./action-engine";
 import {VivitoActionError,type VivitoActionArgs} from "./executor";

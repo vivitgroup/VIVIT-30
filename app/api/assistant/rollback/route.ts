@@ -27,9 +27,11 @@ function parseExecution(value:unknown):ParsedExecution{
  }catch{return{op:"",result:{}}}
 }
 function toJsonData(value:unknown):JsonData{
- if(value===null||typeof value==="string"||typeof value==="number"||typeof value==="boolean"||value instanceof Date)return value;
+ if(value===null)return null;
+ if(typeof value==="string"||typeof value==="number"||typeof value==="boolean")return value;
+ if(value instanceof Date)return value;
  if(Array.isArray(value))return value.map(toJsonData);
- if(value&&typeof value==="object"){
+ if(typeof value==="object"){
   const output:{[key:string]:JsonData|undefined}={};
   for(const [key,item] of Object.entries(value))output[key]=item===undefined?undefined:toJsonData(item);
   return output;

@@ -1,0 +1,86 @@
+name: CTO Tail Simple V16
+on:
+  push:
+    branches: [feat/vivito-tail-simple-v16]
+permissions:
+  contents: write
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-tail-simple-v16
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint . -f json > /tmp/base.json || true
+          node <<'NODE'
+          const m=require('/tmp/base.json').flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any'),w=m.filter(x=>x.severity===1);console.log(`baseline_any=${a.length} non_any=${n.length} warnings=${w.length}`);if(a.length!==60||n.length||w.length)process.exit(1)
+          NODE
+      - name: Apply simple tail contracts
+        run: |
+          node <<'NODE'
+          const fs=require('node:fs');
+          function patch(file,ops){let s=fs.readFileSync(file,'utf8');for(const [from,to,count=1] of ops){const n=s.split(from).length-1;if(n!==count)throw new Error(`${file}: expected ${count}, found ${n}: ${from.slice(0,160)}`);s=s.split(from).join(to)}fs.writeFileSync(file,s)}
+          patch('app/dashboard/ai-studio/actions/page.tsx',[
+            ['String((s.user as any).role||"")','String(s.user.role||"")'],
+            ['String((s.user as any).id||"")','String(s.user.id||"")']
+          ]);
+          patch('app/dashboard/analytics/page.tsx',[
+            ['m:any=media[0]??{},f:any=finance[0]??{}','m=media[0]??{},f=finance[0]??{}']
+          ]);
+          patch('app/dashboard/kpis/page.tsx',[
+            ['inArray(users.role,[...EMPLOYEE_ROLES] as any)','inArray(users.role,[...EMPLOYEE_ROLES])'],
+            ['m:any=media[0]??{},f:any=finance[0]??{}','m=media[0]??{},f=finance[0]??{}']
+          ]);
+          patch('app/dashboard/contracts/page.tsx',[
+            ['CONTRACT_TYPES.includes(type as any)','(CONTRACT_TYPES as readonly string[]).includes(type)']
+          ]);
+          patch('components/i18n/DashboardLanguage.tsx',[
+            ['const pairs:[[RegExp,string]]|any=','const pairs:Array<[RegExp,string]> =']
+          ]);
+          patch('components/media/MediaLiveSync.tsx',[
+            ['.filter((c:any)=>c.platform==="META")','.filter((c:{platform?:string})=>c.platform==="META")']
+          ]);
+          patch('components/reminders/TaskReminderWatcher.tsx',[
+            ['.filter((z:any)=>z.diff<=threshold&&z.diff>=-1440).sort((a:any,b:any)=>a.diff-b.diff)','.filter(z=>z.diff<=threshold&&z.diff>=-1440).sort((a,b)=>a.diff-b.diff)']
+          ]);
+          patch('lib/vivito/quota-resilience.ts',[
+            ['const raw=String((error as any)?.message||error||"").toLowerCase();','const raw=String(error instanceof Error?error.message:error||"").toLowerCase();']
+          ]);
+          patch('components/layout/Header.tsx',[
+            ['const PAGE_TITLES:Record<string,string>=','type SearchResult={title:string;href:string;icon?:string;subtitle?:string;type?:string};\nconst PAGE_TITLES:Record<string,string>='],
+            ['useState<any[]>([])','useState<SearchResult[]>([])'],
+            ['select=(item:any)=>','select=(item:SearchResult)=>']
+          ]);
+          patch('components/layout/Sidebar.tsx',[
+            ['t=(localStorage.getItem("vivit-theme") as any)||"light",l=(localStorage.getItem("vivit-lang") as any)||"en";setCollapsed(c);setTheme(t);setLang(l);document.documentElement.classList.toggle("dark",t==="dark")','themeRaw=localStorage.getItem("vivit-theme"),langRaw=localStorage.getItem("vivit-lang"),t: "light"|"dark"=themeRaw==="dark"?"dark":"light",l: "en"|"ar"=langRaw==="ar"?"ar":"en";setCollapsed(c);setTheme(t);setLang(l);document.documentElement.classList.toggle("dark",t==="dark")']
+          ]);
+          patch('components/realtime-notifications.tsx',[
+            ['const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();','const AudioContextCtor=window.AudioContext||(window as Window & typeof globalThis & {webkitAudioContext?:typeof AudioContext}).webkitAudioContext;if(!AudioContextCtor)return;const ctx=new AudioContextCtor();']
+          ]);
+          NODE
+          git diff --check
+      - name: Acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint . -f json > /tmp/all.json || true
+          node <<'NODE'
+          const m=require('/tmp/all.json').flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any'),w=m.filter(x=>x.severity===1);console.log(`remaining_any=${a.length} non_any=${n.length} warnings=${w.length}`);if(a.length!==43||n.length||w.length)process.exit(1)
+          NODE
+      - name: Commit source
+        run: |
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git add app/dashboard/ai-studio/actions/page.tsx app/dashboard/analytics/page.tsx app/dashboard/kpis/page.tsx app/dashboard/contracts/page.tsx components/i18n/DashboardLanguage.tsx components/media/MediaLiveSync.tsx components/reminders/TaskReminderWatcher.tsx lib/vivito/quota-resilience.ts components/layout/Header.tsx components/layout/Sidebar.tsx components/realtime-notifications.tsx
+          git commit -m 'fix(types): close simple tail contracts [skip ci]'
+          git push origin HEAD:feat/vivito-tail-simple-v16

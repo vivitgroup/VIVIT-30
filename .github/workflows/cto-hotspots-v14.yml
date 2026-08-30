@@ -1,0 +1,26 @@
+name: CTO Hotspots V14
+on:
+  push:
+    branches: [feat/vivito-hotspots-v14]
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-hotspots-v14
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Validate and map hotspots
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint . -f json > /tmp/all.json || true
+          node <<'NODE'
+          const r=require('/tmp/all.json');const by=[];let total=0,non=0,w=0;
+          for(const f of r){const msgs=f.messages||[];const a=msgs.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any');total+=a.length;non+=msgs.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any').length;w+=msgs.filter(x=>x.severity===1).length;if(a.length)by.push([a.length,f.filePath.replace(process.cwd()+'/', ''),a.map(x=>x.line)])}
+          by.sort((a,b)=>b[0]-a[0]);console.log(`TOTAL_ANY=${total} NON_ANY=${non} WARNINGS=${w}`);for(const row of by.slice(0,80))console.log(JSON.stringify(row));if(total!==204||non||w)process.exit(1)
+          NODE

@@ -11,8 +11,21 @@ export default async function PortalGuard({children}:{children:ReactNode}){
   const session=await auth();
   if(!session?.user)redirect("/login");
   if(session.user.role!==Role.CLIENT)redirect("/dashboard");
-  const userId=String(session.user.id);
-  const [client]=await db.select({id:clients.id}).from(clients).where(and(eq(clients.userId,userId),eq(clients.isActive,true))).limit(1);
+
+  const userId=String(session.user.id||"");
+  const workspaceId=String(session.user.workspaceId||"");
+  if(!userId||!workspaceId)redirect("/login");
+
+  const [client]=await db
+    .select({id:clients.id})
+    .from(clients)
+    .where(and(
+      eq(clients.userId,userId),
+      eq(clients.workspaceId,workspaceId),
+      eq(clients.isActive,true),
+    ))
+    .limit(1);
+
   if(!client)redirect("/dashboard");
   return children;
 }

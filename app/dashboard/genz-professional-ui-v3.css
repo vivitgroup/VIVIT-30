@@ -1,0 +1,260 @@
+/* VIVIT Gen-Z Professional UI v3
+   Visual-only layer. Keeps the existing VIVIT palette and red primary intact. */
+
+/* Remove the oversized dashboard hero entirely from the rendered experience. */
+body:has(.app-main-shell) .vone-command-hero{display:none!important}
+
+/* English application chrome; Arabic is intentionally scoped to the desktop sidebar. */
+html:has(.app-main-shell){direction:ltr!important}
+body:has(.app-main-shell){direction:ltr!important}
+body:has(.app-main-shell) .header-language{display:none!important}
+body:has(.app-main-shell) .app-main-shell{overflow-x:clip}
+
+/* Main rhythm and subtle entrance motion. */
+body:has(.app-main-shell) .app-content{perspective:1400px}
+body:has(.app-main-shell) .dashboard-home{gap:20px!important}
+body:has(.app-main-shell) .dashboard-home>*:not(.vone-command-hero){animation:vivitUiRise .46s cubic-bezier(.2,.8,.2,1) both}
+body:has(.app-main-shell) .dashboard-home>*:nth-child(3){animation-delay:.04s}
+body:has(.app-main-shell) .dashboard-home>*:nth-child(4){animation-delay:.08s}
+body:has(.app-main-shell) .dashboard-home>*:nth-child(5){animation-delay:.12s}
+
+/* Premium 3D card language without changing brand colors. */
+body:has(.app-main-shell) .card,
+body:has(.app-main-shell) .card-vivit,
+body:has(.app-main-shell) .kpi-card,
+body:has(.app-main-shell) .cw-section,
+body:has(.app-main-shell) .campaign-card,
+body:has(.app-main-shell) .creative-card,
+body:has(.app-main-shell) .attention,
+body:has(.app-main-shell) .sales-kpi,
+body:has(.app-main-shell) .lead-card{
+  position:relative;
+  isolation:isolate;
+  overflow:hidden;
+  transform:translateZ(0);
+  border-color:color-mix(in srgb,var(--pro-line) 86%,var(--pro-red) 14%)!important;
+  box-shadow:0 2px 3px rgba(18,35,63,.025),0 12px 30px rgba(18,35,63,.055),inset 0 1px 0 rgba(255,255,255,.86)!important;
+  transition:transform .26s cubic-bezier(.2,.8,.2,1),box-shadow .26s ease,border-color .26s ease!important;
+}
+body:has(.app-main-shell) .card:before,
+body:has(.app-main-shell) .card-vivit:before,
+body:has(.app-main-shell) .kpi-card:before,
+body:has(.app-main-shell) .cw-section:before,
+body:has(.app-main-shell) .campaign-card:before,
+body:has(.app-main-shell) .creative-card:before,
+body:has(.app-main-shell) .attention:before,
+body:has(.app-main-shell) .sales-kpi:before,
+body:has(.app-main-shell) .lead-card:before{
+  content:"";
+  position:absolute;
+  inset:0 0 auto;
+  height:1px;
+  z-index:3;
+  pointer-events:none;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.96),color-mix(in srgb,var(--pro-red) 20%,transparent),transparent);
+  opacity:.8;
+}
+body:has(.app-main-shell) .card:hover,
+body:has(.app-main-shell) .card-vivit:hover,
+body:has(.app-main-shell) .kpi-card:hover,
+body:has(.app-main-shell) .cw-section:hover,
+body:has(.app-main-shell) .campaign-card:hover,
+body:has(.app-main-shell) .creative-card:hover,
+body:has(.app-main-shell) .attention:hover,
+body:has(.app-main-shell) .sales-kpi:hover,
+body:has(.app-main-shell) .lead-card:hover{
+  transform:translateY(-4px) translateZ(16px)!important;
+  border-color:color-mix(in srgb,var(--pro-red) 24%,var(--pro-line))!important;
+  box-shadow:0 5px 10px rgba(18,35,63,.045),0 22px 52px rgba(18,35,63,.11),0 8px 24px rgba(184,35,45,.045)!important;
+}
+
+/* Better top chrome: compact, polished and lightly dimensional. */
+body:has(.app-main-shell) .app-header{
+  position:sticky!important;
+  top:0;
+  z-index:120;
+  border-bottom-color:color-mix(in srgb,var(--pro-line) 85%,var(--pro-red) 15%)!important;
+  box-shadow:0 8px 28px rgba(18,35,63,.045)!important;
+}
+body:has(.app-main-shell) .header-search,
+body:has(.app-main-shell) .header-notifications,
+body:has(.app-main-shell) .header-export,
+body:has(.app-main-shell) .header-signout{
+  transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease,background .2s ease!important;
+}
+body:has(.app-main-shell) .header-search:hover,
+body:has(.app-main-shell) .header-notifications:hover,
+body:has(.app-main-shell) .header-export:hover,
+body:has(.app-main-shell) .header-signout:hover{
+  transform:translateY(-1px);
+  border-color:color-mix(in srgb,var(--pro-red) 24%,var(--pro-line))!important;
+  box-shadow:0 9px 22px rgba(18,35,63,.075)!important;
+}
+
+/* Arabic-only desktop sidebar. */
+body:has(.app-main-shell) .vivit-ar-sidebar{direction:rtl!important;text-align:right!important;box-shadow:10px 0 34px rgba(18,35,63,.04)!important}
+body:has(.app-main-shell) .vivit-ar-sidebar .sidebar-logo{direction:ltr!important;gap:10px;padding-inline:15px!important}
+body:has(.app-main-shell) .vivit-ar-sidebar .sidebar-brand-copy{text-align:left!important}
+body:has(.app-main-shell) .vivit-ar-sidebar .sidebar-brand-copy span{font-size:9px!important;letter-spacing:0!important}
+body:has(.app-main-shell) .sidebar-user-card{margin:6px 10px 8px;padding:10px 11px;display:flex;align-items:center;gap:9px;border:1px solid var(--pro-line);border-radius:12px;background:linear-gradient(145deg,#fff,#fafbfc);box-shadow:0 5px 16px rgba(18,35,63,.035)}
+body:has(.app-main-shell) .sidebar-user-avatar{background:var(--vivit-gradient)!important;color:#fff;box-shadow:0 7px 18px rgba(184,35,45,.14)}
+body:has(.app-main-shell) .sidebar-user-copy{min-width:0;flex:1}
+body:has(.app-main-shell) .sidebar-user-copy p{margin:0;font-size:12px;font-weight:800;color:var(--pro-navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+body:has(.app-main-shell) .sidebar-user-copy span{display:block;margin-top:2px;font-size:9.5px;color:var(--text-muted)}
+body:has(.app-main-shell) .vivit-ar-sidebar .sidebar-nav{flex:1;overflow-y:auto;padding:5px 0 9px}
+body:has(.app-main-shell) .vivit-ar-sidebar .sidebar-section-label{padding:14px 15px 5px!important;font-size:8.5px!important;font-weight:900!important;letter-spacing:0!important;color:#8b96a7!important}
+body:has(.app-main-shell) .vivit-ar-sidebar .nav-item{direction:rtl!important;gap:10px!important;padding:0 12px!important}
+body:has(.app-main-shell) .vivit-ar-sidebar .nav-icon{width:25px!important;height:25px!important;display:grid!important;place-items:center!important;border-radius:8px!important;background:#f5f6f8!important;color:#68768a!important;font-size:13px!important;transition:transform .2s ease,background .2s ease,color .2s ease!important}
+body:has(.app-main-shell) .vivit-ar-sidebar .nav-label{font-size:11.5px!important;line-height:1.2!important}
+body:has(.app-main-shell) .vivit-ar-sidebar .nav-item:hover .nav-icon{transform:translateX(-2px) scale(1.04)}
+body:has(.app-main-shell) .vivit-ar-sidebar .nav-item.active .nav-icon{background:color-mix(in srgb,var(--pro-red) 12%,#fff)!important;color:var(--pro-red)!important;box-shadow:0 4px 14px rgba(184,35,45,.08)}
+body:has(.app-main-shell) .vivit-ar-sidebar .nav-item.active{box-shadow:inset -3px 0 0 var(--pro-red)!important}
+body:has(.app-main-shell) .sidebar-footer-actions{padding:10px 8px;border-top:1px solid var(--pro-line);display:flex;gap:6px}
+body:has(.app-main-shell) .sidebar-theme-button{min-height:36px;flex:1;display:flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--pro-line);border-radius:9px;background:#fafbfc;color:var(--text-secondary);font-size:10px;font-weight:800;cursor:pointer}
+body:has(.app-main-shell) .sidebar-collapse-button{width:36px;border:1px solid var(--pro-line);border-radius:9px;background:#fafbfc;color:var(--pro-navy);font-size:18px;cursor:pointer}
+body:has(.app-main-shell) .vivit-ar-sidebar.collapsed .sidebar-logo{padding-inline:0!important;justify-content:center!important}
+body:has(.app-main-shell) .vivit-ar-sidebar.collapsed .nav-item{padding:0!important}
+
+/* VIVITO: clean branded symbol, no image asset, restrained orbit motion. */
+body:has(.app-main-shell) .vivito-one{display:flex;align-items:center;gap:9px;color:var(--text-primary)}
+body:has(.app-main-shell) .vivito-one-core{position:relative;width:62px;height:62px;flex:0 0 62px;display:grid;place-items:center;isolation:isolate;animation:vivitoBreathe 3.8s ease-in-out infinite!important}
+body:has(.app-main-shell) .vivito-one.is-compact .vivito-one-core{width:44px;height:44px;flex-basis:44px}
+body:has(.app-main-shell) .vivito-one-halo{position:absolute;inset:11px;border-radius:50%;background:color-mix(in srgb,var(--pro-red) 14%,#fff)!important;filter:none!important;opacity:1!important;box-shadow:inset 0 1px 0 #fff,0 7px 20px rgba(184,35,45,.13)}
+body:has(.app-main-shell) .vivito-glyph{position:relative;z-index:4;width:30px;height:30px;display:grid;place-items:center;border-radius:10px;background:linear-gradient(145deg,var(--pro-red),#8f1d25);color:#fff;font:900 15px/1 Sora,sans-serif;letter-spacing:-.05em;box-shadow:0 8px 18px rgba(184,35,45,.22),inset 0 1px 0 rgba(255,255,255,.22)}
+body:has(.app-main-shell) .vivito-one.is-compact .vivito-glyph{width:25px;height:25px;border-radius:8px;font-size:12px}
+body:has(.app-main-shell) .vivito-one-orbit{position:absolute;inset:4px;border-radius:50%;border:1px solid color-mix(in srgb,var(--pro-blue) 28%,transparent)!important;z-index:2;animation:vivitoOrbit 8s linear infinite!important}
+body:has(.app-main-shell) .vivito-one-orbit.orbit-b{inset:9px;border-color:color-mix(in srgb,var(--pro-red) 28%,transparent)!important;animation-duration:5.8s!important;animation-direction:reverse!important}
+body:has(.app-main-shell) .vivito-one-orbit:after{display:none!important}
+body:has(.app-main-shell) .vivito-spark{position:absolute;z-index:5;width:5px;height:5px;border-radius:50%;background:var(--pro-red);box-shadow:0 0 0 4px rgba(184,35,45,.07),0 0 10px rgba(184,35,45,.28)}
+body:has(.app-main-shell) .vivito-spark.spark-a{right:5px;top:13px}
+body:has(.app-main-shell) .vivito-spark.spark-b{left:9px;bottom:9px;width:4px;height:4px;background:var(--pro-blue);box-shadow:0 0 0 4px rgba(36,77,135,.06),0 0 10px rgba(36,77,135,.2)}
+body:has(.app-main-shell) .vivito-status-dot{position:absolute;right:8px;bottom:8px;z-index:7;width:7px;height:7px;border-radius:50%;background:#33b879;border:2px solid #fff;box-shadow:0 0 0 3px rgba(51,184,121,.08)}
+body:has(.app-main-shell) .mood-thinking .vivito-glyph{animation:vivitoThinkPulse 1.1s ease-in-out infinite}
+body:has(.app-main-shell) .mood-warning .vivito-glyph{background:linear-gradient(145deg,#d68b22,#a66011)}
+body:has(.app-main-shell) .mood-success .vivito-glyph{background:linear-gradient(145deg,#2d9d69,#1e744d)}
+
+/* VIVITO floating entry point. */
+body:has(.app-main-shell) .va-fab{
+  position:fixed!important;right:20px!important;bottom:20px!important;z-index:900!important;
+  width:72px!important;height:72px!important;padding:0!important;border-radius:24px!important;
+  border:1px solid color-mix(in srgb,var(--pro-red) 20%,var(--pro-line))!important;
+  background:linear-gradient(145deg,#fff,#f8f5f5)!important;
+  box-shadow:0 18px 44px rgba(18,35,63,.15),0 7px 20px rgba(184,35,45,.08)!important;
+  display:grid!important;place-items:center!important;cursor:pointer!important;overflow:visible!important;
+  transition:transform .25s cubic-bezier(.2,.8,.2,1),box-shadow .25s ease!important;
+}
+body:has(.app-main-shell) .va-fab:hover,
+body:has(.app-main-shell) .va-fab.active{transform:translateY(-5px) scale(1.02)!important;box-shadow:0 26px 58px rgba(18,35,63,.18),0 10px 26px rgba(184,35,45,.11)!important}
+body:has(.app-main-shell) .va-fab .vivito-one-core{width:54px!important;height:54px!important;flex-basis:54px!important}
+body:has(.app-main-shell) .va-fab-label{position:absolute;right:58px;bottom:9px;padding:5px 8px;border:1px solid var(--pro-line);border-radius:999px;background:#fff;color:var(--pro-navy);box-shadow:0 8px 20px rgba(18,35,63,.08);font-size:8px;font-weight:900;letter-spacing:.08em;opacity:0;transform:translateX(8px);pointer-events:none;transition:.2s ease}
+body:has(.app-main-shell) .va-fab:hover .va-fab-label{opacity:1;transform:none}
+
+/* VIVITO panel: professional workstation, not a dark novelty modal. */
+body:has(.app-main-shell) .va-panel{
+  position:fixed!important;right:20px!important;bottom:104px!important;z-index:901!important;
+  width:min(448px,calc(100vw - 24px))!important;height:min(680px,calc(100vh - 128px))!important;
+  display:flex!important;flex-direction:column!important;overflow:hidden!important;
+  border:1px solid color-mix(in srgb,var(--pro-red) 14%,var(--pro-line))!important;border-radius:24px!important;
+  background:rgba(255,255,255,.985)!important;color:var(--pro-navy)!important;
+  box-shadow:0 34px 90px rgba(18,35,63,.22),0 10px 30px rgba(184,35,45,.055)!important;
+  backdrop-filter:blur(24px)!important;
+  animation:vivitoPanelIn .28s cubic-bezier(.2,.8,.2,1) both;
+}
+body:has(.app-main-shell) .va-panel:before{content:"";position:absolute;inset:0 0 auto;height:4px;background:linear-gradient(90deg,var(--pro-red),color-mix(in srgb,var(--pro-red) 52%,var(--pro-blue)),var(--pro-blue));pointer-events:none;z-index:5}
+body:has(.app-main-shell) .va-head{position:relative;padding:15px 16px 12px!important;display:flex!important;align-items:center!important;gap:10px!important;border-bottom:1px solid var(--pro-line)!important;background:linear-gradient(180deg,#fff,#fbfbfc)!important}
+body:has(.app-main-shell) .va-identity{display:flex!important;align-items:center!important;gap:8px!important;min-width:0;flex:1}
+body:has(.app-main-shell) .va-head b{display:block;color:var(--pro-navy)!important;font:900 13px/1 Sora,sans-serif!important;letter-spacing:.08em!important}
+body:has(.app-main-shell) .va-head small{display:block;margin-top:4px;color:#7b8798!important;font-size:7.5px!important;letter-spacing:.1em!important;font-weight:800!important}
+body:has(.app-main-shell) .va-head-status{display:flex;align-items:center;gap:5px;padding:5px 7px;border:1px solid #dbe6df;border-radius:999px;background:#f5fbf7;color:#3c7959;font-size:7.5px;font-weight:900;letter-spacing:.08em}
+body:has(.app-main-shell) .va-live{width:6px;height:6px;border-radius:50%;background:#33b879;box-shadow:0 0 0 4px rgba(51,184,121,.09)}
+body:has(.app-main-shell) .va-head>button{width:32px!important;height:32px!important;border:1px solid var(--pro-line)!important;border-radius:10px!important;background:#f7f8fa!important;color:#69778a!important;font-size:18px!important;cursor:pointer!important;transition:.18s ease}
+body:has(.app-main-shell) .va-head>button:hover{background:#f8eef0!important;color:var(--pro-red)!important;border-color:#ead0d3!important;transform:rotate(3deg)}
+body:has(.app-main-shell) .va-context{position:relative;padding:10px 16px!important;border-bottom:1px solid var(--pro-line)!important;background:#fcfcfd!important;color:#66758a!important;font-size:10.5px!important;line-height:1.55!important}
+body:has(.app-main-shell) .va-quick{position:relative;padding:10px 12px!important;display:grid!important;grid-template-columns:1fr 1fr!important;gap:7px!important;border-bottom:1px solid var(--pro-line)!important;background:#fff!important}
+body:has(.app-main-shell) .va-quick button{min-height:38px!important;padding:8px 10px!important;display:flex!important;align-items:center!important;justify-content:space-between!important;gap:8px!important;border:1px solid var(--pro-line)!important;border-radius:11px!important;background:#fafbfc!important;color:#33445b!important;font-size:9.5px!important;font-weight:800!important;text-align:left!important;cursor:pointer!important;transition:transform .18s ease,border-color .18s ease,background .18s ease,box-shadow .18s ease!important}
+body:has(.app-main-shell) .va-quick button:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--pro-red) 28%,var(--pro-line))!important;background:#fff!important;box-shadow:0 8px 18px rgba(18,35,63,.065)}
+body:has(.app-main-shell) .va-quick button b{color:var(--pro-red);font-size:11px}
+body:has(.app-main-shell) .va-chat{position:relative;flex:1!important;overflow-y:auto!important;padding:15px!important;display:flex!important;flex-direction:column!important;gap:12px!important;background:linear-gradient(180deg,#fbfbfc,#f7f8fa)!important;scroll-behavior:smooth}
+body:has(.app-main-shell) .va-empty{margin:auto 0!important;padding:22px 18px!important;border:1px solid var(--pro-line)!important;border-radius:18px!important;background:linear-gradient(145deg,#fff,#fafbfc)!important;box-shadow:0 10px 28px rgba(18,35,63,.055)!important}
+body:has(.app-main-shell) .va-empty-kicker{display:block!important;margin-bottom:8px!important;color:var(--pro-red)!important;font-size:7.5px!important;font-weight:900!important;letter-spacing:.13em!important}
+body:has(.app-main-shell) .va-empty strong{display:block!important;margin-bottom:7px!important;color:var(--pro-navy)!important;font:800 18px/1.2 Sora,sans-serif!important;letter-spacing:-.025em!important}
+body:has(.app-main-shell) .va-empty>span:last-child{display:block;color:#758295!important;font-size:10.5px!important;line-height:1.6!important}
+body:has(.app-main-shell) .va-row{display:flex!important;flex-direction:column!important;gap:4px!important;max-width:94%!important}
+body:has(.app-main-shell) .va-row.you{align-self:flex-end!important;align-items:flex-end!important}
+body:has(.app-main-shell) .va-speaker{font-size:7px!important;font-weight:900!important;letter-spacing:.14em!important;color:#929cac!important}
+body:has(.app-main-shell) .va-msg{padding:10px 12px!important;border-radius:14px!important;font-size:11px!important;line-height:1.62!important;white-space:pre-wrap!important;overflow-wrap:anywhere!important}
+body:has(.app-main-shell) .va-msg.ai{background:#fff!important;border:1px solid var(--pro-line)!important;color:#34445a!important;border-bottom-left-radius:5px!important;box-shadow:0 5px 14px rgba(18,35,63,.04)!important}
+body:has(.app-main-shell) .va-msg.you{background:linear-gradient(135deg,var(--pro-red),#941c24)!important;color:#fff!important;border-bottom-right-radius:5px!important;box-shadow:0 8px 18px rgba(184,35,45,.13)!important}
+body:has(.app-main-shell) .va-sources{display:flex!important;gap:4px!important;flex-wrap:wrap!important;margin-top:8px!important;padding-top:7px!important;border-top:1px solid var(--pro-line)!important}
+body:has(.app-main-shell) .va-sources span{padding:3px 6px;border-radius:999px;background:#f7f8fa;color:#6d798a;font-size:8px!important}
+body:has(.app-main-shell) .va-action{margin-top:9px!important;padding:10px!important;border:1px solid var(--pro-line)!important;border-radius:12px!important;background:#fafbfc!important;color:#46556a!important;white-space:normal!important}
+body:has(.app-main-shell) .va-action-top{display:flex!important;justify-content:space-between!important;gap:8px!important;margin-bottom:6px!important;color:var(--pro-navy)!important;text-transform:uppercase!important;font-size:8px!important;letter-spacing:.08em!important}
+body:has(.app-main-shell) .va-action button{margin-top:9px!important;width:100%!important;min-height:34px!important;border:0!important;border-radius:9px!important;padding:8px 10px!important;background:var(--pro-red)!important;color:#fff!important;font-size:9px!important;font-weight:900!important;cursor:pointer!important}
+body:has(.app-main-shell) .va-action button.danger{background:#a81e28!important}
+body:has(.app-main-shell) .va-action-missing,
+body:has(.app-main-shell) .va-action-error{margin-top:7px!important;color:#b8232d!important;font-size:9px!important}
+body:has(.app-main-shell) .va-action-ok{margin-top:8px!important;color:#2d8d60!important;font-size:9px!important;font-weight:900!important}
+body:has(.app-main-shell) .va-action-progress{margin-top:9px!important;padding:8px 10px!important;border-radius:9px!important;background:#f2f4f7!important;color:#617086!important;font-size:9px!important;font-weight:800!important;text-align:center!important}
+body:has(.app-main-shell) .va-action-auto{margin-top:7px!important;color:#66758a!important;font-size:8.5px!important}
+body:has(.app-main-shell) .va-plan-steps{margin:8px 0 0!important;padding-left:20px!important;display:grid!important;gap:6px!important}
+body:has(.app-main-shell) .va-plan-steps li{font-size:9px!important;color:#6c788a!important}
+body:has(.app-main-shell) .va-plan-steps b{display:block!important;color:var(--pro-navy)!important;text-transform:uppercase!important;font-size:8px!important;letter-spacing:.06em!important}
+body:has(.app-main-shell) .va-thinking{display:flex!important;align-items:center!important;gap:4px!important;color:#748194!important;font-size:9px!important}
+body:has(.app-main-shell) .va-thinking span{width:5px!important;height:5px!important;border-radius:50%!important;background:var(--pro-red)!important;animation:vaDot .9s infinite!important}
+body:has(.app-main-shell) .va-thinking span:nth-child(2){animation-delay:.12s!important}
+body:has(.app-main-shell) .va-thinking span:nth-child(3){animation-delay:.24s!important}
+body:has(.app-main-shell) .va-attachments{padding:8px 12px 0!important;display:flex!important;gap:6px!important;flex-wrap:wrap!important;background:#fff!important}
+body:has(.app-main-shell) .va-attachments span{padding:5px 8px!important;border:1px solid var(--pro-line)!important;border-radius:999px!important;background:#fafbfc!important;color:#647185!important;font-size:8.5px!important}
+body:has(.app-main-shell) .va-attachments button{margin-left:5px!important;border:0!important;background:transparent!important;color:#8a95a5!important;cursor:pointer!important}
+body:has(.app-main-shell) .va-input{position:relative;margin:10px 12px 8px!important;padding:6px!important;display:flex!important;align-items:flex-end!important;gap:6px!important;border:1px solid #d9dee7!important;border-radius:15px!important;background:#fff!important;box-shadow:0 7px 20px rgba(18,35,63,.055)!important;transition:border-color .18s ease,box-shadow .18s ease!important}
+body:has(.app-main-shell) .va-input:focus-within{border-color:color-mix(in srgb,var(--pro-red) 55%,#d9dee7)!important;box-shadow:0 0 0 3px rgba(184,35,45,.07),0 9px 22px rgba(18,35,63,.065)!important}
+body:has(.app-main-shell) .va-input textarea{flex:1!important;min-height:38px!important;max-height:105px!important;resize:none!important;border:0!important;background:transparent!important;color:#26364d!important;padding:9px 5px!important;font:500 11px/1.5 inherit!important;outline:none!important;box-shadow:none!important}
+body:has(.app-main-shell) .va-input textarea::placeholder{color:#9aa4b2!important}
+body:has(.app-main-shell) .va-input>button{width:38px!important;height:38px!important;flex:0 0 38px!important;border:0!important;border-radius:11px!important;cursor:pointer!important;transition:transform .18s ease,opacity .18s ease!important}
+body:has(.app-main-shell) .va-input>button:hover:not(:disabled){transform:translateY(-2px)}
+body:has(.app-main-shell) .va-input>button:disabled{opacity:.45!important;cursor:not-allowed!important}
+body:has(.app-main-shell) .va-attach{background:#f2f4f7!important;color:#5e6c80!important;font-size:17px!important}
+body:has(.app-main-shell) .va-send{background:var(--pro-red)!important;color:#fff!important;font-size:17px!important;font-weight:900!important;box-shadow:0 7px 16px rgba(184,35,45,.16)!important}
+body:has(.app-main-shell) .va-foot{padding:0 12px 10px!important;text-align:center!important;color:#9aa3b0!important;font-size:6.8px!important;font-weight:800!important;letter-spacing:.055em!important;text-transform:uppercase!important;background:#fff!important}
+
+/* Mode nav remains compact now that the oversized hero is gone. */
+body:has(.app-main-shell) .vone-mode-nav{margin-top:0!important;box-shadow:0 7px 22px rgba(18,35,63,.04)!important}
+body:has(.app-main-shell) .vone-mode-nav a{transition:transform .18s ease,background .18s ease,color .18s ease,box-shadow .18s ease!important}
+body:has(.app-main-shell) .vone-mode-nav a:hover{transform:translateY(-1px)!important;box-shadow:0 6px 16px rgba(18,35,63,.07)!important}
+
+@keyframes vivitUiRise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes vivitoPanelIn{from{opacity:0;transform:translateY(14px) scale(.985)}to{opacity:1;transform:none}}
+@keyframes vivitoOrbit{to{transform:rotate(360deg)}}
+@keyframes vivitoBreathe{50%{transform:translateY(-2px)}}
+@keyframes vivitoThinkPulse{50%{transform:scale(.92);box-shadow:0 5px 16px rgba(184,35,45,.28)}}
+@keyframes vaDot{50%{opacity:.25;transform:translateY(-2px)}}
+
+@media(max-width:900px){
+  body:has(.app-main-shell) .va-fab{right:14px!important;bottom:76px!important;width:64px!important;height:64px!important;border-radius:21px!important}
+  body:has(.app-main-shell) .va-panel{right:10px!important;bottom:148px!important;width:calc(100vw - 20px)!important;height:min(640px,calc(100vh - 168px))!important;border-radius:20px!important}
+}
+@media(max-width:560px){
+  body:has(.app-main-shell) .va-quick{grid-template-columns:1fr 1fr!important;padding:8px!important}
+  body:has(.app-main-shell) .va-quick button{min-height:36px!important;font-size:9px!important;padding:7px 8px!important}
+  body:has(.app-main-shell) .va-head{padding:12px 12px 9px!important}
+  body:has(.app-main-shell) .va-context{padding:9px 12px!important}
+  body:has(.app-main-shell) .va-chat{padding:11px!important}
+  body:has(.app-main-shell) .va-fab-label{display:none!important}
+}
+@media(prefers-reduced-motion:reduce){
+  body:has(.app-main-shell) .dashboard-home>*:not(.vone-command-hero),
+  body:has(.app-main-shell) .vivito-one-core,
+  body:has(.app-main-shell) .vivito-one-orbit,
+  body:has(.app-main-shell) .mood-thinking .vivito-glyph,
+  body:has(.app-main-shell) .va-panel,
+  body:has(.app-main-shell) .va-thinking span{animation:none!important}
+  body:has(.app-main-shell) .card:hover,
+  body:has(.app-main-shell) .card-vivit:hover,
+  body:has(.app-main-shell) .kpi-card:hover,
+  body:has(.app-main-shell) .cw-section:hover,
+  body:has(.app-main-shell) .campaign-card:hover,
+  body:has(.app-main-shell) .creative-card:hover,
+  body:has(.app-main-shell) .attention:hover,
+  body:has(.app-main-shell) .sales-kpi:hover,
+  body:has(.app-main-shell) .lead-card:hover{transform:none!important}
+}

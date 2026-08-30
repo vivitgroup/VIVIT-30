@@ -17,7 +17,7 @@ export default async function CalendarPage({searchParams}:{searchParams:Promise<
  else if(role===Role.ACCOUNT_MANAGER)visibleClients=await db.select({id:clients.id,companyName:clients.companyName}).from(clients).where(and(activeClientBase,eq(clients.accountManagerId,userId))).orderBy(clients.companyName);
  else if(role===Role.MEDIA_BUYER)visibleClients=await db.select({id:clients.id,companyName:clients.companyName}).from(clients).where(and(activeClientBase,eq(clients.mediaBuyerId,userId))).orderBy(clients.companyName);
  else if(role===Role.CLIENT)visibleClients=await db.select({id:clients.id,companyName:clients.companyName}).from(clients).where(and(activeClientBase,eq(clients.userId,userId))).limit(1);
- const creatorTasks=role===Role.CREATOR?Array.from(await db.execute(sql`select t.id,t.client_id from creative_tasks t join clients c on c.id=t.client_id where t.workspace_id=${workspaceId} and c.workspace_id=${workspaceId} and c.is_active=true and t.assigned_to_id=${userId} and t.archived_at is null`)) as any[]:[];
+ const creatorTasks=role===Role.CREATOR?Array.from(await db.execute(sql`select t.id,t.client_id from creative_tasks t join clients c on c.id=t.client_id where t.workspace_id=${workspaceId} and c.workspace_id=${workspaceId} and c.is_active=true and t.assigned_to_id=${userId} and t.archived_at is null`)).map(r=>({id:String(r.id||""),client_id:String(r.client_id||"")})):[];
  const allowedClientIds=role===Role.CREATOR?[...new Set(creatorTasks.map(t=>String(t.client_id)).filter(Boolean))]:visibleClients.map(c=>c.id),allowedTaskIds=creatorTasks.map(t=>String(t.id));
  const requestedClient=String(q?.clientId||"");
  const selectedClientId=requestedClient&&allowedClientIds.includes(requestedClient)?requestedClient:"";

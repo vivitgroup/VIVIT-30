@@ -1,0 +1,61 @@
+name: CTO Provider Types V14
+on:
+  push:
+    branches: [feat/vivito-provider-types-v14]
+permissions:
+  contents: write
+jobs:
+  remediate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-provider-types-v14
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Apply provider contracts
+        run: |
+          node <<'NODE'
+          const fs=require('node:fs');
+          function patch(file,ops){let s=fs.readFileSync(file,'utf8');for(const [from,to,count=1] of ops){const n=s.split(from).length-1;if(n!==count)throw new Error(`${file}: expected ${count}, found ${n}: ${from.slice(0,150)}`);s=s.split(from).join(to)}fs.writeFileSync(file,s)}
+          patch('lib/meta-exact.ts',[
+            ['type Input={campaignId:string;adAccountId?:string;accessToken:string;start:string;end:string};','type Input={campaignId:string;adAccountId?:string;accessToken:string;start:string;end:string};\ntype MetaAction={action_type?:string;value?:unknown};\ntype MetaInsight={date_start?:string;spend?:unknown;impressions?:unknown;reach?:unknown;clicks?:unknown;ctr?:unknown;cpc?:unknown;cpm?:unknown;frequency?:unknown;actions?:MetaAction[];action_values?:MetaAction[];cost_per_action_type?:MetaAction[]};\ntype MetaCampaign={name:string;status:string;objective:string;account_id:string;error?:{message?:string}};\ntype MetaInsights={data?:MetaInsight[];error?:{message?:string}};'],
+            ['async function get(url:string){const r=await fetch(url,{cache:"no-store",headers:{"Cache-Control":"no-cache"}});const d=await r.json();if(!r.ok||d?.error)throw new Error(d?.error?.message||`Meta API error ${r.status}`);return d;}','async function get<T extends {error?:{message?:string}}>(url:string):Promise<T>{const r=await fetch(url,{cache:"no-store",headers:{"Cache-Control":"no-cache"}});const d=await r.json() as T;if(!r.ok||d?.error)throw new Error(d?.error?.message||`Meta API error ${r.status}`);return d;}'],
+            ['const action=(row:any,type:string)=>n(row.actions?.find((a:any)=>a.action_type===type)?.value);','const action=(row:unknown,type:string)=>{const insight=row as MetaInsight;return n(insight.actions?.find(a=>a.action_type===type)?.value)};'],
+            ['const value=(row:any,type:string)=>n(row.action_values?.find((a:any)=>a.action_type===type)?.value);','const value=(row:unknown,type:string)=>{const insight=row as MetaInsight;return n(insight.action_values?.find(a=>a.action_type===type)?.value)};'],
+            ['const campaign=await get(`https://graph.facebook.com/${v}/${encodeURIComponent(i.campaignId)}?fields=id,name,status,account_id,objective&access_token=${token}`);','const campaign=await get<MetaCampaign>(`https://graph.facebook.com/${v}/${encodeURIComponent(i.campaignId)}?fields=id,name,status,account_id,objective&access_token=${token}`);'],
+            ['const d=await get(`https://graph.facebook.com/${v}/${encodeURIComponent(i.campaignId)}/insights?${q.toString()}`);','const d=await get<MetaInsights>(`https://graph.facebook.com/${v}/${encodeURIComponent(i.campaignId)}/insights?${q.toString()}`);'],
+            ['(d.data||[]).map((x:any)=>','(d.data||[]).map(x=>'],
+            ['x.cost_per_action_type?.find((a:any)=>a.action_type===result.type)','x.cost_per_action_type?.find(a=>a.action_type===result.type)']
+          ]);
+          patch('lib/vivito/multimodal.ts',[
+            ['export type VivitoGroundedResearch={text:string;queries:string[];sources:VivitoResearchSource[]};','export type VivitoGroundedResearch={text:string;queries:string[];sources:VivitoResearchSource[]};\ntype GeminiPart={text?:string};\ntype GeminiWeb={title?:string;uri?:string};\ntype GeminiGroundingChunk={web?:GeminiWeb};\ntype GeminiGrounding={groundingChunks?:GeminiGroundingChunk[];webSearchQueries?:unknown[]};\ntype GeminiCandidate={content?:{parts?:GeminiPart[]};groundingMetadata?:GeminiGrounding};\ntype GeminiResponse={error?:{message?:string};candidates?:GeminiCandidate[]};'],
+            ['const safeJson=async(r:Response)=>r.json().catch(()=>({}));','const safeJson=async(r:Response):Promise<GeminiResponse>=>(await r.json().catch(()=>({}))) as GeminiResponse;'],
+            ['.map((p:any)=>p.text).filter(Boolean).join("\\n")','.map(p=>p.text).filter(Boolean).join("\\n")',2],
+            ['.map((x:any)=>x?.web).filter((x:any)=>x?.uri).map((x:any)=>({title:String(x.title||"Source"),uri:String(x.uri)}))','.map(x=>x.web).filter((x):x is GeminiWeb=>Boolean(x?.uri)).map(x=>({title:String(x.title||"Source"),uri:String(x.uri)}))']
+          ]);
+          NODE
+          git diff --check
+      - name: Acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint lib/meta-exact.ts lib/vivito/multimodal.ts -f json > /tmp/target.json || true
+          npx eslint . -f json > /tmp/all.json || true
+          node <<'NODE'
+          const target=require('/tmp/target.json').flatMap(x=>x.messages||[]),r=require('/tmp/all.json'),m=r.flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any'),w=m.filter(x=>x.severity===1);console.log(`target_total=${target.length}`);console.log(`remaining_any=${a.length}`);console.log(`non_any=${n.length} warnings=${w.length}`);console.log(JSON.stringify(target.map(x=>[x.ruleId,x.line,x.message]).slice(0,40)));if(target.length||a.length!==179||n.length||w.length)process.exit(1)
+          NODE
+      - name: Commit source
+        run: |
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git add lib/meta-exact.ts lib/vivito/multimodal.ts
+          git commit -m 'fix(types): type provider response contracts [skip ci]'
+          git push origin HEAD:feat/vivito-provider-types-v14

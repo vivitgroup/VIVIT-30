@@ -1,0 +1,26 @@
+name: CTO Tail Context V15
+on:
+  push:
+    branches: [feat/vivito-tail-context-v15]
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-tail-context-v15
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Validate and print independent tail
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint . -f json > /tmp/all.json || true
+          node <<'NODE'
+          const fs=require('node:fs'),r=require('/tmp/all.json');
+          const skip=new Set(['lib/vivito/executor-extended.ts','lib/vivito/executor-operator.ts','app/dashboard/creative/quality/page.tsx','app/dashboard/operations/page.tsx','app/dashboard/universe/page.tsx','app/dashboard/finance/page.tsx','app/dashboard/team/page.tsx','lib/vivito/enterprise-governance.ts','lib/vivito/memory.ts','lib/vivito/model-mesh-v1.ts','lib/vivito/live-knowledge-fabric.ts','lib/vivito/competitive-intelligence.ts']);
+          let total=0,tail=0;for(const f of r){const file=f.filePath.replace(process.cwd()+'/', ''),a=(f.messages||[]).filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any');total+=a.length;if(!a.length||skip.has(file))continue;tail+=a.length;const src=fs.readFileSync(f.filePath,'utf8').split('\n');console.log(`\nFILE ${file} COUNT ${a.length}`);for(const m of a){const lo=Math.max(0,m.line-2),hi=Math.min(src.length,m.line+1);console.log(`\nANY ${m.line}:${m.column}\n${src.slice(lo,hi).map((x,i)=>`${lo+i+1}: ${x}`).join('\n')}`)}}console.log(`\nTOTAL=${total} TAIL=${tail}`);if(total!==157||tail!==60)process.exit(1)
+          NODE

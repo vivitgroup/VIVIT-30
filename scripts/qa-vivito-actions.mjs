@@ -1,6 +1,6 @@
 import fs from "node:fs";
 const read=p=>fs.readFileSync(p,"utf8"),checks=[],check=(n,v)=>checks.push({name:n,ok:Boolean(v)});
-const engine=read("lib/vivito/action-engine.ts"),executor=read("lib/vivito/executor.ts"),extended=read("lib/vivito/executor-extended.ts"),assistant=read("app/api/assistant/route.ts"),actions=read("app/api/assistant/actions/route.ts"),ui=read("components/assistant/SystemAssistant.tsx");
+const engine=read("lib/vivito/action-engine.ts"),executor=read("lib/vivito/executor.ts"),extended=read("lib/vivito/executor-extended.ts"),assistant=read("app/api/assistant/route.ts"),actions=read("app/api/assistant/actions/route.ts"),ui=read("components/assistant/SystemAssistant.tsx"),localV2=read("lib/vivito/local-action-planner-v2.ts"),providers=read("lib/vivito/providers.ts"),i18n=read("components/i18n/DashboardLanguage.tsx");
 const has=x=>engine.includes(x);
 check("Core catalog retains client lifecycle",["create_client","update_client","add_client_contact","archive_client","restore_client","delete_client"].every(has));
 check("Core catalog retains task lifecycle",["create_task","update_task","reassign_task","archive_task","restore_task","delete_task"].every(has));
@@ -68,4 +68,14 @@ check("Chat requires confirmation for high/destructive actions",ui.includes('["h
 check("Chat requires confirmation for high/destructive plans",ui.includes('["high","destructive"].includes(m.plan.risk)')&&ui.includes("Confirm entire plan"));
 check("Chat exposes stable action and plan run state",ui.includes('type RunState="ready"|"running"|"done"|"failed"')&&ui.includes("actionResult?:string")&&ui.includes("planResult?:string"));
 check("Chat execution is keyed by stable message IDs",ui.includes("messageId:string")&&ui.includes("x.id===messageId")&&ui.includes("crypto.randomUUID"));
+const fullOps=["create_client","update_client","add_client_contact","archive_client","restore_client","delete_client","create_task","update_task","reassign_task","archive_task","restore_task","delete_task","schedule_post","mark_posted","create_lead","update_lead","move_lead","archive_lead","log_expense","record_payment","create_invoice","attach_file","remind_me","create_user","update_user","set_user_active","create_leave_request","decide_leave","upsert_payroll","set_payroll_status","create_contract","update_contract","update_workspace_settings","send_email","send_whatsapp","create_api_key","revoke_api_key","create_webhook","revoke_webhook","sync_campaign","update_campaign","start_integration","disconnect_integration","export_data","generate_report","update_onboarding","record_nps","create_referral","bulk_update_tasks","bulk_remind_clients"];
+check("Certified action catalog is exactly 50 operations",fullOps.length===50&&fullOps.every(op=>engine.includes(`${op}:`)||engine.includes(`\"${op}\"`)));
+check("Local V2 fallback covers all 50 certified operations",fullOps.every(op=>localV2.includes(`\"${op}\"`))&&localV2.includes("VIVITO_LOCAL_V2_OPS=ALL_OPS"));
+check("Local V2 respects role allowlist",localV2.includes("!allowed.has(op)")&&localV2.includes("allowedFromSystem"));
+check("Local V2 fails closed on incomplete or ambiguous arguments",localV2.includes("missingFields")&&localV2.includes("nums.length!==1")&&localV2.includes("required.push(\"change\")"));
+check("Local V2 preserves confirmation boundary",localV2.includes("requiresConfirmation:true"));
+check("Provider fallback prefers hardened V2 before legacy local planner",providers.includes("generateLocalActionPlanV2(prompt,system)||generateLocalVivito(prompt,system)"));
+check("i18n protects user and VIVITO generated content",i18n.includes("[data-user-content]")&&i18n.includes("[data-vivito-message]"));
+check("i18n translates accessibility attributes",i18n.includes("aria-label")&&i18n.includes("attributeFilter"));
+check("i18n covers key Sales Media Finance HR and Settings labels",["Pipeline Board","Daily Budget","Ledger Revenue","Payroll","Workspace Settings"].every(x=>i18n.includes(`\"${x}\"`)));
 const failed=checks.filter(x=>!x.ok);for(const c of checks)console.log(`${c.ok?"PASS":"FAIL"}  ${c.name}`);console.log(`\n${checks.length-failed.length}/${checks.length} VIVITO action engine checks passed.`);if(failed.length)process.exit(1);

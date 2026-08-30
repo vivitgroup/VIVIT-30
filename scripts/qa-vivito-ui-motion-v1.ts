@@ -4,20 +4,22 @@ const read = (p: string) => fs.readFileSync(p, "utf8");
 const layout = read("app/dashboard/layout.tsx");
 const css = read("app/dashboard/vivito-ui-motion-v1.css");
 const refineCss = read("app/dashboard/vivito-ui-refinement-v2.css");
+const finalCss = read("app/dashboard/genz-professional-ui-v3.css");
 const runtime = read("components/experience/VivitoUiMotionRuntime.tsx");
 const refineRuntime = read("components/experience/VivitoUiRefinementRuntime.tsx");
+const experienceRuntime = read("components/experience/ExperienceRuntime.tsx");
 const vivito = read("components/experience/VivitVivito.tsx");
 
 const checks: Array<[string, boolean]> = [
-  ["dashboard wires VIVITO motion runtime", layout.includes("<VivitoUiMotionRuntime/>")],
-  ["dashboard wires refinement runtime", layout.includes("<VivitoUiRefinementRuntime/>")],
-  ["dashboard loads motion and refinement CSS", layout.includes('import "./vivito-ui-motion-v1.css"') && layout.includes('import "./vivito-ui-refinement-v2.css"')],
-  ["ERP cards receive perspective 3D depth", css.includes("perspective(1100px)") && css.includes("translateZ(8px)")],
-  ["3D system still covers generic .card", css.includes(".card,") && refineCss.includes(".card:hover")],
+  ["dashboard wires current VIVIT experience runtime", layout.includes("<ExperienceRuntime role={role}/>") && experienceRuntime.includes("vivitExperience")],
+  ["dashboard wires VIVITO assistant and final refinement layer", layout.includes("<SystemAssistant role={role}/>") && layout.includes('import "./genz-professional-ui-v3.css"')],
+  ["dashboard loads motion refinement and final UI CSS", layout.includes('import "./vivito-ui-motion-v1.css"') && layout.includes('import "./vivito-ui-refinement-v2.css"') && layout.includes('import "./genz-professional-ui-v3.css"')],
+  ["ERP cards receive perspective 3D depth", css.includes("perspective(1100px)") && css.includes("translateZ(8px)") && finalCss.includes("perspective:1400px")],
+  ["3D system still covers generic .card", css.includes(".card,") && refineCss.includes(".card:hover") && finalCss.includes(".card:hover")],
   ["3D system covers campaign and creative cards", css.includes(".campaign-card") && css.includes(".creative-card")],
   ["ambient card motion remains continuous", css.includes("vivitoCardBreath") && css.includes("infinite")],
-  ["directional pointer tilt augments 3D", refineRuntime.includes("pointermove") && refineRuntime.includes("--vivito-tilt-x") && refineRuntime.includes("--vivito-tilt-y")],
-  ["client heroes receive marketing typewriter", runtime.includes(".cw-hero, .portal-hero") && runtime.includes("MARKETING_QUOTES")],
+  ["directional pointer tilt remains available in legacy refinement runtime", refineRuntime.includes("pointermove") && refineRuntime.includes("--vivito-tilt-x") && refineRuntime.includes("--vivito-tilt-y")],
+  ["client heroes retain marketing typewriter capability", runtime.includes(".cw-hero, .portal-hero") && runtime.includes("MARKETING_QUOTES")],
   ["typewriter writes letter by letter", runtime.includes("letterIndex + 1") && runtime.includes("quote.slice(0, letterIndex)")],
   ["marketing quotes rotate continuously", runtime.includes("quoteIndex = (quoteIndex + 1) % MARKETING_QUOTES.length")],
   ["campaign runtime supports four health states", ["good","excellent","warning","critical"].every((x)=>runtime.includes(`vivito-campaign-${x}`) || css.includes(`vivito-campaign-${x}`))],
@@ -32,9 +34,9 @@ const checks: Array<[string, boolean]> = [
   ["mobile ERP polish is present", refineCss.includes("@media(max-width:760px)") && refineCss.includes("dashboard-skeleton-kpis")],
   ["dark mode polish is present", refineCss.includes(".dark .card") && refineCss.includes(".dark .form-input:focus")],
   ["spacing tokens are standardized", refineCss.includes("--vivito-space-1:8px") && refineCss.includes("--section-gap")],
-  ["VIVITO uses social-spectrum colors", ["#1877f2","#25f4ee","#fe2c55","#25d366","#ffd800"].every((x)=>vivito.toLowerCase().includes(x))],
-  ["VIVITO core has perpetual orbit motion", vivito.includes("vivitoOrbitA") && vivito.includes("infinite")],
-  ["reduced-motion accessibility is preserved", css.includes("prefers-reduced-motion") && refineCss.includes("prefers-reduced-motion") && vivito.includes("prefers-reduced-motion")],
+  ["VIVITO preserves current VIVIT red-primary palette", finalCss.includes("var(--pro-red)") && finalCss.includes("var(--pro-blue)") && vivito.includes("vivito-glyph")],
+  ["VIVITO core has restrained perpetual orbit motion", finalCss.includes("vivitoOrbit") && finalCss.includes("infinite") && vivito.includes("vivito-one-orbit")],
+  ["reduced-motion accessibility is preserved", css.includes("prefers-reduced-motion") && refineCss.includes("prefers-reduced-motion") && finalCss.includes("prefers-reduced-motion")],
 ];
 
 let failed = 0;

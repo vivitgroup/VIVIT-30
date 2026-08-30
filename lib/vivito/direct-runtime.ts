@@ -15,7 +15,6 @@ type IdRow={id:string};
 type OwnerRow={account_manager_id:string|null};
 type InsertedEventRow={id:string;status:string};
 type CompetitorReportRow={client_id:string;report_date:string|Date;report_json:JsonData;company_name:string};
-type CompetitorDetail={error?:JsonData;newPosts?:JsonData[];delta?:{followers?:number|string|null};competitor?:JsonData;profileUrl?:JsonData;source?:JsonData};
 type CompetitorSignal={competitor:string;newPosts:number;followerDelta:number|null;profileUrl:string;source:string};
 type OverdueRow={id:string;client_id:string;title:string;deadline:string|Date;company_name:string};
 type RiskRow={id:string;company_name:string;health_score:number|string|null;churn_risk:string|null;churn_probability:number|string|null};

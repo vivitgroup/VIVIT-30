@@ -1,0 +1,65 @@
+name: CTO Knowledge Competitive Types V14
+on:
+  push:
+    branches: [feat/vivito-knowledge-competitive-types-v14]
+permissions:
+  contents: write
+jobs:
+  remediate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-knowledge-competitive-types-v14
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Apply contracts
+        run: |
+          node <<'NODE'
+          const fs=require('node:fs');
+          function patch(file,ops){let s=fs.readFileSync(file,'utf8');for(const [from,to,count=1] of ops){const n=s.split(from).length-1;if(n!==count)throw new Error(`${file}: expected ${count}, found ${n}: ${from.slice(0,170)}`);s=s.split(from).join(to)}fs.writeFileSync(file,s)}
+          patch('lib/vivito/live-knowledge-fabric.ts',[
+            ['export type VivitoKnowledgeSource={id:string;name:string;domain:VivitoKnowledgeDomain;market:VivitoKnowledgeMarket;authority:VivitoSourceAuthority;freshness:VivitoFreshness;url:string;topics:string[];egyptPriority?:number};','export type VivitoKnowledgeSource={id:string;name:string;domain:VivitoKnowledgeDomain;market:VivitoKnowledgeMarket;authority:VivitoSourceAuthority;freshness:VivitoFreshness;url:string;topics:string[];egyptPriority?:number};\ntype KnowledgeRow={title?:string;content?:unknown;tags?:unknown;version?:unknown;created_at?:string|Date|null};\ntype KnowledgeMeta={sourceId?:string;url?:string;fetchedAt?:string;authority?:string;hash?:string};\ntype KnowledgeBatchResult={sourceId:string;changed?:boolean;hash?:string;version?:number;ok:boolean;error?:string};\nconst objectRecord=(v:unknown):Record<string,unknown>=>v&&typeof v==="object"&&!Array.isArray(v)?v as Record<string,unknown>:{};\nconst knowledgeMeta=(v:unknown):KnowledgeMeta=>objectRecord(v) as KnowledgeMeta;'],
+            ['const rows=Array.from(await db.execute(sql`select distinct on (title) title,content,tags,version,created_at from knowledge_base where workspace_id=${workspace} and category=\'VIVITO_LIVE_KNOWLEDGE\' and is_published=true order by title,version desc,created_at desc limit 40`)) as any[];','const rows=Array.from(await db.execute(sql`select distinct on (title) title,content,tags,version,created_at from knowledge_base where workspace_id=${workspace} and category=\'VIVITO_LIVE_KNOWLEDGE\' and is_published=true order by title,version desc,created_at desc limit 40`)) as KnowledgeRow[];'],
+            ['const chosen=rows.map(r=>{let meta:unknown={};try{meta=r.tags?JSON.parse(String(r.tags)):{} }catch{}return{...r,meta}}).filter(r=>wanted.has(String(r.meta?.sourceId||"")))','const chosen=rows.map(r=>{let meta:KnowledgeMeta={};try{meta=knowledgeMeta(r.tags?JSON.parse(String(r.tags)):{} )}catch{}return{...r,meta}}).filter(r=>wanted.has(String(r.meta.sourceId||"")))'],
+            ['prior=Array.from(await db.execute(sql`select content,version,tags from knowledge_base where workspace_id=${workspace} and title=${title} order by version desc,created_at desc limit 1`)) as any[];let priorMeta:any={};try{priorMeta=prior[0]?.tags?JSON.parse(String(prior[0].tags)):{} }catch{}','prior=Array.from(await db.execute(sql`select content,version,tags from knowledge_base where workspace_id=${workspace} and title=${title} order by version desc,created_at desc limit 1`)) as KnowledgeRow[];let priorMeta:KnowledgeMeta={};try{priorMeta=knowledgeMeta(prior[0]?.tags?JSON.parse(String(prior[0].tags)):{} )}catch{}'],
+            ['isPublished:true} as any);','isPublished:true});'],
+            ['results:any[]=[];for(let i=0;i<pool.length;i+=4)','results:KnowledgeBatchResult[]=[];for(let i=0;i<pool.length;i+=4)'],
+            ['}catch(e){return{sourceId:source.id,ok:false,error:String(e?.message||e).slice(0,180)}}','}catch(e){return{sourceId:source.id,ok:false,error:String(e instanceof Error?e.message:e).slice(0,180)}}']
+          ]);
+          patch('lib/vivito/competitive-intelligence.ts',[
+            ['const rows=(v:unknown)=>Array.from(v as any) as any[];','type ProfileSnapshotRow={followers?:unknown;following?:unknown;total_posts?:unknown;total_likes?:unknown;captured_at?:string|Date|null};\ntype UpsertPostRow={id:string;first_seen_at:string|Date};\ntype WatchProfile={id:string;profile_url:string;competitor_name:string};\ntype IdRow={id:string};\ntype WorkspaceRow={workspace_id?:string|null};\ntype WatchRow={id:string;competitor_name:string;profile_id:string;platform:string;profile_url:string};\ntype CompetitiveDetail={competitor:string;profileUrl:string;profileId?:string;error?:string;delta?:{followers:number|null;totalPosts:number|null};newPosts?:unknown[]};\nconst rows=<T>(v:unknown):T[]=>Array.from(v as Iterable<T>);\nconst errorMessage=(e:unknown)=>e instanceof Error?e.message:String(e);'],
+            ['return rows(await db.execute(sql`select followers,following,total_posts,total_likes,captured_at from competitor_profile_snapshots where social_profile_id=${id} order by captured_at desc limit 1`))[0]||null','return rows<ProfileSnapshotRow>(await db.execute(sql`select followers,following,total_posts,total_likes,captured_at from competitor_profile_snapshots where social_profile_id=${id} order by captured_at desc limit 1`))[0]||null'],
+            ['const found=rows(await db.execute(sql`insert into competitor_posts','const found=rows<UpsertPostRow>(await db.execute(sql`insert into competitor_posts'],
+            ['export async function runCompetitiveWatch(profile:any,workspaceId?:string)','export async function runCompetitiveWatch(profile:WatchProfile,workspaceId?:string)'],
+            ['String((error as any)?.message||error).slice(0,500)','errorMessage(error).slice(0,500)'],
+            ['const hit=rows(await db.execute(sql`select id from clients where id=${clientId} and workspace_id=${requested} and is_active=true limit 1`))[0];','const hit=rows<IdRow>(await db.execute(sql`select id from clients where id=${clientId} and workspace_id=${requested} and is_active=true limit 1`))[0];'],
+            ['const hit=rows(await db.execute(sql`select workspace_id from clients where id=${clientId} and is_active=true limit 1`))[0];','const hit=rows<WorkspaceRow>(await db.execute(sql`select workspace_id from clients where id=${clientId} and is_active=true limit 1`))[0];'],
+            ['const watches=rows(await db.execute(sql`select w.id,w.competitor_name,p.id profile_id,p.platform,p.profile_url from competitor_watchlists w join competitor_social_profiles p on p.watchlist_id=w.id where w.workspace_id=${scope} and w.client_id=${clientId} and w.is_active=true and p.is_active=true order by w.competitor_name,p.platform`)),details:any[]=[];','const watches=rows<WatchRow>(await db.execute(sql`select w.id,w.competitor_name,p.id profile_id,p.platform,p.profile_url from competitor_watchlists w join competitor_social_profiles p on p.watchlist_id=w.id where w.workspace_id=${scope} and w.client_id=${clientId} and w.is_active=true and p.is_active=true order by w.competitor_name,p.platform`)),details:CompetitiveDetail[]=[];'],
+            ['error:String((e as any)?.message||e)','error:errorMessage(e)']
+          ]);
+          NODE
+          git diff --check
+      - name: Acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint lib/vivito/live-knowledge-fabric.ts lib/vivito/competitive-intelligence.ts -f json > /tmp/target.json || true
+          npx eslint . -f json > /tmp/all.json || true
+          node <<'NODE'
+          const target=require('/tmp/target.json').flatMap(x=>x.messages||[]),m=require('/tmp/all.json').flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any'),w=m.filter(x=>x.severity===1);console.log(`target_total=${target.length}`);console.log(`remaining_any=${a.length}`);console.log(`non_any=${n.length} warnings=${w.length}`);console.log(JSON.stringify(target.map(x=>[x.ruleId,x.line,x.message]).slice(0,50)));if(target.length||a.length!==179||n.length||w.length)process.exit(1)
+          NODE
+      - name: Commit source
+        run: |
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git add lib/vivito/live-knowledge-fabric.ts lib/vivito/competitive-intelligence.ts
+          git commit -m 'fix(types): type knowledge and competitive contracts [skip ci]'
+          git push origin HEAD:feat/vivito-knowledge-competitive-types-v14

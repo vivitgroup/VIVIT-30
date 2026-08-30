@@ -1,7 +1,12 @@
 import {createHash} from "node:crypto";
 import {db,sql} from "@/lib/db";
 
-const rows=(x:unknown)=>Array.from(x as any) as any[];
+type GovernanceControlRow={scope_type:string;autonomy_enabled?:boolean;kill_switch?:boolean;max_daily_actions?:unknown;max_daily_ai_calls?:unknown;policy_version?:unknown};
+type IdRow={id:string};
+type UsageRow={used:unknown};
+type NegativeLearningRow={id:string;outcome_state?:string|null;lesson?:string|null;confidence?:unknown;created_at?:unknown};
+const rows=<T>(x:unknown):T[]=>Array.from(x as Iterable<T>);
+const record=(v:unknown):Record<string,unknown>=>v&&typeof v==="object"&&!Array.isArray(v)?v as Record<string,unknown>:{};
 const clean=(v:unknown,n=2000)=>String(v??"").replace(/\s+/g," ").trim().slice(0,n);
 const clamp=(n:number,min=0,max=1)=>Math.min(max,Math.max(min,n));
 const hash=(v:unknown)=>createHash("sha256").update(typeof v==="string"?v:JSON.stringify(v??null)).digest("hex");
@@ -14,17 +19,17 @@ function workspaceId(v:string){const x=clean(v,160);if(!x)throw new Error("vivit
 
 export async function assertAutonomyAllowed(scope:GovernanceScope){
  const w=workspaceId(scope.workspaceId);
- const c=rows(await db.execute(sql`select scope_type,scope_id,autonomy_enabled,kill_switch,max_daily_actions,max_daily_ai_calls,policy_version from vivito_governance_controls where workspace_id=${w} and ((scope_type='WORKSPACE' and scope_id is null) or (scope_type='CLIENT' and scope_id=${scope.clientId||null}) or (scope_type='ACTION' and scope_id=${scope.actionOp||null})) order by case scope_type when 'ACTION' then 1 when 'CLIENT' then 2 else 3 end`));
+ const c=rows<GovernanceControlRow>(await db.execute(sql`select scope_type,scope_id,autonomy_enabled,kill_switch,max_daily_actions,max_daily_ai_calls,policy_version from vivito_governance_controls where workspace_id=${w} and ((scope_type='WORKSPACE' and scope_id is null) or (scope_type='CLIENT' and scope_id=${scope.clientId||null}) or (scope_type='ACTION' and scope_id=${scope.actionOp||null})) order by case scope_type when 'ACTION' then 1 when 'CLIENT' then 2 else 3 end`));
  if(c.some(x=>x.kill_switch||!x.autonomy_enabled))throw new Error("vivito-autonomy-disabled-by-governance");
- const workspace=c.find(x=>x.scope_type==='WORKSPACE')||{};
+ const workspace:Partial<GovernanceControlRow>=c.find(x=>x.scope_type==='WORKSPACE')||{};
  return{allowed:true,maxDailyActions:Number(workspace.max_daily_actions??100),maxDailyAiCalls:Number(workspace.max_daily_ai_calls??500),policyVersion:String(workspace.policy_version||'v1')};
 }
 
-export function assessEvidence(e:any):EvidenceAssessment{
- const sources=Array.isArray(e?.sources)?e.sources.filter(Boolean):[];
- const stale=Boolean(e?.stale),contradictory=Boolean(e?.contradictory),missing=Boolean(e?.missing);
+export function assessEvidence(e:unknown):EvidenceAssessment{
+ const data=record(e),sources=Array.isArray(data.sources)?data.sources.filter(Boolean):[];
+ const stale=Boolean(data.stale),contradictory=Boolean(data.contradictory),missing=Boolean(data.missing);
  let q=Math.min(1,sources.length?0.45+Math.min(.45,sources.length*.2):0.35);
- if(e?.observed===true||e?.source||e?.profileUrl||e?.campaignId)q+=.2;
+ if(data.observed===true||data.source||data.profileUrl||data.campaignId)q+=.2;
  if(stale)q-=.3;if(contradictory)q-=.45;if(missing)q-=.5;
  return{quality:clamp(Number(q.toFixed(2))),sources:sources.length,stale,contradictory,missing};
 }
@@ -45,19 +50,19 @@ export async function recordProvenance(input:{workspaceId:string;scopeType:strin
 
 export async function activeProvenance(workspace:string,scopeType:string,scopeId?:string|null){
  const w=workspaceId(workspace);
- return rows(await db.execute(sql`select * from vivito_knowledge_provenance where workspace_id=${w} and scope_type=${scopeType} and scope_id is not distinct from ${scopeId||null} and superseded_by is null and (expires_at is null or expires_at>now()) order by created_at desc limit 100`));
+ return rows<unknown>(await db.execute(sql`select * from vivito_knowledge_provenance where workspace_id=${w} and scope_type=${scopeType} and scope_id is not distinct from ${scopeId||null} and superseded_by is null and (expires_at is null or expires_at>now()) order by created_at desc limit 100`));
 }
 
 export async function supersedeProvenance(input:{workspaceId:string;oldId:string;newId:string}){
  const w=workspaceId(input.workspaceId);
- const r=rows(await db.execute(sql`update vivito_knowledge_provenance set superseded_by=${input.newId} where id=${input.oldId} and workspace_id=${w} and superseded_by is null returning id`));
+ const r=rows<IdRow>(await db.execute(sql`update vivito_knowledge_provenance set superseded_by=${input.newId} where id=${input.oldId} and workspace_id=${w} and superseded_by is null returning id`));
  if(!r.length)throw new Error("vivito-provenance-not-found-or-already-superseded");
  return{ok:true};
 }
 
-export async function journal(input:{workspaceId:string;clientId?:string|null;eventId?:string|null;version:string;provider?:string|null;evidence:unknown;decision:any;confidence:number;simulation?:unknown;decisionType?:string;signalType?:string;rationale?:string;expectedOutcome?:string|null;status?:string}){
+export async function journal(input:{workspaceId:string;clientId?:string|null;eventId?:string|null;version:string;provider?:string|null;evidence:unknown;decision:unknown;confidence:number;simulation?:unknown;decisionType?:string;signalType?:string;rationale?:string;expectedOutcome?:string|null;status?:string}){
  const w=workspaceId(input.workspaceId),assessment=assessEvidence(input.evidence),id=crypto.randomUUID();
- await db.execute(sql`insert into vivito_decision_journal(id,workspace_id,client_id,event_id,decision_type,signal_type,evidence_summary,rationale_summary,expected_outcome,decision_status,decision_version,model_provider,evidence_quality,confidence,evidence,decision,simulation) values(${id},${w},${input.clientId||null},${input.eventId||null},${input.decisionType||clean(input.decision?.op||'enterprise_decision',120)},${input.signalType||'ENTERPRISE'},${JSON.stringify(input.evidence||{})}::jsonb,${clean(input.rationale||'Enterprise governance decision.',1800)},${input.expectedOutcome||null},${input.status||'PROPOSED'},${input.version},${input.provider||null},${assessment.quality},${clamp(Number(input.confidence))},${JSON.stringify(input.evidence||{})}::jsonb,${JSON.stringify(input.decision||{})}::jsonb,${JSON.stringify(input.simulation||null)}::jsonb)`);
+ await db.execute(sql`insert into vivito_decision_journal(id,workspace_id,client_id,event_id,decision_type,signal_type,evidence_summary,rationale_summary,expected_outcome,decision_status,decision_version,model_provider,evidence_quality,confidence,evidence,decision,simulation) values(${id},${w},${input.clientId||null},${input.eventId||null},${input.decisionType||clean(record(input.decision).op||'enterprise_decision',120)},${input.signalType||'ENTERPRISE'},${JSON.stringify(input.evidence||{})}::jsonb,${clean(input.rationale||'Enterprise governance decision.',1800)},${input.expectedOutcome||null},${input.status||'PROPOSED'},${input.version},${input.provider||null},${assessment.quality},${clamp(Number(input.confidence))},${JSON.stringify(input.evidence||{})}::jsonb,${JSON.stringify(input.decision||{})}::jsonb,${JSON.stringify(input.simulation||null)}::jsonb)`);
  return{id,evidenceQuality:assessment.quality};
 }
 
@@ -70,14 +75,14 @@ export async function consumeResource(workspace:string,kind:"ACTION"|"AI",amount
  const w=workspaceId(workspace),n=Math.max(1,Math.floor(amount));
  const g=await assertAutonomyAllowed({workspaceId:w});
  const limit=kind==='ACTION'?g.maxDailyActions:g.maxDailyAiCalls;
- const result=rows(await db.execute(sql`insert into vivito_resource_usage(id,workspace_id,usage_date,kind,used) values(${crypto.randomUUID()},${w},current_date,${kind},${n}) on conflict(workspace_id,usage_date,kind) do update set used=vivito_resource_usage.used+excluded.used,updated_at=now() where vivito_resource_usage.used+excluded.used<=${limit} returning used`));
+ const result=rows<UsageRow>(await db.execute(sql`insert into vivito_resource_usage(id,workspace_id,usage_date,kind,used) values(${crypto.randomUUID()},${w},current_date,${kind},${n}) on conflict(workspace_id,usage_date,kind) do update set used=vivito_resource_usage.used+excluded.used,updated_at=now() where vivito_resource_usage.used+excluded.used<=${limit} returning used`));
  if(!result.length){await securityEvent({workspaceId:w,eventType:"RESOURCE_LIMIT_BLOCK",severity:"HIGH",evidence:{kind,amount:n,limit}});throw new Error(`vivito-${kind.toLowerCase()}-daily-limit-exceeded`)}
  return{used:Number(result[0].used),limit};
 }
 
 export async function recentNegativeLearning(input:{workspaceId:string;clientId?:string|null;signalType:string;actionOp:string;days?:number}){
  const w=workspaceId(input.workspaceId),days=Math.max(1,Math.min(180,Number(input.days||30)));
- const r=rows(await db.execute(sql`select l.id,l.outcome_state,l.lesson,l.confidence,l.created_at from vivito_learning_signals l join vivito_autonomy_events e on e.id=l.event_id and e.workspace_id=l.workspace_id where l.workspace_id=${w} and e.client_id is not distinct from ${input.clientId||null} and e.signal_type=${input.signalType} and e.action_op=${input.actionOp} and l.created_at>=now()-(${days}::text||' days')::interval and coalesce(l.outcome_state,'') in ('NEEDS_REVIEW','FAILED','WORSE','REJECTED') order by l.created_at desc limit 1`));
+ const r=rows<NegativeLearningRow>(await db.execute(sql`select l.id,l.outcome_state,l.lesson,l.confidence,l.created_at from vivito_learning_signals l join vivito_autonomy_events e on e.id=l.event_id and e.workspace_id=l.workspace_id where l.workspace_id=${w} and e.client_id is not distinct from ${input.clientId||null} and e.signal_type=${input.signalType} and e.action_op=${input.actionOp} and l.created_at>=now()-(${days}::text||' days')::interval and coalesce(l.outcome_state,'') in ('NEEDS_REVIEW','FAILED','WORSE','REJECTED') order by l.created_at desc limit 1`));
  return r[0]||null;
 }
 
@@ -103,7 +108,7 @@ export async function recordValue(workspace:string,eventId:string,cost:number,va
 export async function claimNotification(workspace:string,dedupeKey:string,ttlHours=24){
  const w=workspaceId(workspace),key=clean(dedupeKey,240),ttl=Math.max(1,Math.min(168,ttlHours));
  await db.execute(sql`delete from vivito_notification_dedupe where workspace_id=${w} and expires_at<=now()`);
- const r=rows(await db.execute(sql`insert into vivito_notification_dedupe(id,workspace_id,dedupe_key,expires_at) values(${crypto.randomUUID()},${w},${key},now()+(${ttl}::text||' hours')::interval) on conflict(workspace_id,dedupe_key) do nothing returning id`));
+ const r=rows<IdRow>(await db.execute(sql`insert into vivito_notification_dedupe(id,workspace_id,dedupe_key,expires_at) values(${crypto.randomUUID()},${w},${key},now()+(${ttl}::text||' hours')::interval) on conflict(workspace_id,dedupe_key) do nothing returning id`));
  return r.length>0;
 }
 
@@ -119,7 +124,7 @@ export async function recordBackupManifest(input:{workspaceId:string;snapshotKey
 
 export async function verifyBackupRestore(input:{workspaceId:string;snapshotKey:string;checksum:string;recordCounts:unknown;details:unknown}){
  const w=workspaceId(input.workspaceId);
- const r=rows(await db.execute(sql`update vivito_backup_manifests set status='RESTORE_VERIFIED',verified_checksum=${input.checksum},restore_record_counts=${JSON.stringify(input.recordCounts||{})}::jsonb,verification_details=${JSON.stringify(input.details||{})}::jsonb,restore_verified_at=now() where workspace_id=${w} and snapshot_key=${clean(input.snapshotKey,240)} and checksum=${input.checksum} returning id`));
+ const r=rows<IdRow>(await db.execute(sql`update vivito_backup_manifests set status='RESTORE_VERIFIED',verified_checksum=${input.checksum},restore_record_counts=${JSON.stringify(input.recordCounts||{})}::jsonb,verification_details=${JSON.stringify(input.details||{})}::jsonb,restore_verified_at=now() where workspace_id=${w} and snapshot_key=${clean(input.snapshotKey,240)} and checksum=${input.checksum} returning id`));
  if(!r.length)throw new Error('vivito-backup-manifest-checksum-mismatch');
  return{ok:true};
 }

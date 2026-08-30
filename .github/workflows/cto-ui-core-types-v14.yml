@@ -26,7 +26,7 @@ jobs:
           const fs=require('node:fs');
           function patch(file,ops){let s=fs.readFileSync(file,'utf8');for(const [from,to,count=1] of ops){const n=s.split(from).length-1;if(n!==count)throw new Error(`${file}: expected ${count}, found ${n}: ${from.slice(0,140)}`);s=s.split(from).join(to)}fs.writeFileSync(file,s)}
           patch('app/dashboard/creative/quality/page.tsx',[
-            ['const num=(v:unknown)=>Number(v||0),fmt=(v:any)=>v?new Intl.DateTimeFormat("en-GB",{day:"2-digit",month:"short"}).format(new Date(v)):"—";','type QualityRow={id:string;title:string;type:string;status:string;priority:string;deadline:unknown;file_url?:string|null;revision_count?:unknown;updated_at?:unknown;company_name:string};\nconst num=(v:unknown)=>Number(v||0),fmt=(v:unknown)=>v?new Intl.DateTimeFormat("en-GB",{day:"2-digit",month:"short"}).format(new Date(String(v))):"—";'],
+            ['const num=(v:unknown)=>Number(v||0),fmt=(v:any)=>v?new Intl.DateTimeFormat("en-GB",{day:"2-digit",month:"short"}).format(new Date(v)):"—";','type QualityRow={id:string;title:string;type:string;status:string;priority:string;deadline:string|Date;file_url?:string|null;revision_count?:unknown;updated_at?:string|Date|null;company_name:string};\nconst num=(v:unknown)=>Number(v||0),fmt=(v:unknown)=>v?new Intl.DateTimeFormat("en-GB",{day:"2-digit",month:"short"}).format(new Date(String(v))):"—";'],
             ['String((s.user as any).workspaceId||"")','String(s.user.workspaceId||"")'],
             ['String((s.user as any).role||"")','String(s.user.role||"")'],
             ['String((s.user as any).id||"")','String(s.user.id||"")'],
@@ -35,7 +35,7 @@ jobs:
             ['score=(t:any)=>','score=(t:QualityRow)=>']
           ]);
           patch('app/dashboard/operations/page.tsx',[
-            ['export default async function OperationsPage(){','type PersonRow={id:string;name:string;role:string};\ntype WorkRow={id:string;title:string;status:string;priority:string;deadline:unknown;assigned_to_id?:string|null;account_manager_id?:string|null;media_buyer_id?:string|null;company_name:string};\nexport default async function OperationsPage(){'],
+            ['export default async function OperationsPage(){','type PersonRow={id:string;name:string;role:string};\ntype WorkRow={id:string;title:string;status:string;priority:string;deadline:string|Date;assigned_to_id?:string|null;account_manager_id?:string|null;media_buyer_id?:string|null;company_name:string};\nexport default async function OperationsPage(){'],
             ['String((s.user as any).workspaceId||"")','String(s.user.workspaceId||"")'],
             ['String((s.user as any).role||"")','String(s.user.role||"")'],
             ['String((s.user as any).id||"")','String(s.user.id||"")'],
@@ -44,7 +44,7 @@ jobs:
             ["status not in ('COMPLETED','REJECTED')`));\n const now=","status not in ('COMPLETED','REJECTED')`)) as WorkRow[];\n const now="]
           ]);
           patch('app/dashboard/universe/page.tsx',[
-            ['const n=(v:unknown)=>Number(v||0),money=(v:unknown)=>`${Math.round(n(v)).toLocaleString("en-EG")} EGP`;','type UniverseClient={id:string;company_name:string;industry?:string|null;health_score?:unknown;logo?:string|null;website?:string|null;account_manager_id?:string|null;media_buyer_id?:string|null};\ntype UniverseTask={client_id:string;status:string;deadline:unknown;revision_count?:unknown};\ntype UniverseMedia={client_id:string;spend?:unknown;results?:unknown;atc?:unknown;purchases?:unknown};\nconst n=(v:unknown)=>Number(v||0),money=(v:unknown)=>`${Math.round(n(v)).toLocaleString("en-EG")} EGP`;'],
+            ['const n=(v:unknown)=>Number(v||0),money=(v:unknown)=>`${Math.round(n(v)).toLocaleString("en-EG")} EGP`;','type UniverseClient={id:string;company_name:string;industry?:string|null;health_score?:unknown;logo?:string|null;website?:string|null;account_manager_id?:string|null;media_buyer_id?:string|null};\ntype UniverseTask={client_id:string;status:string;deadline:string|Date;revision_count?:unknown};\ntype UniverseMedia={client_id:string;spend?:unknown;results?:unknown;atc?:unknown;purchases?:unknown};\nconst n=(v:unknown)=>Number(v||0),money=(v:unknown)=>`${Math.round(n(v)).toLocaleString("en-EG")} EGP`;'],
             ['String((s.user as any).workspaceId||"")','String(s.user.workspaceId||"")'],
             ['String((s.user as any).role||"")','String(s.user.role||"")'],
             ['String((s.user as any).id||"")','String(s.user.id||"")'],

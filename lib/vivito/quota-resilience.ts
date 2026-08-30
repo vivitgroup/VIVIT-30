@@ -10,9 +10,10 @@ export type VivitoProviderFailure={
 const DEFAULT_RATE_LIMIT_COOLDOWN_MS=60_000;
 const DEFAULT_QUOTA_COOLDOWN_MS=15*60_000;
 const providerCooldownUntil=new Map<string,number>();
+const errorMessage=(error:unknown)=>error instanceof Error?error.message:error&&typeof error==="object"&&"message" in error?String(error.message??""):String(error??"");
 
 export function classifyVivitoProviderFailure(error:unknown,status?:number):VivitoProviderFailure{
-  const raw=String((error as any)?.message||error||"").toLowerCase();
+  const raw=errorMessage(error).toLowerCase();
   const code=Number(status||0);
   if(code===401||code===403||/invalid api key|authentication|unauthorized|permission denied/.test(raw))return{health:"AUTH_FAILURE",retryable:false,cooldownMs:0,safeCode:"provider-auth-failure"};
   if(code===429||/rate limit|too many requests|resource_exhausted/.test(raw)){

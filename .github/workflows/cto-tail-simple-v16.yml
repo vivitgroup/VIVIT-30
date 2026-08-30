@@ -35,11 +35,12 @@ jobs:
             ['String((s.user as any).id||"")','String(s.user.id||"")']
           ]);
           patch('app/dashboard/analytics/page.tsx',[
-            ['m:any=media[0]??{},f:any=finance[0]??{}','m=media[0]??{},f=finance[0]??{}']
+            ['m:any=media[0]??{},f:any=finance[0]??{},spend=Number(m.spend||0),revenue=Number(m.revenue||0),leadN=Number(m.leads||0),imps=Number(m.impressions||0),clicks=Number(m.clicks||0)','spend=Number(media[0]?.spend||0),revenue=Number(media[0]?.revenue||0),leadN=Number(media[0]?.leads||0),imps=Number(media[0]?.impressions||0),clicks=Number(media[0]?.clicks||0)'],
+            ['total=Number(f.total||0),paid=Number(f.paid||0),out=Number(f.outstanding||0)','total=Number(finance[0]?.total||0),paid=Number(finance[0]?.paid||0),out=Number(finance[0]?.outstanding||0)']
           ]);
           patch('app/dashboard/kpis/page.tsx',[
             ['inArray(users.role,[...EMPLOYEE_ROLES] as any)','inArray(users.role,[...EMPLOYEE_ROLES])'],
-            ['m:any=media[0]??{},f:any=finance[0]??{}','m=media[0]??{},f=finance[0]??{}']
+            ['m:any=media[0]??{},f:any=finance[0]??{},spend=Number(m.spend||0),rev=Number(m.revenue||0),leads=Number(m.leads||0),total=Number(f.total||0),paid=Number(f.paid||0),out=Number(f.outstanding||0)','spend=Number(media[0]?.spend||0),rev=Number(media[0]?.revenue||0),leads=Number(media[0]?.leads||0),total=Number(finance[0]?.total||0),paid=Number(finance[0]?.paid||0),out=Number(finance[0]?.outstanding||0)']
           ]);
           patch('app/dashboard/contracts/page.tsx',[
             ['CONTRACT_TYPES.includes(type as any)','(CONTRACT_TYPES as readonly string[]).includes(type)']
@@ -75,7 +76,7 @@ jobs:
           node scripts/qa-cto-static-audit.mjs
           npx eslint . -f json > /tmp/all.json || true
           node <<'NODE'
-          const m=require('/tmp/all.json').flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any'),w=m.filter(x=>x.severity===1);console.log(`remaining_any=${a.length} non_any=${n.length} warnings=${w.length}`);if(a.length!==43||n.length||w.length)process.exit(1)
+          const m=require('/tmp/all.json').flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any'),w=m.filter(x=>x.severity===1);console.log(`remaining_any=${a.length} non_any=${n.length} warnings=${w.length}`);if(a.length!==41||n.length||w.length)process.exit(1)
           NODE
       - name: Commit source
         run: |

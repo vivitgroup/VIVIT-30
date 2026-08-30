@@ -14,14 +14,14 @@ import {executeVivitoPlanRuntime} from "@/lib/vivito/plan-runtime";
 const clean=(v:unknown,n=120)=>String(v??"").trim().slice(0,n);
 const noStore={"Cache-Control":"private, no-store"};
 type UnknownRecord=Record<string,unknown>;
-type ActionValue=Exclude<VivitoActionArgs[string],undefined>;
+type ActionValue=string|number|boolean|null|Date|ActionValue[]|{[key:string]:ActionValue|undefined};
 type VivitoExecutionResult={success:boolean;action?:string;entityId?:string|null;message?:string;[key:string]:unknown};
 type CampaignConnectionRow={id:string;platform:string;external_id:string|null;connection_id:string|null;ad_account_id:string|null;access_token_encrypted:string|null;refresh_token_encrypted:string|null;token_expires_at:string|Date|null;connection_platform:string|null;currency:string|null};
 type AuditPayloadRow={id?:string;new_values:string|null};
 type PlanStep={op:VivitoActionOp;args:VivitoActionArgs;summary:string};
 
 const asRecord=(value:unknown):UnknownRecord=>value&&typeof value==="object"&&!Array.isArray(value)?Object.fromEntries(Object.entries(value)):{};
-function toActionValue(value:unknown):ActionValue{if(value===null||typeof value==="string"||typeof value==="number"||typeof value==="boolean")return value;if(Array.isArray(value))return value.map(toActionValue);if(value&&typeof value==="object"){const out:VivitoActionArgs={};for(const [key,item] of Object.entries(value))out[key]=item===undefined?undefined:toActionValue(item);return out}return String(value??"")}
+function toActionValue(value:unknown):ActionValue{if(value===null)return null;if(typeof value==="string"||typeof value==="number"||typeof value==="boolean")return value;if(value instanceof Date)return value;if(Array.isArray(value))return value.map(toActionValue);if(value&&typeof value==="object"){const out:{[key:string]:ActionValue|undefined}={};for(const [key,item] of Object.entries(value))out[key]=item===undefined?undefined:toActionValue(item);return out}return String(value??"")}
 const toActionArgs=(value:unknown):VivitoActionArgs=>{const record=asRecord(value),out:VivitoActionArgs={};for(const [key,item] of Object.entries(record))out[key]=item===undefined?undefined:toActionValue(item);return out};
 const parseRecord=(value:unknown):UnknownRecord=>{try{return typeof value==="string"?asRecord(JSON.parse(value)):asRecord(value)}catch{return{}}};
 const isVivitoActionOp=(value:string):value is VivitoActionOp=>Object.prototype.hasOwnProperty.call(VIVITO_ACTION_CATALOG,value);
@@ -46,7 +46,7 @@ export async function POST(req:NextRequest){
   if(decisions.some(d=>d.missingFields.length))return NextResponse.json({error:"One or more VIVITO plan steps are missing required fields.",steps:decisions},{status:400,headers:noStore});
   const requiresConfirmation=decisions.some(d=>d.approval.requiresConfirmation);if(requiresConfirmation&&body.confirm!==true)return NextResponse.json({error:"Explicit confirmation is required before VIVITO executes this plan.",steps:decisions},{status:409,headers:noStore});
   const rootId=requestId||crypto.randomUUID();
-  const execution=await executeVivitoPlanRuntime({steps:normalized,decisions,role,userId,workspaceId,requestId:rootId,executeStep:(op,args,stepRole,stepUserId)=>execute(op,args,stepRole,stepUserId,workspaceId),applyExternal:(op,args,result,stepUserId)=>applyExternalCampaignWrite(op,args,result,stepUserId,workspaceId)});
+  const execution=await executeVivitoPlanRuntime({steps:normalized,decisions,role,userId,workspaceId,requestId:rootId,executeStep:(op,args,stepRole,stepUserId)=>execute(op,toActionArgs(args),stepRole,stepUserId,workspaceId),applyExternal:(op,args,result,stepUserId)=>applyExternalCampaignWrite(op,toActionArgs(args),result,stepUserId,workspaceId)});
   if(execution.success===false)return NextResponse.json({success:false,partial:execution.partial,requestId:execution.requestId,completedSteps:execution.completedSteps,stoppedAt:execution.stoppedAt,error:execution.error,details:execution.details,duplicateSteps:execution.duplicateSteps},{status:execution.status,headers:noStore});
   return NextResponse.json(execution,{headers:noStore})
  }

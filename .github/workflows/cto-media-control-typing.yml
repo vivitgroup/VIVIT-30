@@ -1,0 +1,52 @@
+name: CTO Media Control Typing
+on:
+  push:
+    branches: [feat/vivito-internal-100]
+    paths:
+      - '.github/workflows/cto-media-control-typing.yml'
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply typed Media Control candidate
+        run: |
+          set -euo pipefail
+          git fetch origin feat/vivito-media-control-types-v10:refs/remotes/origin/feat/vivito-media-control-types-v10
+          git show origin/feat/vivito-media-control-types-v10:components/media/MediaControlV2.tsx > components/media/MediaControlV2.tsx
+      - name: Verify target contracts and full release
+        run: |
+          set -euo pipefail
+          if grep -nE '\bany\b' components/media/MediaControlV2.tsx; then
+            echo 'Explicit any remains in MediaControlV2.tsx'
+            exit 1
+          fi
+          npx eslint components/media/MediaControlV2.tsx --max-warnings=0
+          npm run type-check
+          npm run build
+      - name: Commit source-only typing
+        run: |
+          set -euo pipefail
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git add components/media/MediaControlV2.tsx
+          git commit -m 'refactor(media): type media control workspace contracts'
+          git push origin HEAD:feat/vivito-internal-100
+      - name: Remove transient workflow
+        if: success()
+        run: |
+          set -euo pipefail
+          git pull --rebase origin feat/vivito-internal-100
+          git rm .github/workflows/cto-media-control-typing.yml
+          git commit -m 'chore(cto): retain media control typing as source-only'
+          git push origin HEAD:feat/vivito-internal-100

@@ -1,0 +1,63 @@
+name: CTO Finance Team Typing
+on:
+  push:
+    branches: [feat/vivito-internal-100]
+    paths:
+      - '.github/workflows/cto-finance-team-typing.yml'
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: vivito
+          POSTGRES_PASSWORD: vivito
+          POSTGRES_DB: vivito_internal
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U vivito -d vivito_internal"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://vivito:vivito@127.0.0.1:5432/vivito_internal
+      DRIZZLE_DATABASE_URL: postgresql://vivito:vivito@127.0.0.1:5432/vivito_internal
+      DATABASE_SSL_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Build ephemeral database
+        run: npx drizzle-kit push --force
+      - name: Apply typed Finance and Team candidates
+        run: |
+          set -euo pipefail
+          git fetch origin feat/vivito-finance-team-types-v14:refs/remotes/origin/feat/vivito-finance-team-types-v14
+          git show origin/feat/vivito-finance-team-types-v14:app/dashboard/finance/page.tsx > app/dashboard/finance/page.tsx
+          git show origin/feat/vivito-finance-team-types-v14:app/dashboard/team/page.tsx > app/dashboard/team/page.tsx
+      - name: Verify contracts and full release
+        run: |
+          set -euo pipefail
+          if grep -nE '\bany\b' app/dashboard/finance/page.tsx app/dashboard/team/page.tsx; then
+            echo 'Explicit any remains in Finance/Team pages'
+            exit 1
+          fi
+          npx eslint app/dashboard/finance/page.tsx app/dashboard/team/page.tsx --max-warnings=0
+          npm run type-check
+          npm run build
+      - name: Commit source-only Finance and Team typing
+        run: |
+          set -euo pipefail
+          git restore tsconfig.json 2>/dev/null || true
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git add app/dashboard/finance/page.tsx app/dashboard/team/page.tsx
+          git commit -m 'refactor(finance-team): type finance and team contracts'
+          git push origin HEAD:feat/vivito-internal-100

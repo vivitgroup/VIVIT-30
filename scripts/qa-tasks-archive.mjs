@@ -27,7 +27,7 @@ check("Task creation validates type and priority allowlists",actions.includes("c
 check("Task creation validates active creator assignment",actions.includes("eq(users.role,\"CREATOR\")")&&actions.includes("eq(users.isActive,true)")&&actions.includes("Invalid creator assignment"));
 check("Task creation form blocks invalid deadline submission",newForm.includes("disabled={!deadline}")&&newForm.includes("Enter a valid date as DD/MM/YYYY"));
 check("Creative board excludes archived tasks",/creative_tasks where[\s\S]*archived_at is null/.test(board)&&board.includes("activeOnly"));
-check("Creative board scopes every role to active clients",board.includes("activeClientScope")&&board.includes("eq(clients.isActive,true)")&&board.includes("eq(clients.workspaceId,workspaceId)")&&board.includes("inArray(creativeTasks.clientId,allowedIds)"));
+check("Creative board scopes every role to active clients",board.includes("activeClientScope")&&board.includes("eq(clients.isActive,true)")&&board.includes("eq(clients.workspaceId,workspaceId)")&&board.includes("inArray(creativeTasks.clientId,ids)"));
 check("Creative board rejects status mutations on archived tasks",board.includes("Archived tasks cannot be changed. Restore the task first."));
 check("Creative board task archive is management-only",board.includes("[\"SUPER_ADMIN\",\"ACCOUNT_MANAGER\"].includes(role)"));
 check("Account Manager task archive uses client ownership",board.includes("eq(clients.accountManagerId,userId)")&&board.includes("You can only archive tasks for clients assigned to you."));

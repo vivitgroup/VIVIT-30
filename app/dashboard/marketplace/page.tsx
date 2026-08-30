@@ -39,7 +39,7 @@ export default async function MarketplacePage() {
   const userMap = Object.fromEntries(creatorUsers.map(u => [u.id, u]));
 
   const userId=String(session.user.id||"");
-  let openTasks:any[]=[];
+  let openTasks:(typeof creativeTasks.$inferSelect)[]=[];
   if(role===Role.SUPER_ADMIN){
     openTasks=await db.select().from(creativeTasks).where(eq(creativeTasks.status,"PENDING")).limit(10);
   }else if(role===Role.ACCOUNT_MANAGER){

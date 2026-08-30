@@ -20,6 +20,7 @@ export type VivitoMeshCandidate=VivitoMeshModel&{score:number;configured:boolean
 
 type MeshOptions={task?:VivitoMeshTask;maxTokens?:number;temperature?:number;timeoutMs?:number};
 type MeshHealthState={health:VivitoMeshHealth;cooldownUntil:number;failures:number;successes:number;lastLatencyMs?:number;lastErrorCode?:string};
+type UnknownRecord=Record<string,unknown>;
 
 const MIN_TIMEOUT_MS=2000;
 const DEFAULT_TIMEOUT_MS=25000;
@@ -27,16 +28,21 @@ const MAX_TIMEOUT_MS=45000;
 const DEFAULT_RATE_LIMIT_COOLDOWN_MS=60_000;
 const DEFAULT_QUOTA_COOLDOWN_MS=15*60_000;
 const healthLedger=new Map<string,MeshHealthState>();
+const MESH_TASKS:ReadonlySet<string>=new Set(["general","reasoning","creative","research","finance","coding","arabic"]);
 
 function clamp(v:number,min:number,max:number){return Math.max(min,Math.min(max,v))}
 function env(name:string){return String(process.env[name]||"").trim()}
 function stateFor(id:string){return healthLedger.get(id)||{health:"HEALTHY" as VivitoMeshHealth,cooldownUntil:0,failures:0,successes:0}}
 function sanitizeErrorCode(code:string){return code.replace(/[^a-z0-9_-]/gi,"-").slice(0,48).toLowerCase()}
 function defaultPoolEnabled(){return env("VIVITO_DEFAULT_MODEL_POOL")!=="0"}
+function asRecord(value:unknown):UnknownRecord{return value&&typeof value==="object"&&!Array.isArray(value)?Object.fromEntries(Object.entries(value)):{} }
+function isMeshTask(value:string):value is VivitoMeshTask{return MESH_TASKS.has(value)}
+function providerErrorMessage(value:unknown){const d=asRecord(value),error=asRecord(d.error);return String(error.message??d.message??"")}
+function errorText(error:unknown){if(error instanceof Error)return error.name==="TimeoutError"?"timeout":error.message||"failed";return String(error||"failed")}
 
-function normalizeModel(m:any):VivitoMeshModel|null{
-  if(!m||typeof m.id!=="string"||typeof m.provider!=="string"||typeof m.model!=="string"||typeof m.baseUrl!=="string"||typeof m.apiKeyEnv!=="string")return null;
-  const tasks=Array.isArray(m.tasks)?m.tasks.filter((t:any)=>["general","reasoning","creative","research","finance","coding","arabic"].includes(String(t))):undefined;
+function normalizeModel(value:unknown):VivitoMeshModel|null{
+  const m=asRecord(value);if(typeof m.id!=="string"||typeof m.provider!=="string"||typeof m.model!=="string"||typeof m.baseUrl!=="string"||typeof m.apiKeyEnv!=="string")return null;
+  const tasks=Array.isArray(m.tasks)?m.tasks.map(String).filter(isMeshTask):undefined;
   const normalized:VivitoMeshModel={
     id:m.id.trim(),provider:m.provider.trim(),model:m.model.trim(),baseUrl:m.baseUrl.replace(/\/+$/,"").trim(),apiKeyEnv:m.apiKeyEnv.trim(),enabled:m.enabled!==false,
     quality:clamp(Number(m.quality??70),0,100),cost:clamp(Number(m.cost??50),0,100),latency:clamp(Number(m.latency??50),0,100),tasks,
@@ -47,7 +53,7 @@ function normalizeModel(m:any):VivitoMeshModel|null{
 
 function customMeshModels():VivitoMeshModel[]{
   const raw=env("VIVITO_MODEL_MESH_JSON");if(!raw)return [];
-  try{const parsed=JSON.parse(raw);if(!Array.isArray(parsed))return [];return parsed.map(normalizeModel).filter(Boolean) as VivitoMeshModel[]}catch{return []}
+  try{const parsed:unknown=JSON.parse(raw);if(!Array.isArray(parsed))return [];return parsed.map(normalizeModel).filter((model):model is VivitoMeshModel=>model!==null)}catch{return []}
 }
 
 export function loadVivitoModelMesh():VivitoMeshModel[]{
@@ -96,12 +102,12 @@ export async function generateViaVivitoMesh(prompt:string,system:string,options:
     const started=Date.now();
     try{
       const r=await fetch(`${candidate.baseUrl}/chat/completions`,{method:"POST",signal:AbortSignal.timeout(boundedTimeout(options)),headers:{"Content-Type":"application/json","Authorization":`Bearer ${env(candidate.apiKeyEnv)}`},body:JSON.stringify({model:candidate.model,temperature:options.temperature??0.18,max_tokens:Math.min(options.maxTokens||3200,candidate.maxTokens||options.maxTokens||3200),messages:[{role:"system",content:system},{role:"user",content:prompt}]})});
-      const d:any=await r.json().catch(()=>({}));
-      if(!r.ok){const raw=String(d?.error?.message||d?.message||`http-${r.status}`);const code=markMeshFailure(candidate.id,r.status,raw);errors.push(`${candidate.id}:${code}`);continue}
-      const text=String(d?.choices?.[0]?.message?.content||"").trim();
+      const d:unknown=await r.json().catch(()=>({}));
+      if(!r.ok){const raw=providerErrorMessage(d)||`http-${r.status}`;const code=markMeshFailure(candidate.id,r.status,raw);errors.push(`${candidate.id}:${code}`);continue}
+      const root=asRecord(d),choices=Array.isArray(root.choices)?root.choices:[],first=asRecord(choices[0]),message=asRecord(first.message),text=String(message.content||"").trim();
       if(!text){markMeshFailure(candidate.id,0,"empty-response");errors.push(`${candidate.id}:empty-response`);continue}
       markMeshSuccess(candidate.id,Date.now()-started);return {text,modelId:candidate.id,provider:candidate.provider,errors};
-    }catch(error){const raw=(error as any)?.name==="TimeoutError"?"timeout":String((error as any)?.message||"failed");const code=markMeshFailure(candidate.id,0,raw);errors.push(`${candidate.id}:${code}`)}
+    }catch(error){const raw=errorText(error);const code=markMeshFailure(candidate.id,0,raw);errors.push(`${candidate.id}:${code}`)}
   }
   throw new Error(`mesh-all-models-failed:${errors.join("|")}`);
 }

@@ -1,0 +1,73 @@
+name: CTO Tail Pages V19
+on:
+  push:
+    branches: [feat/vivito-tail-pages-v19]
+permissions:
+  contents: write
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-tail-pages-v19
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint . -f json > /tmp/base.json || true
+          node <<'NODE'
+          const m=require('/tmp/base.json').flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any'),w=m.filter(x=>x.severity===1);console.log(`baseline_any=${a.length} non_any=${n.length} warnings=${w.length}`);if(a.length!==23||n.length||w.length)process.exit(1)
+          NODE
+      - name: Apply page row contracts
+        run: |
+          node <<'NODE'
+          const fs=require('node:fs');
+          function patch(file,ops){let s=fs.readFileSync(file,'utf8');for(const [from,to,count=1] of ops){const n=s.split(from).length-1;if(n!==count)throw new Error(`${file}: expected ${count}, found ${n}: ${from.slice(0,180)}`);s=s.split(from).join(to)}fs.writeFileSync(file,s)}
+          patch('app/dashboard/calendar/page.tsx',[
+            ['const creatorTasks=role===Role.CREATOR?Array.from(await db.execute(sql`select t.id,t.client_id from creative_tasks t join clients c on c.id=t.client_id where t.workspace_id=${workspaceId} and c.workspace_id=${workspaceId} and c.is_active=true and t.assigned_to_id=${userId} and t.archived_at is null`)) as any[]:[];','const creatorTasks=role===Role.CREATOR?Array.from(await db.execute(sql`select t.id,t.client_id from creative_tasks t join clients c on c.id=t.client_id where t.workspace_id=${workspaceId} and c.workspace_id=${workspaceId} and c.is_active=true and t.assigned_to_id=${userId} and t.archived_at is null`)).map(r=>({id:String(r.id||""),client_id:String(r.client_id||"")})):[];']
+          ]);
+          patch('app/dashboard/clients/accounts-payment/page.tsx',[
+            ['export default async function AccountsPaymentPage(){','type PaymentRow={id:string;company_name:string;payment_day:unknown;amount_due:unknown;amount_paid:unknown;amount_remaining:unknown;payment_status:unknown;account_manager_name:unknown;media_buyer_name:unknown;notes:unknown};\nexport default async function AccountsPaymentPage(){'],
+            ['const rows:any[]=Array.from(await db.execute(sql`select c.id,c.company_name,p.payment_day,p.responsible_name,p.currency,p.amount_due,p.amount_paid,p.amount_remaining,p.payment_ratio,p.payment_status,p.notes,am.name account_manager_name,mb.name media_buyer_name from clients c join client_payment_profiles p on p.client_id=c.id and p.workspace_id=${workspaceId} left join users am on am.id=c.account_manager_id and am.workspace_id=${workspaceId} left join users mb on mb.id=c.media_buyer_id and mb.workspace_id=${workspaceId} where c.workspace_id=${workspaceId} and c.is_active=true order by p.amount_remaining desc,c.company_name asc`));','const rows:PaymentRow[]=Array.from(await db.execute(sql`select c.id,c.company_name,p.payment_day,p.responsible_name,p.currency,p.amount_due,p.amount_paid,p.amount_remaining,p.payment_ratio,p.payment_status,p.notes,am.name account_manager_name,mb.name media_buyer_name from clients c join client_payment_profiles p on p.client_id=c.id and p.workspace_id=${workspaceId} left join users am on am.id=c.account_manager_id and am.workspace_id=${workspaceId} left join users mb on mb.id=c.media_buyer_id and mb.workspace_id=${workspaceId} where c.workspace_id=${workspaceId} and c.is_active=true order by p.amount_remaining desc,c.company_name asc`)).map(r=>({id:String(r.id||""),company_name:String(r.company_name||""),payment_day:r.payment_day,amount_due:r.amount_due,amount_paid:r.amount_paid,amount_remaining:r.amount_remaining,payment_status:r.payment_status,account_manager_name:r.account_manager_name,media_buyer_name:r.media_buyer_name,notes:r.notes}));']
+          ]);
+          patch('app/dashboard/creative/[id]/layout.tsx',[
+            ['  const rows=Array.from(await db.execute(sql`','  const rows=Array.from(await db.execute(sql`'],
+            ['  `)) as any[];\n  const task=rows[0];','  `)).map(r=>({id:String(r.id||""),client_id:String(r.client_id||""),assigned_to_id:r.assigned_to_id==null?null:String(r.assigned_to_id),account_manager_id:r.account_manager_id==null?null:String(r.account_manager_id),client_user_id:r.client_user_id==null?null:String(r.client_user_id),client_active:r.client_active===true}));\n  const task=rows[0];']
+          ]);
+          patch('app/dashboard/creative/[id]/page.tsx',[
+            ['comments:any[]=Array.from(await db.execute(role==="CLIENT"?sql`select tc.id,tc.comment,tc.is_internal,tc.created_at,u.name from task_comments tc left join users u on u.id=tc.user_id where tc.task_id=${id} and tc.is_internal=false order by tc.created_at asc limit 100`:sql`select tc.id,tc.comment,tc.is_internal,tc.created_at,u.name from task_comments tc left join users u on u.id=tc.user_id where tc.task_id=${id} order by tc.created_at asc limit 100`));','comments=Array.from(await db.execute(role==="CLIENT"?sql`select tc.id,tc.comment,tc.is_internal,tc.created_at,u.name from task_comments tc left join users u on u.id=tc.user_id where tc.task_id=${id} and tc.is_internal=false order by tc.created_at asc limit 100`:sql`select tc.id,tc.comment,tc.is_internal,tc.created_at,u.name from task_comments tc left join users u on u.id=tc.user_id where tc.task_id=${id} order by tc.created_at asc limit 100`)).map(r=>({id:String(r.id||""),comment:String(r.comment||""),is_internal:r.is_internal===true,created_at:r.created_at,name:r.name==null?null:String(r.name)}));']
+          ]);
+          patch('app/dashboard/marketplace/page.tsx',[
+            ['  let openTasks:any[]=[];','  let openTasks:(typeof creativeTasks.$inferSelect)[]=[];']
+          ]);
+          patch('app/dashboard/revenue-attribution/page.tsx',[
+            ['              {amStats.map((am:any)=>{','              {amStats.map((am:(typeof amStats)[number])=>{'],
+            ['${amStats.reduce((s:number,am:any)=>s+Math.round((am.totalPaid??am.collected??0)*0.10),0).toLocaleString()}','${amStats.reduce((s:number,am:(typeof amStats)[number])=>s+Math.round((am.totalPaid??0)*0.10),0).toLocaleString()}']
+          ]);
+          patch('app/dashboard/creative/page.tsx',[
+            ['const lane=(t:any)=>t.priority==="URGENT"&&!['"'"'COMPLETED'"'"','"'"'REJECTED'"'"'].includes(t.status)?"URGENT":t.status;','const lane=(t:(typeof tasks)[number])=>t.priority==="URGENT"&&!['"'"'COMPLETED'"'"','"'"'REJECTED'"'"'].includes(t.status)?"URGENT":t.status;']
+          ]);
+          NODE
+          git diff --check
+      - name: Acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint . -f json > /tmp/all.json || true
+          node <<'NODE'
+          const m=require('/tmp/all.json').flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any'),w=m.filter(x=>x.severity===1);console.log(`remaining_any=${a.length} non_any=${n.length} warnings=${w.length}`);if(a.length!==15||n.length||w.length)process.exit(1)
+          NODE
+      - name: Commit source
+        run: |
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git add app/dashboard/calendar/page.tsx app/dashboard/clients/accounts-payment/page.tsx app/dashboard/creative/[id]/layout.tsx app/dashboard/creative/[id]/page.tsx app/dashboard/marketplace/page.tsx app/dashboard/revenue-attribution/page.tsx app/dashboard/creative/page.tsx
+          git commit -m 'fix(types): close typed page row tail [skip ci]'
+          git push origin HEAD:feat/vivito-tail-pages-v19

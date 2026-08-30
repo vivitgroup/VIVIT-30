@@ -37,7 +37,7 @@ const SECTIONS: { label: string; items: Item[] }[] = [
     { icon: "≡", label: "التقارير", href: "/dashboard/reports", roles: ["SUPER_ADMIN", "ACCOUNTANT", "ACCOUNT_MANAGER", "MEDIA_BUYER", "SALES"] },
   ]},
   { label: "الذكاء والأدوات", items: [
-    { icon: "✦", label: "VIVITO", href: "/dashboard/ai-studio", roles: ALL },
+    {icon:"✦",label:"VIVITO",href:"/dashboard/ai-studio",roles:ALL},
     { icon: "▱", label: "الملفات", href: "/dashboard/files", roles: ALL },
     { icon: "▣", label: "الأرشيف", href: "/dashboard/archive", roles: [...OPS, "SALES"] },
     { icon: "◔", label: "الإشعارات", href: "/dashboard/notifications", roles: ALL },

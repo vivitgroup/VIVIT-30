@@ -1,0 +1,75 @@
+name: CTO Tail Runtime V18B
+on:
+  push:
+    branches: [feat/vivito-tail-runtime-v18b]
+permissions:
+  contents: write
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-tail-runtime-v18b
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint . -f json > /tmp/base.json || true
+          node <<'NODE'
+          const m=require('/tmp/base.json').flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any'),w=m.filter(x=>x.severity===1);console.log(`baseline_any=${a.length} non_any=${n.length} warnings=${w.length}`);if(a.length!==32||n.length||w.length)process.exit(1)
+          NODE
+      - name: Apply runtime contracts
+        run: |
+          node <<'NODE'
+          const fs=require('node:fs');
+          function patch(file,ops){let s=fs.readFileSync(file,'utf8');for(const [from,to,count=1] of ops){const n=s.split(from).length-1;if(n!==count)throw new Error(`${file}: expected ${count}, found ${n}: ${from.slice(0,180)}`);s=s.split(from).join(to)}fs.writeFileSync(file,s)}
+          patch('components/assistant/SystemAssistant.tsx',[
+            ['type Attachment={fileId:string;name:string;mimeType:string};','type Attachment={fileId:string;name:string;mimeType:string};\ntype AssistantResponse={answer?:string;error?:string;sources?:string[];actionProposal?:ActionProposal;actionPlan?:ActionPlan;artifactProposal?:ArtifactProposal};\ntype AssistantRequestResult={ok:boolean;data:AssistantResponse};'],
+            ['async function ask(v:string,atts:Attachment[],attempt=0):Promise<any>{try{const r=await fetch("/api/assistant",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({question:v,attachments:atts}),cache:"no-store"}),d=await r.json().catch(()=>({}));','async function ask(v:string,atts:Attachment[],attempt=0):Promise<AssistantRequestResult>{try{const r=await fetch("/api/assistant",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({question:v,attachments:atts}),cache:"no-store"}),d:AssistantResponse=await r.json().catch(()=>({}));']
+          ]);
+          patch('app/dashboard/notifications/page.tsx',[
+            ['const PRIORITY:Record<string,{icon:string;color:string;bg:string;label:string}>={','type NotificationRow=typeof notifications.$inferSelect & {link:string|null};\nconst PRIORITY:Record<string,{icon:string;color:string;bg:string;label:string}>={'],
+            ['const NotifRow=({n}:{n:any})=>','const NotifRow=({n}:{n:NotificationRow})=>']
+          ]);
+          patch('lib/vivito/client-digital-twin.ts',[
+            ['export type VivitoTwinSignal={kind:string;text:string;createdAt:string;source:string};','export type VivitoTwinSignal={kind:string;text:string;createdAt:string;source:string;scopeId?:string};'],
+            ['String((s as any).scopeId||clientId)','String(s.scopeId||clientId)']
+          ]);
+          patch('lib/vivito/competitive-chat.ts',[
+            ['function strip(raw:string){const t=raw.trim();return t.startsWith("```")?t.replace(/^```(?:json)?\\s*/i,"").replace(/\\s*```$/i,"").trim():t}','function strip(raw:string){const t=raw.trim();return t.startsWith("```")?t.replace(/^```(?:json)?\\s*/i,"").replace(/\\s*```$/i,"").trim():t}\nconst record=(v:unknown):Record<string,unknown>=>v!==null&&typeof v==="object"?v as Record<string,unknown>:{};'],
+            ['export function parseCompetitiveChatPlan(raw:string):CompetitiveChatPlan|null{try{const p=JSON.parse(strip(raw));const op=String(p?.op||"none");if(!["setup","report","none"].includes(op)||op==="none")return null;const competitors=Array.isArray(p.competitors)?p.competitors.slice(0,20).map((x:any)=>({name:String(x?.name||"").trim().slice(0,180),urls:Array.isArray(x?.urls)?x.urls.map(String).filter((u:string)=>/^https:\\/\\//i.test(u)).slice(0,12):[]})).filter((x:any)=>x.name||x.urls.length):[];return{op:op as "setup"|"report",clientName:String(p.clientName||"").trim().slice(0,180),competitors}}catch{return null}}','export function parseCompetitiveChatPlan(raw:string):CompetitiveChatPlan|null{try{const p=record(JSON.parse(strip(raw)));const op=String(p.op||"none");if(!["setup","report","none"].includes(op)||op==="none")return null;const competitors=Array.isArray(p.competitors)?p.competitors.slice(0,20).map(x=>{const r=record(x);return{name:String(r.name||"").trim().slice(0,180),urls:Array.isArray(r.urls)?r.urls.map(String).filter(u=>/^https:\\/\\//i.test(u)).slice(0,12):[]}}).filter(x=>x.name||x.urls.length):[];return{op:op as "setup"|"report",clientName:String(p.clientName||"").trim().slice(0,180),competitors}}catch{return null}}']
+          ]);
+          patch('lib/ad-oauth.ts',[
+            ['type TokenSet={accessToken:string;refreshToken?:string;expiresIn?:number};','type TokenSet={accessToken:string;refreshToken?:string;expiresIn?:number};\ntype OAuthResponse={access_token?:string;refresh_token?:string;expires_in?:number;data?:OAuthResponse;error?:string|{message?:string};error_description?:string;message?:string;code?:number;[key:string]:unknown};'],
+            ['async function parseResponse(r:Response){const text=await r.text();let data:any;try{data=JSON.parse(text)}catch{data=Object.fromEntries(new URLSearchParams(text))}if(!r.ok||data.error||data.code&&data.code!==0)throw new Error(data.error_description||data.error?.message||data.message||"OAuth token exchange failed");return data;}','async function parseResponse(r:Response):Promise<OAuthResponse>{const text=await r.text();let data:OAuthResponse;try{data=JSON.parse(text) as OAuthResponse}catch{data=Object.fromEntries(new URLSearchParams(text)) as OAuthResponse}const errorMessage=typeof data.error==="string"?data.error:data.error?.message;if(!r.ok||data.error||data.code&&data.code!==0)throw new Error(data.error_description||errorMessage||data.message||"OAuth token exchange failed");return data;}']
+          ]);
+          patch('lib/vivito/ad-platform-writes.ts',[
+            ['const status=(v?:string)=>String(v||"").trim().toUpperCase();','const status=(v?:string)=>String(v||"").trim().toUpperCase();\ntype ProviderResponse={error?:string|{message?:string};message?:string;code?:number|string;request_status?:string;raw?:string;[key:string]:unknown};\ntype LinkedInPatch={status?:string;dailyBudget?:{amount:string;currencyCode:string};totalBudget?:{amount:string;currencyCode:string}};\ntype SnapchatCampaign={id:string;ad_account_id:string;status?:string;daily_budget_micro?:number;lifetime_spend_cap_micro?:number};'],
+            ['const json=async(url:string,init:RequestInit)=>{const r=await fetch(url,{...init,cache:"no-store",signal:AbortSignal.timeout(TIMEOUT)});const text=await r.text();let d:any={};try{d=text?JSON.parse(text):{}}catch{d={raw:text.slice(0,500)}}if(!r.ok||d?.error||d?.code&&Number(d.code)!==0||d?.request_status&&d.request_status!=="SUCCESS")throw new Error(d?.error?.message||d?.message||`Provider mutation failed (${r.status})`);return d};','const json=async(url:string,init:RequestInit):Promise<ProviderResponse>=>{const r=await fetch(url,{...init,cache:"no-store",signal:AbortSignal.timeout(TIMEOUT)});const text=await r.text();let d:ProviderResponse={};try{d=text?JSON.parse(text) as ProviderResponse:{}}catch{d={raw:text.slice(0,500)}}const errorMessage=typeof d.error==="string"?d.error:d.error?.message;if(!r.ok||d.error||d.code&&Number(d.code)!==0||d.request_status&&d.request_status!=="SUCCESS")throw new Error(errorMessage||d.message||`Provider mutation failed (${r.status})`);return d};'],
+            ['const set:any={},applied:string[]=[]','const set:LinkedInPatch={},applied:string[]=[]'],
+            ['const campaign:any={id:i.campaignId,ad_account_id:i.adAccountId},applied:string[]=[]','const campaign:SnapchatCampaign={id:i.campaignId,ad_account_id:i.adAccountId},applied:string[]=[]']
+          ]);
+          NODE
+          git diff --check
+      - name: Acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint . -f json > /tmp/all.json || true
+          node <<'NODE'
+          const m=require('/tmp/all.json').flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any'),w=m.filter(x=>x.severity===1);console.log(`remaining_any=${a.length} non_any=${n.length} warnings=${w.length}`);if(a.length!==23||n.length||w.length)process.exit(1)
+          NODE
+      - name: Commit source
+        run: |
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git add components/assistant/SystemAssistant.tsx app/dashboard/notifications/page.tsx lib/vivito/client-digital-twin.ts lib/vivito/competitive-chat.ts lib/ad-oauth.ts lib/vivito/ad-platform-writes.ts
+          git commit -m 'fix(types): close runtime provider tail contracts [skip ci]'
+          git push origin HEAD:feat/vivito-tail-runtime-v18b

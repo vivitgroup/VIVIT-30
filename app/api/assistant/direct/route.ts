@@ -9,6 +9,7 @@ type SummaryRow={status:string;count:number|string};
 type EscalationRow={id:string;workspace_id:string;event_id:string|null;client_id:string|null;assigned_to_id:string|null;severity:string;status:string;dedupe_key:string;message:string;created_at:string|Date};
 type DirectDecision="approve"|"reject";
 const isDirectDecision=(value:string):value is DirectDecision=>value==="approve"||value==="reject";
+const statusFromError=(value:unknown)=>{if(!value||typeof value!=="object"||Array.isArray(value)||!("status" in value))return 400;const status=Number(value.status);return Number.isInteger(status)&&status>=400&&status<=599?status:400};
 
 export async function GET(req:NextRequest){
  const s=await auth();if(!s?.user)return NextResponse.json({error:"Unauthorized"},{status:401});
@@ -33,5 +34,5 @@ export async function POST(req:NextRequest){
  if(!eventId||!isDirectDecision(decision))return NextResponse.json({error:"eventId and decision=approve|reject are required."},{status:409});
  if(decision==="approve"&&b.confirm!==true)return NextResponse.json({error:"Explicit confirm=true is required for approval."},{status:409});
  if(decision==="reject"&&!String(b.reason||"").trim())return NextResponse.json({error:"A rejection reason is required."},{status:409});
- try{const workspaceId=await resolveVivitoWorkspaceForUser(userId);return NextResponse.json(await decideVivitoDirectEvent(eventId,decision,String(b.reason||"Explicit confirmation"),role,userId,workspaceId),{headers:{"Cache-Control":"private, no-store"}})}catch(e:unknown){const status=e&&typeof e==="object"&&"status" in e?Number(e.status||400):400;return NextResponse.json({error:e instanceof Error?e.message:String(e)},{status,headers:{"Cache-Control":"private, no-store"}})}
+ try{const workspaceId=await resolveVivitoWorkspaceForUser(userId);return NextResponse.json(await decideVivitoDirectEvent(eventId,decision,String(b.reason||"Explicit confirmation"),role,userId,workspaceId),{headers:{"Cache-Control":"private, no-store"}})}catch(e:unknown){return NextResponse.json({error:e instanceof Error?e.message:String(e)},{status:statusFromError(e),headers:{"Cache-Control":"private, no-store"}})}
 }

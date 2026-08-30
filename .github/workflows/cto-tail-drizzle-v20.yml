@@ -1,0 +1,75 @@
+name: CTO Tail Drizzle V20
+on:
+  push:
+    branches: [feat/vivito-tail-drizzle-v20]
+permissions:
+  contents: write
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-tail-drizzle-v20
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint . -f json > /tmp/base.json || true
+          node <<'NODE'
+          const m=require('/tmp/base.json').flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any'),w=m.filter(x=>x.severity===1);console.log(`baseline_any=${a.length} non_any=${n.length} warnings=${w.length}`);if(a.length!==16||n.length||w.length)process.exit(1)
+          NODE
+      - name: Apply inferred contracts
+        run: |
+          node <<'NODE'
+          const fs=require('node:fs');
+          function patch(file,ops){let s=fs.readFileSync(file,'utf8');for(const [from,to,count=1] of ops){const n=s.split(from).length-1;if(n!==count)throw new Error(`${file}: expected ${count}, found ${n}: ${from.slice(0,180)}`);s=s.split(from).join(to)}fs.writeFileSync(file,s)}
+          patch('app/api/password/forgot/route.ts',[
+            ['await db.insert(auditLogs).values({workspaceId:user.workspaceId,userId:user.id,action:"password_reset_requested",entity:"users",entityId:user.id,newValues:"{}"} as any);','const auditValue:typeof auditLogs.$inferInsert={workspaceId:user.workspaceId,userId:user.id,action:"password_reset_requested",entity:"users",entityId:user.id,newValues:"{}"};await db.insert(auditLogs).values(auditValue);']
+          ]);
+          patch('app/api/password/reset/route.ts',[
+            ['await tx.insert(auditLogs).values({workspaceId:user.workspaceId,userId:user.id,action:"password_changed",entity:"users",entityId:user.id,newValues:"{}"} as any)','const auditValue:typeof auditLogs.$inferInsert={workspaceId:user.workspaceId,userId:user.id,action:"password_changed",entity:"users",entityId:user.id,newValues:"{}"};await tx.insert(auditLogs).values(auditValue)']
+          ]);
+          patch('app/api/signup/otp/route.ts',[
+            ['await db.insert(emailVerificationCodes).values({email:normalizedEmail,codeHash,expiresAt,attempts:0} as any).onConflictDoUpdate({target:emailVerificationCodes.email,set:{codeHash,expiresAt,attempts:0,createdAt:new Date()} as unknown});','const codeValue:typeof emailVerificationCodes.$inferInsert={email:normalizedEmail,codeHash,expiresAt,attempts:0},codeUpdate:Partial<typeof emailVerificationCodes.$inferInsert>={codeHash,expiresAt,attempts:0,createdAt:new Date()};await db.insert(emailVerificationCodes).values(codeValue).onConflictDoUpdate({target:emailVerificationCodes.email,set:codeUpdate});']
+          ]);
+          patch('app/dashboard/clients/new/page.tsx',[
+            ['inArray(users.role,["ACCOUNT_MANAGER","MEDIA_BUYER"] as any)','inArray(users.role,["ACCOUNT_MANAGER","MEDIA_BUYER"])']
+          ]);
+          patch('app/dashboard/clients/[id]/edit/page.tsx',[
+            ['const values:any={companyName,industry:clean(fd.get("industry"),100)||null,website:clean(fd.get("website"),500)||null,metaAdsLink:clean(fd.get("metaAdsLink"),500)||null,googleAdsLink:clean(fd.get("googleAdsLink"),500)||null,tiktokAdsLink:clean(fd.get("tiktokUrl"),500)||null,snapchatAdsLink:clean(fd.get("snapchatAdsLink"),500)||null,internalNotes:clean(fd.get("internalNotes"),2000)||null,updatedAt:new Date()};','const values:Partial<typeof clients.$inferInsert>={companyName,industry:clean(fd.get("industry"),100)||null,website:clean(fd.get("website"),500)||null,metaAdsLink:clean(fd.get("metaAdsLink"),500)||null,googleAdsLink:clean(fd.get("googleAdsLink"),500)||null,tiktokAdsLink:clean(fd.get("tiktokUrl"),500)||null,snapchatAdsLink:clean(fd.get("snapchatAdsLink"),500)||null,internalNotes:clean(fd.get("internalNotes"),2000)||null,updatedAt:new Date()};'],
+            ['await db.insert(auditLogs).values({userId,action:"client_updated",entity:"Client",entityId:clientId,newValues:JSON.stringify({companyName,role,facebookUrl:Boolean(facebookUrl),instagramUrl:Boolean(instagramUrl),tiktokUrl:Boolean(values.tiktokAdsLink)})} as any);','const auditValue:typeof auditLogs.$inferInsert={userId,action:"client_updated",entity:"Client",entityId:clientId,newValues:JSON.stringify({companyName,role,facebookUrl:Boolean(facebookUrl),instagramUrl:Boolean(instagramUrl),tiktokUrl:Boolean(values.tiktokAdsLink)})};await db.insert(auditLogs).values(auditValue);'],
+            ['inArray(users.role,["ACCOUNT_MANAGER","MEDIA_BUYER"] as any)','inArray(users.role,["ACCOUNT_MANAGER","MEDIA_BUYER"])']
+          ]);
+          patch('app/dashboard/creative/page.tsx',[
+            ['await db.update(creativeTasks).set({status:next as any,updatedAt:new Date(),completedAt:next==="COMPLETED"?new Date():task.completedAt,revisionCount:next==="REVISION"?(task.revisionCount||0)+1:task.revisionCount})','const taskUpdate:Partial<typeof creativeTasks.$inferInsert>={status:next,updatedAt:new Date(),completedAt:next==="COMPLETED"?new Date():task.completedAt,revisionCount:next==="REVISION"?(task.revisionCount||0)+1:task.revisionCount};await db.update(creativeTasks).set(taskUpdate)'],
+            ['await db.insert(auditLogs).values({workspaceId,userId,action:"task_archived",entity:"creative_tasks",entityId:id,newValues:JSON.stringify({title:task.title})} as any);','const auditValue:typeof auditLogs.$inferInsert={workspaceId,userId,action:"task_archived",entity:"creative_tasks",entityId:id,newValues:JSON.stringify({title:task.title})};await db.insert(auditLogs).values(auditValue);'],
+            ['const lane=(t:any)=>t.priority==="URGENT"&&!['"'"'COMPLETED'"'"','"'"'REJECTED'"'"'].includes(t.status)?"URGENT":t.status;','const lane=(t:(typeof tasks)[number])=>t.priority==="URGENT"&&!['"'"'COMPLETED'"'"','"'"'REJECTED'"'"'].includes(t.status)?"URGENT":t.status;']
+          ]);
+          patch('lib/actions/calendar-safe.ts',[
+            ['const[event]=await db.insert(calendarEvents).values({workspaceId,clientId,taskId:taskId||null,title,date,platform:platform||null,caption:caption||null,hashtags:`asset:${assetFileId}`,status:"scheduled"} as any).returning({id:calendarEvents.id});','const eventValue:typeof calendarEvents.$inferInsert={workspaceId,clientId,taskId:taskId||null,title,date,platform:platform||null,caption:caption||null,hashtags:`asset:${assetFileId}`,status:"scheduled"};const[event]=await db.insert(calendarEvents).values(eventValue).returning({id:calendarEvents.id});'],
+            ['await db.insert(auditLogs).values({workspaceId,userId:String(session.user.id),action:"calendar_event_created",entity:"calendar_events",entityId:event.id,newValues:JSON.stringify({clientId,taskId:taskId||null,assetFileId,date:date.toISOString(),platform:platform||null})} as any);','const auditValue:typeof auditLogs.$inferInsert={workspaceId,userId:String(session.user.id),action:"calendar_event_created",entity:"calendar_events",entityId:event.id,newValues:JSON.stringify({clientId,taskId:taskId||null,assetFileId,date:date.toISOString(),platform:platform||null})};await db.insert(auditLogs).values(auditValue);']
+          ]);
+          NODE
+          git diff --check
+      - name: Acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint . -f json > /tmp/all.json || true
+          node <<'NODE'
+          const m=require('/tmp/all.json').flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any'),w=m.filter(x=>x.severity===1);console.log(`remaining_any=${a.length} non_any=${n.length} warnings=${w.length}`);if(a.length!==4||n.length||w.length)process.exit(1)
+          NODE
+      - name: Commit source
+        run: |
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git add app/api/password/forgot/route.ts app/api/password/reset/route.ts app/api/signup/otp/route.ts app/dashboard/clients/new/page.tsx app/dashboard/clients/[id]/edit/page.tsx app/dashboard/creative/page.tsx lib/actions/calendar-safe.ts
+          git commit -m 'fix(types): close inferred drizzle contracts [skip ci]'
+          git push origin HEAD:feat/vivito-tail-drizzle-v20

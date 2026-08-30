@@ -61,7 +61,7 @@ check("Archive Center only exposes task hard delete to Super Admin",archive.incl
 check("Archived clients cannot open Client Portal",portalGuard.includes("eq(clients.isActive,true)"));
 check("Client Portal review action rejects archived tasks",/creative_tasks where id=\$\{taskId\}[\s\S]*archived_at is null/.test(portal));
 check("Client Portal creative approvals exclude archived tasks",/from creative_tasks where workspace_id=\$\{workspaceId\}[\s\S]*client_id=\$\{client\.id\}[\s\S]*archived_at is null/.test(portal));
-check("Client Portal deliverable counts derive only from active task query",portal.includes("tasks=[...taskRows]")&&/taskRows[\s\S]*creative_tasks[\s\S]*archived_at is null/.test(portal));
+check("Client Portal deliverable counts derive only from active task query",/db\.execute<TaskRow>\(sql`[\s\S]*from creative_tasks where workspace_id=\$\{workspaceId\}[\s\S]*client_id=\$\{client\.id\}[\s\S]*archived_at is null/.test(portal)&&/tasks=Array\.from\(taskResult\)/.test(portal));
 check("Client Portal calendar cannot expose archived-task events",!portal.includes("from calendar_events")||/calendar_events[\s\S]*creative_tasks[\s\S]*archived_at is null/.test(portal));
 check("Client Portal documents exclude archived files",/from file_documents where workspace_id=\$\{workspaceId\}[\s\S]*client_id=\$\{client\.id\}[\s\S]*archived_at is null/.test(portal));
 check("Files API validates task target before Super Admin bypass",files.indexOf("if(taskId)")<files.indexOf('if(role==="SUPER_ADMIN")return true'));

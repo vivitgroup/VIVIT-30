@@ -61,7 +61,7 @@ const P: Record<string,{bg:string;border:string;icon:string;sound:number}> = {
 
 function playNotificationSound(priority: string) {
   try {
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const AudioContextCtor=window.AudioContext||(window as Window & typeof globalThis & {webkitAudioContext?:typeof AudioContext}).webkitAudioContext;if(!AudioContextCtor)return;const ctx=new AudioContextCtor();
     const tones = { urgent:[880,660,880], high:[660,880], normal:[440,550], low:[330] };
     const freqs = tones[priority as keyof typeof tones] ?? [440];
     freqs.forEach((freq, i) => {

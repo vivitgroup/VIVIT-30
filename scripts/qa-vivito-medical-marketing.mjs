@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 const b=fs.readFileSync('lib/vivito/training-batch-14-medical-marketing.ts','utf8');
 const a=fs.readFileSync('lib/vivito/academy.ts','utf8');
-let p=0,f=0;const c=(n,o)=>{console.log(`${o?'PASS':'FAIL'}  ${n}`);o?p++:f++};
+let p=0,f=0;const c=(n,o)=>{console.log(`${o?'PASS':'FAIL'}  ${n}`);if(o)p++;else f++};
 const mods=(b.match(/\{domain:/g)||[]).length;
 c('Medical batch has broad mastery coverage',mods>=50);
 c('Covers patient and HCP journeys',/Patient Journey/.test(b)&&/HCP Marketing/.test(b));

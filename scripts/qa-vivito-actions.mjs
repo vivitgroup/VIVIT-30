@@ -42,13 +42,13 @@ check("Creator attachment requires task relationship",executor.includes("You do 
 check("Accountant attachment categories are constrained",executor.includes("Accountant attachments must use a finance/document category"));
 check("Extended executor has independent authorization",extended.includes("function authorize(role:string,op:VivitoActionOp)")&&extended.includes("meta.roles.includes(role)"));
 check("Extended client resolver rechecks ownership",extended.includes('role==="ACCOUNT_MANAGER"&&c.account_manager_id!==userId')&&extended.includes('role==="MEDIA_BUYER"&&c.media_buyer_id!==userId'));
-check("Client update changes explicit fields only",extended.includes("own(args,arg)")&&extended.includes("No client fields were supplied to update"));
+check("Client update changes explicit fields only",(extended.includes("own(args,arg)")||extended.includes("own(args,key)"))&&extended.includes("No client fields were supplied to update"));
 check("Commercial and ownership edits are Super Admin only",extended.includes("Only Super Admin can change commercial terms or account ownership"));
 check("Client contacts can atomically replace primary",extended.includes("update contacts set is_primary=false")&&extended.includes("db.transaction"));
 check("Task update has explicit transition state machine",extended.includes("TASK_TRANSITIONS")&&extended.includes("Invalid task transition"));
 check("Task completion records completion timestamp",extended.includes('if(v==="COMPLETED")sets.completed_at=new Date()'));
-check("Task reassignment validates active Creator and notifies",extended.includes('staff(args.assigneeName,["CREATOR"])')&&extended.includes("TASK_ASSIGNED"));
-check("Scheduled post requires image/video and approved/completed task",extended.includes("Scheduled posts require an image or video")&&extended.includes('["APPROVED","COMPLETED"].includes(String(t.status))'));
+check("Task reassignment validates active Creator and notifies",(extended.includes('staff(args.assigneeName,["CREATOR"])')||extended.includes('staff(arg(args,"assigneeName"),["CREATOR"])'))&&extended.includes("TASK_ASSIGNED"));
+check("Scheduled post requires image/video and approved/completed task",extended.includes("Scheduled posts require an image or video")&&(extended.includes('["APPROVED","COMPLETED"].includes(String(t.status))')||extended.includes('["APPROVED","COMPLETED"].includes(t.status)')));
 check("Scheduled post is transactional and audited",extended.includes("vivito_calendar_post_scheduled")&&extended.includes("db.transaction"));
 check("Mark posted rejects duplicate state and rechecks ownership",extended.includes("Post is already marked as posted")&&extended.includes('role==="MEDIA_BUYER"&&e.media_buyer_id!==userId'));
 check("Sales resolver scopes Sales to owned leads",extended.includes('role==="SALES"?sql`and sales_rep_id=${userId}`'));

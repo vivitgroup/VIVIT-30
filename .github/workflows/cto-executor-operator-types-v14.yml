@@ -1,0 +1,66 @@
+name: CTO Executor Operator Types V14
+on:
+  push:
+    branches: [feat/vivito-executor-operator-types-v14]
+permissions:
+  contents: write
+jobs:
+  remediate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-executor-operator-types-v14
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Baseline acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+      - name: Apply operator contracts
+        run: |
+          node <<'NODE'
+          const fs=require('node:fs');const file='lib/vivito/executor-operator.ts';let s=fs.readFileSync(file,'utf8');
+          function one(from,to,count=1){const n=s.split(from).length-1;if(n!==count)throw new Error(`expected ${count}, found ${n}: ${from.slice(0,180)}`);s=s.split(from).join(to)}
+          one('const rows=(v:unknown)=>Array.from(v as any) as any[];','type ActionArgs=Record<string,unknown>;\ntype OperatorRow={id:string;name?:string;company_name?:string;account_manager_id?:string|null;media_buyer_id?:string|null;connection_id?:string|null;platform?:string;external_id?:string;access_token_encrypted?:string|null;refresh_token_encrypted?:string|null;token_expires_at?:string|Date|null;ad_account_id?:string;outstanding?:unknown;[key:string]:unknown};\ntype UserUpdateSet={name?:string;phone?:string|null;role?:string};\ntype CampaignUpdateSet={daily_budget?:number;lifetime_budget?:number;target_cpl?:number;target_cpa?:number;target_roas?:number;status?:string};\nconst objectRecord=(v:unknown):ActionArgs=>v&&typeof v==="object"&&!Array.isArray(v)?v as ActionArgs:{};\nconst rows=(v:unknown):OperatorRow[]=>Array.from(v as Iterable<OperatorRow>);');
+          one('async function createUser(args:any,userId:string)','async function createUser(args:ActionArgs,userId:string)');
+          one('const temp=randomBytes(24).toString("base64url"),bcryptMod:any=await import("bcryptjs"),bcrypt:any=bcryptMod.default??bcryptMod,hash=await bcrypt.hash(temp,12);','const temp=randomBytes(24).toString("base64url"),bcryptMod=await import("bcryptjs"),bcrypt=bcryptMod.default??bcryptMod,hash=await bcrypt.hash(temp,12);');
+          one('async function updateUser(op:VivitoActionOp,args:any,userId:string)','async function updateUser(op:VivitoActionOp,args:ActionArgs,userId:string)');
+          one('const sets:any={};','const sets:UserUpdateSet={};');
+          one('async function createLeave(args:any,role:string,userId:string)','async function createLeave(args:ActionArgs,role:string,userId:string)');
+          one('async function decideLeave(args:any,userId:string)','async function decideLeave(args:ActionArgs,userId:string)');
+          one('async function payrollAction(op:VivitoActionOp,args:any,userId:string)','async function payrollAction(op:VivitoActionOp,args:ActionArgs,userId:string)');
+          one('async function contractAction(op:VivitoActionOp,args:any,userId:string)','async function contractAction(op:VivitoActionOp,args:ActionArgs,userId:string)');
+          one('async function sendEmail(args:any,userId:string)','async function sendEmail(args:ActionArgs,userId:string)');
+          one('async function sendWhatsApp(args:any,userId:string)','async function sendWhatsApp(args:ActionArgs,userId:string)');
+          one('async function apiKeyAction(op:VivitoActionOp,args:any,userId:string)','async function apiKeyAction(op:VivitoActionOp,args:ActionArgs,userId:string)');
+          one('async function webhookAction(op:VivitoActionOp,args:any,userId:string)','async function webhookAction(op:VivitoActionOp,args:ActionArgs,userId:string)');
+          one('async function campaignAction(op:VivitoActionOp,args:any,role:string,userId:string)','async function campaignAction(op:VivitoActionOp,args:ActionArgs,role:string,userId:string)');
+          one(' const allowed:any={};',' const allowed:CampaignUpdateSet={};');
+          one('async function integrationAction(op:VivitoActionOp,args:any,userId:string)','async function integrationAction(op:VivitoActionOp,args:ActionArgs,userId:string)');
+          one('async function exportReport(op:VivitoActionOp,args:any)','async function exportReport(op:VivitoActionOp,args:ActionArgs)');
+          one('async function opsData(op:VivitoActionOp,args:any,userId:string)','async function opsData(op:VivitoActionOp,args:ActionArgs,userId:string)');
+          one('async function bulk(op:VivitoActionOp,args:any,userId:string)','async function bulk(op:VivitoActionOp,args:ActionArgs,userId:string)');
+          one('return workspaceContext.run(workspaceId,async()=>{authorize(role,op);if(op==="create_user")return createUser(args,userId);if(op==="update_user"||op==="set_user_active")return updateUser(op,args,userId);if(op==="create_leave_request")return createLeave(args,role,userId);if(op==="decide_leave")return decideLeave(args,userId);if(op==="upsert_payroll"||op==="set_payroll_status")return payrollAction(op,args,userId);if(op==="create_contract"||op==="update_contract")return contractAction(op,args,userId);if(op==="update_workspace_settings")return settings(args,userId);if(op==="send_email")return sendEmail(args,userId);if(op==="send_whatsapp")return sendWhatsApp(args,userId);if(op==="create_api_key"||op==="revoke_api_key")return apiKeyAction(op,args,userId);if(op==="create_webhook"||op==="revoke_webhook")return webhookAction(op,args,userId);if(op==="sync_campaign"||op==="update_campaign")return campaignAction(op,args,role,userId);if(op==="start_integration"||op==="disconnect_integration")return integrationAction(op,args,userId);if(op==="export_data"||op==="generate_report")return exportReport(op,args);if(op==="update_onboarding"||op==="record_nps"||op==="create_referral")return opsData(op,args,userId);if(op==="bulk_update_tasks"||op==="bulk_remind_clients")return bulk(op,args,userId);','return workspaceContext.run(workspaceId,async()=>{authorize(role,op);const input=objectRecord(args);if(op==="create_user")return createUser(input,userId);if(op==="update_user"||op==="set_user_active")return updateUser(op,input,userId);if(op==="create_leave_request")return createLeave(input,role,userId);if(op==="decide_leave")return decideLeave(input,userId);if(op==="upsert_payroll"||op==="set_payroll_status")return payrollAction(op,input,userId);if(op==="create_contract"||op==="update_contract")return contractAction(op,input,userId);if(op==="update_workspace_settings")return settings(input,userId);if(op==="send_email")return sendEmail(input,userId);if(op==="send_whatsapp")return sendWhatsApp(input,userId);if(op==="create_api_key"||op==="revoke_api_key")return apiKeyAction(op,input,userId);if(op==="create_webhook"||op==="revoke_webhook")return webhookAction(op,input,userId);if(op==="sync_campaign"||op==="update_campaign")return campaignAction(op,input,role,userId);if(op==="start_integration"||op==="disconnect_integration")return integrationAction(op,input,userId);if(op==="export_data"||op==="generate_report")return exportReport(op,input);if(op==="update_onboarding"||op==="record_nps"||op==="create_referral")return opsData(op,input,userId);if(op==="bulk_update_tasks"||op==="bulk_remind_clients")return bulk(op,input,userId);');
+          fs.writeFileSync(file,s)
+          NODE
+          git diff --check
+      - name: Acceptance
+        run: |
+          npm run type-check
+          node scripts/qa-cto-static-audit.mjs
+          npx eslint lib/vivito/executor-operator.ts -f json > /tmp/target.json || true
+          npx eslint . -f json > /tmp/all.json || true
+          node <<'NODE'
+          const target=require('/tmp/target.json').flatMap(x=>x.messages||[]),m=require('/tmp/all.json').flatMap(x=>x.messages||[]),a=m.filter(x=>x.ruleId==='@typescript-eslint/no-explicit-any'),n=m.filter(x=>x.ruleId!=='@typescript-eslint/no-explicit-any'),w=m.filter(x=>x.severity===1);console.log(`target_total=${target.length}`);console.log(`remaining_any=${a.length}`);console.log(`non_any=${n.length} warnings=${w.length}`);console.log(JSON.stringify(target.map(x=>[x.ruleId,x.line,x.message]).slice(0,60)));if(target.length||a.length!==151||n.length||w.length)process.exit(1)
+          NODE
+      - name: Commit source
+        run: |
+          git config user.name 'VIVIT CTO Gate Bot'
+          git config user.email 'groupvivit@gmail.com'
+          git add lib/vivito/executor-operator.ts
+          git commit -m 'fix(types): close operator executor contracts [skip ci]'
+          git push origin HEAD:feat/vivito-executor-operator-types-v14

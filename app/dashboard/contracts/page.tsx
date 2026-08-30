@@ -8,6 +8,8 @@ import Link from "next/link";
 
 const money=(n:number)=>new Intl.NumberFormat("en-EG",{style:"currency",currency:"EGP",maximumFractionDigits:0}).format(Number(n||0));
 const CONTRACT_TYPES=["RETAINER","PROJECT","MEDIA_ONLY","FULL_SERVICE"] as const;
+type ContractType=(typeof CONTRACT_TYPES)[number];
+const isContractType=(value:string):value is ContractType=>CONTRACT_TYPES.some(type=>type===value);
 const RENEWAL_DAYS=[7,14,30,60];
 
 async function createContract(fd: FormData) {
@@ -22,7 +24,7 @@ async function createContract(fd: FormData) {
   const value=Number(fd.get("value")||0);
   const renewalDays=Number(fd.get("renewalDays")||30);
   if(!clientId||!title||!startDateRaw||!endDateRaw)throw new Error("Complete the required contract fields");
-  if(!CONTRACT_TYPES.includes(type as any)) throw new Error("Invalid contract type");
+  if(!isContractType(type)) throw new Error("Invalid contract type");
   if(!Number.isFinite(value)||value<0) throw new Error("Contract value must be zero or greater");
   if(!RENEWAL_DAYS.includes(renewalDays)) throw new Error("Invalid renewal alert period");
   const startDate=new Date(startDateRaw),endDate=new Date(endDateRaw);

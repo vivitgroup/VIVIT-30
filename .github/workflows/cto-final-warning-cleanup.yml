@@ -49,6 +49,25 @@ jobs:
               'import { pgTable, text, boolean, timestamp, integer, real, numeric, pgEnum, unique, index } from "drizzle-orm/pg-core";',
               1,
           )
+          replace_exact(
+              "db/schema.ts",
+              'export const calendarEvents = pgTable("calendar_events", {\n  id:          text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),\n  clientId:    text("client_id").notNull(),',
+              'export const calendarEvents = pgTable("calendar_events", {\n  id:          text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),\n  workspaceId: text("workspace_id").notNull().default("default"),\n  clientId:    text("client_id").notNull(),',
+              1,
+          )
+
+          replace_exact(
+              "app/api/assistant/actions/route.ts",
+              'tokenExpiresAt:row.token_expires_at,',
+              'tokenExpiresAt:row.token_expires_at?new Date(row.token_expires_at):null,',
+              1,
+          )
+          replace_exact(
+              "lib/vivito/executor-operator.ts",
+              'tokenExpiresAt:conn.token_expires_at,',
+              'tokenExpiresAt:conn.token_expires_at?new Date(conn.token_expires_at):null,',
+              1,
+          )
 
           p = Path("lib/vivito/direct-runtime.ts")
           lines = p.read_text().splitlines()
@@ -118,7 +137,7 @@ jobs:
           set -euo pipefail
           git config user.name "vivitgroup"
           git config user.email "groupvivit@gmail.com"
-          git add app/dashboard/portal/page.tsx db/schema.ts lib/vivito/direct-runtime.ts scripts/seed.ts
+          git add app/dashboard/portal/page.tsx db/schema.ts lib/vivito/direct-runtime.ts scripts/seed.ts app/api/assistant/actions/route.ts lib/vivito/executor-operator.ts
           git diff --cached --quiet && { echo "No source changes"; exit 1; }
-          git commit -m "chore(cto): close final eslint warnings"
+          git commit -m "chore(cto): close final static and type blockers"
           git push origin HEAD:tmp/cto-final-warning-cleanup

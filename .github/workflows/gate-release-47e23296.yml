@@ -1,0 +1,72 @@
+name: Gate Clean Release 47e23296
+on:
+  push:
+    branches: [gate/release-47e23296]
+permissions:
+  contents: read
+jobs:
+  gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: vivito
+          POSTGRES_PASSWORD: vivito
+          POSTGRES_DB: vivito_release_gate
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U vivito -d vivito_release_gate"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://vivito:vivito@127.0.0.1:5432/vivito_release_gate
+      DRIZZLE_DATABASE_URL: postgresql://vivito:vivito@127.0.0.1:5432/vivito_release_gate
+      DATABASE_SSL_DISABLED: "1"
+      AUTH_SECRET: ci-clean-release-gate-secret-not-for-production
+      NEXTAUTH_SECRET: ci-clean-release-gate-secret-not-for-production
+      NEXTAUTH_URL: http://127.0.0.1:3000
+    steps:
+      - name: Checkout exact release candidate
+        uses: actions/checkout@v4
+        with:
+          ref: 47e232964a04445b7b00e613d5b39a3d2d38854d
+          fetch-depth: 1
+      - name: Assert exact SHA
+        run: test "$(git rev-parse HEAD)" = "47e232964a04445b7b00e613d5b39a3d2d38854d"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: TypeScript gate
+        run: npm run type-check
+      - name: ESLint zero gate
+        run: |
+          npx eslint . -f json > /tmp/eslint.json || true
+          node <<'NODE'
+          const m=require('/tmp/eslint.json').flatMap(x=>x.messages||[]);console.log(`eslint_total=${m.length} errors=${m.filter(x=>x.severity===2).length} warnings=${m.filter(x=>x.severity===1).length}`);if(m.length)process.exit(1)
+          NODE
+      - name: CTO static architecture gate
+        run: node scripts/qa-cto-static-audit.mjs
+      - name: CTO pre-release gate
+        run: node scripts/qa-cto-release-audit.mjs
+      - name: Production dependency security gate
+        run: npm audit --omit=dev --audit-level=low
+      - name: Build ephemeral database
+        run: npx drizzle-kit push --force
+      - name: Full QA and production build
+        run: npm run build
+      - name: Built runtime smoke
+        run: |
+          npm start > /tmp/vivit-next.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID >/dev/null 2>&1 || true' EXIT
+          READY=0
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:3000/login >/dev/null; then READY=1; break; fi
+            sleep 1
+          done
+          if [ "$READY" -ne 1 ]; then cat /tmp/vivit-next.log; exit 1; fi
+          BASE_URL=http://127.0.0.1:3000 npm run qa:runtime-smoke

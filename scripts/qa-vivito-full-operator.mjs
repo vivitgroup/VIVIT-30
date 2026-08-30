@@ -14,7 +14,8 @@ check("Payroll computes net pay from salary bonus deductions",operator.includes(
 check("Payroll status supports draft approved paid",operator.includes('["DRAFT","APPROVED","PAID"]'));
 check("Contracts are management scoped",engine.includes('create_contract:{roles:MGT')&&engine.includes('update_contract:{roles:MGT'));
 check("Workspace settings are Super Admin only",engine.includes('update_workspace_settings:{roles:SA'));
-check("Workspace settings use explicit allowlist",operator.includes('const allowed=["name","primaryColor","logoUrl","faviconUrl","customDomain","currency","agencyFeePercent","timezone","billingEmail"]'));
+const workspaceSettingsAllowlist='["name","primaryColor","logoUrl","faviconUrl","customDomain","currency","agencyFeePercent","timezone","billingEmail"]';
+check("Workspace settings use explicit allowlist",operator.includes(`const allowed=${workspaceSettingsAllowlist}`)||operator.includes(`const allowed:WorkspaceSettingKey[]=${workspaceSettingsAllowlist}`));
 check("Email sending requires configured provider and bounded timeout",operator.includes("RESEND_API_KEY")&&operator.includes("AbortSignal.timeout(8000)"));
 check("WhatsApp sending requires Cloud API configuration",operator.includes("WHATSAPP_TOKEN")&&operator.includes("WHATSAPP_PHONE_ID")&&operator.includes("graph.facebook.com"));
 check("External sends are audited",operator.includes("vivito_email_sent")&&operator.includes("vivito_whatsapp_sent"));

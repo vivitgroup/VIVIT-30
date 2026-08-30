@@ -4,6 +4,7 @@ import { sql } from "drizzle-orm";
 import pkg from "../../../package.json";
 export const dynamic="force-dynamic";
 
+// Temporary production diagnostic: logs target metadata only, never credentials.
 function sanitizedDbTarget() {
   try {
     const raw = process.env.DATABASE_URL;

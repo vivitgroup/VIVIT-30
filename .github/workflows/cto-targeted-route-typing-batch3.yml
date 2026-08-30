@@ -1,0 +1,72 @@
+name: CTO Targeted Route Typing Batch 3
+
+on:
+  push:
+    branches: [feat/vivito-internal-100]
+    paths:
+      - '.github/workflows/cto-targeted-route-typing-batch3.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-internal-100
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply route typing remediation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def apply(path, replacements):
+              p=Path(path); s=p.read_text()
+              for old,new in replacements:
+                  if old not in s:
+                      raise SystemExit(f'{path}: missing expected fragment: {old[:100]}')
+                  s=s.replace(old,new,1)
+              p.write_text(s)
+
+          apply('app/api/api-keys/route.ts', [
+            ('function canManageKeys(session:any){return !!session?.user&&(session.user as any).role==="SUPER_ADMIN";}\nfunction workspaceOf(session:any){const workspaceId=String((session?.user as any)?.workspaceId||"").trim();return workspaceId||null;}', 'type AuthSession={user?:{role?:string|null;workspaceId?:string|null}|null}|null;\nfunction canManageKeys(session:AuthSession){return !!session?.user&&session.user.role==="SUPER_ADMIN";}\nfunction workspaceOf(session:AuthSession){const workspaceId=String(session?.user?.workspaceId||"").trim();return workspaceId||null;}'),
+            ('{workspaceId,userId:session!.user!.id!,name,keyHash,keyPrefix,permissions} as any', '{workspaceId,userId:session!.user!.id!,name,keyHash,keyPrefix,permissions}'),
+            ('set({isActive:false} as any)', 'set({isActive:false})'),
+          ])
+
+          apply('app/api/email/route.ts', [
+            ('const esc=(v:any)=>', 'const esc=(v:unknown)=>'),
+            ('const email=(v:any)=>', 'const email=(v:unknown)=>'),
+            ('const role=String((session.user as any).role||""),userId=String((session.user as any).id||""),workspaceId=String((session.user as any).workspaceId||"").trim();', 'const role=String(session.user.role||""),userId=String(session.user.id||""),workspaceId=String(session.user.workspaceId||"").trim();'),
+          ])
+
+          apply('app/api/search/route.ts', [
+            ('import {ilike,or,eq,and} from "drizzle-orm";\nexport async function GET', 'import {ilike,or,eq,and} from "drizzle-orm";\ntype SearchResult={type:string;title:string;subtitle:string;href:string;icon:string};\nexport async function GET'),
+            ('userId=String((session.user as any).id||""),role=String((session.user as any).role||""),workspaceId=String((session.user as any).workspaceId||"")', 'userId=String(session.user.id||""),role=String(session.user.role||""),workspaceId=String(session.user.workspaceId||"")'),
+            ('results:any[]=[]', 'results:SearchResult[]=[]'),
+          ])
+
+          apply('app/api/reminders/tasks/route.ts', [
+            ('const role=String((session.user as any).role),userId=String((session.user as any).id),workspaceId=String((session.user as any).workspaceId||"")', 'const role=String(session.user.role),userId=String(session.user.id),workspaceId=String(session.user.workspaceId||"")'),
+            ('let scope:any=eq(creativeTasks.id,"__none__")', 'let scope:ReturnType<typeof and>=eq(creativeTasks.id,"__none__")'),
+          ])
+          PY
+      - name: TypeScript acceptance
+        run: npx tsc --noEmit
+      - name: Targeted ESLint acceptance
+        run: npx eslint app/api/api-keys/route.ts app/api/email/route.ts app/api/search/route.ts app/api/reminders/tasks/route.ts --max-warnings=0
+      - name: Commit validated remediation
+        run: |
+          git config user.name 'vivitgroup'
+          git config user.email 'groupvivit@gmail.com'
+          git add app/api/api-keys/route.ts app/api/email/route.ts app/api/search/route.ts app/api/reminders/tasks/route.ts
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix(types): harden core API route boundaries'
+          git push origin HEAD:feat/vivito-internal-100

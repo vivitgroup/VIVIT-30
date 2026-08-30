@@ -1,5 +1,5 @@
 "use client";
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { createCalendarEvent } from "@/lib/actions";
 
 interface CalEvent {
@@ -191,8 +191,12 @@ export function CalendarClient({ events, clients, approvedTasks, canManage }: Pr
 
   const selectedEvents = selectedDay ? eventsOnDay(selectedDay) : [];
 
-  function prevMonth() { month===0 ? (setMonth(11), setYear(y=>y-1)) : setMonth(m=>m-1); }
-  function nextMonth() { month===11? (setMonth(0),  setYear(y=>y+1)) : setMonth(m=>m+1); }
+  function prevMonth() {
+    if(month===0){setMonth(11);setYear(y=>y-1)}else setMonth(m=>m-1);
+  }
+  function nextMonth() {
+    if(month===11){setMonth(0);setYear(y=>y+1)}else setMonth(m=>m+1);
+  }
 
   function goToToday() {
     setYear(today.getFullYear());
@@ -211,7 +215,7 @@ export function CalendarClient({ events, clients, approvedTasks, canManage }: Pr
       await createCalendarEvent(fd);
       setShowAdd(false);
       window.location.reload();
-    } catch (error: any) {
+    } catch(error) {
       setActionError(error?.message || "The post could not be scheduled.");
     } finally {
       setSaving(false);
@@ -247,7 +251,7 @@ export function CalendarClient({ events, clients, approvedTasks, canManage }: Pr
       if (!completeResponse.ok) throw new Error(complete.error || "Could not save the uploaded media.");
       setAssetFileId(complete.file?.id || complete.fileId);
       setAssetName(file.name);
-    } catch (error: any) {
+    } catch(error) {
       setUploadError(error.message || "The media upload failed.");
     } finally {
       setUploading(false);

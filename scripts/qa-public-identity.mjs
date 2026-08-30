@@ -4,8 +4,9 @@ const issue=r("app/api/approve-token/route.ts"),approve=r("app/approve/[token]/p
 check("Approval tokens use 256-bit random secrets",issue.includes("crypto.randomBytes(32)"));
 check("New approval tokens are hashed before database storage",issue.includes("tokenHash=hashApprovalToken(rawToken)")&&issue.includes("token:tokenHash"));
 check("Approval API does not return raw token as standalone field",!issue.includes(",token,expiresAt")&&!issue.includes("token:rawToken"));
-check("Approval token issue is active workspace task scoped",issue.includes("eq(creativeTasks.workspaceId,WORKSPACE)")&&issue.includes("archived_at is null"));
-check("Approval token issue requires active client",issue.includes("eq(clients.workspaceId,WORKSPACE)")&&issue.includes("eq(clients.isActive,true)"));
+check("Approval token issue derives authenticated workspace and fails closed",issue.includes('workspaceId=String(session.user.workspaceId||"").trim()')&&issue.includes("Workspace context is required"));
+check("Approval token issue is active workspace task scoped",issue.includes("eq(creativeTasks.workspaceId,workspaceId)")&&issue.includes("workspace_id=${workspaceId} and archived_at is null"));
+check("Approval token issue requires active same-workspace client",issue.includes("eq(clients.workspaceId,workspaceId)")&&issue.includes("eq(clients.isActive,true)"));
 check("Approval review email escapes stored content",issue.includes("escapeHtml(task.title)")&&issue.includes("escapeHtml(contact.name")&&issue.includes("escapeHtml(client.companyName)"));
 check("Approval review file URL is protocol validated",issue.includes("safeHttpUrl(task.fileUrl)"));
 check("Approval URL base is protocol validated",issue.includes("safeHttpUrl(base)"));
@@ -13,8 +14,10 @@ check("Approval page hashes incoming token",approve.includes("hashApprovalToken(
 check("Approval page supports legacy raw links without generating new raw DB tokens",approve.includes("or(eq(approvalTokens.token,hash),eq(approvalTokens.token,token))"));
 check("Approval link is single-use through atomic token claim",approve.includes("tx.update(approvalTokens)")&&approve.includes("isNull(approvalTokens.usedAt)")&&approve.includes("claimed.length!==1"));
 check("Approval link only acts on REVIEW task",approve.includes('eq(creativeTasks.status,"REVIEW")'));
-check("Approval link requires active workspace client",approve.includes("eq(clients.workspaceId,WORKSPACE)")&&approve.includes("eq(clients.isActive,true)"));
-check("Approval action is transactional and audited",approve.includes("db.transaction")&&approve.includes("tx.insert(auditLogs)"));
+check("Public approval derives workspace from active token client",approve.includes("workspaceId:clients.workspaceId")&&approve.includes("if(!clientScope?.workspaceId)return <Invalid/>")&&approve.includes("workspaceId=String(clientScope.workspaceId)"));
+check("Approval task is constrained to derived workspace and client",approve.includes("eq(creativeTasks.workspaceId,workspaceId)")&&approve.includes("eq(creativeTasks.clientId,tokenRow.clientId)")&&approve.includes("workspace_id=${workspaceId} and archived_at is null"));
+check("Approval transaction revalidates client workspace",approve.includes("freshClient.workspaceId")&&approve.includes("String(freshClient.workspaceId)!==workspaceId"));
+check("Approval action is transactional and audited",approve.includes("db.transaction")&&approve.includes("tx.insert(auditLogs)")&&approve.includes("values({workspaceId,userId:null"));
 check("Password reset request is enumeration-safe",forgot.includes("If this email exists"));
 check("Password reset request is database cooldown limited",forgot.includes("Date.now()-2*60*1000")&&forgot.includes("passwordResetTokens.createdAt"));
 check("Password reset emails escape user content",forgot.includes("escapeHtml(user.name)")&&forgot.includes("escapeHtml(resetUrl)"));

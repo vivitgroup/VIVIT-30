@@ -1,0 +1,129 @@
+name: VIVITO Strict 100 Certification
+on:
+  push:
+    branches: [qa/100-percent-release]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: vivito
+          POSTGRES_PASSWORD: vivito
+          POSTGRES_DB: vivito_cert
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U vivito -d vivito_cert"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://vivito:vivito@127.0.0.1:5432/vivito_cert
+      DRIZZLE_DATABASE_URL: postgres://vivito:vivito@127.0.0.1:5432/vivito_cert
+      DATABASE_SSL_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Full release build
+        run: npm run build
+      - name: Build ephemeral certification schema
+        run: npx drizzle-kit push --force
+      - name: Run staged database execution certification
+        run: npx tsx scripts/certify-vivito-execution-e2e.ts
+      - name: Run adversarial RBAC certification
+        run: npx tsx scripts/certify-vivito-security-e2e.ts
+      - name: Run multi-step reliability certification
+        run: npx tsx scripts/certify-vivito-reliability-e2e.ts
+      - name: Generate artifact binary evidence
+        run: npx tsx scripts/certify-vivito-artifacts-e2e.ts
+      - name: Collect live public competitive snapshot
+        continue-on-error: true
+        run: npx tsx scripts/certify-vivito-competitive-live.ts
+      - name: Run live ad-provider certification when test credentials exist
+        continue-on-error: true
+        env:
+          VIVITO_CERT_META_TOKEN: ${{ secrets.VIVITO_CERT_META_TOKEN }}
+          VIVITO_CERT_META_CAMPAIGN_ID: ${{ secrets.VIVITO_CERT_META_CAMPAIGN_ID }}
+          VIVITO_CERT_META_ACCOUNT_ID: ${{ secrets.VIVITO_CERT_META_ACCOUNT_ID }}
+          VIVITO_CERT_META_CURRENT_STATUS: ${{ secrets.VIVITO_CERT_META_CURRENT_STATUS }}
+          VIVITO_CERT_GOOGLE_TOKEN: ${{ secrets.VIVITO_CERT_GOOGLE_TOKEN }}
+          VIVITO_CERT_GOOGLE_CAMPAIGN_ID: ${{ secrets.VIVITO_CERT_GOOGLE_CAMPAIGN_ID }}
+          VIVITO_CERT_GOOGLE_ACCOUNT_ID: ${{ secrets.VIVITO_CERT_GOOGLE_ACCOUNT_ID }}
+          VIVITO_CERT_GOOGLE_CURRENT_STATUS: ${{ secrets.VIVITO_CERT_GOOGLE_CURRENT_STATUS }}
+          GOOGLE_ADS_DEVELOPER_TOKEN: ${{ secrets.GOOGLE_ADS_DEVELOPER_TOKEN }}
+          GOOGLE_ADS_LOGIN_CUSTOMER_ID: ${{ secrets.GOOGLE_ADS_LOGIN_CUSTOMER_ID }}
+          VIVITO_CERT_TIKTOK_TOKEN: ${{ secrets.VIVITO_CERT_TIKTOK_TOKEN }}
+          VIVITO_CERT_TIKTOK_CAMPAIGN_ID: ${{ secrets.VIVITO_CERT_TIKTOK_CAMPAIGN_ID }}
+          VIVITO_CERT_TIKTOK_ACCOUNT_ID: ${{ secrets.VIVITO_CERT_TIKTOK_ACCOUNT_ID }}
+          VIVITO_CERT_TIKTOK_CURRENT_STATUS: ${{ secrets.VIVITO_CERT_TIKTOK_CURRENT_STATUS }}
+          VIVITO_CERT_SNAPCHAT_TOKEN: ${{ secrets.VIVITO_CERT_SNAPCHAT_TOKEN }}
+          VIVITO_CERT_SNAPCHAT_CAMPAIGN_ID: ${{ secrets.VIVITO_CERT_SNAPCHAT_CAMPAIGN_ID }}
+          VIVITO_CERT_SNAPCHAT_ACCOUNT_ID: ${{ secrets.VIVITO_CERT_SNAPCHAT_ACCOUNT_ID }}
+          VIVITO_CERT_SNAPCHAT_CURRENT_STATUS: ${{ secrets.VIVITO_CERT_SNAPCHAT_CURRENT_STATUS }}
+          VIVITO_CERT_LINKEDIN_TOKEN: ${{ secrets.VIVITO_CERT_LINKEDIN_TOKEN }}
+          VIVITO_CERT_LINKEDIN_CAMPAIGN_ID: ${{ secrets.VIVITO_CERT_LINKEDIN_CAMPAIGN_ID }}
+          VIVITO_CERT_LINKEDIN_ACCOUNT_ID: ${{ secrets.VIVITO_CERT_LINKEDIN_ACCOUNT_ID }}
+          VIVITO_CERT_LINKEDIN_CURRENT_STATUS: ${{ secrets.VIVITO_CERT_LINKEDIN_CURRENT_STATUS }}
+        run: npx tsx scripts/certify-vivito-provider-live.ts
+      - name: Restore free-tier intelligence checkpoint
+        uses: actions/cache/restore@v4
+        with:
+          path: .vivito/benchmark-checkpoint.json
+          key: vivito-benchmark-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            vivito-benchmark-${{ github.sha }}-
+      - name: Run checkpointed provider-backed intelligence batch
+        continue-on-error: true
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          VIVITO_BENCHMARK_LIMIT: '100'
+          VIVITO_BENCHMARK_BATCH_SIZE: '25'
+          VIVITO_BENCHMARK_THRESHOLD: '100'
+          VIVITO_BENCHMARK_ENFORCE: '1'
+          VIVITO_BENCHMARK_CRITIC: '0'
+          VIVITO_BENCHMARK_PACE_MS: '12000'
+          VIVITO_BENCHMARK_RETRY_ATTEMPTS: '3'
+          VIVITO_BENCHMARK_RETRY_BASE_MS: '8000'
+          VIVITO_BENCHMARK_CHECKPOINT: '.vivito/benchmark-checkpoint.json'
+        run: |
+          mkdir -p .vivito
+          if [ -n "$GEMINI_API_KEY" ] || [ -n "$ANTHROPIC_API_KEY" ]; then
+            npm run eval:vivito
+          else
+            echo '{"blocked":true,"reason":"No GEMINI_API_KEY or ANTHROPIC_API_KEY in GitHub Actions"}' > .vivito/benchmark-blocked.json
+          fi
+      - name: Save free-tier intelligence checkpoint
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .vivito/benchmark-checkpoint.json
+          key: vivito-benchmark-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: Strict certification decision
+        id: certify
+        continue-on-error: true
+        run: node scripts/certify-vivito-100.mjs
+      - name: Upload certification evidence
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vivito-certification-evidence
+          path: .vivito/
+          if-no-files-found: warn
+          include-hidden-files: true
+      - name: Enforce certification
+        if: steps.certify.outcome != 'success'
+        run: |
+          echo 'VIVITO is not 100/100 certified yet. Re-run the failed certification job to resume from the saved free-tier checkpoint.'
+          exit 1

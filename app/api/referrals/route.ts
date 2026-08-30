@@ -1,4 +1,3 @@
-// @ts-nocheck -- Drizzle's generated referral shapes are narrower than the live schema.
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
@@ -6,10 +5,10 @@ import { db, referrals } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import crypto from "crypto";
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if((session.user as any).role!=="SUPER_ADMIN")return NextResponse.json({error:"Forbidden"},{status:403});
+  if(session.user.role!=="SUPER_ADMIN")return NextResponse.json({error:"Forbidden"},{status:403});
 
   const all = await db.select().from(referrals).where(eq(referrals.referrerId, "default"));
   const stats = {
@@ -24,7 +23,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if((session.user as any).role!=="SUPER_ADMIN")return NextResponse.json({error:"Forbidden"},{status:403});
+  if(session.user.role!=="SUPER_ADMIN")return NextResponse.json({error:"Forbidden"},{status:403});
 
   const { email } = await req.json();
   if (!email) return NextResponse.json({ error: "email required" }, { status: 400 });

@@ -1,4 +1,4 @@
-import { pgTable, text, boolean, timestamp, integer, real, numeric, pgEnum, unique, jsonb, index } from "drizzle-orm/pg-core";
+import { pgTable, text, boolean, timestamp, integer, real, numeric, pgEnum, unique, index } from "drizzle-orm/pg-core";
 
 // ── Enums ──────────────────────────────────────────────────────────────────
 export const roleEnum          = pgEnum("role",           ["SUPER_ADMIN","ACCOUNTANT","ACCOUNT_MANAGER","MEDIA_BUYER","CREATOR","SALES","CLIENT"]);
@@ -339,6 +339,7 @@ export const auditLogs = pgTable("audit_logs", {
 // ── Calendar Events ────────────────────────────────────────────────────────
 export const calendarEvents = pgTable("calendar_events", {
   id:          text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  workspaceId: text("workspace_id").notNull().default("default"),
   clientId:    text("client_id").notNull(),
   taskId:      text("task_id"),
   title:       text("title").notNull(),

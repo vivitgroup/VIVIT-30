@@ -1,0 +1,62 @@
+name: CTO Targeted Files API Typing Batch 20
+
+on:
+  push:
+    branches: [feat/vivito-internal-100]
+    paths:
+      - '.github/workflows/cto-targeted-files-api-typing-batch20.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-internal-100
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply files API typing remediation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('app/api/files/route.ts'); s=p.read_text()
+          replacements=[
+            ('const clean=(v:any,n=255)=>String(v||"").trim().slice(0,n);', 'const clean=(v:unknown,n=255)=>String(v||"").trim().slice(0,n);'),
+            ('const safeMime=(v:any)=>clean(v,160).toLowerCase();', 'const safeMime=(v:unknown)=>clean(v,160).toLowerCase();'),
+            ('async function sessionScope(){const session=await auth();if(!session?.user)return null;const workspaceId=clean((session.user as any).workspaceId,160),userId=clean((session.user as any).id,160),role=clean((session.user as any).role,80);', 'async function sessionScope(){const session=await auth();if(!session?.user)return null;const sessionUser=session.user as unknown as Record<string,unknown>,workspaceId=clean(sessionUser.workspaceId,160),userId=clean(sessionUser.id,160),role=clean(sessionUser.role,80);'),
+            ('async function scopeFor(workspaceId:string,role:string,userId:string){const own:any=eq(fileDocuments.uploadedBy,userId),workspace=eq(fileDocuments.workspaceId,workspaceId);', 'async function scopeFor(workspaceId:string,role:string,userId:string){const own=eq(fileDocuments.uploadedBy,userId),workspace=eq(fileDocuments.workspaceId,workspaceId);'),
+            ('const list=Array.from(await db.execute(sql`select t.id,t.client_id from creative_tasks t join clients c on c.id=t.client_id where t.workspace_id=${workspaceId} and c.workspace_id=${workspaceId} and t.assigned_to_id=${userId} and t.archived_at is null and c.is_active=true`)) as any[];', 'const list=Array.from(await db.execute(sql`select t.id,t.client_id from creative_tasks t join clients c on c.id=t.client_id where t.workspace_id=${workspaceId} and c.workspace_id=${workspaceId} and t.assigned_to_id=${userId} and t.archived_at is null and c.is_active=true`)) as Array<{id:string;client_id:string|null}>;'),
+            ('const task=(Array.from(await db.execute(sql`select t.client_id,t.assigned_to_id,c.user_id,c.account_manager_id,c.media_buyer_id from creative_tasks t join clients c on c.id=t.client_id where t.id=${taskId} and t.workspace_id=${workspaceId} and c.workspace_id=${workspaceId} and t.archived_at is null and c.is_active=true limit 1`)) as any[])[0];', 'const task=(Array.from(await db.execute(sql`select t.client_id,t.assigned_to_id,c.user_id,c.account_manager_id,c.media_buyer_id from creative_tasks t join clients c on c.id=t.client_id where t.id=${taskId} and t.workspace_id=${workspaceId} and c.workspace_id=${workspaceId} and t.archived_at is null and c.is_active=true limit 1`)) as Array<{client_id:string;assigned_to_id:string|null;user_id:string|null;account_manager_id:string|null;media_buyer_id:string|null}>)[0];'),
+            ('const filters:any[]=[await scopeFor(workspaceId,role,userId),archiveCondition];', 'const filters=[await scopeFor(workspaceId,role,userId),archiveCondition];'),
+            ('newValues:JSON.stringify({name:row.name,size,mime,category,clientId,taskId})} as any)', 'newValues:JSON.stringify({name:row.name,size,mime,category,clientId,taskId})})'),
+            ('newValues:JSON.stringify({name:row.name})} as any)', 'newValues:JSON.stringify({name:row.name})})'),
+            ('newValues:JSON.stringify({name,category,clientId,taskId})} as any)', 'newValues:JSON.stringify({name,category,clientId,taskId})})'),
+            ('oldValues:JSON.stringify({name:row.name,storagePath:row.storagePath,size:row.sizeBytes})} as any)', 'oldValues:JSON.stringify({name:row.name,storagePath:row.storagePath,size:row.sizeBytes})})'),
+          ]
+          for old,new in replacements:
+              if old not in s: raise SystemExit(f'missing expected fragment: {old[:200]}')
+              s=s.replace(old,new,1)
+          remaining=s.count(' as any')+s.count(':any')
+          if remaining:
+              raise SystemExit(f'explicit any remains in files API after planned remediation: {remaining}')
+          p.write_text(s)
+          PY
+      - name: TypeScript acceptance
+        run: npx tsc --noEmit
+      - name: Targeted ESLint acceptance
+        run: npx eslint app/api/files/route.ts --max-warnings=0
+      - name: Commit validated remediation
+        run: |
+          git config user.name 'vivitgroup'
+          git config user.email 'groupvivit@gmail.com'
+          git add app/api/files/route.ts
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix(types): harden files api boundaries'
+          git push origin HEAD:feat/vivito-internal-100

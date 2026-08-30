@@ -2,14 +2,16 @@ export const dynamic = "force-dynamic";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { db, users, clients, creativeTasks, aiGenerations, workspaces } from "@/lib/db";
-import { eq, count, gte, sum, desc } from "drizzle-orm";
+import { eq, count, gte, desc } from "drizzle-orm";
 import { Role } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
 
 export default async function SaaSAnalyticsPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
-  if ((session.user as any).role !== Role.SUPER_ADMIN) redirect("/dashboard");
+  if (session.user.role !== Role.SUPER_ADMIN) redirect("/dashboard");
+  const workspaceId = String(session.user.workspaceId || "");
+  if (!workspaceId) redirect("/login");
 
   const now   = new Date();
   const d30   = new Date(now.getTime() - 30*24*60*60*1000);
@@ -29,7 +31,7 @@ export default async function SaaSAnalyticsPage() {
     db.select({ cnt:count() }).from(creativeTasks).then(r=>Number(r[0]?.cnt??0)),
     db.select({ cnt:count() }).from(creativeTasks).where(gte(creativeTasks.createdAt,d30)).then(r=>Number(r[0]?.cnt??0)),
     db.select({ type:aiGenerations.type, cnt:count() }).from(aiGenerations).groupBy(aiGenerations.type).orderBy(desc(count())),
-    db.select().from(workspaces).where(eq(workspaces.id,"default")).then(r=>r[0]),
+    db.select().from(workspaces).where(eq(workspaces.id,workspaceId)).then(r=>r[0]),
   ]);
 
   const dau = activeUsers30d > 0 ? Math.round(activeUsers30d/30) : 0;
@@ -43,10 +45,9 @@ export default async function SaaSAnalyticsPage() {
     <div className="max-w-5xl space-y-6 animate-fade-up">
       <div>
         <h1 className="page-title">🏗️ SaaS Analytics</h1>
-        <p className="text-sm text-[#6B8FAF] mt-1">Platform usage metrics — workspace: <strong className="text-[#244D87]">{workspace?.name ?? "default"}</strong> · Plan: <strong className="text-[#244D87]">{workspace?.plan}</strong></p>
+        <p className="text-sm text-[#6B8FAF] mt-1">Platform usage metrics — workspace: <strong className="text-[#244D87]">{workspace?.name ?? "Unavailable"}</strong> · Plan: <strong className="text-[#244D87]">{workspace?.plan}</strong></p>
       </div>
 
-      {/* MRR Banner */}
       <div className="card" style={{background:"linear-gradient(135deg,rgba(0,55,100,0.4),rgba(0,119,182,0.15))",border:"1px solid rgba(0,119,182,0.3)"}}>
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
@@ -63,7 +64,6 @@ export default async function SaaSAnalyticsPage() {
         </div>
       </div>
 
-      {/* Engagement KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
           {l:"Total Users",      v:totalUsers,         c:"#244D87", icon:"👥"},
@@ -80,7 +80,6 @@ export default async function SaaSAnalyticsPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        {/* Usage Stats */}
         <div className="card">
           <h2 className="font-semibold mb-4">📈 Platform Usage</h2>
           {[
@@ -99,7 +98,6 @@ export default async function SaaSAnalyticsPage() {
           ))}
         </div>
 
-        {/* AI Usage Breakdown */}
         <div className="card">
           <h2 className="font-semibold mb-4">✨ AI Feature Usage</h2>
           {aiUsage.length === 0 && <p className="text-sm text-[#3D5577]">No AI usage yet. Try AI Studio!</p>}
@@ -120,7 +118,6 @@ export default async function SaaSAnalyticsPage() {
           })}
         </div>
 
-        {/* Plan Limits */}
         <div className="card">
           <h2 className="font-semibold mb-4">📦 Plan Usage vs Limits</h2>
           {[
@@ -145,7 +142,6 @@ export default async function SaaSAnalyticsPage() {
           })}
         </div>
 
-        {/* Quick Health */}
         <div className="card">
           <h2 className="font-semibold mb-4">🏥 Platform Health</h2>
           {[

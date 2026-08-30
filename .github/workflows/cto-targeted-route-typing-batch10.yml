@@ -1,0 +1,61 @@
+name: CTO Targeted Route Typing Batch 10
+
+on:
+  push:
+    branches: [feat/vivito-internal-100]
+    paths:
+      - '.github/workflows/cto-targeted-route-typing-batch10.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-internal-100
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply signup and media sync typing remediation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def apply(path, replacements):
+              p=Path(path); s=p.read_text()
+              for old,new in replacements:
+                  if old not in s:
+                      raise SystemExit(f'{path}: missing expected fragment: {old[:160]}')
+                  s=s.replace(old,new,1)
+              p.write_text(s)
+
+          apply('app/api/signup/route.ts', [
+            ('role:requestedRole as any,requestedRole:requestedRole as any', 'role:"CLIENT",requestedRole:"CLIENT"'),
+            ('newValues:JSON.stringify({requestedRole})} as any)', 'newValues:JSON.stringify({requestedRole})})'),
+            ('}catch(error:any){console.error("Signup error:",error);', '}catch(error:unknown){console.error("Signup error:",error);'),
+          ])
+
+          apply('app/api/media-sync/[campaignId]/route.ts', [
+            ('const iso=(d:Date)=>d.toISOString().slice(0,10),n=(v:any)=>Number(v||0);', 'const iso=(d:Date)=>d.toISOString().slice(0,10),n=(v:unknown)=>Number(v||0);'),
+            ('const role=String((session.user as any).role||""),userId=String((session.user as any).id||"");', 'const role=String(session.user.role||""),userId=String(session.user.id||"");'),
+            ('}catch(error:any){const message=String(error?.message||"Sync failed").slice(0,700);', '}catch(error:unknown){const message=(error instanceof Error?error.message:"Sync failed").slice(0,700);'),
+          ])
+          PY
+      - name: TypeScript acceptance
+        run: npx tsc --noEmit
+      - name: Targeted ESLint acceptance
+        run: npx eslint app/api/signup/route.ts 'app/api/media-sync/[campaignId]/route.ts' --max-warnings=0
+      - name: Commit validated remediation
+        run: |
+          git config user.name 'vivitgroup'
+          git config user.email 'groupvivit@gmail.com'
+          git add app/api/signup/route.ts 'app/api/media-sync/[campaignId]/route.ts'
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix(types): harden signup and media sync boundaries'
+          git push origin HEAD:feat/vivito-internal-100

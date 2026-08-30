@@ -1,21 +1,8 @@
-// @ts-nocheck -- Drizzle's generated insert shape is narrower than the live schema.
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 
-// Fix 33: Which cron schedule triggered this run
-type CronRun = "morning" | "evening" | "monthly" | "all";
-function getCronType(req: NextRequest): CronRun {
-  const t = req.nextUrl.searchParams.get("type") as CronRun;
-  if (t) return t;
-  const h = new Date().getHours();
-  const d = new Date().getDate();
-  if (d === 1 && h === 9) return "monthly";
-  if (h >= 6 && h < 12)  return "morning";
-  if (h >= 16)            return "evening";
-  return "all";
-}
-import { db, creativeTasks, clients, notifications, users, financeRecords, mediaMetrics, salesLeads, clientFeedback, creatorProfiles } from "@/lib/db";
-import { eq, and, lte, gte, notInArray, sum, count, lt, isNull, or, desc , inArray } from "drizzle-orm";
+import { db, creativeTasks, clients, notifications, users, financeRecords, mediaMetrics, salesLeads, clientFeedback } from "@/lib/db";
+import { eq, and, lte, gte, notInArray, sum, count, inArray } from "drizzle-orm";
 import { slackAlert } from "@/lib/slack";
 
 export async function GET(req: NextRequest) {
@@ -34,8 +21,6 @@ export async function GET(req: NextRequest) {
   const ago5Days   = new Date(now); ago5Days.setDate(ago5Days.getDate() - 5);
   const ago30Days  = new Date(now); ago30Days.setDate(ago30Days.getDate() - 30);
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const prevMonthEnd   = new Date(now.getFullYear(), now.getMonth(), 0);
   const sent: Record<string, number> = {};
 
   const admins   = await db.select({ id: users.id }).from(users).where(and(eq(users.role, "SUPER_ADMIN"), eq(users.isActive, true)));

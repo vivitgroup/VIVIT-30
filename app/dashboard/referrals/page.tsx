@@ -8,7 +8,7 @@ import { Role } from "@/lib/types";
 async function sendReferral(fd: FormData) {
   "use server";
   const session=await auth();
-  if(!session?.user||(session.user as any).role!==Role.SUPER_ADMIN) throw new Error("Unauthorized");
+  if(!session?.user||session.user.role!==Role.SUPER_ADMIN) throw new Error("Unauthorized");
   const email = fd.get("email") as string;
   if (!email) return;
   const base = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
@@ -23,7 +23,7 @@ async function sendReferral(fd: FormData) {
 export default async function ReferralsPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
-  if ((session.user as any).role !== Role.SUPER_ADMIN) redirect("/dashboard");
+  if (session.user.role !== Role.SUPER_ADMIN) redirect("/dashboard");
 
   const allReferrals = await db.select().from(referrals).where(eq(referrals.referrerId, "default"))
     .orderBy(referrals.createdAt);

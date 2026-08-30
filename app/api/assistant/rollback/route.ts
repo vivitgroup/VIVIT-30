@@ -1,0 +1,45 @@
+export const dynamic="force-dynamic";
+import {NextRequest,NextResponse} from "next/server";
+import {auth} from "@/lib/auth";
+import {db,sql,auditLogs} from "@/lib/db";
+import {proposeVivitoRollback} from "@/lib/vivito/rollback";
+import {decideVivitoApproval} from "@/lib/vivito/approval-policy";
+import {executeVivitoAction} from "@/lib/vivito/executor";
+import {executeVivitoOperatorAction,isVivitoOperatorAction} from "@/lib/vivito/executor-operator";
+import {markVivitoDirectRollback} from "@/lib/vivito/direct-runtime";
+import {assertAutonomyAllowed,consumeResource} from "@/lib/vivito/enterprise-governance";
+
+const headers={"Cache-Control":"private, no-store"};
+type AuditExecutionRow={new_values:string|null};
+type DirectExecutionRow={action_op:string;execution_result:unknown;status:string};
+type JsonData=string|number|boolean|null|Date|JsonData[]|{[key:string]:JsonData|undefined};
+type ParsedExecution={op:string;result:unknown};
+
+const clean=(v:unknown,n=160)=>String(v||"").trim().slice(0,n);
+function parseExecution(value:unknown):ParsedExecution{
+ if(typeof value!=="string")return{op:"",result:{}};
+ try{
+  const parsed:unknown=JSON.parse(value);
+  if(!parsed||typeof parsed!=="object"||Array.isArray(parsed))return{op:"",result:{}};
+  const op="op" in parsed?String(parsed.op??""):"";
+  const result="result" in parsed?parsed.result:{};
+  return{op,result};
+ }catch{return{op:"",result:{}}}
+}
+function toJsonData(value:unknown):JsonData{
+ if(value===null)return null;
+ if(typeof value==="string"||typeof value==="number"||typeof value==="boolean")return value;
+ if(value instanceof Date)return value;
+ if(Array.isArray(value))return value.map(toJsonData);
+ if(typeof value==="object"){
+  const output:{[key:string]:JsonData|undefined}={};
+  for(const [key,item] of Object.entries(value))output[key]=item===undefined?undefined:toJsonData(item);
+  return output;
+ }
+ return String(value??"");
+}
+async function scope(){const session=await auth();if(!session?.user)return null;const role=String(session.user.role||""),userId=String(session.user.id||""),workspaceId=clean(session.user.workspaceId,160);return workspaceId?{role,userId,workspaceId}:null}
+async function inverseForAudit(workspaceId:string,role:string,userId:string,id:string){const owner=role==="SUPER_ADMIN"?sql``:sql`and user_id=${userId}`;const list=Array.from(await db.execute<AuditExecutionRow>(sql`select new_values from audit_logs where workspace_id=${workspaceId} and id=${id} and action='vivito_action_executed' ${owner} limit 1`));if(!list[0])return null;const data=parseExecution(list[0].new_values);return{proposal:proposeVivitoRollback(data.op,data.result),op:data.op,result:data.result}}
+async function inverseForDirect(workspaceId:string,id:string){const list=Array.from(await db.execute<DirectExecutionRow>(sql`select action_op,execution_result,status from vivito_autonomy_events where workspace_id=${workspaceId} and id=${id} limit 1`));const e=list[0];if(!e)return null;if(e.status!=="EXECUTED")return{proposal:{available:false,reason:"Direct event is not in EXECUTED state."},op:e.action_op,result:e.execution_result??{}};return{proposal:proposeVivitoRollback(e.action_op,e.execution_result),op:e.action_op,result:e.execution_result??{}}}
+export async function GET(req:NextRequest){const s=await scope();if(!s)return NextResponse.json({error:"Unauthorized"},{status:401,headers});const id=clean(req.nextUrl.searchParams.get("eventId"),120),source=req.nextUrl.searchParams.get("source")==="direct"?"direct":"audit";if(!id)return NextResponse.json({error:"eventId is required."},{status:400,headers});const found=source==="direct"?await inverseForDirect(s.workspaceId,id):await inverseForAudit(s.workspaceId,s.role,s.userId,id);if(!found)return NextResponse.json({error:"Execution event was not found."},{status:404,headers});return NextResponse.json({eventId:id,source,...found.proposal,note:found.proposal.available?"The inverse is a new VIVITO action and will pass RBAC, governance, quota and audit controls again.":undefined},{headers})}
+export async function POST(req:NextRequest){const s=await scope();if(!s)return NextResponse.json({error:"Unauthorized"},{status:401,headers});if(s.role!=="SUPER_ADMIN")return NextResponse.json({error:"Only Super Admin can execute a rollback."},{status:403,headers});const b=await req.json().catch(()=>null),id=clean(b?.eventId,120),source=b?.source==="direct"?"direct":"audit";if(!b||!id||b.confirm!==true)return NextResponse.json({error:"Explicit rollback confirmation is required."},{status:400,headers});const found=source==="direct"?await inverseForDirect(s.workspaceId,id):await inverseForAudit(s.workspaceId,s.role,s.userId,id);if(!found)return NextResponse.json({error:"Execution event was not found."},{status:404,headers});if(!found.proposal.available||!found.proposal.inverse)return NextResponse.json({error:found.proposal.reason},{status:409,headers});const inverse=found.proposal.inverse,policy=decideVivitoApproval(inverse.op,s.role);if(policy.mode==="BLOCK")return NextResponse.json({error:"Rollback inverse is blocked by action policy."},{status:403,headers});await assertAutonomyAllowed({workspaceId:s.workspaceId,actionOp:inverse.op});await consumeResource(s.workspaceId,"ACTION",1);const result=isVivitoOperatorAction(inverse.op)?await executeVivitoOperatorAction(inverse.op,inverse.args,s.role,s.userId,s.workspaceId):await executeVivitoAction(inverse.op,inverse.args,s.role,s.userId,s.workspaceId);await db.insert(auditLogs).values({workspaceId:s.workspaceId,userId:s.userId,action:"vivito_rollback_executed",entity:"VIVITO_ROLLBACK",entityId:id,newValues:JSON.stringify({source,originalOp:found.op,inverse,result})});if(source==="direct")await markVivitoDirectRollback({eventId:id,workspaceId:s.workspaceId,role:s.role,userId:s.userId,rollbackResult:toJsonData({inverse,result})});return NextResponse.json({ok:true,status:"ROLLED_BACK",source,eventId:id,inverse,result},{headers})}

@@ -1,4 +1,3 @@
-// @ts-nocheck -- Drizzle's generated contract shapes are narrower than the live schema.
 export const dynamic = "force-dynamic";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -9,12 +8,14 @@ import Link from "next/link";
 
 const money=(n:number)=>new Intl.NumberFormat("en-EG",{style:"currency",currency:"EGP",maximumFractionDigits:0}).format(Number(n||0));
 const CONTRACT_TYPES=["RETAINER","PROJECT","MEDIA_ONLY","FULL_SERVICE"] as const;
+type ContractType=(typeof CONTRACT_TYPES)[number];
+const isContractType=(value:string):value is ContractType=>CONTRACT_TYPES.some(type=>type===value);
 const RENEWAL_DAYS=[7,14,30,60];
 
 async function createContract(fd: FormData) {
   "use server";
   const session=await auth();
-  if(!session?.user||![Role.SUPER_ADMIN,Role.ACCOUNTANT].includes((session.user as any).role))throw new Error("Unauthorized");
+  if(!session?.user||![Role.SUPER_ADMIN,Role.ACCOUNTANT].includes(session.user.role))throw new Error("Unauthorized");
   const clientId=String(fd.get("clientId")||"");
   const title=String(fd.get("title")||"").trim().slice(0,140);
   const startDateRaw=String(fd.get("startDate")||"");
@@ -23,7 +24,7 @@ async function createContract(fd: FormData) {
   const value=Number(fd.get("value")||0);
   const renewalDays=Number(fd.get("renewalDays")||30);
   if(!clientId||!title||!startDateRaw||!endDateRaw)throw new Error("Complete the required contract fields");
-  if(!CONTRACT_TYPES.includes(type as any)) throw new Error("Invalid contract type");
+  if(!isContractType(type)) throw new Error("Invalid contract type");
   if(!Number.isFinite(value)||value<0) throw new Error("Contract value must be zero or greater");
   if(!RENEWAL_DAYS.includes(renewalDays)) throw new Error("Invalid renewal alert period");
   const startDate=new Date(startDateRaw),endDate=new Date(endDateRaw);
@@ -45,7 +46,7 @@ async function createContract(fd: FormData) {
 export default async function ContractsPage(){
   const session=await auth();
   if(!session?.user)redirect("/login");
-  if(![Role.SUPER_ADMIN,Role.ACCOUNTANT].includes((session.user as any).role))redirect("/dashboard");
+  if(![Role.SUPER_ADMIN,Role.ACCOUNTANT].includes(session.user.role))redirect("/dashboard");
 
   const [allContracts,allClients]=await Promise.all([
     db.select().from(contracts).orderBy(desc(contracts.endDate)),

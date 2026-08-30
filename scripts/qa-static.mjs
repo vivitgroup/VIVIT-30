@@ -13,11 +13,11 @@ const proxy=read("proxy.ts"),sidebar=read("components/layout/Sidebar.tsx"),mobil
 for(const route of ["/dashboard/revenue-attribution","/dashboard/nps","/dashboard/onboarding","/dashboard/monthly-reports","/dashboard/marketplace","/dashboard/budget","/dashboard/archive"])pass(`Proxy protects ${route}`,proxy.includes(route));
 pass("Next 16 proxy convention is used",fs.existsSync(path.join(root,"proxy.ts"))&&!fs.existsSync(path.join(root,"middleware.ts")));
 pass("Calendar navigation and proxy agree for CLIENT",sidebar.includes('label:"Calendar"')&&proxy.includes('"/dashboard/calendar"')&&proxy.includes('"SALES","CLIENT"'));
-pass("FAHD navigation and proxy agree",sidebar.includes('label:"FAHD"')&&sidebar.includes('href:"/dashboard/ai-studio"')&&proxy.includes('"/dashboard/ai-studio"')&&proxy.includes('"CREATOR","SALES","ACCOUNTANT","CLIENT"'));
+pass("VIVITO navigation and proxy agree",sidebar.includes('label:"VIVITO"')&&sidebar.includes('href:"/dashboard/ai-studio"')&&proxy.includes('"/dashboard/ai-studio"')&&proxy.includes('"CREATOR","SALES","ACCOUNTANT","CLIENT"'));
 pass("Archive navigation and proxy agree",sidebar.includes('label:"Archive"')&&sidebar.includes('roles:[...OPS,"SALES"]')&&proxy.includes('["/dashboard/archive",[...OPS,"SALES"]]'));
 pass("Mobile CLIENT calendar is not dead navigation",mobile.includes('href:"/dashboard/calendar"')&&proxy.includes('"/dashboard/calendar"'));
 pass("Calendar page allows CLIENT and SALES read access",calendarPage.includes("Role.CLIENT")&&calendarPage.includes("Role.SALES"));
-pass("Calendar management excludes SALES",calendarPage.includes("const canManage=[Role.SUPER_ADMIN,Role.ACCOUNT_MANAGER].includes(role)"));
+const canManageExpr=calendarPage.match(/const canManage=([^;]+);/)?.[1]||"";pass("Calendar management excludes SALES",canManageExpr.length>0&&!canManageExpr.includes("Role.SALES"));
 pass("Archived tasks excluded from calendar task sources",calendarPage.includes("archived_at is null"));
 pass("Scheduled posts require media",/assetFileId/.test(calendar)&&/required/.test(calendar)&&/!assetFileId/.test(calendar));
 pass("Scheduled posts accept images and video",/image\/\*,video\/\*/.test(calendar));

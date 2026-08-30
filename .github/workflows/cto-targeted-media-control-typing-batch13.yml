@@ -1,0 +1,52 @@
+name: CTO Targeted Media Control Typing Batch 13
+
+on:
+  push:
+    branches: [feat/vivito-internal-100]
+    paths:
+      - '.github/workflows/cto-targeted-media-control-typing-batch13.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-internal-100
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply media control typing remediation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('app/api/media-control/route.ts'); s=p.read_text()
+          replacements=[
+            ('const allowedRoles=["SUPER_ADMIN","MEDIA_BUYER","ACCOUNT_MANAGER"];\nasync function context(){const session=await auth();if(!session?.user||!allowedRoles.includes((session.user as any).role))return null;const role=(session.user as any).role,userId=String((session.user as any).id||""),workspaceId=String((session.user as any).workspaceId||"");', 'const allowedRoles=["SUPER_ADMIN","MEDIA_BUYER","ACCOUNT_MANAGER"] as const;\ntype AllowedRole=(typeof allowedRoles)[number];\nconst isAllowedRole=(value:string):value is AllowedRole=>(allowedRoles as readonly string[]).includes(value);\nasync function context(){const session=await auth();if(!session?.user)return null;const role=String(session.user.role||"");if(!isAllowedRole(role))return null;const userId=String(session.user.id||""),workspaceId=String(session.user.workspaceId||"");'),
+            ('connections:connections.map(({accessTokenEncrypted,refreshTokenEncrypted,...safe})=>safe)', 'connections:connections.map(connection=>{const {accessTokenEncrypted,refreshTokenEncrypted,...safe}=connection;void accessTokenEncrypted;void refreshTokenEncrypted;return safe;})'),
+            ('allocation.some((a:any)=>!a||!Number.isFinite(Number(a.budget))||Number(a.budget)<0)', 'allocation.some((a:unknown)=>{if(!a||typeof a!=="object")return true;const budget=Number((a as {budget?:unknown}).budget);return !Number.isFinite(budget)||budget<0;})'),
+            ('}catch(e:any){if(connection)await db.update(adPlatformConnections).set({syncError:e.message,status:"ERROR",updatedAt:new Date()}).where(eq(adPlatformConnections.id,connection.id));return NextResponse.json({error:e.message},{status:502});}}', '}catch(e:unknown){const message=e instanceof Error?e.message:String(e);if(connection)await db.update(adPlatformConnections).set({syncError:message,status:"ERROR",updatedAt:new Date()}).where(eq(adPlatformConnections.id,connection.id));return NextResponse.json({error:message},{status:502});}}'),
+          ]
+          for old,new in replacements:
+              if old not in s: raise SystemExit(f'missing expected fragment: {old[:180]}')
+              s=s.replace(old,new,1)
+          p.write_text(s)
+          PY
+      - name: TypeScript acceptance
+        run: npx tsc --noEmit
+      - name: Targeted ESLint acceptance
+        run: npx eslint app/api/media-control/route.ts --max-warnings=0
+      - name: Commit validated remediation
+        run: |
+          git config user.name 'vivitgroup'
+          git config user.email 'groupvivit@gmail.com'
+          git add app/api/media-control/route.ts
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix(types): harden media control boundaries'
+          git push origin HEAD:feat/vivito-internal-100

@@ -1,0 +1,62 @@
+name: CTO Targeted Ad Platforms Typing Batch 17 Retry
+
+on:
+  push:
+    branches: [feat/vivito-internal-100]
+    paths:
+      - '.github/workflows/cto-targeted-ad-platforms-typing-batch17-retry.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-internal-100
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply corrected ad platform response typing remediation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('lib/ad-platforms.ts'); s=p.read_text()
+          replacements=[
+            ('const n=(v:any)=>Number(v||0);\nasync function json(url:string,init:RequestInit={}){const r=await fetch(url,{...init,cache:"no-store"});const d=await r.json();if(!r.ok||d?.error||typeof d?.code==="number"&&d.code!==0)throw new Error(d?.error?.message||d?.message||`Platform API error ${r.status}`);return d;}\nasync function metaPages(url:string,maxPages=200){let next=url,rows:any[]=[];for(let page=0;next&&page<maxPages;page++){const d=await json(next);rows.push(...(d.data||[]));next=String(d?.paging?.next||"");}if(next)throw new Error("Meta response exceeded the safe pagination limit");return rows;}', 'type JsonRecord=Record<string,unknown>;\nconst asRecord=(value:unknown):JsonRecord=>value&&typeof value==="object"&&!Array.isArray(value)?value as JsonRecord:{};\nconst asArray=(value:unknown):unknown[]=>Array.isArray(value)?value:[];\nconst n=(v:unknown)=>Number(v||0);\nasync function json(url:string,init:RequestInit={}):Promise<JsonRecord>{const r=await fetch(url,{...init,cache:"no-store"});const d=asRecord(await r.json()),apiError=asRecord(d.error),code=typeof d.code==="number"?d.code:undefined;if(!r.ok||d.error||typeof code==="number"&&code!==0)throw new Error(String(apiError.message||d.message||`Platform API error ${r.status}`));return d;}\nasync function metaPages(url:string,maxPages=200):Promise<JsonRecord[]>{let next=url,rows:JsonRecord[]=[];for(let page=0;next&&page<maxPages;page++){const d=await json(next);rows.push(...asArray(d.data).map(asRecord));next=String(asRecord(d.paging).next||"");}if(next)throw new Error("Meta response exceeded the safe pagination limit");return rows;}'),
+            ('function metaAction(row:any,type:string){return n(row?.actions?.find((a:any)=>a.action_type===type)?.value)}\nfunction metaValue(row:any,type:string){return n(row?.action_values?.find((a:any)=>a.action_type===type)?.value)}\nfunction metaCost(row:any,type:string){return n(row?.cost_per_action_type?.find((a:any)=>a.action_type===type)?.value)}\nfunction firstAction(row:any,types:string[]){for(const t of types){const v=metaAction(row,t);if(v)return {type:t,value:v,cost:metaCost(row,t)}}return {type:types[0]||"result",value:0,cost:0}}', 'function metaMetric(row:JsonRecord,key:string,type:string){const item=asArray(row[key]).map(asRecord).find(action=>action.action_type===type);return n(item?.value)}\nfunction metaAction(row:JsonRecord,type:string){return metaMetric(row,"actions",type)}\nfunction metaValue(row:JsonRecord,type:string){return metaMetric(row,"action_values",type)}\nfunction metaCost(row:JsonRecord,type:string){return metaMetric(row,"cost_per_action_type",type)}\nfunction firstAction(row:JsonRecord,types:string[]){for(const t of types){const v=metaAction(row,t);if(v)return {type:t,value:v,cost:metaCost(row,t)}}return {type:types[0]||"result",value:0,cost:0}}'),
+            ('function metaSemantic(campaign:any,adsets:any[]):MetaSemantic{const objective=String(campaign?.objective||"").toUpperCase(),name=String(campaign?.name||"").toUpperCase(),goals=adsets.map(x=>String(x.optimization_goal||"").toUpperCase()),events=adsets.map(x=>String(x.promoted_object?.custom_event_type||"").toUpperCase()),destinations=adsets.map(x=>String(x.destination_type||"").toUpperCase());', 'function metaSemantic(campaign:JsonRecord,adsets:JsonRecord[]):MetaSemantic{const objective=String(campaign.objective||"").toUpperCase(),name=String(campaign.name||"").toUpperCase(),goals=adsets.map(x=>String(x.optimization_goal||"").toUpperCase()),events=adsets.map(x=>String(asRecord(x.promoted_object).custom_event_type||"").toUpperCase()),destinations=adsets.map(x=>String(x.destination_type||"").toUpperCase());'),
+            ('function semanticResult(row:any,s:MetaSemantic){', 'function semanticResult(row:JsonRecord,s:MetaSemantic){'),
+            ('function metaCommerce(row:any){', 'function metaCommerce(row:JsonRecord){'),
+            ('const expected=digits(i.adAccountId),actual=digits(campaign.account_id);', 'const expected=digits(i.adAccountId),actual=digits(String(campaign.account_id||""));'),
+            ('const s=summaryData.data?.[0]||{},sr=semanticResult(s,semantic),sc=metaCommerce(s),summary:UnifiedSummary=', 'const s=asRecord(asArray(summaryData.data)[0]),sr=semanticResult(s,semantic),sc=metaCommerce(s),summary:UnifiedSummary='),
+            ('const days=dailyRows.map((x:any)=>{const r=semanticResult(x,semantic),c=metaCommerce(x);return{date:x.date_start,', 'const days=dailyRows.map((x:JsonRecord)=>{const r=semanticResult(x,semantic),c=metaCommerce(x);return{date:String(x.date_start||""),'),
+            ('return{name:campaign.name,status:campaign.status,days,summary};', 'return{name:campaign.name==null?undefined:String(campaign.name),status:campaign.status==null?undefined:String(campaign.status),days,summary};'),
+            ('const row=campaignData.data?.list?.[0];if(!row)throw new Error(`TikTok campaign ${campaignId} was not found in advertiser ${advertiserId}`);', 'const rowRaw=asArray(asRecord(campaignData.data).list)[0],row=asRecord(rowRaw);if(!rowRaw)throw new Error(`TikTok campaign ${campaignId} was not found in advertiser ${advertiserId}`);'),
+            ('return{name:row.campaign_name||row.name,status:row.operation_status||row.secondary_status||row.status,days:(d.data?.list||[]).map((x:any)=>{const m=x.metrics||{};return{date:x.dimensions.stat_time_day,', 'return{name:row.campaign_name==null&&row.name==null?undefined:String(row.campaign_name||row.name),status:row.operation_status==null&&row.secondary_status==null&&row.status==null?undefined:String(row.operation_status||row.secondary_status||row.status),days:asArray(asRecord(d.data).list).map(asRecord).map(x=>{const m=asRecord(x.metrics),dimensions=asRecord(x.dimensions);return{date:String(dimensions.stat_time_day||""),'),
+            ('return{name:d.results?.[0]?.campaign?.name,status:d.results?.[0]?.campaign?.status,days:(d.results||[]).map((x:any)=>({date:x.segments.date,spend:n(x.metrics.costMicros)/1e6,impressions:n(x.metrics.impressions),reach:0,clicks:n(x.metrics.clicks),frequency:0,results:n(x.metrics.conversions),addToCart:0,purchases:n(x.metrics.conversions),revenue:n(x.metrics.conversionsValue)}))};', 'const results=asArray(d.results).map(asRecord),first=asRecord(results[0]),firstCampaign=asRecord(first.campaign);return{name:firstCampaign.name==null?undefined:String(firstCampaign.name),status:firstCampaign.status==null?undefined:String(firstCampaign.status),days:results.map(x=>{const segments=asRecord(x.segments),metrics=asRecord(x.metrics);return{date:String(segments.date||""),spend:n(metrics.costMicros)/1e6,impressions:n(metrics.impressions),reach:0,clicks:n(metrics.clicks),frequency:0,results:n(metrics.conversions),addToCart:0,purchases:n(metrics.conversions),revenue:n(metrics.conversionsValue)}})};'),
+            ('const rows=d.total_stats?.[0]?.total_stat?.timeseries_stats||[];return{days:rows.map((x:any)=>{const s=x.timeseries_stat?.stats||{};return{date:String(x.timeseries_stat?.start_time||"").slice(0,10),spend:n(s.spend)/1e6,impressions:n(s.impressions),reach:n(s.uniques),clicks:n(s.swipes),frequency:n(s.frequency),results:n(s.conversion_purchases)||n(s.lead_form_submissions),addToCart:n(s.conversion_add_cart),purchases:n(s.conversion_purchases),revenue:n(s.conversion_purchase_value)/1e6};})};', 'const total=asRecord(asArray(d.total_stats)[0]),totalStat=asRecord(total.total_stat),rows=asArray(totalStat.timeseries_stats).map(asRecord);return{days:rows.map(x=>{const timeseries=asRecord(x.timeseries_stat),stats=asRecord(timeseries.stats);return{date:String(timeseries.start_time||"").slice(0,10),spend:n(stats.spend)/1e6,impressions:n(stats.impressions),reach:n(stats.uniques),clicks:n(stats.swipes),frequency:n(stats.frequency),results:n(stats.conversion_purchases)||n(stats.lead_form_submissions),addToCart:n(stats.conversion_add_cart),purchases:n(stats.conversion_purchases),revenue:n(stats.conversion_purchase_value)/1e6};})};'),
+            ('return{days:(d.elements||[]).map((x:any)=>{const s=x.dateRange.start;return{date:`${s.year}-${String(s.month).padStart(2,"0")}-${String(s.day).padStart(2,"0")}`,spend:n(x.costInLocalCurrency),impressions:n(x.impressions),reach:0,clicks:n(x.clicks),frequency:0,results:n(x.externalWebsiteConversions),addToCart:0,purchases:n(x.externalWebsiteConversions),revenue:n(x.conversionValueInLocalCurrency)};})};', 'return{days:asArray(d.elements).map(asRecord).map(x=>{const dateRange=asRecord(x.dateRange),start=asRecord(dateRange.start);return{date:`${String(start.year||"")}-${String(start.month||"").padStart(2,"0")}-${String(start.day||"").padStart(2,"0")}`,spend:n(x.costInLocalCurrency),impressions:n(x.impressions),reach:0,clicks:n(x.clicks),frequency:0,results:n(x.externalWebsiteConversions),addToCart:0,purchases:n(x.externalWebsiteConversions),revenue:n(x.conversionValueInLocalCurrency)};})};'),
+          ]
+          for old,new in replacements:
+              if old not in s: raise SystemExit(f'missing expected fragment: {old[:220]}')
+              s=s.replace(old,new,1)
+          p.write_text(s)
+          PY
+      - name: TypeScript acceptance
+        run: npx tsc --noEmit
+      - name: Targeted ESLint acceptance
+        run: npx eslint lib/ad-platforms.ts --max-warnings=0
+      - name: Commit validated remediation
+        run: |
+          git config user.name 'vivitgroup'
+          git config user.email 'groupvivit@gmail.com'
+          git add lib/ad-platforms.ts
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix(types): harden ad platform response boundaries'
+          git push origin HEAD:feat/vivito-internal-100

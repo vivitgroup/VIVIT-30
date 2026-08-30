@@ -1,7 +1,7 @@
 import fs from 'node:fs';import path from 'node:path';
 const root=process.cwd(),read=f=>fs.readFileSync(path.join(root,f),'utf8'),checks=[],check=(n,o)=>checks.push({n,o:!!o});
 const platforms=read('lib/ad-platforms.ts'),hier=read('app/api/media-hierarchy/[campaignId]/route.ts'),ui=read('components/media/MediaIntelligenceWorkspaceV2.tsx'),api=read('app/api/media-control-v2/route.ts');
-check('Campaign Meta daily insights follow paging.next',platforms.includes('async function metaPages')&&platforms.includes('d?.paging?.next'));
+check('Campaign Meta daily insights follow paging.next',platforms.includes('async function metaPages')&&(platforms.includes('d?.paging?.next')||platforms.includes('asRecord(d.paging).next')));
 check('Campaign pagination fails closed at safe page cap',platforms.includes('Meta response exceeded the safe pagination limit'));
 check('Campaign daily insights use pagination helper',platforms.includes('metaPages(`https://graph.facebook.com/${v}/${campaignId}/insights?${params("1")}`)'));
 check('Campaign optimization-goal Ad Sets are paginated',platforms.includes('adsetRows=await metaPages(adsetUrl)'));
@@ -10,7 +10,7 @@ check('Hierarchy endpoint is role protected',hier.includes('SUPER_ADMIN')&&hier.
 check('Hierarchy endpoint scopes active client ownership',hier.includes('eq(clients.isActive,true)')&&hier.includes('client.mediaBuyerId!==userId')&&hier.includes('client.accountManagerId!==userId'));
 check('Hierarchy endpoint rejects archived campaigns',hier.includes('Restore the campaign before syncing hierarchy.'));
 check('Hierarchy endpoint validates exact Meta connection',hier.includes('connection.clientId!==campaign.clientId')&&hier.includes('connection.platform!=="META"'));
-check('Hierarchy endpoint follows paging.next',hier.includes('d?.paging?.next'));
+check('Hierarchy endpoint follows paging.next',hier.includes('d?.paging?.next')||hier.includes('asRecord(d.paging).next'));
 check('Hierarchy endpoint has safe pagination cap',hier.includes('Meta hierarchy exceeded the safe pagination limit'));
 check('Ad Set list uses paginated helper',hier.includes('pages(`${base}/adsets?'));
 check('Ad list uses paginated helper',hier.includes('pages(`${base}/ads?'));

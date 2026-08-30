@@ -1,0 +1,39 @@
+import assert from "node:assert/strict";
+import {db,sql} from "../lib/db";
+import {activeProvenance,assertAutonomyAllowed,claimNotification,consumeResource,preflightDecision,recordBackupManifest,recordEval,recordProvenance,recordValue,saveCheckpoint,setKillSwitch,supersedeProvenance,verifyBackupRestore} from "../lib/vivito/enterprise-governance";
+
+const A="gap-ws-a",B="gap-ws-b";
+
+type IdRow={id:string};
+type CheckpointRow={workspace_id:string};
+type ValueRow={cost_amount:number|string;value_amount:number|string};
+type BackupManifestRow={status:string;restore_verified_at:Date|string|null;verified_checksum:string|null};
+type RlsRow={relname:string;relrowsecurity:boolean};
+
+async function main(){
+ await db.execute(sql`delete from vivito_notification_dedupe where workspace_id in (${A},${B})`);
+ await db.execute(sql`delete from vivito_resource_usage where workspace_id in (${A},${B})`);
+ await db.execute(sql`delete from vivito_eval_metrics where workspace_id in (${A},${B})`);
+ await db.execute(sql`delete from vivito_value_ledger where workspace_id in (${A},${B})`);
+ await db.execute(sql`delete from vivito_runtime_checkpoints where workspace_id in (${A},${B})`);
+ await db.execute(sql`delete from vivito_backup_manifests where workspace_id in (${A},${B})`);
+ await db.execute(sql`delete from vivito_knowledge_provenance where workspace_id in (${A},${B})`);
+ await db.execute(sql`delete from vivito_governance_controls where workspace_id in (${A},${B})`);
+ await db.execute(sql`delete from vivito_escalations where workspace_id in (${A},${B})`);
+ await db.execute(sql`delete from vivito_learning_signals where workspace_id in (${A},${B})`);
+ await db.execute(sql`delete from vivito_autonomy_events where workspace_id in (${A},${B})`);
+ await db.execute(sql`insert into vivito_governance_controls(id,workspace_id,scope_type,scope_id,max_daily_actions,max_daily_ai_calls,policy_version) values(${crypto.randomUUID()},${A},'WORKSPACE',null,2,2,'gap-v1'),(${crypto.randomUUID()},${B},'WORKSPACE',null,3,3,'gap-v1')`);
+ const duplicate=await db.execute(sql<IdRow>`insert into vivito_governance_controls(id,workspace_id,scope_type,scope_id) values(${crypto.randomUUID()},${A},'WORKSPACE',null) on conflict do nothing returning id`);assert.equal(duplicate.length,0,"workspace NULL governance control must be unique");
+ await setKillSwitch({workspaceId:A,scopeType:"WORKSPACE",enabled:true,userId:"qa"});await assert.rejects(()=>assertAutonomyAllowed({workspaceId:A}),/disabled-by-governance/);assert.equal((await assertAutonomyAllowed({workspaceId:B})).allowed,true,"kill switch must not leak across workspaces");await setKillSwitch({workspaceId:A,scopeType:"WORKSPACE",enabled:false,userId:"qa"});
+ await saveCheckpoint(A,"same-run",{phase:"A"});await saveCheckpoint(B,"same-run",{phase:"B"});const cps=await db.execute(sql<CheckpointRow>`select workspace_id,state from vivito_runtime_checkpoints where run_key='same-run' and workspace_id in (${A},${B}) order by workspace_id`);assert.equal(cps.length,2,"same run key must coexist across workspaces");
+ assert.equal((await consumeResource(A,"ACTION",1)).used,1);assert.equal((await consumeResource(A,"ACTION",1)).used,2);await assert.rejects(()=>consumeResource(A,"ACTION",1),/daily-limit-exceeded/);assert.equal((await consumeResource(B,"ACTION",1)).used,1,"resource usage must be tenant isolated");
+ const low=await preflightDecision({workspaceId:A,actionOp:"create_task",signalType:"QA_LOW_EVIDENCE",evidence:{missing:true,sources:[]},confidence:.9});assert.equal(low.allowed,false);assert.equal(low.route.mode,"HUMAN_REVIEW");assert.equal(low.route.reason,"insufficient-evidence");
+ const p1=await recordProvenance({workspaceId:A,scopeType:"WORKSPACE",sourceType:"QA",sourceId:"one",content:{v:1},confidence:.9}),p2=await recordProvenance({workspaceId:A,scopeType:"WORKSPACE",sourceType:"QA",sourceId:"two",content:{v:2},confidence:.9});await supersedeProvenance({workspaceId:A,oldId:p1.id,newId:p2.id});const active=await activeProvenance(A,"WORKSPACE",null);assert(active.some(x=>x.id===p2.id));assert(!active.some(x=>x.id===p1.id),"superseded provenance must not control active decisions");
+ const eventId=crypto.randomUUID();await db.execute(sql`insert into vivito_autonomy_events(id,workspace_id,idempotency_key,signal_type,client_id,action_op,action_args,approval_mode,status,actor_id,evidence,outcome_state) values(${eventId},${A},'neg-learning','QA_REPEAT',null,'create_task','{}'::jsonb,'AUTO','FAILED','qa','{}'::jsonb,'FAILED')`);await db.execute(sql`insert into vivito_learning_signals(id,workspace_id,event_id,kind,text,scope_type,scope_id,source,evidence,outcome_state,confidence,lesson) values(${crypto.randomUUID()},${A},${eventId},'OUTCOME','bad result','WORKSPACE',null,'QA','{}'::jsonb,'FAILED',.2,'Do not repeat')`);const repeat=await preflightDecision({workspaceId:A,actionOp:"create_task",signalType:"QA_REPEAT",evidence:{sources:["internal:a","internal:b"],observed:true},confidence:.95});assert.equal(repeat.allowed,false);assert.equal(repeat.route.reason,"negative-learning-history","negative learning must prevent repeated autonomous action");
+ const firstClaim=await claimNotification(A,"same-alert",24),secondClaim=await claimNotification(A,"same-alert",24),otherTenantClaim=await claimNotification(B,"same-alert",24);assert.equal(firstClaim,true);assert.equal(secondClaim,false);assert.equal(otherTenantClaim,true);
+ const drift=await recordEval(A,"quality",50,100,{source:"qa"});assert.equal(drift.drift,true);const esc=await db.execute(sql<IdRow>`select id from vivito_escalations where workspace_id=${A} and dedupe_key like 'eval-drift:quality:%'`);assert.equal(esc.length,1,"drift must escalate");await recordValue(A,"qa-event",10,25,"EGP","QA");const value=await db.execute(sql<ValueRow>`select cost_amount,value_amount from vivito_value_ledger where workspace_id=${A} and event_id='qa-event'`);assert.equal(value.length,1);
+ const counts={workspace:1,users:2,clients:3};await recordBackupManifest({workspaceId:A,snapshotKey:"snap",checksum:"abc",recordCounts:counts});await verifyBackupRestore({workspaceId:A,snapshotKey:"snap",checksum:"abc",recordCounts:counts,details:{qa:true}});const manifest=(await db.execute(sql<BackupManifestRow>`select status,restore_verified_at,verified_checksum from vivito_backup_manifests where workspace_id=${A} and snapshot_key='snap'`))[0];assert.equal(manifest.status,"RESTORE_VERIFIED");assert(manifest.restore_verified_at);assert.equal(manifest.verified_checksum,"abc");
+ const rls=await db.execute(sql<RlsRow>`select relname,relrowsecurity from pg_class where relnamespace='public'::regnamespace and relname in ('vivito_resource_usage','vivito_notification_dedupe','vivito_security_events') order by relname`);assert.equal(rls.length,3);assert(rls.every(x=>x.relrowsecurity===true));
+ console.log(JSON.stringify({passed:true,tenantIsolation:true,killSwitch:true,workspaceCheckpointIsolation:true,resourceLimits:true,evidenceGate:true,negativeLearningSuppression:true,provenanceLifecycle:true,notificationDedupe:true,driftEscalation:true,costValue:true,backupRestoreVerification:true,rls:true},null,2));
+}
+main().then(()=>process.exit(0)).catch(e=>{console.error(e);process.exit(1)});

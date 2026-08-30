@@ -1,4 +1,3 @@
-// @ts-nocheck -- Drizzle's generated notification shapes are narrower than the live schema.
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
@@ -15,13 +14,13 @@ export async function GET(req: NextRequest) {
   }
   if (req.nextUrl.searchParams.get("type") === "health") {
     const session=await auth();
-    if(!session?.user||(session.user as any).role!=="SUPER_ADMIN") return NextResponse.json({error:"Forbidden"},{status:403});
+    if(!session?.user||session.user.role!=="SUPER_ADMIN") return NextResponse.json({error:"Forbidden"},{status:403});
     try {
       const { db, users } = await import("@/lib/db");
       const { count } = await import("drizzle-orm");
       const [r] = await db.select({ cnt: count() }).from(users).limit(1);
       return NextResponse.json({status:"healthy",db:"connected",users:Number(r?.cnt??0),ts:new Date().toISOString()});
-    } catch (e) {
+    } catch {
       return NextResponse.json({ status:"unhealthy" }, { status:503 });
     }
   }
@@ -34,7 +33,7 @@ export async function POST(req: NextRequest) {
   const body=await req.json().catch(()=>null);
   if(!body) return NextResponse.json({error:"Invalid JSON body"},{status:400});
   const action=String(body.action||"");
-  const role=String((session.user as any).role||"");
+  const role=String(session.user.role||"");
 
   switch (action) {
     case "mark_all_read": {

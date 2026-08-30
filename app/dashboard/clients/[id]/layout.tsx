@@ -12,8 +12,8 @@ export default async function ClientDetailGuard({children,params}:{children:Reac
   const session=await auth();
   if(!session?.user)redirect("/login");
 
-  const role=(session.user as any).role as Role;
-  const userId=String((session.user as any).id);
+  const role=session.user.role as Role;
+  const userId=String(session.user.id);
   if(![Role.SUPER_ADMIN,Role.ACCOUNT_MANAGER,Role.MEDIA_BUYER,Role.ACCOUNTANT].includes(role))redirect("/dashboard");
 
   const {id}=await params;

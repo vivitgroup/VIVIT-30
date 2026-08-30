@@ -1,20 +1,37 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
   "buildCommand": "npm run build",
   "installCommand": "npm install",
   "outputDirectory": ".next",
   "regions": ["fra1"],
+  "git": {
+    "deploymentEnabled": {
+      "fix/v5-client-media-fahd": false,
+      "fix/vivito-artifacts-v2": false,
+      "fix/vivito-competitive-intel": false,
+      "fix/vivito-certification-100": false,
+      "fix/vivito-certification-final": false,
+      "qa/100-percent-release": false
+    }
+  },
   "crons": [
     {"path": "/api/cron?type=morning", "schedule": "0 8 * * *"},
     {"path": "/api/cron?type=evening", "schedule": "0 18 * * *"},
     {"path": "/api/cron?type=monthly", "schedule": "0 9 1 * *"},
-    {"path": "/api/cron/media-sync", "schedule": "0 6 * * *"}
+    {"path": "/api/cron/media-sync", "schedule": "0 6 * * *"},
+    {"path": "/api/cron/competitive-intelligence", "schedule": "30 6 * * *"},
+    {"path": "/api/cron/vivito-direct", "schedule": "0 7 * * *"},
+    {"path": "/api/cron/vivito-knowledge", "schedule": "30 5 * * *"}
   ],
   "env": {"NODE_ENV": "production"},
   "functions": {
     "app/api/ai/route.ts": {"maxDuration": 60},
     "app/api/cron/route.ts": {"maxDuration": 300},
     "app/api/cron/media-sync/route.ts": {"maxDuration": 300},
+    "app/api/cron/competitive-intelligence/route.ts": {"maxDuration": 300},
+    "app/api/cron/vivito-direct/route.ts": {"maxDuration": 300},
+    "app/api/cron/vivito-knowledge/route.ts": {"maxDuration": 300},
     "app/api/pdf-report/[clientId]/route.ts": {"maxDuration": 30},
     "app/api/performance-score/route.ts": {"maxDuration": 30},
     "app/api/bulk/route.ts": {"maxDuration": 30},

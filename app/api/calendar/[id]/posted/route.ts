@@ -12,6 +12,6 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
   const [event]=await db.select({clientId:calendarEvents.clientId}).from(calendarEvents).where(eq(calendarEvents.id,id)).limit(1);
   if(!event)return NextResponse.json({error:"Not found"},{status:404});
   if(!(await canAccessClient(session,event.clientId,{write:true})))return NextResponse.json({error:"Forbidden"},{status:403});
-  await db.update(calendarEvents).set({ status: "posted", updatedAt: new Date() } as any).where(eq(calendarEvents.id, id));
+  await db.update(calendarEvents).set({ status: "posted", updatedAt: new Date() }).where(eq(calendarEvents.id, id));
   return NextResponse.json({ success: true });
 }

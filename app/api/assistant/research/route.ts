@@ -1,0 +1,5 @@
+export const dynamic="force-dynamic";
+import {NextRequest,NextResponse} from "next/server";
+import {auth} from "@/lib/auth";
+import {groundedVivitoResearch} from "@/lib/vivito/multimodal";
+export async function POST(req:NextRequest){const session=await auth();if(!session?.user)return NextResponse.json({error:"Unauthorized"},{status:401});const workspaceId=String(session.user.workspaceId||"").trim();if(!workspaceId)return NextResponse.json({error:"Workspace unavailable"},{status:403});const body=await req.json().catch(()=>null),prompt=String(body?.prompt||"").trim();if(!prompt)return NextResponse.json({error:"Research prompt is required."},{status:400});try{const result=await groundedVivitoResearch(workspaceId,prompt.slice(0,12000));return NextResponse.json({success:true,...result},{headers:{"Cache-Control":"private, no-store"}})}catch(e){const m=e instanceof Error?e.message:"Research failed.";return NextResponse.json({error:m},{status:m.includes("not-configured")?503:502})}}

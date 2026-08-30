@@ -1,0 +1,61 @@
+name: CTO Targeted Rollback Typing Batch 11
+
+on:
+  push:
+    branches: [feat/vivito-internal-100]
+    paths:
+      - '.github/workflows/cto-targeted-rollback-typing-batch11.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-internal-100
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply rollback typing remediation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def apply(path, replacements):
+              p=Path(path); s=p.read_text()
+              for old,new in replacements:
+                  if old not in s:
+                      raise SystemExit(f'{path}: missing expected fragment: {old[:180]}')
+                  s=s.replace(old,new,1)
+              p.write_text(s)
+
+          apply('lib/vivito/rollback.ts', [
+            ('export function proposeVivitoRollback(op:VivitoActionOp,result:any):VivitoRollbackProposal{\n const id=String(result?.entityId||"").trim();', 'export function proposeVivitoRollback(op:VivitoActionOp,result:unknown):VivitoRollbackProposal{\n const record=result&&typeof result==="object"&&!Array.isArray(result)?result as Record<string,unknown>:{};\n const id=String(record.entityId||"").trim();'),
+          ])
+
+          apply('app/api/assistant/rollback/route.ts', [
+            ('const clean=(v:any,n=160)=>String(v||"").trim().slice(0,n);', 'type AuditExecutionRow={new_values?:unknown};\ntype DirectExecutionRow={action_op?:unknown;execution_result?:unknown;status?:unknown};\nconst clean=(v:unknown,n=160)=>String(v||"").trim().slice(0,n);\nconst asRecord=(v:unknown):Record<string,unknown>=>v&&typeof v==="object"&&!Array.isArray(v)?v as Record<string,unknown>:{};'),
+            ('const role=String((session.user as any).role||""),userId=String((session.user as any).id||""),workspaceId=clean((session.user as any).workspaceId,160)', 'const role=String(session.user.role||""),userId=String(session.user.id||""),workspaceId=clean(session.user.workspaceId,160)'),
+            ('const list=Array.from(await db.execute(sql`select new_values from audit_logs where workspace_id=${workspaceId} and id=${id} and action=\'vivito_action_executed\' ${owner} limit 1`)) as any[];if(!list[0])return null;let data:any={};try{data=JSON.parse(String(list[0].new_values||"{}"))}catch{}', 'const list=Array.from(await db.execute(sql`select new_values from audit_logs where workspace_id=${workspaceId} and id=${id} and action=\'vivito_action_executed\' ${owner} limit 1`)) as AuditExecutionRow[];if(!list[0])return null;let data:Record<string,unknown>={};try{data=asRecord(JSON.parse(String(list[0].new_values||"{}")))}catch{}'),
+            ('const list=Array.from(await db.execute(sql`select action_op,execution_result,status from vivito_autonomy_events where workspace_id=${workspaceId} and id=${id} limit 1`)) as any[];', 'const list=Array.from(await db.execute(sql`select action_op,execution_result,status from vivito_autonomy_events where workspace_id=${workspaceId} and id=${id} limit 1`)) as DirectExecutionRow[];'),
+            ('newValues:JSON.stringify({source,originalOp:found.op,inverse,result})} as any)', 'newValues:JSON.stringify({source,originalOp:found.op,inverse,result})})'),
+          ])
+          PY
+      - name: TypeScript acceptance
+        run: npx tsc --noEmit
+      - name: Targeted ESLint acceptance
+        run: npx eslint app/api/assistant/rollback/route.ts lib/vivito/rollback.ts --max-warnings=0
+      - name: Commit validated remediation
+        run: |
+          git config user.name 'vivitgroup'
+          git config user.email 'groupvivit@gmail.com'
+          git add app/api/assistant/rollback/route.ts lib/vivito/rollback.ts
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix(types): harden rollback domain boundaries'
+          git push origin HEAD:feat/vivito-internal-100

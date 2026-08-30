@@ -1,0 +1,26 @@
+"use client";
+import {useCallback,useEffect,useMemo,useState} from "react";
+
+type UnknownRecord=Record<string,unknown>;
+type EventRow={id:string;signal_type:string;action_op:string;approval_mode:string;status:string;client_id?:string|null;evidence?:unknown;last_error?:string|null;retry_count?:number;created_at:string;outcome_state?:string|null;confidence_before?:number|null;confidence_after?:number|null};
+type SummaryRow={status:string;count:number|string};
+type EscalationRow={id:string;severity:string;message:string;created_at:string};
+const parse=(v:unknown):UnknownRecord=>{try{const value=typeof v==="string"?JSON.parse(v):v;return value&&typeof value==="object"&&!Array.isArray(value)?Object.fromEntries(Object.entries(value)):{} }catch{return{}}};
+const errorText=(e:unknown)=>e instanceof Error?e.message:String(e??"");
+export default function DirectOperatorPanel(){
+ const [events,setEvents]=useState<EventRow[]>([]),[summary,setSummary]=useState<SummaryRow[]>([]),[escalations,setEscalations]=useState<EscalationRow[]>([]),[busy,setBusy]=useState<string|null>(null),[error,setError]=useState("");
+ const load=useCallback(async()=>{try{const r=await fetch("/api/assistant/direct",{cache:"no-store"}),d=await r.json();if(!r.ok)throw new Error(d.error||"Could not load VIVITO Direct Operator");setEvents(d.events||[]);setSummary(d.summary||[]);setEscalations(d.escalations||[]);setError("")}catch(e){setError(errorText(e))}},[]);
+ useEffect(()=>{const initial=setTimeout(()=>void load(),0),i=setInterval(()=>void load(),30000);return()=>{clearTimeout(initial);clearInterval(i)}},[load]);
+ const counts=useMemo(()=>Object.fromEntries(summary.map(x=>[String(x.status),Number(x.count||0)])),[summary]);
+ async function decide(id:string,decision:"approve"|"reject"){let reason="";if(decision==="reject"){reason=window.prompt("Reason for rejection")?.trim()||"";if(!reason)return}setBusy(id);setError("");try{const r=await fetch("/api/assistant/direct",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({eventId:id,decision,confirm:decision==="approve",reason})}),d=await r.json();if(!r.ok)throw new Error(d.error||"Decision failed");await load()}catch(e){setError(errorText(e))}finally{setBusy(null)}}
+ return <div style={{display:"flex",flexDirection:"column",gap:16}}>
+  <div className="grid grid-3">
+   <div className="card"><div className="card-body"><div className="page-subtitle">Awaiting approval</div><h2>{counts.AWAITING_CONFIRMATION||0}</h2></div></div>
+   <div className="card"><div className="card-body"><div className="page-subtitle">Executed</div><h2>{counts.EXECUTED||0}</h2></div></div>
+   <div className="card"><div className="card-body"><div className="page-subtitle">Needs attention</div><h2>{(counts.FAILED||0)+(counts.RETRY_SCHEDULED||0)+escalations.length}</h2></div></div>
+  </div>
+  {error&&<div className="card"><div className="card-body" style={{color:"var(--danger,#b42318)"}}>{error}</div></div>}
+  <div className="card"><div className="card-body"><h2 className="card-title">VIVITO Direct decisions</h2><p className="page-subtitle">Detected → policy decision → execution → 24/48/72h outcome learning. External provider writes remain approval/provider gated.</p><div style={{overflowX:"auto",marginTop:12}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}><thead><tr><th align="left">Time</th><th align="left">Signal</th><th align="left">Action</th><th align="left">Status</th><th align="left">Outcome</th><th align="left">Evidence</th><th align="left">Decision</th></tr></thead><tbody>{events.map(e=>{const ev=parse(e.evidence);return <tr key={e.id} style={{borderTop:"1px solid var(--card-border)"}}><td style={{padding:"10px 6px",whiteSpace:"nowrap"}}>{new Date(e.created_at).toLocaleString()}</td><td>{e.signal_type}</td><td>{e.action_op}</td><td>{e.status}{e.retry_count?` · retry ${e.retry_count}`:""}</td><td>{e.outcome_state||"—"}</td><td title={JSON.stringify(ev)}>{Object.keys(ev).slice(0,3).map(k=>`${k}: ${String(ev[k])}`).join(" · ").slice(0,180)||"—"}</td><td>{e.status==="AWAITING_CONFIRMATION"?<div style={{display:"flex",gap:8}}><button className="btn btn-primary" disabled={busy===e.id} onClick={()=>void decide(e.id,"approve")}>Approve</button><button className="btn" disabled={busy===e.id} onClick={()=>void decide(e.id,"reject")}>Reject</button></div>:"—"}</td></tr>})}</tbody></table>{!events.length&&<p className="page-subtitle" style={{marginTop:12}}>No direct-operator events yet.</p>}</div></div></div>
+  {escalations.length>0&&<div className="card"><div className="card-body"><h2 className="card-title">Open escalations</h2><div style={{display:"grid",gap:8,marginTop:10}}>{escalations.map(x=><div key={x.id} style={{padding:10,border:"1px solid var(--card-border)",borderRadius:10}}><strong>{x.severity}</strong> · {x.message}<div className="page-subtitle">{new Date(x.created_at).toLocaleString()}</div></div>)}</div></div></div>}
+ </div>
+}

@@ -1,4 +1,3 @@
-// @ts-nocheck -- Drizzle's generated WhatsApp shapes are narrower than the live schema.
 export const dynamic="force-dynamic";
 import {NextRequest,NextResponse} from "next/server";
 import {auth} from "@/lib/auth";
@@ -23,11 +22,11 @@ async function sendWhatsAppMessage(input:{to:string;body:string;clientId?:string
   if(!res.ok||!messageId)throw new Error(data?.error?.message||"WhatsApp rejected the message.");
   if(msg)await db.update(whatsappMessages).set({waMessageId:messageId,status:"SENT"}).where(eq(whatsappMessages.id,msg.id));
   return{success:true,messageId};
- }catch(error:any){if(msg)await db.update(whatsappMessages).set({status:"FAILED"}).where(eq(whatsappMessages.id,msg.id));throw error;}
+ }catch(error:unknown){if(msg)await db.update(whatsappMessages).set({status:"FAILED"}).where(eq(whatsappMessages.id,msg.id));throw error;}
 }
 
 export async function GET(){
- const session=await auth();if(!session?.user)return NextResponse.json({error:"Unauthorized"},{status:401});if(!allowedRoles.includes(String((session.user as any).role)))return NextResponse.json({error:"Forbidden"},{status:403});
+ const session=await auth();if(!session?.user)return NextResponse.json({error:"Unauthorized"},{status:401});if(!allowedRoles.includes(String(session.user.role)))return NextResponse.json({error:"Forbidden"},{status:403});
  const recent=await db.select().from(whatsappMessages).orderBy(desc(whatsappMessages.createdAt)).limit(20);
  const templates=[
   {id:"monthly_report",label:"📊 Monthly Performance Report",body:"Hi {name}! Your {month} report is ready. ROAS: {roas}× | Leads: {leads} | Spend: EGP {spend}. Full report: {link}"},
@@ -40,6 +39,6 @@ export async function GET(){
 }
 
 export async function POST(req:NextRequest){
- const session=await auth();if(!session?.user)return NextResponse.json({error:"Unauthorized"},{status:401});if(!allowedRoles.includes(String((session.user as any).role)))return NextResponse.json({error:"Forbidden"},{status:403});
- try{const body=await req.json();const text=String(body.body||"").trim().slice(0,4096);if(!body.to||!text)return NextResponse.json({error:"Phone number and message are required."},{status:400});const result=await sendWhatsAppMessage({to:body.to,body:text,clientId:body.clientId,mode:body.mode==="template"?"template":"text",templateName:body.templateName,languageCode:body.languageCode});return NextResponse.json(result);}catch(error:any){const msg=String(error?.message||"WhatsApp send failed");const configuration=msg.includes("not configured");return NextResponse.json({error:msg},{status:configuration?503:400});}
+ const session=await auth();if(!session?.user)return NextResponse.json({error:"Unauthorized"},{status:401});if(!allowedRoles.includes(String(session.user.role)))return NextResponse.json({error:"Forbidden"},{status:403});
+ try{const body=await req.json();const text=String(body.body||"").trim().slice(0,4096);if(!body.to||!text)return NextResponse.json({error:"Phone number and message are required."},{status:400});const result=await sendWhatsAppMessage({to:body.to,body:text,clientId:body.clientId,mode:body.mode==="template"?"template":"text",templateName:body.templateName,languageCode:body.languageCode});return NextResponse.json(result);}catch(error:unknown){const msg=error instanceof Error?error.message:"WhatsApp send failed";const configuration=msg.includes("not configured");return NextResponse.json({error:msg},{status:configuration?503:400});}
 }

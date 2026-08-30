@@ -2,10 +2,7 @@
 import { useEffect, useCallback, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
-
-// ── Who's Online (Feature 16) ─────────────────────────────────
-// Tracks active users via heartbeat — stored in-memory per session
-const onlineUsers = new Map<string, { name:string; role:string; page:string; ts:number }>();
+type WindowWithWebkitAudio = Window & { webkitAudioContext?: typeof AudioContext };
 
 export function useOnlinePresence(userId: string, userName: string, role: string) {
   useEffect(() => {
@@ -18,12 +15,11 @@ export function useOnlinePresence(userId: string, userName: string, role: string
       }).catch(()=>{});
     };
     report();
-    const interval = setInterval(report, 30000); // every 30s
+    const interval = setInterval(report, 30000);
     return () => clearInterval(interval);
   }, [userId, userName, role]);
 }
 
-// ── Conflict Detection (Feature 15) ──────────────────────────
 export function useConflictDetection(entityId: string, entityType: string) {
   const [conflict, setConflict] = useState<string | null>(null);
 
@@ -31,10 +27,8 @@ export function useConflictDetection(entityId: string, entityType: string) {
     if (!entityId) return;
     const key = `vivit-editing:${entityType}:${entityId}`;
     const me  = Date.now().toString();
-    // Register that we're editing
     try { sessionStorage.setItem(key, me); } catch {}
 
-    // Poll for conflicts every 10s
     const interval = setInterval(async () => {
       try {
         const stored = sessionStorage.getItem(key);
@@ -64,7 +58,9 @@ const P: Record<string,{bg:string;border:string;icon:string;sound:number}> = {
 
 function playNotificationSound(priority: string) {
   try {
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const AudioCtx = window.AudioContext || (window as WindowWithWebkitAudio).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
     const tones = { urgent:[880,660,880], high:[660,880], normal:[440,550], low:[330] };
     const freqs = tones[priority as keyof typeof tones] ?? [440];
     freqs.forEach((freq, i) => {
@@ -101,7 +97,6 @@ export function RealtimeNotifications() {
     setToasts(prev => [...prev.slice(-2), { ...n, key }]);
     totalUnread.current++;
     updateTabBadge(totalUnread.current);
-    // Sound
     const p = P[n.priority] ?? P.normal;
     if (soundEnabled && p.sound > 0) playNotificationSound(n.priority);
     const delay = n.priority==="urgent" ? 10000 : n.priority==="high" ? 7000 : 5000;
@@ -119,7 +114,7 @@ export function RealtimeNotifications() {
         notifs.slice(0, 3).forEach(n => showToast(n));
       }
     } catch {}
-  }, [showToast, router]);
+  }, [showToast]);
 
   useEffect(() => {
     let interval = 30000;
@@ -148,7 +143,6 @@ export function RealtimeNotifications() {
 
   return (
     <>
-      {/* Sound toggle button (persistent, top-right corner) */}
       <button
         onClick={() => setSoundEnabled(v => !v)}
         title={soundEnabled ? "Mute notification sounds" : "Enable notification sounds"}
@@ -156,7 +150,6 @@ export function RealtimeNotifications() {
         {soundEnabled ? "🔔" : "🔕"}
       </button>
 
-      {/* Toast container */}
       <div style={{position:"fixed",bottom:"20px",right:"20px",zIndex:9999,display:"flex",flexDirection:"column",gap:"8px",maxWidth:"340px"}}>
         {toasts.map(t => {
           const style = P[t.priority] ?? P.normal;

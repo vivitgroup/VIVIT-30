@@ -1,0 +1,6 @@
+import fs from "node:fs";
+const src=fs.readFileSync("lib/vivito/training-batch-29-creativity-invention-engine.ts","utf8");
+const academy=fs.readFileSync("lib/vivito/academy.ts","utf8");
+const checks=[
+["30 creativity modules",(src.match(/M\("/g)||[]).length>=30],["problem reframing",src.includes("Problem Reframing")],["first principles",src.includes("First-Principles Decomposition")],["analogy transfer",src.includes("Analogy Transfer")],["diverge converge",src.includes("Diverge Then Converge")],["novelty usefulness",src.includes("Novelty vs Usefulness")],["prototype small",src.includes("Prototype Small")],["concept portfolio",src.includes("Concept Portfolio")],["defensibility",src.includes("Defensibility")],["creative evidence loop",src.includes("Creative Evidence Loop")],["Academy wires Batch 29",academy.includes("VIVITO_TRAINING_BATCH_29_CONTEXT")&&academy.includes("CREATIVITY & INVENTION ENGINE")]
+];let p=0;for(const [n,ok] of checks){console.log(`${ok?"PASS":"FAIL"}  ${n}`);if(ok)p++;}console.log(`\n${p}/${checks.length} Batch 29 checks passed.`);if(p!==checks.length)process.exit(1);

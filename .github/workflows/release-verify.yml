@@ -15,11 +15,40 @@ concurrency:
 
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: vivito
+          POSTGRES_PASSWORD: vivito
+          POSTGRES_DB: vivito_release_verify
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U vivito -d vivito_release_verify"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://vivito:vivito@127.0.0.1:5432/vivito_release_verify
+      DRIZZLE_DATABASE_URL: postgresql://vivito:vivito@127.0.0.1:5432/vivito_release_verify
+      DATABASE_SSL_DISABLED: "1"
+      AUTH_SECRET: ci-release-verify-secret-not-for-production
+      NEXTAUTH_SECRET: ci-release-verify-secret-not-for-production
+      NEXTAUTH_URL: http://127.0.0.1:3000
     steps:
-      - name: Checkout
+      - name: Checkout exact candidate SHA
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Assert exact candidate SHA
+        shell: bash
+        run: |
+          ACTUAL="$(git rev-parse HEAD)"
+          EXPECTED="${{ github.event.pull_request.head.sha || github.sha }}"
+          echo "actual=$ACTUAL"
+          echo "expected=$EXPECTED"
+          test "$ACTUAL" = "$EXPECTED"
 
       - name: Use Node 22
         uses: actions/setup-node@v4
@@ -29,6 +58,9 @@ jobs:
 
       - name: Install locked dependencies
         run: npm ci
+
+      - name: Build base ephemeral database
+        run: npx drizzle-kit push --force
 
       - name: Full release build
         run: npm run build

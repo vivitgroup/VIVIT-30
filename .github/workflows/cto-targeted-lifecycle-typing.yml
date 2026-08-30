@@ -1,0 +1,53 @@
+name: CTO Targeted Lifecycle Typing
+
+on:
+  push:
+    branches: [feat/vivito-internal-100]
+    paths:
+      - '.github/workflows/cto-targeted-lifecycle-typing.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-internal-100
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply lifecycle typing remediation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('app/api/lifecycle/route.ts')
+          s=p.read_text()
+          replacements={
+            'const clean=(v:any,n=120)=>String(v||"").trim().slice(0,n),rows=async(q:any)=>Array.from(await db.execute(q)) as any[];': 'type DbRow=Record<string,unknown>;\nconst clean=(v:unknown,n=120)=>String(v||"").trim().slice(0,n),rows=async(q:Parameters<typeof db.execute>[0]):Promise<DbRow[]>=>Array.from(await db.execute(q)) as DbRow[];',
+            'const userId=String((session.user as any).id),role=String((session.user as any).role),workspaceId=clean((session.user as any).workspaceId,160);': 'const userId=String(session.user.id),role=String(session.user.role),workspaceId=clean(session.user.workspaceId,160);',
+            'async function audit(workspaceId:string,userId:string,action:string,entity:string,id:string,payload:any={}){await db.insert(auditLogs).values({workspaceId,userId,action,entity,entityId:id,newValues:JSON.stringify(payload)} as any)}': 'async function audit(workspaceId:string,userId:string,action:string,entity:string,id:string,payload:Record<string,unknown>={}){await db.insert(auditLogs).values({workspaceId,userId,action,entity,entityId:id,newValues:JSON.stringify(payload)})}'
+          }
+          for old,new in replacements.items():
+              if old not in s:
+                  raise SystemExit(f'missing expected source fragment: {old[:80]}')
+              s=s.replace(old,new,1)
+          p.write_text(s)
+          PY
+      - name: TypeScript acceptance
+        run: npx tsc --noEmit
+      - name: Lifecycle ESLint acceptance
+        run: npx eslint app/api/lifecycle/route.ts --max-warnings=0
+      - name: Commit validated remediation
+        run: |
+          git config user.name 'vivitgroup'
+          git config user.email 'groupvivit@gmail.com'
+          git add app/api/lifecycle/route.ts
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix(types): harden lifecycle route boundaries'
+          git push origin HEAD:feat/vivito-internal-100

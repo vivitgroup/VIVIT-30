@@ -1,0 +1,110 @@
+name: VIVITO Super Operator CI
+on:
+  push:
+    branches: ["feat/vivito-super-operator-42-47", "feat/vivito-model-mesh-v1", "feat/vivito-ui-motion-v1", "release/vivito-rc1-2026-08-27"]
+  pull_request:
+    paths:
+      - "lib/vivito/**"
+      - "app/api/assistant/artifacts/**"
+      - "app/api/cron/vivito-knowledge/**"
+      - "components/assistant/**"
+      - "components/experience/**"
+      - "app/dashboard/**"
+      - "scripts/qa-vivito-artifact-runtime-v3.ts"
+      - "scripts/certify-vivito-artifact-quality-v3.ts"
+      - "scripts/qa-vivito-super-benchmark-v2.ts"
+      - "scripts/run-vivito-super-benchmark-v2.ts"
+      - "scripts/run-vivito-head-to-head.ts"
+      - "scripts/qa-vivito-red-team-v2.ts"
+      - "scripts/qa-vivito-digital-twin-learning.ts"
+      - "scripts/qa-vivito-live-knowledge-fabric.ts"
+      - "scripts/qa-vivito-ceo-cfo-quota-v2.ts"
+      - "scripts/qa-vivito-capability-pack-v4.ts"
+      - "scripts/qa-vivito-model-mesh-v1.ts"
+      - "scripts/qa-vivito-ui-motion-v1.ts"
+      - "vercel.json"
+      - ".github/workflows/vivito-super-operator-ci.yml"
+
+concurrency:
+  group: vivito-super-operator-${{ github.event.pull_request.head.sha || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  qa:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: vivito
+          POSTGRES_PASSWORD: vivito
+          POSTGRES_DB: vivito_super_operator
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U vivito -d vivito_super_operator"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://vivito:vivito@127.0.0.1:5432/vivito_super_operator
+      DRIZZLE_DATABASE_URL: postgresql://vivito:vivito@127.0.0.1:5432/vivito_super_operator
+      DATABASE_SSL_DISABLED: "1"
+      AUTH_SECRET: ci-vivito-super-operator-secret-not-for-production
+      NEXTAUTH_SECRET: ci-vivito-super-operator-secret-not-for-production
+      NEXTAUTH_URL: http://127.0.0.1:3000
+    steps:
+      - name: Checkout exact candidate SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Assert exact candidate SHA
+        shell: bash
+        run: |
+          ACTUAL="$(git rev-parse HEAD)"
+          EXPECTED="${{ github.event.pull_request.head.sha || github.sha }}"
+          echo "actual=$ACTUAL"
+          echo "expected=$EXPECTED"
+          test "$ACTUAL" = "$EXPECTED"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build base ephemeral database
+        run: npx drizzle-kit push --force
+
+      - name: Systems and marketing intelligence gate
+        run: npm run qa:vivito-systems-complexity-intelligence
+      - name: Red Team V2 behavioral gate
+        run: npm run qa:vivito-red-team-v2
+      - name: Client Digital Twin + Learning Loop gate
+        run: npx tsx scripts/qa-vivito-digital-twin-learning.ts
+      - name: Live Knowledge Fabric gate
+        run: npx tsx scripts/qa-vivito-live-knowledge-fabric.ts
+      - name: CEO CFO + Quota Resilience V2 gate
+        run: npx tsx scripts/qa-vivito-ceo-cfo-quota-v2.ts
+      - name: Capability Pack V4 gate
+        run: npx tsx scripts/qa-vivito-capability-pack-v4.ts
+      - name: Model Mesh V1 behavioral gate
+        run: npx tsx scripts/qa-vivito-model-mesh-v1.ts
+      - name: VIVITO UI Motion V1 gate
+        run: npx tsx scripts/qa-vivito-ui-motion-v1.ts
+      - name: Artifact Runtime V3 gate
+        run: npx tsx scripts/qa-vivito-artifact-runtime-v3.ts
+      - name: Artifact Quality V3 certification
+        run: npx tsx scripts/certify-vivito-artifact-quality-v3.ts
+      - name: Upload artifact quality evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vivito-artifact-quality-v3
+          path: .vivito/artifact-quality-v3/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Super Benchmark V2 structural gate
+        run: npx tsx scripts/qa-vivito-super-benchmark-v2.ts
+      - name: TypeScript gate
+        run: npm run type-check

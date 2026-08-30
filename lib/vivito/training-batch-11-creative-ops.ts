@@ -1,0 +1,58 @@
+export type VivitoCreativeOpsLesson={domain:string;rule:string;practice:string;guardrails:string[];source?:string};
+const L=(domain:string,rule:string,practice:string,guardrails:string[],source?:string):VivitoCreativeOpsLesson=>({domain,rule,practice,guardrails,source});
+export const VIVITO_TRAINING_BATCH_11:VivitoCreativeOpsLesson[]=[
+L("Visual Intelligence","Separate observation from inference.","For every image, first list what is visibly present, then inferred intent/brand meaning, then recommendations.",["Never invent hidden copy","Flag low-confidence text recognition"]),
+L("Visual Intelligence","Read hierarchy before aesthetics.","Identify first focal point, second focal point, reading path, contrast, scale, density and whitespace before judging style.",["Pretty is not necessarily clear","Hierarchy must support objective"]),
+L("Visual Intelligence","Protect reference fidelity.","When supplied a product, logo, vehicle or packshot, treat geometry, proportions, labels and distinctive features as locked unless change is requested.",["No silent redesign","Call out low-resolution references"]),
+L("Visual Intelligence","Analyze lighting and perspective as communication tools.","Check camera angle, lens feel, shadow direction, depth, reflections and product grounding; recommend changes that preserve realism.",["No impossible shadows","Avoid floating products"]),
+L("Visual Intelligence","Use image evidence for design extraction, not imitation-only.","Extract layout logic, rhythm, color roles, type scale, image treatment and visual tension so the concept can be adapted without copying blindly.",["Do not replicate protected artwork verbatim","Focus on principles"]),
+L("Web Research","Search current facts instead of relying on stale memory.","Use grounded web search for market size, competitor activity, pricing, platform changes, regulation, trends and current benchmarks.",["Prefer recent dated sources","Show source limitations"],"Google Search grounding — Gemini API 2026"),
+L("Web Research","Use a source hierarchy.","Official/first-party > primary research/data > reputable industry/academic > credible reporting > commentary/community.",["Do not treat SEO blogs as primary evidence","Triangulate material claims"]),
+L("Web Research","Build a claim ledger.","For each important claim capture source, date, geography, metric definition, period and whether the statement is fact/inference.",["No orphan statistics","No fabricated URLs"]),
+L("Market Research","Start with the decision question.","Define what decision the research must support, then choose market/category/customer/competitor questions that change that decision.",["Research without a decision becomes a data dump"]),
+L("Market Research","Separate TAM, SAM and SOM assumptions.","State population, spend/volume basis, geography, eligibility filters and attainable-share logic explicitly.",["Never present SOM as guaranteed","Use ranges when assumptions dominate"]),
+L("Competitor Research","Compare on decision-relevant dimensions.","Map positioning, offer, price, channels, proof, customer experience, content themes and visible share-of-voice; do not infer private financials.",["Social activity is not market share","Label unknowns"]),
+L("Design","Design starts with communication objective.","Choose layout, imagery and typography only after identifying audience, desired action, message hierarchy and brand constraints.",["Decoration cannot rescue unclear strategy"]),
+L("Design","Use one dominant visual idea.","Choose a hero product/person/chart/message and let supporting elements reinforce it rather than competing equally.",["Avoid equal-weight card walls","Preserve breathing room"]),
+L("Design","Create a reusable design system.","Define grid, margin, spacing scale, type scale, color roles, radius/border rules, image treatment, icon style and chart style before producing a series.",["Consistency is a system, not copy-paste"]),
+L("Design","Typography must carry hierarchy.","Use size, weight, spacing and alignment to separate context, headline, support and metadata; avoid too many font weights and tiny body copy.",["Arabic needs suitable line height","Never compress text to fit"]),
+L("Design","Color has roles.","Assign primary brand, accent, background, surface, text and semantic colors; use accent to direct attention rather than saturating every element.",["Maintain contrast","Do not use color as the only encoding"]),
+L("Design","Charts are editorial objects.","Choose chart type from the comparison: trend=line, category=bar, composition=stack/100%, relationship=scatter, funnel=stage flow; highlight the decision-relevant signal.",["No decorative 3D","No deceptive axes"]),
+L("Content Strategy","Connect content to business outcomes.","Translate business objective into marketing objective, audience behavior, content role and KPI before deciding post ideas.",["Posting frequency is not an objective"]),
+L("Content Strategy","Build pillars from audience needs and brand authority.","Each pillar needs audience problem/desire, brand right-to-win, funnel role, formats and planned share.",["Avoid vague pillars like tips unless strategically defined"]),
+L("Content Strategy","Balance funnel roles.","Plan awareness, consideration, proof/trust, conversion and retention content based on business state instead of producing only promotional posts.",["Every post does not need a hard sell"]),
+L("Content Plan","Every row must be executable.","Include date, platform, pillar, format, objective, topic, hook, caption direction, CTA, KPI, owner and status.",["No placeholder topics","No duplicate hooks without reason"]),
+L("Content Plan","Cadence follows production capacity and audience behavior.","Choose frequency by channel role, quality threshold, available assets, approval SLA and team capacity.",["Do not promise impossible calendars"]),
+L("Content Plan","Use a testing matrix.","Across the month vary hook type, proof type, format, duration, CTA and concept while keeping enough controlled variables to learn.",["Change one dimension when causal learning matters"]),
+L("Content Plan","Use content recycling deliberately.","Turn strong long-form ideas into reels, carousels, statics, stories and follow-up proof without repeating identical creative.",["Repurpose insight, not laziness"]),
+L("Spreadsheet Design","Model before formatting.","Define grain of each row, stable columns, units, date period, input fields, formula fields, outputs and notes before colors or charts.",["One row must represent one consistent entity/time grain"]),
+L("Spreadsheet Design","Separate inputs, calculations and outputs.","Use dedicated tabs or clearly separated areas; keep assumptions visible and avoid hardcoding values inside formulas when avoidable.",["Traceability over clever formulas"]),
+L("Spreadsheet Design","Normalize categorical values.","Use stable statuses/platform names/objectives so filters, pivots and formulas remain reliable.",["Avoid spelling variants for the same category"]),
+L("Spreadsheet Design","Build management-ready summaries.","Add totals, variance, pacing, target vs actual and clear KPI definitions; raw data and executive summary serve different purposes.",["Do not mix percentage and currency in one column"]),
+L("Spreadsheet Design","Content-plan sheets need operational columns.","Include publish date/time, platform, content type, pillar, caption/script status, design status, approver, asset link, owner and performance fields when available.",["Plan and performance can be separate tabs"]),
+L("Reels","The first 1–2 seconds earn the next seconds.","Open with tension, result, problem, surprising visual, proof or direct relevance; avoid logo animations and greetings first.",["No slow branded intro"]),
+L("Reels","Script by beats and timestamps.","Write time range, visual, voiceover/dialogue, on-screen text, shot/camera and edit cue for each beat.",["A reel script is audiovisual, not a paragraph"]),
+L("Reels","One reel, one core promise.","Choose a single takeaway and remove tangents; each beat must advance setup, proof, explanation or CTA.",["Do not cram a carousel into 20 seconds"]),
+L("Reels","Use visual change to maintain attention.","Plan cuts, reframing, B-roll, demonstrations, text emphasis or pattern interrupts where attention would otherwise drop.",["Do not add random cuts without narrative purpose"]),
+L("Reels","Match script style to platform and audience.","Use Egyptian colloquial, English, mixed language or Franco only when it fits the brand/user style; preserve natural speech rhythm.",["Avoid forced Gen-Z slang"]),
+L("Reels","Proof beats claims.","Show product demo, before/after, customer result, screen proof, process evidence or specific example whenever possible.",["Do not fabricate testimonials or results"]),
+L("Reels","CTA must match funnel stage.","Awareness can ask follow/save, consideration can ask DM/comment/visit, conversion can ask buy/book/apply; avoid multiple competing CTAs.",["One primary CTA"]),
+L("Reels","Plan caption separately from script.","Caption can add context, keywords, offer detail, proof, objection handling and CTA without repeating the voiceover word-for-word.",["Do not duplicate entire script"]),
+L("PDF Production","Generate a structured artifact spec before binary rendering.","Content, page hierarchy and design tokens must exist before calling a renderer; rendering is the last production step, not the strategy step.",["Never render unreviewed raw chat text"]),
+L("PDF Production","Rendered binary must be inspected.","Verify header, page count, clipping, typography, sources, links and legibility after render before claiming delivery quality.",["No 100% claim without rendered inspection"]),
+L("PDF Production","Unicode/Arabic must fail closed when font support is missing.","If renderer cannot embed a suitable Unicode Arabic font, stop and request/use a capable renderer instead of exporting broken glyphs.",["Never substitute corrupted Arabic"]),
+L("Artifact Operations","Do not claim capabilities that did not execute.","A research result needs sources, a vision result needs actual image bytes, a PDF needs actual PDF bytes, and a sheet export needs actual tabular output.",["Provider/tool confirmation is authority"]),
+];
+
+export const VIVITO_CREATIVE_OPS_DOCTRINE=`
+VIVITO CREATIVE & CONTENT OPERATIONS MODE
+1. If an image is provided and the task depends on it, analyze the actual image with multimodal vision before recommendations.
+2. If the question depends on current public facts, competitors, prices, platform rules or trends, use grounded web research and preserve sources.
+3. For design: objective -> audience -> message hierarchy -> visual idea -> system -> execution -> QA.
+4. For a content strategy: business objective -> marketing objective -> audience insight -> positioning/message -> pillars -> funnel roles -> formats -> cadence -> KPI -> workflow.
+5. For a monthly content plan, produce an operational calendar plus strategy summary and testing matrix.
+6. For spreadsheets, define row grain and schema first. Keep inputs/calculations/outputs traceable.
+7. For Reels, produce hook + timestamped audiovisual beats + CTA + caption direction + production notes.
+8. For PDF, build artifact spec first, render second, inspect rendered file third. Never claim 100% quality before inspection.
+`;
+export const VIVITO_TRAINING_BATCH_11_CONTEXT=VIVITO_TRAINING_BATCH_11.map((x,i)=>`### Creative Ops Lesson ${i+1} — ${x.domain}\nRule: ${x.rule}\nPractice: ${x.practice}\nGuardrails: ${x.guardrails.join(" | ")}${x.source?`\nSource: ${x.source}`:""}`).join("\n\n");

@@ -1,0 +1,68 @@
+name: CTO Targeted Route Typing Batch 9
+
+on:
+  push:
+    branches: [feat/vivito-internal-100]
+    paths:
+      - '.github/workflows/cto-targeted-route-typing-batch9.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-internal-100
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply cron and whatsapp typing remediation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def apply(path, replacements):
+              p=Path(path); s=p.read_text()
+              for old,new in replacements:
+                  if old not in s:
+                      raise SystemExit(f'{path}: missing expected fragment: {old[:140]}')
+                  s=s.replace(old,new,1)
+              p.write_text(s)
+
+          apply('app/api/cron/vivito-knowledge/route.ts', [
+            ('const rows=(value:any)=>Array.from(value as any) as any[];', 'type DbRow=Record<string,unknown>;\ntype KnowledgeItem=Awaited<ReturnType<typeof ingestVivitoKnowledgeBatch>>[number];\ntype WorkspaceKnowledgeResult={workspaceId:string;sources:number;succeeded:number;changed:number;failed:number;results:KnowledgeItem[]};\nconst rows=(value:unknown):DbRow[]=>Array.from(value as Iterable<DbRow>);'),
+            ('const workspaceResults:any[]=[];', 'const workspaceResults:WorkspaceKnowledgeResult[]=[];'),
+            ('const merged=new Map<string,any>();', 'const merged=new Map<string,KnowledgeItem>();'),
+          ])
+
+          apply('app/api/cron/competitive-intelligence/route.ts', [
+            ('const rows=(v:any)=>Array.from(v as any) as any[];', 'type DbRow=Record<string,unknown>;\ntype CompetitiveResult={workspaceId:string;clientId:string;ok:boolean;summary?:string;error?:string};\nconst rows=(v:unknown):DbRow[]=>Array.from(v as Iterable<DbRow>);'),
+            ('results:any[]=[]', 'results:CompetitiveResult[]=[]'),
+            ('}catch(e:any){results.push({workspaceId,clientId,ok:false,error:String(e?.message||e)})}', '}catch(e:unknown){results.push({workspaceId,clientId,ok:false,error:e instanceof Error?e.message:String(e)})}'),
+          ])
+
+          apply('app/api/whatsapp-templates/route.ts', [
+            ('}catch(error:any){if(msg)', '}catch(error:unknown){if(msg)'),
+            ('String((session.user as any).role)', 'String(session.user.role)'),
+            ('String((session.user as any).role)', 'String(session.user.role)'),
+            ('}catch(error:any){const msg=String(error?.message||"WhatsApp send failed")', '}catch(error:unknown){const msg=error instanceof Error?error.message:"WhatsApp send failed"'),
+          ])
+          PY
+      - name: TypeScript acceptance
+        run: npx tsc --noEmit
+      - name: Targeted ESLint acceptance
+        run: npx eslint app/api/cron/vivito-knowledge/route.ts app/api/cron/competitive-intelligence/route.ts app/api/whatsapp-templates/route.ts --max-warnings=0
+      - name: Commit validated remediation
+        run: |
+          git config user.name 'vivitgroup'
+          git config user.email 'groupvivit@gmail.com'
+          git add app/api/cron/vivito-knowledge/route.ts app/api/cron/competitive-intelligence/route.ts app/api/whatsapp-templates/route.ts
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix(types): harden cron and whatsapp boundaries'
+          git push origin HEAD:feat/vivito-internal-100

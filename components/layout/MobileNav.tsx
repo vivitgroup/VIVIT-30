@@ -15,14 +15,13 @@ export function MobileNav({role}:{role:string}){
  const path=usePathname(),[open,setOpen]=useState(false);
  const visible=SECTIONS.map(s=>({...s,items:s.items.filter(i=>i.roles.includes(role))})).filter(s=>s.items.length),all=visible.flatMap(s=>s.items),quick=QUICK[role]||QUICK.CLIENT;
  const active=all.filter(i=>path===i.href||(i.href!=="/dashboard"&&path.startsWith(i.href+"/"))).sort((a,b)=>b.href.length-a.href.length)[0]?.href;
- useEffect(()=>setOpen(false),[path]);
  useEffect(()=>{document.body.style.overflow=open?"hidden":"";return()=>{document.body.style.overflow=""}},[open]);
  return <>
   {open&&<div className="mobile-menu-backdrop" onClick={()=>setOpen(false)} aria-hidden="true"/>}
   <aside className={`mobile-menu-drawer${open?" open":""}`} aria-hidden={!open}>
    <div className="mobile-menu-head"><div><strong>VIVIT</strong><span>{role.replace(/_/g," ")}</span></div><button type="button" onClick={()=>setOpen(false)} aria-label="Close menu">×</button></div>
-   <nav>{visible.map(s=><section key={s.label}><p>{s.label}</p>{s.items.map(i=><Link key={i.href} href={i.href} className={active===i.href?"active":""}><span>{i.icon}</span><b>{i.label}</b></Link>)}</section>)}</nav>
+   <nav>{visible.map(s=><section key={s.label}><p>{s.label}</p>{s.items.map(i=><Link key={i.href} href={i.href} onClick={()=>setOpen(false)} className={active===i.href?"active":""}><span>{i.icon}</span><b>{i.label}</b></Link>)}</section>)}</nav>
   </aside>
-  <nav className="mobile-nav" aria-label="Mobile navigation">{quick.slice(0,4).map(i=><Link key={i.href} href={i.href} className={path===i.href||path.startsWith(i.href+"/")?"active":""}><span>{i.icon}</span><small>{i.label}</small></Link>)}<button type="button" className={open?"active":""} onClick={()=>setOpen(v=>!v)} aria-expanded={open} aria-label="Open full menu"><span>☰</span><small>Menu</small></button></nav>
+  <nav className="mobile-nav" aria-label="Mobile navigation">{quick.slice(0,4).map(i=><Link key={i.href} href={i.href} onClick={()=>setOpen(false)} className={path===i.href||path.startsWith(i.href+"/")?"active":""}><span>{i.icon}</span><small>{i.label}</small></Link>)}<button type="button" className={open?"active":""} onClick={()=>setOpen(v=>!v)} aria-expanded={open} aria-label="Open full menu"><span>☰</span><small>Menu</small></button></nav>
  </>;
 }

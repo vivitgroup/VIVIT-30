@@ -1,6 +1,6 @@
 export async function slackAlert(
   type: "task" | "budget" | "contract" | "invoice" | "lead",
-  data: Record<string, any>
+  data: Record<string, unknown>
 ) {
   const url = process.env.SLACK_WEBHOOK_URL;
   if (!url) return;

@@ -1,16 +1,15 @@
-// @ts-nocheck -- Drizzle's generated budget shapes are narrower than the live schema.
 export const dynamic = "force-dynamic";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { db, clients, mediaMetrics } from "@/lib/db";
-import { eq, gte, and, sum, desc, inArray } from "drizzle-orm";
+import { eq, gte, and, sum, inArray } from "drizzle-orm";
 import { Role } from "@/lib/types";
 import Link from "next/link";
 
 export default async function BudgetPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
-  const role = (session.user as any).role as Role;
+  const role = session.user.role as Role;
   if (![Role.SUPER_ADMIN,Role.MEDIA_BUYER,Role.ACCOUNT_MANAGER].includes(role)) redirect("/dashboard");
 
   const now     = new Date();
@@ -19,7 +18,7 @@ export default async function BudgetPage() {
   const daysElapsed  = now.getDate();
   const daysRemaining = daysInMonth - daysElapsed;
 
-  const userId=String((session.user as any).id||"");
+  const userId=String(session.user.id||"");
   const clientScope=role===Role.ACCOUNT_MANAGER
     ? and(eq(clients.isActive,true),eq(clients.accountManagerId,userId))
     : role===Role.MEDIA_BUYER

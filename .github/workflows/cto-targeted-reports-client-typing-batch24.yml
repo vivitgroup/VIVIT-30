@@ -1,0 +1,68 @@
+name: CTO Targeted Reports Client Typing Batch 24
+
+on:
+  push:
+    branches: [feat/vivito-internal-100]
+    paths:
+      - '.github/workflows/cto-targeted-reports-client-typing-batch24.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-internal-100
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply reports client typing remediation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('components/reports/ReportsClient.tsx'); s=p.read_text()
+          marker='type Entity = "clients" | "tasks" | "sales" | "finance" | "media" | "expenses";\n'
+          typed='type Entity = "clients" | "tasks" | "sales" | "finance" | "media" | "expenses";\ntype ReportPayload={headers:string[];rows:unknown[][];count:number;error?:string};\nconst errorMessage=(error:unknown,fallback:string)=>error instanceof Error&&error.message?error.message:fallback;\n'
+          if marker not in s: raise SystemExit('entity marker missing')
+          s=s.replace(marker,typed,1)
+          replacements=[
+            ('const [data,setData]=useState<any>(null);','const [data,setData]=useState<ReportPayload|null>(null);'),
+            ('data.headers.filter((h:string)=>selFields.includes(h))','data.headers.filter(h=>selFields.includes(h))'),
+            ('activeFields.map((h:string)=>data.headers.indexOf(h))','activeFields.map(h=>data.headers.indexOf(h))'),
+            ('data.rows.map((row:any[])=>activeIndexes.map((i:number)=>row[i]))','data.rows.map(row=>activeIndexes.map(i=>row[i]))'),
+            ('[...projectedRows].sort((a:any[],b:any[])=>','[...projectedRows].sort((a,b)=>'),
+            ('const d=await r.json();if(!r.ok)throw new Error(d.error||"The report could not be generated.");setData(d)}catch(e:any){setData(null);setError(e.message||"The report could not be generated.")','const d:ReportPayload=await r.json();if(!r.ok)throw new Error(d.error||"The report could not be generated.");setData(d)}catch(e:unknown){setData(null);setError(errorMessage(e,"The report could not be generated."))'),
+            ('rows.map((r:any[])=>r.map(c=>','rows.map(r=>r.map(c=>'),
+            ('projectedRows.map((row:any[])=>Object.fromEntries(activeFields.map((h:string,i:number)=>[h,row[i]])))','projectedRows.map(row=>Object.fromEntries(activeFields.map((h,i)=>[h,row[i]])))'),
+            ('const payload=await response.json();if(!response.ok)throw new Error(payload.error||"The export could not be generated.");const records=payload.rows.map((row:unknown[])=>Object.fromEntries(payload.headers.map((header:string,index:number)=>[header,row[index]])))','const payload:ReportPayload=await response.json();if(!response.ok)throw new Error(payload.error||"The export could not be generated.");const records=payload.rows.map(row=>Object.fromEntries(payload.headers.map((header,index)=>[header,row[index]])))'),
+            ('}catch(e:any){setError(e.message||"The export could not be generated.")}','}catch(e:unknown){setError(errorMessage(e,"The export could not be generated."))}'),
+            ('activeFields.map((h:string,i:number)=>','activeFields.map((h,i)=>'),
+            ('sortedRows.slice(0,visibleRows).map((row:any[],i:number)=>','sortedRows.slice(0,visibleRows).map((row,i)=>'),
+            ('row.map((cell:any,j:number)=>','row.map((cell,j)=>'),
+            ('projectedRows.slice(0,20).map((row:any[])=>Object.fromEntries(activeFields.map((h:string,i:number)=>[h,row[i]])))','projectedRows.slice(0,20).map(row=>Object.fromEntries(activeFields.map((h,i)=>[h,row[i]])))'),
+          ]
+          for old,new in replacements:
+              if old not in s: raise SystemExit(f'missing fragment: {old[:160]}')
+              s=s.replace(old,new,1)
+          if ':any' in s or ' as any' in s or '(e:any)' in s or '(row:any' in s or '(cell:any' in s:
+              raise SystemExit('explicit any remains in ReportsClient')
+          p.write_text(s)
+          PY
+      - name: TypeScript acceptance
+        run: npx tsc --noEmit
+      - name: Targeted ESLint acceptance
+        run: npx eslint components/reports/ReportsClient.tsx --max-warnings=0
+      - name: Commit validated remediation
+        run: |
+          git config user.name 'vivitgroup'
+          git config user.email 'groupvivit@gmail.com'
+          git add components/reports/ReportsClient.tsx
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix(types): harden reports client payloads'
+          git push origin HEAD:feat/vivito-internal-100

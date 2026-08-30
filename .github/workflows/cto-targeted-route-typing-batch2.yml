@@ -1,0 +1,72 @@
+name: CTO Targeted Route Typing Batch 2
+
+on:
+  push:
+    branches: [feat/vivito-internal-100]
+    paths:
+      - '.github/workflows/cto-targeted-route-typing-batch2.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-internal-100
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply validated route typing remediation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def apply(path, replacements):
+              p=Path(path); s=p.read_text()
+              for old,new in replacements:
+                  if old not in s:
+                      raise SystemExit(f'{path}: missing expected fragment: {old[:100]}')
+                  s=s.replace(old,new,1)
+              p.write_text(s)
+
+          apply('app/api/performance-score/route.ts', [
+            ('risk=churnProb>=.60?"HIGH":churnProb>=.35?"MEDIUM":"LOW";return{score,churnProb,risk}', 'risk:"HIGH"|"MEDIUM"|"LOW"=churnProb>=.60?"HIGH":churnProb>=.35?"MEDIUM":"LOW";return{score,churnProb,risk}'),
+            ('eq(financeRecords.invoiceStatus,"PAID" as any)', 'eq(financeRecords.invoiceStatus,"PAID")'),
+            ('if((session.user as any).role!=="SUPER_ADMIN")', 'if(session.user.role!=="SUPER_ADMIN")'),
+            ('const workspaceId=String((session.user as any).workspaceId||"")', 'const workspaceId=String(session.user.workspaceId||"")'),
+            ('results:any[]=[]', 'results:Array<{id:string;name:string;score:number;risk:"HIGH"|"MEDIUM"|"LOW";churnProb:number}>=[]'),
+            ('churnRisk:risk as any', 'churnRisk:risk'),
+          ])
+
+          apply('app/api/assistant/operations/route.ts', [
+            ('const rows=(v:any)=>Array.from(v as any) as any[];', 'type DbRow=Record<string,unknown>;\nconst rows=(v:unknown):DbRow[]=>Array.from(v as Iterable<DbRow>);'),
+            ('const role=String((session.user as any).role||""),userId=String((session.user as any).id||""),workspaceId=String((session.user as any).workspaceId||"")', 'const role=String(session.user.role||""),userId=String(session.user.id||""),workspaceId=String(session.user.workspaceId||"")'),
+            ('const events=raw.map(r=>{let data:any={};try{data=typeof r.new_values==="string"?JSON.parse(r.new_values):r.new_values||{}}catch{}const action=String(r.action||"");const failed=action.includes("stopped")||action.includes("failed");return{id:r.id,userId:r.user_id,action,entity:r.entity,entityId:r.entity_id,createdAt:r.created_at,status:failed?"FAILED":action.includes("executed")||action.includes("created")||action.includes("updated")||action.includes("saved")?"SUCCESS":"INFO",op:data.op||data?.result?.action||null,requestId:data.requestId||null,message:data.message||data?.result?.message||null,approval:data.approval||null,stepIndex:data.stepIndex??null,completedSteps:data.completedSteps??null};});', 'const events=raw.map(r=>{let data:Record<string,unknown>={};try{data=typeof r.new_values==="string"?JSON.parse(r.new_values):r.new_values&&typeof r.new_values==="object"?r.new_values as Record<string,unknown>:{} }catch{}const result=data.result&&typeof data.result==="object"?data.result as Record<string,unknown>:{};const action=String(r.action||"");const failed=action.includes("stopped")||action.includes("failed");return{id:r.id,userId:r.user_id,action,entity:r.entity,entityId:r.entity_id,createdAt:r.created_at,status:failed?"FAILED":action.includes("executed")||action.includes("created")||action.includes("updated")||action.includes("saved")?"SUCCESS":"INFO",op:data.op||result.action||null,requestId:data.requestId||null,message:data.message||result.message||null,approval:data.approval||null,stepIndex:data.stepIndex??null,completedSteps:data.completedSteps??null};});'),
+          ])
+
+          apply('app/api/clients/[id]/logo/route.ts', [
+            ('const url=(v:any)=>', 'type ClientRow={id:unknown;company_name:unknown;logo:unknown;website:unknown;facebook_url:unknown;instagram_url:unknown;account_manager_id:unknown;media_buyer_id:unknown};\nconst url=(v:unknown)=>'),
+            ('const role=String((session.user as any).role),userId=String((session.user as any).id);', 'const role=String(session.user.role),userId=String(session.user.id);'),
+            ('const rows:any=await db.execute(sql`select id,company_name,logo,website,facebook_url,instagram_url,account_manager_id,media_buyer_id from clients where id=${id} and is_active=true limit 1`),client=rows?.[0];', 'const rows=Array.from(await db.execute(sql`select id,company_name,logo,website,facebook_url,instagram_url,account_manager_id,media_buyer_id from clients where id=${id} and is_active=true limit 1`)) as ClientRow[],client=rows[0];'),
+            ('const{id}=await params,a:any=await access(id);if(a.error)return a.error;', 'const{id}=await params,a=await access(id);if("error" in a)return a.error;'),
+            ('const{id}=await params,a:any=await access(id);if(a.error)return a.error;', 'const{id}=await params,a=await access(id);if("error" in a)return a.error;'),
+          ])
+          PY
+      - name: TypeScript acceptance
+        run: npx tsc --noEmit
+      - name: Targeted ESLint acceptance
+        run: npx eslint app/api/performance-score/route.ts app/api/assistant/operations/route.ts 'app/api/clients/[id]/logo/route.ts' --max-warnings=0
+      - name: Commit validated remediation
+        run: |
+          git config user.name 'vivitgroup'
+          git config user.email 'groupvivit@gmail.com'
+          git add app/api/performance-score/route.ts app/api/assistant/operations/route.ts 'app/api/clients/[id]/logo/route.ts'
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix(types): harden typed API route boundaries'
+          git push origin HEAD:feat/vivito-internal-100

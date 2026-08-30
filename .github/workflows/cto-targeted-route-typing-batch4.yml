@@ -1,0 +1,63 @@
+name: CTO Targeted Route Typing Batch 4
+
+on:
+  push:
+    branches: [feat/vivito-internal-100]
+    paths:
+      - '.github/workflows/cto-targeted-route-typing-batch4.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-internal-100
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply route typing remediation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def apply(path, replacements):
+              p=Path(path); s=p.read_text()
+              for old,new in replacements:
+                  if old not in s:
+                      raise SystemExit(f'{path}: missing expected fragment: {old[:100]}')
+                  s=s.replace(old,new,1)
+              p.write_text(s)
+
+          apply('app/api/webhooks/route.ts', [
+            ('function workspaceOf(session:any){const workspaceId=String((session?.user as any)?.workspaceId||"").trim();return workspaceId||null;}', 'type WebhookSession={user?:{role?:string|null;workspaceId?:string|null}|null}|null;\nfunction workspaceOf(session:WebhookSession){const workspaceId=String(session?.user?.workspaceId||"").trim();return workspaceId||null;}'),
+            ('payload:Record<string,any>', 'payload:Record<string,unknown>'),
+            ('parsed.filter((v:any)=>typeof v==="string")', 'parsed.filter((v:unknown):v is string=>typeof v==="string")'),
+            ('function isAdmin(session:any){return !!session?.user&&(session.user as any).role==="SUPER_ADMIN";}', 'function isAdmin(session:WebhookSession){return !!session?.user&&session.user.role==="SUPER_ADMIN";}'),
+            ('body.events.map((v:any)=>String(v))', 'body.events.map((v:unknown)=>String(v))'),
+          ])
+
+          apply('app/api/export/route.ts', [
+            ('const workspaceId=String((session.user as any).workspaceId||"").trim();', 'const workspaceId=String(session.user.workspaceId||"").trim();'),
+            ('role=String((session.user as any).role||""),userId=String((session.user as any).id||"")', 'role=String(session.user.role||""),userId=String(session.user.id||"")'),
+            ('let data:any[]=[],headers:string[]=[];', 'let data:unknown[][]=[],headers:string[]=[];'),
+          ])
+          PY
+      - name: TypeScript acceptance
+        run: npx tsc --noEmit
+      - name: Targeted ESLint acceptance
+        run: npx eslint app/api/webhooks/route.ts app/api/export/route.ts --max-warnings=0
+      - name: Commit validated remediation
+        run: |
+          git config user.name 'vivitgroup'
+          git config user.email 'groupvivit@gmail.com'
+          git add app/api/webhooks/route.ts app/api/export/route.ts
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix(types): type webhook and export boundaries'
+          git push origin HEAD:feat/vivito-internal-100

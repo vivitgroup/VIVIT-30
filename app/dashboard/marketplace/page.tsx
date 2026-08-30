@@ -39,7 +39,7 @@ export default async function MarketplacePage() {
   const userMap = Object.fromEntries(creatorUsers.map(u => [u.id, u]));
 
   const userId=String(session.user.id||"");
-  let openTasks:any[]=[];
+  let openTasks:(typeof creativeTasks.$inferSelect)[]=[];
   if(role===Role.SUPER_ADMIN){
     openTasks=await db.select().from(creativeTasks).where(eq(creativeTasks.status,"PENDING")).limit(10);
   }else if(role===Role.ACCOUNT_MANAGER){
@@ -60,7 +60,6 @@ export default async function MarketplacePage() {
         </p>
       </div>
 
-      {/* Creator Profile Setup */}
       {role === Role.CREATOR && (
         <div className="card">
           <h2 className="font-semibold text-[#244D87] text-sm uppercase tracking-wider mb-4">
@@ -88,7 +87,6 @@ export default async function MarketplacePage() {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        {/* Available Creators */}
         <div className="space-y-3">
           <h2 className="font-semibold">👥 Available Creators ({profiles.length})</h2>
           {profiles.length === 0 && <p className="text-sm text-[#3D5577] card-vivit py-8 text-center">No creator profiles yet.</p>}
@@ -121,7 +119,6 @@ export default async function MarketplacePage() {
           })}
         </div>
 
-        {/* Open Tasks */}
         {role !== Role.CREATOR && (
           <div className="space-y-3">
             <h2 className="font-semibold">📋 Open Tasks ({openTasks.length})</h2>

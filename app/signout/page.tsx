@@ -6,7 +6,7 @@ import {useEffect,useState} from "react";
 
 export default function SignOutPage(){
   const [busy,setBusy]=useState(false),[ar,setAr]=useState(false);
-  useEffect(()=>setAr(localStorage.getItem("vivit-lang")==="ar"),[]);
+  useEffect(()=>{const timer=setTimeout(()=>setAr(localStorage.getItem("vivit-lang")==="ar"),0);return()=>clearTimeout(timer)},[]);
   return <main className="signout-page" dir={ar?"rtl":"ltr"}>
     <section className="signout-card">
       <div className="signout-brand"><Image src="/vivit-mark.png" width={64} height={64} alt="VIVIT"/><span>VIVIT ERP</span></div>

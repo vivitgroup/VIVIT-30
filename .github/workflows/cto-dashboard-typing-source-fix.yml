@@ -1,0 +1,70 @@
+name: CTO Dashboard Typing Source Fix
+
+on:
+  push:
+    branches: [feat/vivito-internal-100]
+    paths:
+      - .github/workflows/cto-dashboard-typing-source-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-internal-100
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply inferred dashboard query contracts
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('app/dashboard/page.tsx')
+          s=p.read_text()
+          replacements={
+            '  mediaMetrics, companyExpenses, notifications, users,\n  agencyHealthScores, commissions, payrollLocks }':'  mediaMetrics, companyExpenses, notifications,\n  agencyHealthScores, payrollLocks }',
+            '  const mo1ago   = new Date(year, now.getMonth()-1, 1);\n':'',
+            'eq(financeRecords.month as any,month)':'eq(financeRecords.month,month)',
+            'eq(financeRecords.year as any,year)':'eq(financeRecords.year,year)',
+            'eq(financeRecords.month as any,month===1?12:month-1)':'eq(financeRecords.month,month===1?12:month-1)',
+            'eq(financeRecords.year as any,month===1?year-1:year)':'eq(financeRecords.year,month===1?year-1:year)',
+            '  ]);\n  const dashboardDefaults:any[]=[[],[{total:0,paid:0,outstanding:0}],[{total:0,paid:0}],[{total:0,paid:0}],[{spend:0,leads:0,revenue:0}],[{cnt:0}],[{cnt:0}],[{cnt:0}],[{cnt:0}],[{cnt:0}],[{total:0}],[],[],[],[]];\n  const [\n    allClients, thisMonthFin, lastMonthFin, ytdFin,\n    thisMonthMedia, activeTasks, inReviewTasks,\n    overdueTasks, wonLeads, staleLead,\n    totalExpenses, recentNotifs, agencyHealth,\n    recentTasks, payrollLock,\n  ] = dashboardResults.map((result,index)=>result.status==="fulfilled"?result.value:dashboardDefaults[index]) as any[];':'  ] as const);\n  const [\n    allClientsResult,thisMonthFinResult,lastMonthFinResult,ytdFinResult,\n    thisMonthMediaResult,activeTasksResult,inReviewTasksResult,\n    overdueTasksResult,wonLeadsResult,staleLeadResult,\n    totalExpensesResult,recentNotifsResult,agencyHealthResult,\n    recentTasksResult,payrollLockResult,\n  ]=dashboardResults;\n  const allClients=allClientsResult.status==="fulfilled"?allClientsResult.value:[];\n  const thisMonthFin=thisMonthFinResult.status==="fulfilled"?thisMonthFinResult.value:[];\n  const lastMonthFin=lastMonthFinResult.status==="fulfilled"?lastMonthFinResult.value:[];\n  const ytdFin=ytdFinResult.status==="fulfilled"?ytdFinResult.value:[];\n  const thisMonthMedia=thisMonthMediaResult.status==="fulfilled"?thisMonthMediaResult.value:[];\n  const activeTasks=activeTasksResult.status==="fulfilled"?activeTasksResult.value:[];\n  const inReviewTasks=inReviewTasksResult.status==="fulfilled"?inReviewTasksResult.value:[];\n  const overdueTasks=overdueTasksResult.status==="fulfilled"?overdueTasksResult.value:[];\n  const wonLeads=wonLeadsResult.status==="fulfilled"?wonLeadsResult.value:[];\n  const staleLead=staleLeadResult.status==="fulfilled"?staleLeadResult.value:[];\n  const totalExpenses=totalExpensesResult.status==="fulfilled"?totalExpensesResult.value:[];\n  const recentNotifs=recentNotifsResult.status==="fulfilled"?recentNotifsResult.value:[];\n  const agencyHealth=agencyHealthResult.status==="fulfilled"?agencyHealthResult.value:[];\n  const recentTasks=recentTasksResult.status==="fulfilled"?recentTasksResult.value:[];\n  const payrollLock=payrollLockResult.status==="fulfilled"?payrollLockResult.value:[];',
+            '  const clientCount  = (allClients as any[]).length;\n  const highRisk     = (allClients as any[]).filter((c:any)=>c.churnRisk==="HIGH").length;\n  const avgHealth    = clientCount>0 ? Math.round((allClients as any[]).reduce((s:number,c:any)=>s+c.healthScore,0)/clientCount) : 0;':'  const clientCount  = allClients.length;\n  const highRisk     = allClients.filter(c=>c.churnRisk==="HIGH").length;\n  const avgHealth    = clientCount>0 ? Math.round(allClients.reduce((sum,c)=>sum+Number(c.healthScore??0),0)/clientCount) : 0;',
+            '  const health = (agencyHealth as any[])?.[0];':'  const health = agencyHealth[0];',
+            '  const payLock = (payrollLock as any[])?.[0];':'  const payLock = payrollLock[0];',
+            '  const clientMap = Object.fromEntries((allClients as any[]).map((c:any)=>[c.id,c.companyName]));':'  const clientMap:Record<string,string> = Object.fromEntries(allClients.map(c=>[c.id,c.companyName]));',
+            '              const area=(arr:number[],color:string)=>{':'              const area=(arr:number[])=>{',
+            '                  <path d={area(rev,"blue")} fill="url(#revGrad)"/>':'                  <path d={area(rev)} fill="url(#revGrad)"/>',
+            '                  <path d={area(pro,"green")} fill="url(#proGrad)"/>':'                  <path d={area(pro)} fill="url(#proGrad)"/>',
+            '            {(allClients as any[]).sort((a:any,b:any)=>a.healthScore-b.healthScore).slice(0,6).map((c:any)=>{':'            {[...allClients].sort((a,b)=>Number(a.healthScore??0)-Number(b.healthScore??0)).slice(0,6).map(c=>{',
+            '{label:"Healthy",val:(allClients as any[]).filter((c:any)=>c.churnRisk==="LOW").length,  color:"var(--green)"}':'{label:"Healthy",val:allClients.filter(c=>c.churnRisk==="LOW").length,  color:"var(--green)"}',
+            '{label:"Monitor",val:(allClients as any[]).filter((c:any)=>c.churnRisk==="MEDIUM").length,color:"var(--amber)"}':'{label:"Monitor",val:allClients.filter(c=>c.churnRisk==="MEDIUM").length,color:"var(--amber)"}',
+            '                {(recentTasks as any[]).map((t:any)=>{':'                {recentTasks.map(t=>{',
+            '            {(recentNotifs as any[]).length===0?(':'            {recentNotifs.length===0?(',
+            '            ):(recentNotifs as any[]).map((n:any)=>{':'            ):recentNotifs.map(n=>{',
+          }
+          for old,new in replacements.items():
+              if old not in s:
+                  raise SystemExit(f'expected source fragment not found: {old[:100]}')
+              s=s.replace(old,new)
+          p.write_text(s)
+          PY
+      - name: Verify target ESLint and TypeScript
+        run: |
+          npx eslint app/dashboard/page.tsx --max-warnings=0
+          npm run type-check
+      - name: Commit source-only dashboard typing fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/cto-dashboard-typing-source-fix.yml
+          git add app/dashboard/page.tsx
+          git commit -m "fix(types): infer dashboard query result contracts"
+          git push origin HEAD:feat/vivito-internal-100

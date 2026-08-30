@@ -4,6 +4,8 @@ import {auth} from "@/lib/auth";
 import {db,sql} from "@/lib/db";
 import {Role} from "@/lib/types";
 
+type TaskGuardRow={id:string;client_id:string;assigned_to_id?:string|null;account_manager_id?:string|null;client_user_id?:string|null;client_active?:boolean|null};
+
 export const dynamic="force-dynamic";
 
 export default async function TaskDetailGuard({children,params}:{children:ReactNode;params:Promise<{id:string}>}){
@@ -18,7 +20,7 @@ export default async function TaskDetailGuard({children,params}:{children:ReactN
     left join clients c on c.id=t.client_id
     where t.id=${id} and t.archived_at is null
     limit 1
-  `)) as any[];
+  `)) as TaskGuardRow[];
   const task=rows[0];
   if(!task)redirect("/dashboard/creative");
   if(task.client_active===false)redirect("/dashboard/creative");

@@ -1,0 +1,21 @@
+name: VIVITO Task Parsing Regression
+
+on:
+  push:
+    branches:
+      - fix/vivito-action-planner-task-parsing-2026-08-31
+
+permissions:
+  contents: read
+
+jobs:
+  task-parsing-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run 50 task parsing cases against Preview
+        run: node scripts/vivito-task-parsing-regression.mjs

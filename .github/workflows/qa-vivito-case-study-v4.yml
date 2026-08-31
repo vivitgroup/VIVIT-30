@@ -25,6 +25,8 @@ jobs:
       - run: npm ci
       - name: 1000 case role scope certification
         run: npx tsx scripts/qa-vivito-case-study-v4.ts
+      - name: 1000 case local resilience certification
+        run: npx tsx scripts/qa-vivito-case-study-local-fallback-v4.ts
       - name: Real-answer smoke Super Admin
         env:
           VIVITO_CASE_ROLE: SUPER_ADMIN

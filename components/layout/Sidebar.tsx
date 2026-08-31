@@ -113,7 +113,7 @@ export function Sidebar({ role, userName }: { role: string; userName: string }) 
         </div>
       )}
 
-      <nav className="sidebar-nav">
+      <nav className="sidebar-nav" aria-label="Primary navigation">
         {visible.map((section) => (
           <div key={section.label} className="sidebar-section">
             {!collapsed && <div className="sidebar-section-label">{section.label}</div>}
@@ -122,6 +122,7 @@ export function Sidebar({ role, userName }: { role: string; userName: string }) 
                 key={item.href}
                 href={item.href}
                 title={collapsed ? item.label : undefined}
+                aria-label={collapsed ? item.label : undefined}
                 className={`nav-item${active === item.href ? " active" : ""}`}
                 aria-current={active === item.href ? "page" : undefined}
                 style={{ justifyContent: collapsed ? "center" : "flex-start" }}
@@ -135,7 +136,7 @@ export function Sidebar({ role, userName }: { role: string; userName: string }) 
       </nav>
 
       <div className="sidebar-footer-actions">
-        <button type="button" onClick={toggleTheme} className="sidebar-theme-button" title={theme === "light" ? "Use dark theme" : "Use light theme"}>
+        <button type="button" onClick={toggleTheme} className="sidebar-theme-button" aria-label={theme === "light" ? "Use dark theme" : "Use light theme"} title={theme === "light" ? "Use dark theme" : "Use light theme"}>
           <span aria-hidden="true">{theme === "light" ? "◐" : "◑"}</span>
           {!collapsed && <span>{theme === "light" ? "Dark" : "Light"}</span>}
         </button>

@@ -1,15 +1,18 @@
-# One-shot trigger for final Vivito source normalization.
+# One-shot final Vivito source normalization; remove after successful commit.
 name: Apply Vivito Source Contract Once
 on:
-  push:
-    branches: [reconcile/main-integration-2026-09-01]
+  pull_request:
+    branches: [main]
 permissions:
   contents: write
 jobs:
   apply:
+    if: github.event.pull_request.head.ref == 'reconcile/main-integration-2026-09-01'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: reconcile/main-integration-2026-09-01
       - uses: actions/setup-node@v4
         with:
           node-version: 22

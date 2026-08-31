@@ -1,0 +1,21 @@
+name: VIVITO Final 150 Preview Certification
+
+on:
+  push:
+    branches:
+      - fix/vivito-action-planner-task-parsing-2026-08-31
+
+permissions:
+  contents: read
+
+jobs:
+  final-150:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run 100 questions and 50 executable tasks
+        run: node scripts/vivito-150-final-exam.mjs

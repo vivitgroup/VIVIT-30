@@ -1,9 +1,13 @@
 import fs from "node:fs";
 const inboxPath="app/dashboard/tasks-inbox/page.tsx",qaPath="scripts/qa-tasks-archive.mjs";
 let inbox=fs.readFileSync(inboxPath,"utf8"),qa=fs.readFileSync(qaPath,"utf8");
-const repl=(text,from,to,label)=>{if(text.includes(to))return text;if(!text.includes(from))throw new Error(`Missing anchor: ${label}`);return text.replace(from,to)};
-inbox=repl(inbox,'const BULK_ACTIONS:Record<string,BulkTarget>={approve:{from:["REVIEW"],status:"APPROVED"},complete:{from:["APPROVED"],status:"COMPLETED"},in_progress:{from:["PENDING","REVISION"],status:"IN_PROGRESS"},urgent_on:{priority:"URGENT"}};','const BULK_ACTIONS:Record<string,BulkTarget>={approve:{from:["REVIEW"],status:"APPROVED"},in_progress:{from:["PENDING","REVISION"],status:"IN_PROGRESS"},urgent_on:{priority:"URGENT"}};','bulk completion action');
-inbox=repl(inbox,'...target.status==="COMPLETED"?{completedAt:new Date()}:{},','', 'completedAt stamp');
-inbox=repl(inbox,'[["approve","Approve"],["complete","Complete"],["urgent_on","Set Urgent"],["in_progress","In Progress"]]','[["approve","Approve"],["urgent_on","Set Urgent"],["in_progress","In Progress"]]','complete button');
-qa=repl(qa,'check("Bulk complete only transitions APPROVED to COMPLETED",inbox.includes(\'complete:{from:["APPROVED"],status:"COMPLETED"}\'));\ncheck("Bulk complete records completedAt",inbox.includes(\'target.status===\\"COMPLETED\\"\')||inbox.includes(\'target.status==="COMPLETED"\'));','check("Tasks Inbox reserves COMPLETED for client approval",!inbox.includes(\'complete:{from:["APPROVED"],status:"COMPLETED"}\')&&!inbox.includes(\'["complete","Complete"]\')&&!inbox.includes(\'target.status==="COMPLETED"\'));','stale completion QA');
+const replaceIfPresent=(text,from,to)=>text.includes(from)?text.replace(from,to):text;
+inbox=replaceIfPresent(inbox,'const BULK_ACTIONS:Record<string,BulkTarget>={approve:{from:["REVIEW"],status:"APPROVED"},complete:{from:["APPROVED"],status:"COMPLETED"},in_progress:{from:["PENDING","REVISION"],status:"IN_PROGRESS"},urgent_on:{priority:"URGENT"}};','const BULK_ACTIONS:Record<string,BulkTarget>={approve:{from:["REVIEW"],status:"APPROVED"},in_progress:{from:["PENDING","REVISION"],status:"IN_PROGRESS"},urgent_on:{priority:"URGENT"}};');
+inbox=replaceIfPresent(inbox,'...target.status==="COMPLETED"?{completedAt:new Date()}:{},','');
+inbox=replaceIfPresent(inbox,'[["approve","Approve"],["complete","Complete"],["urgent_on","Set Urgent"],["in_progress","In Progress"]]','[["approve","Approve"],["urgent_on","Set Urgent"],["in_progress","In Progress"]]');
+const oldQa='check("Bulk complete only transitions APPROVED to COMPLETED",inbox.includes(\'complete:{from:["APPROVED"],status:"COMPLETED"}\'));\ncheck("Bulk complete records completedAt",inbox.includes(\'target.status===\\"COMPLETED\\"\')||inbox.includes(\'target.status==="COMPLETED"\'));';
+const newQa='check("Tasks Inbox reserves COMPLETED for client approval",!inbox.includes(\'complete:{from:["APPROVED"],status:"COMPLETED"}\')&&!inbox.includes(\'["complete","Complete"]\')&&!inbox.includes(\'completedAt:new Date()\')&&!inbox.includes(\'target.status==="COMPLETED"\'));';
+qa=replaceIfPresent(qa,oldQa,newQa);
+qa=qa.replace(/check\("Tasks Inbox reserves COMPLETED for client approval",[^\n]+\);/,newQa);
+if(inbox.includes('complete:{from:["APPROVED"],status:"COMPLETED"}')||inbox.includes('["complete","Complete"]')||inbox.includes('target.status==="COMPLETED"')||inbox.includes('completedAt:new Date()'))throw new Error("Tasks Inbox still contains a completion mutation path");
 fs.writeFileSync(inboxPath,inbox);fs.writeFileSync(qaPath,qa);console.log("tasks inbox client-completion contract enforced");

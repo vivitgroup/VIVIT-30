@@ -1,0 +1,25 @@
+name: UIUX Hardcore Audit
+on:
+  pull_request:
+    paths:
+      - 'app/**'
+      - 'components/**'
+      - 'scripts/qa-uiux-hardcore.mjs'
+      - '.github/workflows/qa-uiux-hardcore.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'app/**'
+      - 'components/**'
+      - 'scripts/qa-uiux-hardcore.mjs'
+      - '.github/workflows/qa-uiux-hardcore.yml'
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/qa-uiux-hardcore.mjs
+      - run: node scripts/qa-html-ten-pass.mjs

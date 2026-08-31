@@ -1,0 +1,38 @@
+name: UIUX Interaction Polish
+on:
+  push:
+    branches: [fix/uiux-interaction-polish-2026-08-31]
+permissions:
+  contents: write
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/vivit_ci
+      AUTH_SECRET: uiux-polish-ci-placeholder-secret-not-for-production
+      NEXTAUTH_SECRET: uiux-polish-ci-placeholder-secret-not-for-production
+      NEXTAUTH_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply interaction polish
+        run: node scripts/fix-uiux-interaction-polish.mjs
+      - name: Commit interaction polish
+        run: |
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add components
+            git commit -m "fix(uiux): harden navigation and focus interactions"
+            git push origin HEAD:fix/uiux-interaction-polish-2026-08-31
+          fi
+      - run: npm ci
+      - run: node scripts/qa-html-ten-pass.mjs
+      - run: npm run qa:mobile-ux
+      - run: npm run qa:resilience-ux
+      - run: npm run qa:rbac-security
+      - run: npm run lint
+      - run: npx tsc --noEmit
+      - run: npm run build

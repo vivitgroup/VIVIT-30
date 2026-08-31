@@ -20,14 +20,17 @@ try{
  check("Protected dashboard redirects anonymous users",[302,303,307,308].includes(dashboard.status)&&String(dashboard.headers.get("location")||"").includes("/login"),`status=${dashboard.status} location=${dashboard.headers.get("location")}`);
  const search=await req("/api/search?q=test"),searchJson=await search.json().catch(()=>({}));
  check("Protected app API rejects anonymous users",search.status===401&&searchJson.error==="Unauthorized",`status=${search.status}`);
+ check("Protected app API auth failure is private no-store",String(search.headers.get("cache-control")||"").includes("no-store")&&!String(search.headers.get("cache-control")||"").includes("public"),String(search.headers.get("cache-control")||""));
  const publicV1=await req("/api/v1/clients"),v1Json=await publicV1.json().catch(()=>({}));
  check("Public v1 rejects missing API key",publicV1.status===401&&/api key/i.test(String(v1Json.error||"")),`status=${publicV1.status}`);
  const csrf=await req("/api/bulk",{method:"POST",headers:{Origin:"https://evil.example","Content-Type":"application/json"},body:"{}"});
  check("Runtime CSRF rejects cross-origin mutation",csrf.status===403,`status=${csrf.status}`);
+ check("CSRF rejection is private no-store",String(csrf.headers.get("cache-control")||"").includes("no-store")&&!String(csrf.headers.get("cache-control")||"").includes("public"),String(csrf.headers.get("cache-control")||""));
  const cors=await req("/api/v1/clients",{method:"OPTIONS",headers:{Origin:"https://evil.example","Access-Control-Request-Method":"GET"}});
  check("Disallowed v1 CORS origin is not echoed",cors.status===204&&!cors.headers.get("access-control-allow-origin"),`status=${cors.status} allow=${cors.headers.get("access-control-allow-origin")}`);
  const cron=await req("/api/cron/sync-media");
  check("Cron surface rejects missing secret at runtime",cron.status===401,`status=${cron.status}`);
+ check("Cron auth failure is private no-store",String(cron.headers.get("cache-control")||"").includes("no-store")&&!String(cron.headers.get("cache-control")||"").includes("public"),String(cron.headers.get("cache-control")||""));
  const sec=await req("/login");
  check("Runtime security headers deny framing",String(sec.headers.get("x-frame-options")||"").toUpperCase()==="DENY");
  check("Runtime security headers disable MIME sniffing",String(sec.headers.get("x-content-type-options")||"").toLowerCase()==="nosniff");

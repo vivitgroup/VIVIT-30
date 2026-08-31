@@ -1,0 +1,13 @@
+name: HTML Ten Pass Audit
+on:
+  push:
+    branches: [audit/html-ten-pass-2026-08-31]
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/qa-html-ten-pass.mjs

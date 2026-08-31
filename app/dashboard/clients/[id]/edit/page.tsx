@@ -28,10 +28,12 @@ async function saveClient(clientId:string,fd:FormData){
     if(mediaBuyerId){const [u]=await db.select({id:users.id}).from(users).where(and(eq(users.id,mediaBuyerId),eq(users.workspaceId,workspaceId),eq(users.role,"MEDIA_BUYER"),eq(users.isActive,true))).limit(1);if(!u)throw new Error("Choose a valid active media buyer")}
     Object.assign(values,{monthlyRetainer:numberValue(fd.get("monthlyRetainer")),mediaBudget:numberValue(fd.get("mediaBudget")),contractValue:numberValue(fd.get("contractValue")),contractStart,contractEnd,accountManagerId,mediaBuyerId});
   }
-  await db.update(clients).set(values).where(and(eq(clients.id,clientId),eq(clients.workspaceId,workspaceId)));
   const facebookUrl=clean(fd.get("facebookUrl"),500)||null,instagramUrl=clean(fd.get("instagramUrl"),500)||null;
-  await db.execute(sql`update clients set facebook_url=${facebookUrl},instagram_url=${instagramUrl} where id=${clientId} and workspace_id=${workspaceId}`);
-  await db.insert(auditLogs).values({workspaceId,userId,action:"client_updated",entity:"Client",entityId:clientId,newValues:JSON.stringify({companyName,role,facebookUrl:Boolean(facebookUrl),instagramUrl:Boolean(instagramUrl),tiktokUrl:Boolean(values.tiktokAdsLink)})});
+  await db.transaction(async tx=>{
+    const changed=await tx.update(clients).set(values).where(and(eq(clients.id,clientId),eq(clients.workspaceId,workspaceId),eq(clients.isActive,true))).returning({id:clients.id});if(!changed.length)throw new Error("Client is no longer active");
+    await tx.execute(sql`update clients set facebook_url=${facebookUrl},instagram_url=${instagramUrl} where id=${clientId} and workspace_id=${workspaceId} and is_active=true`);
+    await tx.insert(auditLogs).values({workspaceId,userId,action:"client_updated",entity:"Client",entityId:clientId,newValues:JSON.stringify({companyName,role,facebookUrl:Boolean(facebookUrl),instagramUrl:Boolean(instagramUrl),tiktokUrl:Boolean(values.tiktokAdsLink)})});
+  });
   revalidatePath("/dashboard/universe");revalidatePath("/dashboard/clients");revalidatePath(`/dashboard/clients/${clientId}`);redirect(`/dashboard/clients/${clientId}`);
 }
 const toDateInput=(v:Date|null|undefined)=>v?new Date(v).toISOString().slice(0,10):"";

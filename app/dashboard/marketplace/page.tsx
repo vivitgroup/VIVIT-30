@@ -33,19 +33,21 @@ export default async function MarketplacePage() {
   const role = session.user.role as Role;
   if (![Role.SUPER_ADMIN, Role.ACCOUNT_MANAGER, Role.CREATOR].includes(role)) redirect("/dashboard");
 
-  const profiles = await db.select().from(creatorProfiles).where(eq(creatorProfiles.isAvailable, true));
-  const userIds  = profiles.map(p => p.userId);
-  const creatorUsers = userIds.length > 0 ? await db.select({ id:users.id, name:users.name, email:users.email }).from(users).where(inArray(users.id, userIds)) : [];
+  const workspaceId=String(session.user.workspaceId||"");if(!workspaceId)redirect("/login?reason=workspace_missing");
+  const workspaceCreators=await db.select({id:users.id,name:users.name,email:users.email}).from(users).where(and(eq(users.workspaceId,workspaceId),eq(users.role,"CREATOR"),eq(users.isActive,true),eq(users.approvalStatus,"APPROVED")));
+  const allowedCreatorIds=workspaceCreators.map(u=>u.id);
+  const profiles = allowedCreatorIds.length?await db.select().from(creatorProfiles).where(and(eq(creatorProfiles.isAvailable,true),inArray(creatorProfiles.userId,allowedCreatorIds))):[];
+  const creatorUsers = workspaceCreators.filter(u=>profiles.some(p=>p.userId===u.id));
   const userMap = Object.fromEntries(creatorUsers.map(u => [u.id, u]));
 
   const userId=String(session.user.id||"");
   let openTasks:(typeof creativeTasks.$inferSelect)[]=[];
   if(role===Role.SUPER_ADMIN){
-    openTasks=await db.select().from(creativeTasks).where(eq(creativeTasks.status,"PENDING")).limit(10);
+    openTasks=await db.select().from(creativeTasks).where(and(eq(creativeTasks.workspaceId,workspaceId),eq(creativeTasks.status,"PENDING"))).limit(10);
   }else if(role===Role.ACCOUNT_MANAGER){
-    const owned=await db.select({id:clients.id}).from(clients).where(and(eq(clients.accountManagerId,userId),eq(clients.isActive,true)));
+    const owned=await db.select({id:clients.id}).from(clients).where(and(eq(clients.workspaceId,workspaceId),eq(clients.accountManagerId,userId),eq(clients.isActive,true)));
     const ids=owned.map(c=>c.id);
-    openTasks=ids.length?await db.select().from(creativeTasks).where(and(eq(creativeTasks.status,"PENDING"),inArray(creativeTasks.clientId,ids))).limit(10):[];
+    openTasks=ids.length?await db.select().from(creativeTasks).where(and(eq(creativeTasks.workspaceId,workspaceId),eq(creativeTasks.status,"PENDING"),inArray(creativeTasks.clientId,ids))).limit(10):[];
   }
   const myProfile = role === Role.CREATOR ? await db.select().from(creatorProfiles).where(eq(creatorProfiles.userId, session.user.id!)).then(r=>r[0]) : null;
 

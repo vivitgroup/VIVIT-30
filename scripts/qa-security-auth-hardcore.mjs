@@ -9,6 +9,7 @@ check("Unknown credentials execute a dummy bcrypt path",auth.includes("dummyPass
 check("Credential email is normalized before lookup",auth.includes("trim().toLowerCase()")&&auth.includes("encodeURIComponent(normalizedEmail)"));
 check("Auth limiter serializes IP and subject counters",abuse.includes("pg_advisory_xact_lock")&&abuse.includes(":ip:")&&abuse.includes(":subject:"));
 check("Auth limiter records both IP and opaque subject",abuse.includes("ipAddress:ip")&&abuse.includes("authSubject")&&abuse.includes("sha256"));
+check("Public auth abuse logs are tenant neutral",abuse.includes('PUBLIC_AUTH_AUDIT_SCOPE="__public_auth__"')&&abuse.includes("workspaceId:PUBLIC_AUTH_AUDIT_SCOPE")&&!abuse.includes('workspaceId:"default"'));
 
 check("OTP endpoint does not expose registered-email message",!otp.includes("Email already registered"));
 check("OTP endpoint has burst and hourly DB limits",otp.includes("security_signup_otp_burst")&&otp.includes("security_signup_otp_hourly"));
@@ -18,6 +19,7 @@ check("OTP send is bound to the exact issued hash",otp.includes("eq(emailVerific
 check("Signup password policy is 12-128 characters",signup.includes("length<12")&&signup.includes("length>128"));
 check("Signup attempts are rate limited",signup.includes("security_signup_attempt")&&signup.includes("consumeAuthRateLimit"));
 check("Signup verification is serialized",signup.includes("pg_advisory_xact_lock")&&signup.includes("signup:"));
+check("Signup duplicate is rechecked inside transaction",signup.includes('return "EMAIL_ALREADY_REGISTERED"')&&signup.includes("tx.select({id:users.id})"));
 check("OTP failed-attempt mutation is compare-and-set",signup.includes("eq(emailVerificationCodes.attempts,verification.attempts)"));
 check("Signup duplicate response does not expose registered email",!signup.includes('error:"Email already registered"'));
 check("Signup notifications target active approved admins",signup.includes('eq(users.isActive,true)')&&signup.includes('eq(users.approvalStatus,"APPROVED")'));

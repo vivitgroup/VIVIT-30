@@ -1,0 +1,11 @@
+import fs from "node:fs";
+const file="scripts/qa-rbac-security.mjs";
+let s=fs.readFileSync(file,"utf8");
+const oldState='check("Bulk task status uses explicit state machine",bulk.includes("const TRANSITIONS")&&bulk.includes(\'IN_PROGRESS:["PENDING","REVISION"]\')&&bulk.includes(\'COMPLETED:["APPROVED"]\'));';
+const newState='check("Bulk task status uses explicit state machine and reserves completion for client approval",bulk.includes("const TRANSITIONS")&&bulk.includes(\'IN_PROGRESS:["PENDING","REVISION"]\')&&!bulk.includes(\'COMPLETED:["APPROVED"]\')&&bulk.includes(\'target==="COMPLETED"\')&&bulk.includes("reserved for final client approval"));';
+const oldCompleted='check("Bulk completed transition records completedAt",bulk.includes(\'target==="COMPLETED"?new Date():undefined\'));';
+const newCompleted='check("Bulk API cannot stamp completedAt",!bulk.includes(\'target==="COMPLETED"?new Date():undefined\')&&bulk.includes("Task completion is reserved for final client approval."));';
+let changed=false;
+if(s.includes(oldState)){s=s.replace(oldState,newState);changed=true}else if(!s.includes(newState))throw new Error("Missing RBAC bulk state-machine QA anchor");
+if(s.includes(oldCompleted)){s=s.replace(oldCompleted,newCompleted);changed=true}else if(!s.includes(newCompleted))throw new Error("Missing RBAC bulk completion QA anchor");
+if(changed){fs.writeFileSync(file,s);console.log("RBAC QA synced to client-controlled completion contract.")}else console.log("RBAC QA completion contract already synced.");

@@ -12,5 +12,5 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Live 100 questions + 50 executions per role
-        run: node scripts/vivito-all-roles-live-exam.mjs
+      - name: Deep live production audit across all roles
+        run: node scripts/vivito-live-audit-runner.mjs

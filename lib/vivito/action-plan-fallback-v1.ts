@@ -13,4 +13,5 @@ function explicitTaskFallback(prompt:string,system:string,raw:string){if(!/VIVIT
  const arUpdate=input.match(/^(?:عدّل|عدل|غيّر|غير)\s+(.+?)\s+(?:للعميل|لعميل)(?=\s|[،,.;]|$)/i),enUpdate=input.match(/^(?:update|edit|change)\s+(.+?)\s+for\s+(?:the\s+)?client\b/i),taskTitle=clean(arUpdate?.[1]||enUpdate?.[1]||"");
  if(taskTitle&&priority)return jsonPlan("update_task",{taskTitle,clientName,priority},/^[\u0600-\u06ff]/.test(input)?`تعديل أولوية ${taskTitle}`:`Update ${taskTitle} priority`);
  return raw}
-export function repairOrFallbackVivitoActionPlan(prompt:string,system:string,raw:string){const repaired=repairVivitoActionPlan(prompt,system,raw);return explicitTaskFallback(prompt,system,repaired)}
+function normalizeOptionalPlans(raw:string){try{const plan=JSON.parse(raw) as {op?:unknown;missingFields?:unknown[]};if(String(plan.op||"")==="remind_me")return JSON.stringify({...plan,missingFields:[]});return raw}catch{return raw}}
+export function repairOrFallbackVivitoActionPlan(prompt:string,system:string,raw:string){const repaired=repairVivitoActionPlan(prompt,system,raw),fallback=explicitTaskFallback(prompt,system,repaired);return normalizeOptionalPlans(fallback)}

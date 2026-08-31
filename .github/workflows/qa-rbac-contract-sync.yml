@@ -1,0 +1,25 @@
+name: RBAC Contract Sync
+on:
+  push:
+    branches: [audit/business-logic-hardcore-2026-08-31]
+permissions:
+  contents: write
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Enforce Media Buyer and finance QA contracts
+        run: node scripts/fix-media-buyer-rbac-and-finance-qa.mjs
+      - name: Commit contract synchronization
+        run: |
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add app/api/clients/route.ts lib/actions/create-task-role-safe.ts app/dashboard/clients/new/page.tsx app/dashboard/creative/new/page.tsx app/dashboard/tasks-inbox/page.tsx app/api/lifecycle/route.ts scripts/qa-clients.mjs scripts/qa-finance-reports.mjs
+            git commit -m "fix(business): enforce Media Buyer read-only contract"
+            git push origin HEAD:audit/business-logic-hardcore-2026-08-31
+          fi

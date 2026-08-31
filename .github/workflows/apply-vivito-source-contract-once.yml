@@ -1,0 +1,75 @@
+name: Apply Vivito Source Contract Once
+on:
+  push:
+    branches: [reconcile/main-integration-2026-09-01]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Normalize Vivito source contracts
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          engine_path=Path('lib/vivito/action-engine.ts')
+          engine=engine_path.read_text()
+          replacements={
+            'create_client:{roles:["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","ACCOUNTANT"],risk:"medium",description:"Create a real client record."},update_client:{roles:MEDIA,risk:"medium",description:"Update an authorized client profile."},add_client_contact:{roles:MEDIA,risk:"medium",description:"Add a client contact."},archive_client:{roles:MEDIA,risk:"high",description:"Archive a client."},restore_client:{roles:MEDIA,risk:"medium",description:"Restore a client."},delete_client:{roles:SA,risk:"destructive",description:"Permanently delete an archived client when safe."},':
+            'create_client:{roles:["SUPER_ADMIN","ACCOUNT_MANAGER","ACCOUNTANT"],risk:"medium",description:"Create a real client record."},update_client:{roles:MGT,risk:"medium",description:"Update an authorized client profile."},add_client_contact:{roles:MGT,risk:"medium",description:"Add a client contact."},archive_client:{roles:MGT,risk:"high",description:"Archive a client."},restore_client:{roles:MGT,risk:"medium",description:"Restore a client."},delete_client:{roles:SA,risk:"destructive",description:"Permanently delete an archived client when safe."},',
+            'create_task:{roles:MEDIA,risk:"medium",description:"Create and assign a creative task."},update_task:{roles:MEDIA,risk:"medium",description:"Update a task."},reassign_task:{roles:MEDIA,risk:"medium",description:"Reassign a task."},archive_task:{roles:MEDIA,risk:"high",description:"Archive a task."},restore_task:{roles:MEDIA,risk:"medium",description:"Restore a task."},delete_task:{roles:SA,risk:"destructive",description:"Permanently delete an archived task when safe."},':
+            'create_task:{roles:MGT,risk:"medium",description:"Create and assign a creative task."},update_task:{roles:MGT,risk:"medium",description:"Update a task."},reassign_task:{roles:MGT,risk:"medium",description:"Reassign a task."},archive_task:{roles:MGT,risk:"high",description:"Archive a task."},restore_task:{roles:MGT,risk:"medium",description:"Restore a task."},delete_task:{roles:SA,risk:"destructive",description:"Permanently delete an archived task when safe."},',
+            'schedule_post:{roles:MGT,risk:"high",description:"Schedule an uploaded image/video on the calendar."},mark_posted:{roles:MEDIA,risk:"medium",description:"Mark a scheduled post as posted."},':
+            'schedule_post:{roles:MGT,risk:"high",description:"Schedule an uploaded image/video on the calendar."},mark_posted:{roles:MGT,risk:"medium",description:"Mark a scheduled post as posted."},'
+          }
+          for old,new in replacements.items():
+            if old not in engine and new not in engine:
+              raise SystemExit(f'Missing action-engine anchor: {old[:80]}')
+            engine=engine.replace(old,new)
+          engine_path.write_text(engine)
+
+          ext_path=Path('lib/vivito/executor-extended.ts')
+          ext=ext_path.read_text()
+          old='const TASK_TRANSITIONS:Record<string,string[]>={PENDING:["IN_PROGRESS"],IN_PROGRESS:["REVIEW"],REVIEW:["APPROVED","REVISION"],REVISION:["IN_PROGRESS","REVIEW"],APPROVED:["COMPLETED"],REJECTED:[],COMPLETED:[]};'
+          new='const TASK_TRANSITIONS:Record<string,string[]>={PENDING:["IN_PROGRESS"],IN_PROGRESS:["REVIEW"],REVIEW:["APPROVED","REVISION"],REVISION:["IN_PROGRESS","REVIEW"],APPROVED:[],REJECTED:[],COMPLETED:[]};'
+          if old not in ext and new not in ext:
+            raise SystemExit('Missing TASK_TRANSITIONS anchor')
+          ext=ext.replace(old,new)
+          ext=ext.replace(';if(v==="COMPLETED")sets.completed_at=new Date()','')
+          ext_path.write_text(ext)
+
+          qa_path=Path('scripts/qa-vivito-actions.mjs')
+          qa=qa_path.read_text()
+          old_check='check("Task completion records completion timestamp",extended.includes(\'if(v==="COMPLETED")sets.completed_at=new Date()\'));'
+          new_check='check("Extended task executor reserves completion for client approval",extended.includes(\'APPROVED:[]\')&&!extended.includes(\'if(v==="COMPLETED")sets.completed_at=new Date()\'));'
+          if old_check not in qa and new_check not in qa:
+            raise SystemExit('Missing completion QA anchor')
+          qa=qa.replace(old_check,new_check)
+          marker='check("Media alias includes Super Admin AM Media Buyer",has(\'MEDIA=["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"]\'));'
+          addition='''check("Media alias includes Super Admin AM Media Buyer",has('MEDIA=["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"]'));
+          check("Media Buyer is excluded from client lifecycle mutations",has('create_client:{roles:["SUPER_ADMIN","ACCOUNT_MANAGER","ACCOUNTANT"]')&&has('update_client:{roles:MGT')&&has('add_client_contact:{roles:MGT')&&has('archive_client:{roles:MGT')&&has('restore_client:{roles:MGT'));
+          check("Media Buyer is excluded from task lifecycle mutations",has('create_task:{roles:MGT')&&has('update_task:{roles:MGT')&&has('reassign_task:{roles:MGT')&&has('archive_task:{roles:MGT')&&has('restore_task:{roles:MGT'));
+          check("Mark posted follows management write contract",has('mark_posted:{roles:MGT'));'''
+          if 'Media Buyer is excluded from client lifecycle mutations' not in qa:
+            if marker not in qa: raise SystemExit('Missing media QA anchor')
+            qa=qa.replace(marker,addition)
+          qa_path.write_text(qa)
+          PY
+      - name: Run Vivito contract QA
+        run: node scripts/qa-vivito-actions.mjs
+      - name: Commit normalized source
+        shell: bash
+        run: |
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add lib/vivito/action-engine.ts lib/vivito/executor-extended.ts scripts/qa-vivito-actions.mjs
+            git commit -m "fix(vivito): align source catalog with business contracts"
+            git push origin HEAD:reconcile/main-integration-2026-09-01
+          fi

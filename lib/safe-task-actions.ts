@@ -1,6 +1,7 @@
 "use server";
 import {auth} from "@/lib/auth";
 import {db,sql} from "@/lib/db";
+import {revalidatePath} from "next/cache";
 import {updateTaskStatus as baseUpdateTaskStatus,submitTaskFile as baseSubmitTaskFile,updateTaskCaption as baseUpdateTaskCaption} from "@/lib/actions";
 
 type TaskContextRow={id:string;status:string;assigned_to_id:string|null;client_id:string;account_manager_id:string|null;client_active:boolean};
@@ -15,8 +16,12 @@ async function context(taskId:string){
   return{session,role,userId,workspaceId,task};
 }
 export async function safeUpdateTaskStatus(taskId:string,status:string,revisionNotes?:string){
-  await context(taskId);
-  return baseUpdateTaskStatus(taskId,status,revisionNotes);
+  const c=await context(taskId);
+  if(c.role==="CREATOR")return baseUpdateTaskStatus(taskId,status,revisionNotes);
+  const managerTransitions:Record<string,string[]>={PENDING:["IN_PROGRESS"],IN_PROGRESS:["REVIEW"],REVISION:["IN_PROGRESS"],REVIEW:["APPROVED","REVISION","REJECTED"]};
+  if(!(managerTransitions[c.task.status]||[]).includes(status))throw new Error("Forbidden transition");
+  await db.execute(sql`update creative_tasks set status=${status},approved_by_client=case when ${status} in ('APPROVED','REVISION') then false else approved_by_client end,client_approval_at=case when ${status} in ('APPROVED','REVISION') then null else client_approval_at end,client_approval_name=case when ${status} in ('APPROVED','REVISION') then null else client_approval_name end,completed_at=null,revision_notes=case when ${status}='REVISION' then ${revisionNotes||null} when ${status}='APPROVED' then null else revision_notes end,revision_count=case when ${status}='REVISION' then coalesce(revision_count,0)+1 else revision_count end,updated_at=now() where id=${taskId} and workspace_id=${c.workspaceId} and archived_at is null and deleted_at is null`);
+  for(const path of [`/dashboard/creative/${taskId}`,"/dashboard/creative","/dashboard/portal","/dashboard/tasks-inbox","/dashboard/today","/dashboard/calendar"])revalidatePath(path);
 }
 export async function safeSubmitTaskFile(taskId:string,fileName:string,fileUrl:string,notes=""){
   await context(taskId);

@@ -1,12 +1,20 @@
-import {auth} from "@/lib/auth";
-import {redirect} from "next/navigation";
-import {Sidebar} from "@/components/layout/Sidebar";
-import {Header} from "@/components/layout/Header";
-import {MobileNav} from "@/components/layout/MobileNav";
-import {KeyboardShortcuts} from "@/components/KeyboardShortcuts";
-import {DashboardLanguage} from "@/components/i18n/DashboardLanguage";
-import {TaskReminderWatcher} from "@/components/notifications/TaskReminderWatcher";
-import {ClientSocialLinkRuntime} from "@/components/clients/ClientSocialLinkRuntime";
+import { auth } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import { db, notifications } from "@/lib/db";
+import { eq, and, count } from "drizzle-orm";
+import { Sidebar } from "@/components/layout/Sidebar";
+import { Header } from "@/components/layout/Header";
+import { MobileNav } from "@/components/layout/MobileNav";
+import { OperatingSystemLauncher } from "@/components/layout/OperatingSystemLauncher";
+import { ClientLogoManager } from "@/components/clients/ClientLogoManager";
+import { ClientSocialLinkRuntime } from "@/components/clients/ClientSocialLinkRuntime";
+import { TaskReminderWatcher } from "@/components/reminders/TaskReminderWatcher";
+import { RealtimeNotifications } from "@/components/realtime-notifications";
+import { KeyboardShortcutsModal } from "@/components/keyboard-shortcuts";
+import { Suspense } from "react";
+import { DashboardLanguage } from "@/components/i18n/DashboardLanguage";
+import { SystemAssistant } from "@/components/assistant/SystemAssistant";
+import ExperienceRuntime from "@/components/experience/ExperienceRuntime";
 import "./dashboard-polish.css";
 import "./final-ui-pass.css";
 import "./final-module-polish.css";
@@ -23,11 +31,13 @@ import "./professional-system.css";
 import "./genz-professional-ui-v3.css";
 import "./system-ui-consistency-v4.css";
 import "./release-corrections-v5.css";
-import ExperienceRuntime from "@/components/experience/ExperienceRuntime";
-import SystemAssistant from "@/components/assistant/SystemAssistant";
-import {NotificationPoller} from "@/components/notifications/NotificationPoller";
+
+function PageSkeleton(){return <div className="dashboard-skeleton" style={{padding:"28px",display:"grid",gap:"16px"}}><div className="dashboard-skeleton-kpis" style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"16px"}}>{[1,2,3,4].map(i=><div key={i} className="skeleton" style={{height:"110px",borderRadius:"16px"}}/>)}</div><div className="dashboard-skeleton-main" style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:"16px"}}><div className="skeleton" style={{height:"300px",borderRadius:"16px"}}/><div className="skeleton" style={{height:"300px",borderRadius:"16px"}}/></div></div>}
 
 export default async function DashboardLayout({children}:{children:React.ReactNode}){
- const session=await auth();if(!session?.user)redirect("/login");const user=session.user as typeof session.user&{role?:string};const role=user.role??"CLIENT";
- return <div className="app-main-shell" dir="ltr" data-ui-language="en"><Sidebar role={role} userName={user.name??"User"}/><div className="app-body"><Header role={role} unreadCount={0}/><main className="app-content">{children}</main></div><MobileNav role={role}/><SystemAssistant role={role}/><NotificationPoller/><TaskReminderWatcher role={role}/><KeyboardShortcuts/><DashboardLanguage/><ClientSocialLinkRuntime/><ExperienceRuntime/></div>
+  const session=await auth();if(!session?.user)redirect("/login");
+  const role=session.user.role??"CLIENT",userName=session.user.name??session.user.email??"User",userId=session.user.id??"";
+  const unreadRows=await db.select({value:count()}).from(notifications).where(and(eq(notifications.userId,userId),eq(notifications.isRead,false))).catch(()=>[]),unreadCount=Number(unreadRows[0]?.value??0);
+  const showTaskReminders=["SUPER_ADMIN","ACCOUNT_MANAGER","CREATOR"].includes(String(role));
+  return <div style={{display:"flex",minHeight:"100vh",background:"var(--bg-primary)"}}><ExperienceRuntime role={role}/><Sidebar role={role} userName={userName}/><div className="app-main-shell" id="app-main" dir="ltr" data-ui-language="en"><Header role={role} unreadCount={unreadCount}/><main style={{flex:1,padding:0}}><Suspense fallback={<PageSkeleton/>}><div className="app-content animate-fade-up">{children}</div></Suspense></main></div><RealtimeNotifications/><KeyboardShortcutsModal/><MobileNav role={role}/><DashboardLanguage/><ClientSocialLinkRuntime/>{showTaskReminders&&<TaskReminderWatcher/>}<SystemAssistant role={role}/><ClientLogoManager role={role}/><OperatingSystemLauncher role={role}/></div>;
 }

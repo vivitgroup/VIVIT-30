@@ -11,6 +11,8 @@ jobs:
       AUTH_SECRET: vivito-ci-placeholder-secret-not-for-production
       NEXTAUTH_SECRET: vivito-ci-placeholder-secret-not-for-production
       NEXTAUTH_URL: http://localhost:3000
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -19,6 +21,24 @@ jobs:
       - run: npm ci
       - name: 1000 case role scope certification
         run: npx tsx scripts/qa-vivito-case-study-v4.ts
+      - name: Real-answer smoke Super Admin
+        env:
+          VIVITO_CASE_ROLE: SUPER_ADMIN
+          VIVITO_CASE_LIMIT: 20
+          VIVITO_CASE_PACE_MS: 250
+        run: npx tsx scripts/run-vivito-case-study-v4.ts
+      - name: Real-answer smoke Media Buyer
+        env:
+          VIVITO_CASE_ROLE: MEDIA_BUYER
+          VIVITO_CASE_LIMIT: 20
+          VIVITO_CASE_PACE_MS: 250
+        run: npx tsx scripts/run-vivito-case-study-v4.ts
+      - name: Real-answer smoke Accountant
+        env:
+          VIVITO_CASE_ROLE: ACCOUNTANT
+          VIVITO_CASE_LIMIT: 20
+          VIVITO_CASE_PACE_MS: 250
+        run: npx tsx scripts/run-vivito-case-study-v4.ts
       - name: VIVITO intelligence
         run: npm run qa:vivito-intelligence
       - name: VIVITO academy

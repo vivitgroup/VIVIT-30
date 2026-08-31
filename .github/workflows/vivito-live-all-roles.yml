@@ -1,0 +1,18 @@
+name: VIVITO Live All Roles Certification
+on:
+  push:
+    branches: [qa/vivito-live-all-roles-20260831]
+  workflow_dispatch:
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Live health
+        run: curl --fail --silent --show-error https://vivit-erp-theta.vercel.app/api/health
+      - name: Run 100 questions and 50 executions per role
+        run: node scripts/vivito-live-all-roles-exam.mjs

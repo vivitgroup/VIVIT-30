@@ -7,6 +7,7 @@ const checks=[];
 const check=(name,ok)=>checks.push({name,ok:Boolean(ok)});
 
 const list=read("app/dashboard/clients/page.tsx");
+const universe=read("app/dashboard/universe/page.tsx");
 const detail=read("app/dashboard/clients/[id]/page.tsx");
 const guard=read("app/dashboard/clients/[id]/layout.tsx");
 const edit=read("app/dashboard/clients/[id]/edit/page.tsx");
@@ -15,6 +16,9 @@ const form=read("components/clients/NewClientForm.tsx");
 const api=read("app/api/clients/route.ts");
 const lifecycle=read("app/api/lifecycle/route.ts");
 const actions=read("lib/actions/index.ts");
+const taskAction=read("lib/actions/create-task-role-safe.ts");
+const taskPage=read("app/dashboard/creative/new/page.tsx");
+const taskInbox=read("app/dashboard/tasks-inbox/page.tsx");
 
 check("Clients list requires authenticated role",list.includes("if (!session?.user) redirect")&&list.includes("Role.SUPER_ADMIN")&&list.includes("Role.ACCOUNT_MANAGER"));
 check("Account Manager list is ownership scoped",list.includes("eq(clients.accountManagerId,userId)"));
@@ -22,12 +26,17 @@ check("Media Buyer list is ownership scoped",list.includes("eq(clients.mediaBuye
 check("Client detail has a centralized active-record guard",guard.includes("eq(clients.isActive,true)")&&guard.includes("redirect(\"/dashboard/clients\")"));
 check("Client detail direct URL scopes Account Managers",guard.includes("client.accountManagerId!==userId"));
 check("Client detail direct URL scopes Media Buyers",guard.includes("client.mediaBuyerId!==userId"));
-check("New client page and API agree on allowed roles",newPage.includes("SUPER_ADMIN\",\"ACCOUNT_MANAGER\",\"ACCOUNTANT")&&api.includes("SUPER_ADMIN\",\"ACCOUNT_MANAGER\",\"ACCOUNTANT"));
+check("New client page and API agree on allowed roles",newPage.includes("SUPER_ADMIN\",\"ACCOUNT_MANAGER\",\"MEDIA_BUYER\",\"ACCOUNTANT")&&api.includes("SUPER_ADMIN\",\"ACCOUNT_MANAGER\",\"MEDIA_BUYER\",\"ACCOUNTANT"));
+check("Media Buyer self-created clients are ownership scoped",api.includes('role==="MEDIA_BUYER"?userId')&&form.includes("Assigned to your account automatically"));
+check("Client universe exposes Add Account",universe.includes('/dashboard/clients/new')&&universe.includes('+ Add Account'));
 check("Client create rejects duplicate company names",api.includes("already exists")&&api.includes("status:409"));
 check("Client create validates active portal user and one-client ownership",api.includes("valid active approved client portal user")&&api.includes("already linked to another client"));
 check("Client create validates AM/Media Buyer assignments",api.includes("valid active account manager")&&api.includes("valid active media buyer"));
 check("Client create validates contract date order",api.includes("Contract end date must be on or after the start date"));
 check("Client form exposes real error and saving states",form.includes("setError")&&form.includes("Creating client…")&&form.includes("role=\"alert\""));
+check("Task create allows AM and Media Buyer with ownership checks",taskAction.includes('"SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"')&&taskAction.includes('role==="ACCOUNT_MANAGER"&&client.accountManagerId!==userId')&&taskAction.includes('role==="MEDIA_BUYER"&&client.mediaBuyerId!==userId'));
+check("New task page scopes Media Buyer clients",taskPage.includes("Role.MEDIA_BUYER")&&taskPage.includes("eq(clients.mediaBuyerId,userId)"));
+check("Task inbox Add Task is enabled for Media Buyer",taskInbox.includes("Role.MEDIA_BUYER")&&taskInbox.includes('/dashboard/creative/new')&&taskInbox.includes('+ Add Task'));
 check("Archive/restore is ownership scoped",lifecycle.includes("managerOwns")&&lifecycle.includes("client_restored"));
 check("Permanent client delete is Super Admin only",lifecycle.includes("Only Super Admin can permanently delete a client"));
 check("Permanent delete blocks linked records and portal account",lifecycle.includes("Archive it instead of permanent deletion")&&lifecycle.includes("portalAccount"));

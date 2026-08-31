@@ -2,6 +2,8 @@ name: HTML Ten Pass Audit
 on:
   push:
     branches: [audit/html-ten-pass-2026-08-31]
+permissions:
+  contents: write
 jobs:
   audit:
     runs-on: ubuntu-latest
@@ -10,4 +12,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: node scripts/qa-html-ten-pass.mjs
+      - name: Apply targeted HTML fixes
+        run: node scripts/fix-html-a11y-pass.mjs
+      - name: Commit targeted fixes
+        run: |
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add app components
+            git commit -m "fix(uiux): apply verified HTML accessibility fixes"
+            git push origin HEAD:audit/html-ten-pass-2026-08-31
+          fi
+      - name: Ten-pass HTML audit
+        run: node scripts/qa-html-ten-pass.mjs

@@ -55,6 +55,17 @@
 .va-input textarea { min-height: 44px !important; font-size: 12px !important; line-height: 1.45 !important; }
 .va-foot { font-size: 10px !important; line-height: 1.35 !important; color: color-mix(in srgb, #f7f3f8 50%, #5f5663) !important; }
 
+/* Client Portal: no sub-10px operational copy or undersized primary links. */
+.portal-socials a { width: 44px !important; height: 44px !important; border-radius: 11px !important; }
+.metric-label,.section-meta small,.campaign-top small,.result-badge,.campaign-metrics small,
+.creative-title span,.creative-body > small,.timeline-row small,.update span,.update small,
+.deliver small,.docs p,.billing-summary small,.bill-row small,.approved-list small {
+  font-size: 10px !important;
+  line-height: 1.35 !important;
+}
+.revision-form input { min-height: 44px !important; font-size: 11px !important; }
+.review-actions :where(button,a),.portal-shell .btn { min-height: 44px; }
+
 /* Loading skeleton should not force desktop columns onto small screens. */
 @media (max-width: 768px) {
   .app-header .header-search {

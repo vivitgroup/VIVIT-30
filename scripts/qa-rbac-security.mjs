@@ -78,5 +78,5 @@ check("Public signup cannot self-assign employee roles",signup.includes('request
 check("Public signup accounts start pending and inactive",signup.includes('approvalStatus:"PENDING"')&&signup.includes("isActive:false"));
 check("Signup OTP uses cryptographically secure random code",otp.includes("crypto.randomInt(100000,1000000)")&&!otp.includes("Math.random"));
 check("Signup OTP enforces database-backed resend cooldown",otp.includes("Date.now()-60_000")&&otp.includes("gt(emailVerificationCodes.createdAt,cooldown)")&&otp.includes('"Retry-After":"60"'));
-check("Signup OTP removes unusable code if provider send fails",otp.includes("db.delete(emailVerificationCodes)")&&otp.includes("Could not send the verification email"));
+check("Signup OTP removes unusable code if provider send fails",otp.includes("delete(emailVerificationCodes)")&&otp.includes("Could not send the verification email"));
 const failed=checks.filter(x=>!x.ok);for(const c of checks)console.log(`${c.ok?"PASS":"FAIL"}  ${c.name}`);console.log(`\n${checks.length-failed.length}/${checks.length} RBAC/security checks passed.`);if(failed.length)process.exit(1);

@@ -1,0 +1,159 @@
+name: Apply AM MB Lifecycle VIVITO Fix
+
+on:
+  push:
+    branches:
+      - fix/am-mb-lifecycle-vivito-2026-08-31
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-validate:
+    if: ${{ !startsWith(github.event.head_commit.message, 'fix(am-mb): lifecycle and VIVITO permissions') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: postgresql://ci_user:ci_pass@127.0.0.1:5432/vivit_ci
+      AUTH_SECRET: vivito-ci-placeholder-secret-not-for-production
+      NEXTAUTH_SECRET: vivito-ci-placeholder-secret-not-for-production
+      NEXTAUTH_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/am-mb-lifecycle-vivito-2026-08-31
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Apply scoped AM and Media Buyer fixes
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def patch(path, old, new, count=None):
+              p=Path(path); s=p.read_text()
+              n=s.count(old)
+              if n == 0:
+                  raise SystemExit(f"missing patch target in {path}: {old[:100]}")
+              if count is not None and n != count:
+                  raise SystemExit(f"unexpected target count in {path}: expected {count}, got {n}")
+              p.write_text(s.replace(old,new))
+
+          # Client list: AM + Media Buyer can add/archive their scoped clients.
+          patch('app/dashboard/clients/page.tsx',
+            'db.select({id:clients.id,companyName:clients.companyName,accountManagerId:clients.accountManagerId})',
+            'db.select({id:clients.id,companyName:clients.companyName,accountManagerId:clients.accountManagerId,mediaBuyerId:clients.mediaBuyerId})',1)
+          patch('app/dashboard/clients/page.tsx',
+            'if(role!==Role.SUPER_ADMIN&&!(role===Role.ACCOUNT_MANAGER&&client.accountManagerId===userId))throw new Error("You can only archive clients assigned to you.");',
+            'const ownsClient=(role===Role.ACCOUNT_MANAGER&&client.accountManagerId===userId)||(role===Role.MEDIA_BUYER&&client.mediaBuyerId===userId);if(role!==Role.SUPER_ADMIN&&!ownsClient)throw new Error("You can only archive clients assigned to you.");',1)
+          patch('app/dashboard/clients/page.tsx',
+            'const canAddClient=[Role.SUPER_ADMIN,Role.ACCOUNT_MANAGER,Role.ACCOUNTANT].includes(role),canArchiveClient=[Role.SUPER_ADMIN,Role.ACCOUNT_MANAGER].includes(role)',
+            'const canAddClient=[Role.SUPER_ADMIN,Role.ACCOUNT_MANAGER,Role.MEDIA_BUYER,Role.ACCOUNTANT].includes(role),canArchiveClient=[Role.SUPER_ADMIN,Role.ACCOUNT_MANAGER,Role.MEDIA_BUYER].includes(role)',1)
+
+          # Lifecycle API: client archive/restore/delete is portfolio-scoped for AM/MB; destructive delete stays archive-first + dependency guarded.
+          patch('app/api/lifecycle/route.ts',
+            'const clients=role==="SUPER_ADMIN"?await rows(sql`select id,company_name as name,archived_at from clients where workspace_id=${workspaceId} and archived_at is not null order by archived_at desc limit 100`):role==="ACCOUNT_MANAGER"?await rows(sql`select id,company_name as name,archived_at from clients where workspace_id=${workspaceId} and archived_at is not null and account_manager_id=${userId} order by archived_at desc limit 100`):[];',
+            'const clients=role==="SUPER_ADMIN"?await rows(sql`select id,company_name as name,archived_at from clients where workspace_id=${workspaceId} and archived_at is not null order by archived_at desc limit 100`):role==="ACCOUNT_MANAGER"?await rows(sql`select id,company_name as name,archived_at from clients where workspace_id=${workspaceId} and archived_at is not null and account_manager_id=${userId} order by archived_at desc limit 100`):role==="MEDIA_BUYER"?await rows(sql`select id,company_name as name,archived_at from clients where workspace_id=${workspaceId} and archived_at is not null and media_buyer_id=${userId} order by archived_at desc limit 100`):[];',1)
+          patch('app/api/lifecycle/route.ts',
+            'select id,company_name,account_manager_id,user_id,is_active,archived_at from clients',
+            'select id,company_name,account_manager_id,media_buyer_id,user_id,is_active,archived_at from clients',1)
+          patch('app/api/lifecycle/route.ts',
+            'const managerOwns=role==="ACCOUNT_MANAGER"&&record.account_manager_id===userId;if(action==="delete"&&role!=="SUPER_ADMIN")return NextResponse.json({error:"Only Super Admin can permanently delete a client."},{status:403});if(action!=="delete"&&role!=="SUPER_ADMIN"&&!managerOwns)return NextResponse.json({error:"You can only archive clients assigned to you."},{status:403});',
+            'const ownsClient=(role==="ACCOUNT_MANAGER"&&record.account_manager_id===userId)||(role==="MEDIA_BUYER"&&record.media_buyer_id===userId);if(role!=="SUPER_ADMIN"&&!ownsClient)return NextResponse.json({error:"You can only manage lifecycle for clients assigned to you."},{status:403});',1)
+
+          # Archive Center exposes scoped permanent client deletion to AM/MB.
+          patch('app/dashboard/archive/page.tsx',
+            'canHardDelete=entity==="lead"?(role==="SUPER_ADMIN"||role==="SALES"):role==="SUPER_ADMIN";',
+            'canHardDelete=entity==="lead"?(role==="SUPER_ADMIN"||role==="SALES"):entity==="client"?["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"].includes(role):role==="SUPER_ADMIN";',1)
+
+          # Campaign lifecycle: ctx already scopes AM/MB ownership; allow hard delete after archive and dependency checks.
+          patch('app/api/media-control-v2/route.ts',
+            'canHardDelete:c.role==="SUPER_ADMIN"',
+            'canHardDelete:["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"].includes(c.role)')
+          patch('app/api/media-control-v2/route.ts',
+            'if(c.role!=="SUPER_ADMIN")return NextResponse.json({error:"Only Super Admin can permanently delete a campaign."},{status:403});',
+            '',1)
+
+          # VIVITO planner catalog aligns with the real scoped AM/MB capabilities.
+          patch('lib/vivito/action-engine.ts',
+            'create_client:{roles:["SUPER_ADMIN","ACCOUNT_MANAGER","ACCOUNTANT"]',
+            'create_client:{roles:["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","ACCOUNTANT"]',1)
+          for old,new in [
+            ('add_client_contact:{roles:MGT','add_client_contact:{roles:MEDIA'),
+            ('archive_client:{roles:MGT','archive_client:{roles:MEDIA'),
+            ('restore_client:{roles:MGT','restore_client:{roles:MEDIA'),
+            ('create_task:{roles:MGT','create_task:{roles:MEDIA'),
+            ('update_task:{roles:MGT','update_task:{roles:MEDIA'),
+            ('reassign_task:{roles:MGT','reassign_task:{roles:MEDIA'),
+            ('archive_task:{roles:MGT','archive_task:{roles:MEDIA'),
+            ('restore_task:{roles:MGT','restore_task:{roles:MEDIA'),
+          ]: patch('lib/vivito/action-engine.ts',old,new,1)
+          patch('lib/vivito/action-engine.ts',
+            'generate_report:{roles:["SUPER_ADMIN","ACCOUNT_MANAGER","ACCOUNTANT"]',
+            'generate_report:{roles:["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","ACCOUNTANT"]',1)
+
+          # VIVITO advisor/action directory includes media buyer staff and role-safe create behavior.
+          patch('app/api/assistant/route.ts',
+            'if(!["SUPER_ADMIN","ACCOUNT_MANAGER"].includes(role))return[];',
+            'if(!["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"].includes(role))return[];',1)
+
+          # Executor: Media Buyer-created clients self-assign and task lookup enforces MB ownership even by task ID.
+          patch('lib/vivito/executor.ts',
+            'account_manager_id:string|null;client_active:boolean',
+            'account_manager_id:string|null;media_buyer_id:string|null;client_active:boolean',1)
+          patch('lib/vivito/executor.ts',
+            'c.company_name,c.account_manager_id,c.is_active as client_active',
+            'c.company_name,c.account_manager_id,c.media_buyer_id,c.is_active as client_active')
+          patch('lib/vivito/executor.ts',
+            'if(role==="ACCOUNT_MANAGER"&&task.account_manager_id!==userId)throw new VivitoActionError("This task is outside your Account Manager scope.",403);if(!includeArchived&&task.archived_at)',
+            'if(role==="ACCOUNT_MANAGER"&&task.account_manager_id!==userId)throw new VivitoActionError("This task is outside your Account Manager scope.",403);if(role==="MEDIA_BUYER"&&task.media_buyer_id!==userId)throw new VivitoActionError("This task is outside your Media Buyer scope.",403);if(!includeArchived&&task.archived_at)',1)
+          patch('lib/vivito/executor.ts',
+            'let accountManagerId:string|null=role==="ACCOUNT_MANAGER"?userId:null,mediaBuyerId:string|null=null;',
+            'let accountManagerId:string|null=role==="ACCOUNT_MANAGER"?userId:null,mediaBuyerId:string|null=role==="MEDIA_BUYER"?userId:null;',1)
+
+          # Update QA contract for requested scoped client deletion.
+          patch('scripts/qa-clients.mjs',
+            'check("Archive/restore is ownership scoped",lifecycle.includes("managerOwns")&&lifecycle.includes("client_restored"));\ncheck("Permanent client delete is Super Admin only",lifecycle.includes("Only Super Admin can permanently delete a client"));',
+            'check("Archive/restore/delete is AM and Media Buyer ownership scoped",lifecycle.includes("ownsClient")&&lifecycle.includes("record.media_buyer_id===userId")&&lifecycle.includes("client_restored"));\ncheck("Permanent client delete remains archive-first and dependency guarded",lifecycle.includes("Archive the client before permanent deletion")&&!lifecycle.includes("Only Super Admin can permanently delete a client"));',1)
+
+          # Add a focused regression gate for campaign lifecycle + VIVITO role parity.
+          Path('scripts/qa-am-mb-lifecycle-vivito.mjs').write_text(r'''import fs from "node:fs";
+          const read=p=>fs.readFileSync(p,"utf8"), checks=[];
+          const c=(name,ok)=>checks.push({name,ok:Boolean(ok)});
+          const life=read("app/api/lifecycle/route.ts"), clients=read("app/dashboard/clients/page.tsx"), archive=read("app/dashboard/archive/page.tsx"), media=read("app/api/media-control-v2/route.ts"), engine=read("lib/vivito/action-engine.ts"), exec=read("lib/vivito/executor.ts"), assistant=read("app/api/assistant/route.ts");
+          c("Media Buyer can archive owned clients",life.includes('role==="MEDIA_BUYER"')&&life.includes('record.media_buyer_id===userId'));
+          c("AM/MB client delete is archive-first",life.includes("Archive the client before permanent deletion")&&life.includes("dependencies:deps"));
+          c("Client UI exposes lifecycle to AM/MB",clients.includes("Role.MEDIA_BUYER].includes(role)")&&archive.includes('"SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"'));
+          c("Campaign delete is scoped by owned client IDs",media.includes("!c.ids.includes(x.clientId)")&&!media.includes("Only Super Admin can permanently delete a campaign"));
+          c("Campaign delete is archive-first and dependency guarded",media.includes("Archive the campaign before permanent deletion")&&media.includes("linked ad sets or ads"));
+          c("VIVITO planner allows MB client/task operations",engine.includes('create_client:{roles:["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","ACCOUNTANT"]')&&engine.includes("create_task:{roles:MEDIA")&&engine.includes("archive_client:{roles:MEDIA"));
+          c("VIVITO task lookup enforces Media Buyer ownership",exec.includes("task.media_buyer_id!==userId")&&exec.includes("outside your Media Buyer scope"));
+          c("VIVITO Media Buyer client creation self-assigns",exec.includes('mediaBuyerId:string|null=role==="MEDIA_BUYER"?userId:null'));
+          c("VIVITO action directory supports Media Buyer",assistant.includes('["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"].includes(role)'));
+          const failed=checks.filter(x=>!x.ok);for(const x of checks)console.log(`${x.ok?"PASS":"FAIL"}  ${x.name}`);console.log(`${checks.length-failed.length}/${checks.length} AM/MB lifecycle + VIVITO checks passed.`);if(failed.length)process.exit(1);
+          '''.replace(/^          /gm,''))
+
+      - name: Install dependencies
+        run: npm ci
+      - name: Focused AM MB lifecycle and VIVITO gate
+        run: node scripts/qa-am-mb-lifecycle-vivito.mjs
+      - name: Client lifecycle gate
+        run: npm run qa:clients
+      - name: Media control gate
+        run: npm run qa:media-control
+      - name: ESLint
+        run: npm run lint
+      - name: TypeScript
+        run: npm run type-check
+      - name: Full production build and QA
+        run: npm run build
+
+      - name: Commit validated fixes
+        run: |
+          git config user.name "vivitgroup"
+          git config user.email "groupvivit@gmail.com"
+          git add app/dashboard/clients/page.tsx app/api/lifecycle/route.ts app/dashboard/archive/page.tsx app/api/media-control-v2/route.ts lib/vivito/action-engine.ts app/api/assistant/route.ts lib/vivito/executor.ts scripts/qa-clients.mjs scripts/qa-am-mb-lifecycle-vivito.mjs
+          git commit -m "fix(am-mb): lifecycle and VIVITO permissions"
+          git push origin HEAD:fix/am-mb-lifecycle-vivito-2026-08-31

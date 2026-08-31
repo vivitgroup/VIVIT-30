@@ -1,6 +1,6 @@
 // VIVITO final Preview certification: 100 read-only questions + 50 executable task cases.
-const BASE='https://vivit-74h693cou-vivit-s-projects.vercel.app';
-const SHARE='ah9PDznQHAicy0YE9eOypnblah5CWcJA';
+const BASE='https://vivit-elh05kxtl-vivit-s-projects.vercel.app';
+const SHARE='8REeBXh5JjxDyG5tKLMsQJ0mkAbzYOtL';
 const EMAIL='vivito-fix-admin-20260831@example.invalid';
 const PASSWORD=String.fromCharCode(69,120,97,109,70,105,120,35,50,48,50,54,33);
 const RUN_TAG=String(process.env.GITHUB_RUN_ID||Date.now()).slice(-7);

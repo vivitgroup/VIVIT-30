@@ -124,6 +124,17 @@ jobs:
             git commit -m "fix(business): reserve task completion for client approval"
             git push origin HEAD:audit/business-logic-hardcore-2026-08-31
           fi
+      - name: Apply performance score hardening
+        run: node scripts/fix-performance-score-hardening.mjs
+      - name: Commit performance score hardening
+        run: |
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add app/api/performance-score/route.ts
+            git commit -m "fix(business): audit and scope performance score recalculation"
+            git push origin HEAD:audit/business-logic-hardcore-2026-08-31
+          fi
       - run: npm ci
       - name: Business logic radar
         continue-on-error: true

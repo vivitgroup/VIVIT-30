@@ -16,6 +16,7 @@ const asRecord=(value:unknown):JsonRecord=>value&&typeof value==="object"&&!Arra
 const asArray=(value:unknown):unknown[]=>Array.isArray(value)?value:[];
 const errorStatus=(error:unknown)=>{if(!error||typeof error!=="object"||!("status" in error))return undefined;const status=Number((error as {status?:unknown}).status);return Number.isFinite(status)?status:undefined};
 const providerError=(message:string,status:number):ProviderHttpError=>{const error=new Error(message) as ProviderHttpError;error.status=status;return error};
+const ARABIC_RE=/[\u0600-\u06ff]/;
 
 const ANTHROPIC_URL="https://api.anthropic.com/v1/messages";
 const MIN_TIMEOUT_MS=2000;
@@ -25,6 +26,7 @@ const DEFAULT_GEMINI_FREE_MODEL_CHAIN=["gemini-3.5-flash-lite","gemini-3.6-flash
 
 function boundedTimeout(options:GenerateOptions){const requested=Number(options.timeoutMs??process.env.VIVITO_PROVIDER_TIMEOUT_MS??DEFAULT_TIMEOUT_MS);if(!Number.isFinite(requested))return DEFAULT_TIMEOUT_MS;return Math.max(MIN_TIMEOUT_MS,Math.min(MAX_TIMEOUT_MS,Math.round(requested)))}
 function requestSignal(options:GenerateOptions){return AbortSignal.timeout(boundedTimeout(options))}
+function routedOptions(prompt:string,options:GenerateOptions):GenerateOptions{return options.task||!ARABIC_RE.test(prompt)?options:{...options,task:"arabic"}}
 async function safeJson(r:Response):Promise<unknown>{return r.json().catch(()=>({}))}
 
 function gatewayToken(){return String(process.env.AI_GATEWAY_API_KEY||process.env.VERCEL_OIDC_TOKEN||"").trim()}
@@ -57,18 +59,18 @@ function safeError(provider:VivitoProviderName,error:unknown){const failure=clas
 function localFallback(prompt:string,system:string,attempted:VivitoProviderName[],errors:string[],started:number){const local=generateLocalActionPlanV2(prompt,system)||generateLocalAdvisorV2(prompt,system)||generateLocalVivito(prompt,system);if(!local)return null;const next=[...attempted,"local" as const],text=repairOrFallbackVivitoActionPlan(prompt,system,local.text);console.warn("VIVITO provider fallback",{attempted:next,errors:errors.slice(-6),localModel:local.modelId});return{text,provider:"local" as const,attempted:next,errors,latencyMs:Date.now()-started,modelId:local.modelId}}
 
 export async function generateVivito(prompt:string,system:string,options:GenerateOptions={}):Promise<VivitoGeneration>{
-  const started=Date.now(),configured=configuredVivitoProviders(),attempted:VivitoProviderName[]=[],errors:string[]=[];
+  const started=Date.now(),effectiveOptions=routedOptions(prompt,options),configured=configuredVivitoProviders(),attempted:VivitoProviderName[]=[],errors:string[]=[];
   if(!configured.length){errors.push("external:provider-not-configured");const local=localFallback(prompt,system,attempted,errors,started);if(local)return local;throw new Error("provider-not-configured")}
-  const preferred=(options.preferred||["gateway","gemini","mesh","claude"]).filter(p=>p!=="local"&&configured.includes(p));const baseOrder=[...preferred,...configured.filter(p=>!preferred.includes(p))];
+  const preferred=(effectiveOptions.preferred||["gateway","gemini","mesh","claude"]).filter(p=>p!=="local"&&configured.includes(p));const baseOrder=[...preferred,...configured.filter(p=>!preferred.includes(p))];
   const order=[...baseOrder.filter(p=>vivitoProviderCooldownRemaining(p)===0),...baseOrder.filter(p=>vivitoProviderCooldownRemaining(p)>0)];
   for(const provider of order){
     if(provider==="local")continue;
     if(vivitoProviderCooldownRemaining(provider)>0&&order.some(p=>p!==provider&&p!=="local"&&vivitoProviderCooldownRemaining(p)===0)){errors.push(`${provider}:provider-cooldown-active`);continue}
     attempted.push(provider);
     try{
-      if(provider==="gateway"){const result=await callGateway(prompt,system,options),text=repairOrFallbackVivitoActionPlan(prompt,system,result.text);clearVivitoProviderCooldown(provider);return{text,provider,attempted,errors,latencyMs:Date.now()-started,modelId:result.modelId}}
-      if(provider==="mesh"){const result=await generateViaVivitoMesh(prompt,system,options),text=repairOrFallbackVivitoActionPlan(prompt,system,result.text);clearVivitoProviderCooldown(provider);return{text,provider,attempted,errors:[...errors,...result.errors],latencyMs:Date.now()-started,modelId:result.modelId}}
-      const generated=provider==="gemini"?await callGemini(prompt,system,options):await callClaude(prompt,system,options),text=repairOrFallbackVivitoActionPlan(prompt,system,generated);clearVivitoProviderCooldown(provider);return{text,provider,attempted,errors,latencyMs:Date.now()-started};
+      if(provider==="gateway"){const result=await callGateway(prompt,system,effectiveOptions),text=repairOrFallbackVivitoActionPlan(prompt,system,result.text);clearVivitoProviderCooldown(provider);return{text,provider,attempted,errors,latencyMs:Date.now()-started,modelId:result.modelId}}
+      if(provider==="mesh"){const result=await generateViaVivitoMesh(prompt,system,effectiveOptions),text=repairOrFallbackVivitoActionPlan(prompt,system,result.text);clearVivitoProviderCooldown(provider);return{text,provider,attempted,errors:[...errors,...result.errors],latencyMs:Date.now()-started,modelId:result.modelId}}
+      const generated=provider==="gemini"?await callGemini(prompt,system,effectiveOptions):await callClaude(prompt,system,effectiveOptions),text=repairOrFallbackVivitoActionPlan(prompt,system,generated);clearVivitoProviderCooldown(provider);return{text,provider,attempted,errors,latencyMs:Date.now()-started};
     }catch(error:unknown){const failure=classifyVivitoProviderFailure(error,errorStatus(error));markVivitoProviderCooldown(provider,failure);errors.push(safeError(provider,error))}
   }
   const local=localFallback(prompt,system,attempted,errors,started);if(local)return local;

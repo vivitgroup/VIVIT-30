@@ -58,6 +58,17 @@ jobs:
             git commit -m "fix(business): tenant-harden media control mutations"
             git push origin HEAD:audit/business-logic-hardcore-2026-08-31
           fi
+      - name: Apply marketplace creator profile hardening
+        run: node scripts/fix-marketplace-profile-hardening.mjs
+      - name: Commit marketplace profile hardening
+        run: |
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add app/dashboard/marketplace/page.tsx
+            git commit -m "fix(business): harden creator marketplace profile writes"
+            git push origin HEAD:audit/business-logic-hardcore-2026-08-31
+          fi
       - run: npm ci
       - name: Business logic radar
         continue-on-error: true

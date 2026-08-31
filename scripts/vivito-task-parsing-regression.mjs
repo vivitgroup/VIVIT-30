@@ -1,6 +1,6 @@
 // VIVITO task parsing regression — 50 executable cases.
-const BASE='https://vivit-mhukx4jj6-vivit-s-projects.vercel.app';
-const SHARE='8dfgnj4kPhpG78VUpt3fM9B6uMajZBbD';
+const BASE='https://vivit-74h693cou-vivit-s-projects.vercel.app';
+const SHARE='JpT5vU1rnKPHRQ1ILbwvT5kfoYKqWfW2';
 const EMAIL='vivito-fix-admin-20260831@example.invalid';
 const PASSWORD=String.fromCharCode(69,120,97,109,70,105,120,35,50,48,50,54,33);
 const jar=new Map();
@@ -11,7 +11,7 @@ async function api(path,options={}){return req(BASE+path,options)}
 async function json(res){const text=await res.text();try{return JSON.parse(text)}catch{return{raw:text.slice(0,300)}}}
 async function bootstrap(){await req(`${BASE}/?_vercel_share=${SHARE}`);const health=await api('/api/health'),hb=await json(health);if(health.status!==200||hb.status!=='healthy')throw new Error(`health:${health.status}`);const csrfRes=await api('/api/auth/csrf'),csrf=await json(csrfRes);if(!csrf.csrfToken)throw new Error('csrf');const login=await api('/api/auth/callback/credentials',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({csrfToken:csrf.csrfToken,email:EMAIL,password:PASSWORD,callbackUrl:BASE+'/dashboard',redirect:'false'})});const sessionRes=await api('/api/auth/session'),session=await json(sessionRes);if(!session?.user?.id||session?.user?.authValid!==true)throw new Error(`auth:${login.status}:${sessionRes.status}`)}
 async function propose(question){const started=Date.now(),res=await api('/api/assistant',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({question,attachments:[]})}),body=await json(res);return{res,body,ms:Date.now()-started}}
-async function execute(proposal,i){const res=await api('/api/assistant/actions',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({op:proposal.op,args:proposal.args,confirm:true,requestId:`task-parsing-regression-v4-${i}`})}),body=await json(res);return{res,body}}
+async function execute(proposal,i){const res=await api('/api/assistant/actions',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({op:proposal.op,args:proposal.args,confirm:true,requestId:`task-parsing-regression-v5-${i}`})}),body=await json(res);return{res,body}}
 const failures=[];let passed=0;
 await bootstrap();
 for(let i=1;i<=40;i++){

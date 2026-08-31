@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { db, clients, onboardingProgress } from "@/lib/db";
+import { db, clients, onboardingProgress, auditLogs, sql } from "@/lib/db";
 import { eq, and, inArray } from "drizzle-orm";
 import { Role } from "@/lib/types";
 
@@ -32,26 +32,25 @@ async function toggleStep(clientId: string, stepId: string, completed: boolean) 
   const role = session?.user?.role as Role | undefined;
   if (!session?.user || ![Role.SUPER_ADMIN, Role.ACCOUNT_MANAGER].includes(role!)) throw new Error("Unauthorized");
   if (!STEPS.some(step => step.id === stepId)) throw new Error("Invalid onboarding step");
-  const userId = session.user.id as string;
+  const userId = String(session.user.id||""), workspaceId=String(session.user.workspaceId||"");
+  if(!workspaceId||!userId)throw new Error("Workspace unavailable");
   if (role === Role.ACCOUNT_MANAGER) {
     const [ownedClient] = await db.select({ id: clients.id }).from(clients)
-      .where(and(eq(clients.id, clientId), eq(clients.accountManagerId, userId), eq(clients.isActive, true))).limit(1);
+      .where(and(eq(clients.id, clientId),eq(clients.workspaceId,workspaceId),eq(clients.accountManagerId, userId), eq(clients.isActive, true))).limit(1);
     if (!ownedClient) throw new Error("Forbidden");
   } else {
-    const [existingClient] = await db.select({ id: clients.id }).from(clients).where(eq(clients.id, clientId)).limit(1);
+    const [existingClient] = await db.select({ id: clients.id }).from(clients).where(and(eq(clients.id,clientId),eq(clients.workspaceId,workspaceId),eq(clients.isActive,true))).limit(1);
     if (!existingClient) throw new Error("Client not found");
   }
-  const existing = await db.select().from(onboardingProgress)
-    .where(and(eq(onboardingProgress.clientId, clientId), eq(onboardingProgress.stepId, stepId)));
-  if (existing.length > 0) {
-    await db.update(onboardingProgress)
-      .set({ completed, completedAt: completed ? new Date() : null, completedBy: completed ? userId : null })
-      .where(and(eq(onboardingProgress.clientId, clientId), eq(onboardingProgress.stepId, stepId)));
-  } else {
-    await db.insert(onboardingProgress).values({
-      clientId, stepId, completed, completedAt: completed ? new Date() : null, completedBy: userId,
-    });
-  }
+  const lockKey=`onboarding-ui:${clientId}:${stepId}`;
+  await db.transaction(async tx=>{
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${lockKey}))`);
+    const [existing]=await tx.select().from(onboardingProgress).where(and(eq(onboardingProgress.clientId,clientId),eq(onboardingProgress.stepId,stepId))).limit(1);
+    const values={completed,completedAt:completed?new Date():null,completedBy:completed?userId:null};
+    let entityId:string;
+    if(existing){await tx.update(onboardingProgress).set(values).where(and(eq(onboardingProgress.id,existing.id),eq(onboardingProgress.clientId,clientId)));entityId=existing.id}else{const [created]=await tx.insert(onboardingProgress).values({clientId,stepId,...values}).returning({id:onboardingProgress.id});entityId=created.id}
+    await tx.insert(auditLogs).values({workspaceId,userId,action:"onboarding_step_updated",entity:"onboarding_progress",entityId,newValues:JSON.stringify({clientId,stepId,completed,source:"dashboard"})});
+  });
   const { revalidatePath } = await import("next/cache");
   revalidatePath("/dashboard/onboarding");
 }
@@ -62,11 +61,11 @@ export default async function OnboardingPage() {
   const role = session.user.role as Role;
   if (![Role.SUPER_ADMIN, Role.ACCOUNT_MANAGER].includes(role)) redirect("/dashboard");
 
-  const userId = String(session.user.id || "");
+  const userId=String(session.user.id||""),workspaceId=String(session.user.workspaceId||"");if(!workspaceId)redirect("/login?reason=workspace_missing");
   const allClients = await db.select({ id: clients.id, companyName: clients.companyName, createdAt: clients.createdAt })
     .from(clients).where(role === Role.ACCOUNT_MANAGER
-      ? and(eq(clients.isActive, true), eq(clients.accountManagerId, userId))
-      : eq(clients.isActive, true)).orderBy(clients.createdAt);
+      ? and(eq(clients.workspaceId,workspaceId),eq(clients.isActive, true), eq(clients.accountManagerId, userId))
+      : and(eq(clients.workspaceId,workspaceId),eq(clients.isActive, true))).orderBy(clients.createdAt);
 
   const clientIds = allClients.map(c => c.id);
   const allProgress = clientIds.length

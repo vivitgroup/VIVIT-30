@@ -1,3 +1,4 @@
+# Consolidated audit trigger after lifecycle hardening.
 name: Legacy Task Create Contract
 on:
   push:

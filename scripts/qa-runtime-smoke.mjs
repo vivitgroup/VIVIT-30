@@ -23,6 +23,7 @@ try{
  check("Protected app API auth failure is private no-store",String(search.headers.get("cache-control")||"").includes("no-store")&&!String(search.headers.get("cache-control")||"").includes("public"),String(search.headers.get("cache-control")||""));
  const publicV1=await req("/api/v1/clients"),v1Json=await publicV1.json().catch(()=>({}));
  check("Public v1 rejects missing API key",publicV1.status===401&&/api key/i.test(String(v1Json.error||"")),`status=${publicV1.status}`);
+ check("Public v1 auth failure is private no-store",String(publicV1.headers.get("cache-control")||"").includes("no-store")&&!String(publicV1.headers.get("cache-control")||"").includes("public"),String(publicV1.headers.get("cache-control")||""));
  const csrf=await req("/api/bulk",{method:"POST",headers:{Origin:"https://evil.example","Content-Type":"application/json"},body:"{}"});
  check("Runtime CSRF rejects cross-origin mutation",csrf.status===403,`status=${csrf.status}`);
  check("CSRF rejection is private no-store",String(csrf.headers.get("cache-control")||"").includes("no-store")&&!String(csrf.headers.get("cache-control")||"").includes("public"),String(csrf.headers.get("cache-control")||""));

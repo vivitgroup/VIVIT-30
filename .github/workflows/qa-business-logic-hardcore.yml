@@ -2,7 +2,9 @@
 name: Business Logic Hardcore Audit
 on:
   push:
-    branches: [audit/business-logic-hardcore-2026-08-31]
+    branches:
+      - audit/business-logic-hardcore-2026-08-31
+      - reconcile/main-integration-2026-09-01
   pull_request:
     branches: [main]
     paths:

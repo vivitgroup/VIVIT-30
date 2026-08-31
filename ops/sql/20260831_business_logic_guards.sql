@@ -48,7 +48,7 @@ returns trigger
 language plpgsql
 security invoker
 set search_path = public
-as $$;
+as $$
 begin
   if tg_op = 'INSERT' and new.invoice_number ~ '^INV-[0-9]{4}-[0-9]{2}-[A-Z0-9]{4}$' then
     new.invoice_status := 'DRAFT';

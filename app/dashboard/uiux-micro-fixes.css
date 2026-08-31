@@ -1,0 +1,86 @@
+/* Live UI/UX micro-audit corrections. Keep this file last in DashboardLayout imports. */
+
+/* Keyboard users must always have a visible focus indicator. */
+#app-main :where(a,button,input,textarea,select,[tabindex]):focus-visible,
+.app-sidebar :where(a,button):focus-visible,
+.mobile-nav :where(a,button):focus-visible,
+.mobile-menu-drawer :where(a,button):focus-visible,
+.va-panel :where(a,button,textarea):focus-visible,
+.va-fab:focus-visible,
+.vx-apps :where(a,button):focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--blue, #244d87) 72%, white) !important;
+  outline-offset: 2px !important;
+}
+
+/* Header actions: comfortable touch targets instead of 36–38px controls. */
+.app-header .header-search,
+.app-header .header-notifications,
+.app-header .header-export,
+.app-header .header-signout {
+  min-width: 44px !important;
+  min-height: 44px !important;
+}
+.app-header .header-notifications {
+  width: 44px !important;
+  height: 44px !important;
+}
+.header-notification-count {
+  min-width: 18px !important;
+  height: 18px !important;
+  font-size: 10px !important;
+}
+
+/* The Apps launcher previously overlapped the VIVITO floating action button. */
+.vx-apps { right: 104px !important; bottom: 22px !important; }
+.vx-apps-btn { min-height: 44px !important; height: 44px !important; padding-inline: 14px !important; font-size: 12px !important; }
+.vx-apps-menu { bottom: 52px !important; }
+.vx-apps-menu a { min-height: 44px !important; align-items: center !important; }
+.vx-apps-menu b { font-size: 12px !important; }
+.vx-apps-menu span { font-size: 11px !important; line-height: 1.35 !important; }
+
+/* VIVITO: improve readability and touch ergonomics without changing the visual direction. */
+.va-head > button { width: 44px !important; height: 44px !important; border-radius: 12px !important; }
+.va-head small { font-size: 9px !important; line-height: 1.35 !important; }
+.va-context { font-size: 11.5px !important; }
+.va-quick button { min-height: 44px !important; padding: 10px 11px !important; font-size: 10.5px !important; line-height: 1.35 !important; }
+.va-speaker { font-size: 8.5px !important; }
+.va-msg { font-size: 12px !important; line-height: 1.65 !important; }
+.va-sources span { font-size: 9px !important; }
+.va-action-top { font-size: 9px !important; }
+.va-action button { min-height: 44px !important; font-size: 11px !important; }
+.va-action-missing,.va-action-error,.va-action-auto,.va-plan-steps li,.va-thinking,.va-attachments span { font-size: 10px !important; }
+.va-plan-steps b { font-size: 9px !important; }
+.va-input > button { width: 44px !important; height: 44px !important; }
+.va-input textarea { min-height: 44px !important; font-size: 12px !important; line-height: 1.45 !important; }
+.va-foot { font-size: 8.5px !important; line-height: 1.35 !important; }
+
+/* Loading skeleton should not force desktop columns onto small screens. */
+@media (max-width: 768px) {
+  .app-header .header-search {
+    width: 44px !important;
+    min-width: 44px !important;
+    height: 44px !important;
+    min-height: 44px !important;
+    flex-basis: 44px !important;
+  }
+  .mobile-menu-head button { width: 44px !important; height: 44px !important; }
+  .mobile-nav a,.mobile-nav button { min-height: 54px !important; }
+  .mobile-nav button small,.mobile-nav a small { font-size: 10px !important; line-height: 1.15 !important; }
+  .mobile-menu-drawer section > p { font-size: 10px !important; }
+  .mobile-menu-drawer section > a { min-height: 48px !important; }
+  .dashboard-skeleton-kpis { grid-template-columns: repeat(2,minmax(0,1fr)) !important; }
+  .dashboard-skeleton-main { grid-template-columns: minmax(0,1fr) !important; }
+  .vx-apps { right: 86px !important; bottom: 82px !important; }
+  .vx-apps-btn { min-height: 44px !important; height: 44px !important; }
+}
+
+@media (max-width: 420px) {
+  .dashboard-skeleton-kpis { grid-template-columns: minmax(0,1fr) !important; }
+  .va-panel { height: min(650px, calc(100dvh - 176px)) !important; }
+}
+
+/* Respect motion preferences for all floating UI controls. */
+@media (prefers-reduced-motion: reduce) {
+  .va-fab,.mobile-menu-drawer,.vx-apps-menu { transition: none !important; animation: none !important; }
+  .va-thinking span { animation: none !important; }
+}

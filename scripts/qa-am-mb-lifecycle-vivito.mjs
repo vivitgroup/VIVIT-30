@@ -1,0 +1,14 @@
+import fs from "node:fs";
+const read=p=>fs.readFileSync(p,"utf8"), checks=[];
+const c=(name,ok)=>checks.push({name,ok:Boolean(ok)});
+const life=read("app/api/lifecycle/route.ts"), clients=read("app/dashboard/clients/page.tsx"), archive=read("app/dashboard/archive/page.tsx"), media=read("app/api/media-control-v2/route.ts"), engine=read("lib/vivito/action-engine.ts"), exec=read("lib/vivito/executor.ts"), assistant=read("app/api/assistant/route.ts");
+c("Media Buyer can archive owned clients",life.includes('role==="MEDIA_BUYER"')&&life.includes('record.media_buyer_id===userId'));
+c("AM/MB client delete is archive-first",life.includes("Archive the client before permanent deletion")&&life.includes("dependencies:deps"));
+c("Client UI exposes lifecycle to AM/MB",clients.includes("Role.MEDIA_BUYER].includes(role)")&&archive.includes('"SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"'));
+c("Campaign delete is scoped by owned client IDs",media.includes("!c.ids.includes(x.clientId)")&&!media.includes("Only Super Admin can permanently delete a campaign"));
+c("Campaign delete is archive-first and dependency guarded",media.includes("Archive the campaign before permanent deletion")&&media.includes("linked ad sets or ads"));
+c("VIVITO planner allows MB client/task operations",engine.includes('create_client:{roles:["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","ACCOUNTANT"]')&&engine.includes("create_task:{roles:MEDIA")&&engine.includes("archive_client:{roles:MEDIA"));
+c("VIVITO task lookup enforces Media Buyer ownership",exec.includes("task.media_buyer_id!==userId")&&exec.includes("outside your Media Buyer scope"));
+c("VIVITO Media Buyer client creation self-assigns",exec.includes('mediaBuyerId:string|null=role==="MEDIA_BUYER"?userId:null'));
+c("VIVITO action directory supports Media Buyer",assistant.includes('["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"].includes(role)'));
+const failed=checks.filter(x=>!x.ok);for(const x of checks)console.log(`${x.ok?"PASS":"FAIL"}  ${x.name}`);console.log(`${checks.length-failed.length}/${checks.length} AM/MB lifecycle + VIVITO checks passed.`);if(failed.length)process.exit(1);

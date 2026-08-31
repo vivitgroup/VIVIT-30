@@ -37,8 +37,8 @@ check("Client form exposes real error and saving states",form.includes("setError
 check("Task create allows AM and Media Buyer with ownership checks",taskAction.includes('"SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"')&&taskAction.includes('role==="ACCOUNT_MANAGER"&&client.accountManagerId!==userId')&&taskAction.includes('role==="MEDIA_BUYER"&&client.mediaBuyerId!==userId'));
 check("New task page scopes Media Buyer clients",taskPage.includes("Role.MEDIA_BUYER")&&taskPage.includes("eq(clients.mediaBuyerId,userId)"));
 check("Task inbox Add Task is enabled for Media Buyer",taskInbox.includes("Role.MEDIA_BUYER")&&taskInbox.includes('/dashboard/creative/new')&&taskInbox.includes('+ Add Task'));
-check("Archive/restore is ownership scoped",lifecycle.includes("managerOwns")&&lifecycle.includes("client_restored"));
-check("Permanent client delete is Super Admin only",lifecycle.includes("Only Super Admin can permanently delete a client"));
+check("Archive/restore/delete is AM and Media Buyer ownership scoped",lifecycle.includes("ownsClient")&&lifecycle.includes("record.media_buyer_id===userId")&&lifecycle.includes("client_restored"));
+check("Permanent client delete remains archive-first and dependency guarded",lifecycle.includes("Archive the client before permanent deletion")&&!lifecycle.includes("Only Super Admin can permanently delete a client"));
 check("Permanent delete blocks linked records and portal account",lifecycle.includes("Archive it instead of permanent deletion")&&lifecycle.includes("portalAccount"));
 check("Existing client update validates ownership and assignments",actions.includes("export async function updateClient")&&actions.includes("requireClientAccess(session,clientId,true)")&&actions.includes("Invalid account manager")&&actions.includes("Invalid media buyer"));
 check("Existing client edit/reassignment is exposed in UI",guard.includes("/edit")&&edit.includes("Save client")&&edit.includes("Role.SUPER_ADMIN")&&edit.includes("Role.ACCOUNT_MANAGER"));

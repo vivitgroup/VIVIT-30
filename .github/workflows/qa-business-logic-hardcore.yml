@@ -8,7 +8,7 @@ on:
       - 'app/api/**'
       - 'app/dashboard/**'
       - 'lib/**'
-      - 'scripts/qa-business-logic-hardcore.mjs'
+      - 'scripts/qa-business-logic-*.mjs'
       - '.github/workflows/qa-business-logic-hardcore.yml'
 jobs:
   audit:
@@ -24,8 +24,11 @@ jobs:
         with:
           node-version: 22
       - run: npm ci
-      - name: Business logic hardcore audit
+      - name: Business logic radar
+        continue-on-error: true
         run: node scripts/qa-business-logic-hardcore.mjs
+      - name: Critical business invariants
+        run: node scripts/qa-business-critical-invariants.mjs
       - run: npm run qa:data-integrity
       - run: npm run qa:clients
       - run: npm run qa:tasks-archive

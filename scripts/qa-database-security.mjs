@@ -1,5 +1,5 @@
 import fs from "node:fs";import path from "node:path";
-const checks=[],check=(n,o,d="")=>checks.push({name:n,ok:Boolean(o),detail:d}),pkg=JSON.parse(fs.readFileSync("package.json","utf8")),migration=fs.readFileSync("scripts/harden-database-security.sql","utf8");
+const checks=[],check=(n,o,d="")=>checks.push({name:n,ok:Boolean(o),detail:d}),pkg=JSON.parse(fs.readFileSync("package.json","utf8")),migration=fs.readFileSync("scripts/harden-database-security.sql","utf8"),adminGuard=fs.readFileSync("ops/sql/20260831_last_super_admin_guard.sql","utf8");
 const deps={...(pkg.dependencies||{}),...(pkg.devDependencies||{})};
 check("No browser Supabase database SDK dependency is installed",!Object.keys(deps).some(k=>k.startsWith("@supabase/")));
 const files=[];function walk(dir){for(const e of fs.readdirSync(dir,{withFileTypes:true})){if(["node_modules",".next",".git"].includes(e.name))continue;const p=path.join(dir,e.name);if(e.isDirectory())walk(p);else if(/\.(ts|tsx|js|jsx)$/.test(e.name))files.push(p)}}walk("app");walk("components");walk("lib");
@@ -14,4 +14,6 @@ check("Database security migration fails closed before commit",migration.include
 check("Database migration includes operator verification",migration.includes("mutable_search_path_functions"));
 check("Database migration does not create permissive RLS policies",!migration.toLowerCase().includes("create policy"));
 check("Database migration does not disable RLS",!migration.toLowerCase().includes("disable row level security"));
+check("Last usable Super Admin guard covers approval status",adminGuard.includes("old.approval_status = 'APPROVED'")&&adminGuard.includes("new.approval_status is distinct from 'APPROVED'")&&adminGuard.includes("u.approval_status = 'APPROVED'")&&adminGuard.includes("before update of role, is_active, approval_status on users"));
+check("Last usable Super Admin guard is workspace scoped",adminGuard.includes("u.workspace_id = old.workspace_id")&&adminGuard.includes("u.id <> old.id")&&adminGuard.includes("u.role = 'SUPER_ADMIN'"));
 const failed=checks.filter(c=>!c.ok);for(const c of checks)console.log(`${c.ok?"PASS":"FAIL"}  ${c.name}${c.detail?` — ${c.detail}`:""}`);console.log(`\n${checks.length-failed.length}/${checks.length} database architecture security checks passed.`);if(failed.length)process.exit(1);

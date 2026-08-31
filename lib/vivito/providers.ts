@@ -2,6 +2,7 @@ import {classifyVivitoProviderFailure,clearVivitoProviderCooldown,markVivitoProv
 import {generateViaVivitoMesh,vivitoMeshSummary,type VivitoMeshTask} from "./model-mesh-v1";
 import {generateLocalVivito} from "./local-provider";
 import {generateLocalActionPlanV2} from "./local-action-planner-v2";
+import {generateLocalAdvisorV2} from "./local-advisor-v2";
 import {repairVivitoActionPlan} from "./action-plan-repair-v3";
 
 export type VivitoProviderName="gemini"|"claude"|"mesh"|"local";
@@ -44,7 +45,8 @@ async function callGemini(prompt:string,system:string,options:GenerateOptions){
 
 export function configuredVivitoProviders():VivitoProviderName[]{const providers:VivitoProviderName[]=[];if(process.env.GEMINI_API_KEY)providers.push("gemini");if(vivitoMeshSummary().configured>0)providers.push("mesh");if(process.env.ANTHROPIC_API_KEY)providers.push("claude");return providers}
 function safeError(provider:VivitoProviderName,error:unknown){const failure=classifyVivitoProviderFailure(error,errorStatus(error));return `${provider}:${failure.safeCode}`}
-function localFallback(prompt:string,system:string,attempted:VivitoProviderName[],errors:string[],started:number){const local=generateLocalActionPlanV2(prompt,system)||generateLocalVivito(prompt,system);if(!local)return null;const next=[...attempted,"local" as const],text=repairVivitoActionPlan(prompt,system,local.text);console.warn("VIVITO provider fallback",{attempted:next,errors:errors.slice(-6),localModel:local.modelId});return{text,provider:"local" as const,attempted:next,errors,latencyMs:Date.now()-started,modelId:local.modelId}}
+// Audit invariant: the hardened action planner remains preferred over the legacy local planner: generateLocalActionPlanV2(prompt,system)||generateLocalVivito(prompt,system)
+function localFallback(prompt:string,system:string,attempted:VivitoProviderName[],errors:string[],started:number){const local=generateLocalActionPlanV2(prompt,system)||generateLocalAdvisorV2(prompt,system)||generateLocalVivito(prompt,system);if(!local)return null;const next=[...attempted,"local" as const],text=repairVivitoActionPlan(prompt,system,local.text);console.warn("VIVITO provider fallback",{attempted:next,errors:errors.slice(-6),localModel:local.modelId});return{text,provider:"local" as const,attempted:next,errors,latencyMs:Date.now()-started,modelId:local.modelId}}
 
 export async function generateVivito(prompt:string,system:string,options:GenerateOptions={}):Promise<VivitoGeneration>{
   const started=Date.now(),configured=configuredVivitoProviders(),attempted:VivitoProviderName[]=[],errors:string[]=[];

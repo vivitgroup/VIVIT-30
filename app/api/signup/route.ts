@@ -5,7 +5,7 @@ import { eq, and, gt } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import {consumeAuthRateLimit} from "@/lib/auth-abuse";
 
-type SignupResult="CREATED"|"DUPLICATE"|"INVALID_OTP"|"WORKSPACE_UNAVAILABLE";
+type SignupResult="CREATED"|"EMAIL_ALREADY_REGISTERED"|"INVALID_OTP"|"WORKSPACE_UNAVAILABLE";
 
 export async function POST(req:NextRequest){
   try{
@@ -21,7 +21,7 @@ export async function POST(req:NextRequest){
     const result:SignupResult=await db.transaction(async tx=>{
       await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`signup:${normalizedEmail}`}))`);
       const [already]=await tx.select({id:users.id}).from(users).where(eq(users.email,normalizedEmail)).limit(1);
-      if(already)return "DUPLICATE";
+      if(already)return "EMAIL_ALREADY_REGISTERED";
       if(otpRequired){
         const [verification]=await tx.select().from(emailVerificationCodes).where(and(eq(emailVerificationCodes.email,normalizedEmail),gt(emailVerificationCodes.expiresAt,new Date()))).limit(1);
         if(!verification||verification.attempts>=5)return "INVALID_OTP";
@@ -43,7 +43,7 @@ export async function POST(req:NextRequest){
     });
     if(result==="INVALID_OTP")return NextResponse.json({error:"Invalid or expired verification code"},{status:400,headers:{"Cache-Control":"no-store"}});
     if(result==="WORKSPACE_UNAVAILABLE")return NextResponse.json({error:"Workspace assignment requires an administrator invitation"},{status:409});
-    if(result==="DUPLICATE")return NextResponse.json({error:"Unable to create account with these details. Please sign in or contact an administrator."},{status:400,headers:{"Cache-Control":"no-store"}});
+    if(result==="EMAIL_ALREADY_REGISTERED")return NextResponse.json({error:"Unable to create account with these details. Please sign in or contact an administrator."},{status:400,headers:{"Cache-Control":"no-store"}});
     return NextResponse.json({success:true,message:"Your request was sent to the Super Admin for approval."},{headers:{"Cache-Control":"private, no-store"}});
   }catch(error:unknown){
     console.error("Signup error:",error instanceof Error?error.name:"signup_failure");

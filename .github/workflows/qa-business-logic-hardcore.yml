@@ -146,6 +146,17 @@ jobs:
             git commit -m "fix(security): scope WhatsApp messages to workspace"
             git push origin HEAD:audit/business-logic-hardcore-2026-08-31
           fi
+      - name: Apply atomic performance and OAuth caller hardening
+        run: node scripts/fix-performance-atomicity-and-oauth-callers.mjs
+      - name: Commit atomic performance and OAuth caller hardening
+        run: |
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add app/api/performance-score/route.ts app/api/assistant/actions/route.ts lib/vivito/executor-operator.ts
+            git commit -m "fix(business): make performance recalculation atomic"
+            git push origin HEAD:audit/business-logic-hardcore-2026-08-31
+          fi
       - run: npm ci
       - name: Business logic radar
         continue-on-error: true

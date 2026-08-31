@@ -1,0 +1,12 @@
+import fs from "node:fs";
+const file="lib/actions/index.ts";
+let s=fs.readFileSync(file,"utf8");
+const replace=(from,to,label)=>{if(s.includes(to))return;if(!s.includes(from))throw new Error(`Missing anchor: ${label}`);s=s.replace(from,to)};
+replace('managerTransitions:Record<string,string[]>={PENDING:["IN_PROGRESS"],IN_PROGRESS:["REVIEW"],REVISION:["IN_PROGRESS"],REVIEW:["APPROVED","REVISION","REJECTED"],APPROVED:["COMPLETED"]}','managerTransitions:Record<string,string[]>={PENDING:["IN_PROGRESS"],IN_PROGRESS:["REVIEW"],REVISION:["IN_PROGRESS"],REVIEW:["APPROVED","REVISION","REJECTED"]}','legacy completion transition');
+replace('completedAt:["APPROVED","COMPLETED"].includes(status)?new Date():undefined','completedAt:null','legacy completedAt stamp');
+fs.writeFileSync(file,s);
+const qa="scripts/qa-business-critical-invariants.mjs";
+let q=fs.readFileSync(qa,"utf8");
+if(!q.includes("Legacy task action reserves COMPLETED for client approval"))q=q.replace("const team=read('app/dashboard/team/page.tsx');","const legacyActions=read('lib/actions/index.ts');\ncheck('Legacy task action reserves COMPLETED for client approval',!legacyActions.includes('APPROVED:[\\\"COMPLETED\\\"]')&&!legacyActions.includes('completedAt:[\\\"APPROVED\\\",\\\"COMPLETED\\\"].includes(status)'));\n\nconst team=read('app/dashboard/team/page.tsx');");
+fs.writeFileSync(qa,q);
+console.log("legacy task completion contract enforced");

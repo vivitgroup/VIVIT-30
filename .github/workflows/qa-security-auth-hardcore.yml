@@ -1,0 +1,36 @@
+name: Security Auth Hardcore Audit
+
+on:
+  push:
+    branches:
+      - audit/security-auth-hardcore-2026-09-01
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  security-auth:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact candidate SHA
+        uses: actions/checkout@v4
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Security auth invariants
+        run: node scripts/qa-security-auth-hardcore.mjs
+      - name: ESLint zero-warning gate
+        run: npm run lint -- --max-warnings=0
+      - name: TypeScript gate
+        run: npx tsc --noEmit
+      - name: Production build gate
+        run: npm run build

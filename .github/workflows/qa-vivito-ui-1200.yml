@@ -1,0 +1,32 @@
+name: VIVITO UI UX and 1200 Cases
+on:
+  push:
+    branches: ["fix/vivito-live-ui-ux-1200-cases-2026-08-31"]
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/vivit_ci
+      AUTH_SECRET: vivito-ci-placeholder-secret-not-for-production
+      NEXTAUTH_SECRET: vivito-ci-placeholder-secret-not-for-production
+      NEXTAUTH_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - name: 1200 case studies and UI wiring
+        run: npx tsx scripts/qa-vivito-1200-case-studies.ts
+      - name: VIVITO actions
+        run: npm run qa:vivito-actions
+      - name: VIVITO intelligence
+        run: npm run qa:vivito-intelligence
+      - name: VIVITO operator control
+        run: npm run qa:vivito-operator-control
+      - name: ESLint
+        run: npm run lint
+      - name: TypeScript
+        run: npm run type-check
+      - name: Full production build and QA
+        run: npm run build

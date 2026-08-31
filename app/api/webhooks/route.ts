@@ -14,6 +14,7 @@ function normalizeWebhookUrl(raw:string){
     const u=new URL(raw),host=u.hostname.toLowerCase();
     if(u.protocol!=="https:"||u.username||u.password)return null;
     if(host==="localhost"||host.endsWith(".localhost")||host.endsWith(".local"))return null;
+    if(host==="127.0.0.1"||/^10\./.test(host)||/^192\.168\./.test(host)||/^172\.(1[6-9]|2\d|3[01])\./.test(host)||/^169\.254\./.test(host))return null;
     return u.toString();
   }catch{return null;}
 }
@@ -52,8 +53,6 @@ export async function dispatchWebhook(event:string,payload:Record<string,unknown
     let delivered=false;
     for(let attempt=0;attempt<3;attempt++){
       if(attempt>0)await new Promise(r=>setTimeout(r,Math.min(1000*attempt,3000)));
-      // Resolve immediately before every attempt. Redirects are never followed, preventing a
-      // public endpoint from redirecting delivery into a private/metadata address.
       const target=await publicWebhookTarget(hook.url);if(!target)break;
       try{
         const res=await fetch(target,{method:"POST",redirect:"manual",headers:{"Content-Type":"application/json","X-Vivit-Signature":`sha256=${sig}`,"X-Vivit-Event":event,"X-Vivit-Timestamp":timestamp,"X-Vivit-Attempt":String(attempt+1),"X-Vivit-Delivery":deliveryId},body,signal:AbortSignal.timeout(5000)});

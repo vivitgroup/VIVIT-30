@@ -15,6 +15,7 @@ const form=read("components/clients/NewClientForm.tsx");
 const api=read("app/api/clients/route.ts");
 const lifecycle=read("app/api/lifecycle/route.ts");
 const actions=read("lib/actions/index.ts");
+const hardening=read("db/migrations/20260831_cto_live_audit_hardening.sql");
 
 check("Clients list requires authenticated role",list.includes("if (!session?.user) redirect")&&list.includes("Role.SUPER_ADMIN")&&list.includes("Role.ACCOUNT_MANAGER"));
 check("Account Manager list is ownership scoped",list.includes("eq(clients.accountManagerId,userId)"));
@@ -29,6 +30,8 @@ check("Client create validates AM/Media Buyer assignments",api.includes("valid a
 check("Client create validates contract date order",api.includes("Contract end date must be on or after the start date"));
 check("Client form exposes real error and saving states",form.includes("setError")&&form.includes("Creating client…")&&form.includes("role=\"alert\""));
 check("Archive/restore is ownership scoped",lifecycle.includes("managerOwns")&&lifecycle.includes("client_restored"));
+check("Portal user is deactivated when its last active client is archived",hardening.includes("sync_client_portal_user_on_deactivation")&&hardening.includes("client_portal_user_auto_deactivated")&&hardening.includes("not exists")&&hardening.includes("c.is_active = true"));
+check("Portal lifecycle hardening preserves workspace and CLIENT role scope",hardening.includes("u.workspace_id = new.workspace_id")&&hardening.includes("u.role::text = 'CLIENT'"));
 check("Permanent client delete is Super Admin only",lifecycle.includes("Only Super Admin can permanently delete a client"));
 check("Permanent delete blocks linked records and portal account",lifecycle.includes("Archive it instead of permanent deletion")&&lifecycle.includes("portalAccount"));
 check("Existing client update validates ownership and assignments",actions.includes("export async function updateClient")&&actions.includes("requireClientAccess(session,clientId,true)")&&actions.includes("Invalid account manager")&&actions.includes("Invalid media buyer"));

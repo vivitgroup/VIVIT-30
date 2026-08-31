@@ -1,0 +1,40 @@
+name: Business Logic Hardcore Audit
+on:
+  push:
+    branches: [audit/business-logic-hardcore-2026-08-31]
+  pull_request:
+    branches: [main]
+    paths:
+      - 'app/api/**'
+      - 'app/dashboard/**'
+      - 'lib/**'
+      - 'scripts/qa-business-logic-hardcore.mjs'
+      - '.github/workflows/qa-business-logic-hardcore.yml'
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/vivit_ci
+      AUTH_SECRET: business-logic-ci-placeholder-secret-not-for-production
+      NEXTAUTH_SECRET: business-logic-ci-placeholder-secret-not-for-production
+      NEXTAUTH_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - name: Business logic hardcore audit
+        run: node scripts/qa-business-logic-hardcore.mjs
+      - run: npm run qa:data-integrity
+      - run: npm run qa:clients
+      - run: npm run qa:tasks-archive
+      - run: npm run qa:finance-reports
+      - run: npm run qa:finance-recurring
+      - run: npm run qa:hr-payroll
+      - run: npm run qa:sales-lifecycle
+      - run: npm run qa:operations-security
+      - run: npm run qa:rbac-security
+      - run: npm run qa:vivito-actions
+      - run: npm run lint
+      - run: npx tsc --noEmit

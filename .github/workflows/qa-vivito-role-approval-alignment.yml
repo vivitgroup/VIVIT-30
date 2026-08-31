@@ -1,0 +1,31 @@
+name: VIVITO Role Approval Alignment
+on:
+  push:
+    branches:
+      - fix/vivito-rbac-alignment-2026-08-31
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/vivit_ci
+      AUTH_SECRET: vivito-ci-placeholder-secret-not-for-production
+      NEXTAUTH_SECRET: vivito-ci-placeholder-secret-not-for-production
+      NEXTAUTH_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - name: Role approval alignment
+        run: npx tsx scripts/qa-vivito-role-approval-alignment.ts
+      - name: VIVITO actions
+        run: npm run qa:vivito-actions
+      - name: VIVITO operator control
+        run: npm run qa:vivito-operator-control
+      - name: ESLint
+        run: npm run lint
+      - name: TypeScript
+        run: npm run type-check
+      - name: Full production build and QA
+        run: npm run build

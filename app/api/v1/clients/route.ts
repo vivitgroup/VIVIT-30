@@ -11,7 +11,7 @@ async function authenticateAPIKey(req:NextRequest){
  const hashed=crypto.createHash("sha256").update(raw).digest("hex");
  const [found]=await db.select().from(apiKeys).where(and(eq(apiKeys.keyHash,hashed),eq(apiKeys.isActive,true))).limit(1);
  if(!found||!READ_PERMISSIONS.has(String(found.permissions||"")))return null;
- await db.update(apiKeys).set({lastUsedAt:new Date()}).where(eq(apiKeys.id,found.id));
+ await db.update(apiKeys).set({lastUsedAt:new Date()}).where(and(eq(apiKeys.id,found.id),eq(apiKeys.workspaceId,found.workspaceId)));
  return found;
 }
 export async function GET(req:NextRequest){

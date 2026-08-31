@@ -3,6 +3,7 @@ const r=p=>fs.readFileSync(p,"utf8"),checks=[],check=(n,o)=>checks.push({name:n,
 const next=r("next.config.ts"),proxy=r("proxy.ts"),robots=r("app/robots.ts"),health=r("app/api/health/route.ts"),pkg=JSON.parse(r("package.json"));
 check("Robots metadata route blocks indexing",robots.includes('disallow: "/"'));
 check("No dead /api/robots rewrite remains",!next.includes('/api/robots')&&!next.includes("rewrites()"));
+check("Framework fingerprint header is disabled",next.includes("poweredByHeader:false"));
 check("Global baseline prevents MIME sniffing",next.includes("X-Content-Type-Options")&&next.includes("nosniff"));
 check("Global baseline denies framing",next.includes("X-Frame-Options")&&next.includes("DENY"));
 check("Global baseline includes HSTS",next.includes("Strict-Transport-Security")&&next.includes("max-age=31536000"));

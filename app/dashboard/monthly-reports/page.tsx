@@ -29,7 +29,7 @@ export default async function MonthlyReportsPage() {
     "use server";
     const {auth:getAuth}=await import("@/lib/auth");
     const {db,clients,contacts,financeRecords,mediaMetrics,auditLogs}=await import("@/lib/db");
-    const {eq,and,gte,sum}=await import("drizzle-orm");
+    const {eq,and,gte,sum,sql}=await import("drizzle-orm");
     const MONTHS=["","January","February","March","April","May","June","July","August","September","October","November","December"];
     const current=await getAuth();
     const currentUser=current?.user as unknown as SessionUser|undefined;
@@ -51,13 +51,16 @@ export default async function MonthlyReportsPage() {
       const [mAgg]=await db.select({spend:sum(mediaMetrics.adSpend),leads:sum(mediaMetrics.leads),rev:sum(mediaMetrics.revenue)}).from(mediaMetrics).where(and(eq(mediaMetrics.workspaceId,currentWorkspaceId),eq(mediaMetrics.clientId,c.id),gte(mediaMetrics.date,monthStart2)));
       const spend=Number(mAgg?.spend??0);const leads=Number(mAgg?.leads??0);const rev=Number(mAgg?.rev??0);
       if(process.env.RESEND_API_KEY){
-        const emailRes=await fetch("https://api.resend.com/emails",{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${process.env.RESEND_API_KEY}`},body:JSON.stringify({
+        const deliveryEntityId=`${c.id}:${pYear}-${String(pMonth).padStart(2,"0")}`,deliveryKey=`monthly-report/${currentWorkspaceId}/${deliveryEntityId}`;
+        const alreadySent=await db.transaction(async tx=>{await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${deliveryKey}))`);const [existingDelivery]=await tx.select({id:auditLogs.id}).from(auditLogs).where(and(eq(auditLogs.workspaceId,currentWorkspaceId),eq(auditLogs.action,"monthly_report_emailed"),eq(auditLogs.entityId,deliveryEntityId))).limit(1);return Boolean(existingDelivery)});
+        if(alreadySent)continue;
+        const emailRes=await fetch("https://api.resend.com/emails",{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${process.env.RESEND_API_KEY}`,"Idempotency-Key":deliveryKey},body:JSON.stringify({
           from:process.env.EMAIL_FROM??"noreply@vivitcrm.com",to:[contact.email],
           subject:`📊 ${c.companyName} — ${MONTHS[pMonth]} ${pYear} Performance Report`,
           html:`<div style="font-family:Inter,sans-serif;max-width:600px;margin:0 auto;padding:24px"><div style="background:linear-gradient(135deg,#17345F,#244D87);color:white;padding:24px;border-radius:12px 12px 0 0"><h1 style="margin:0;font-size:20px">📊 ${MONTHS[pMonth]} Report</h1></div><div style="background:#f9f9f9;padding:24px;border-radius:0 0 12px 12px"><h2>${c.companyName}</h2><table style="width:100%;border-collapse:collapse"><tr style="background:#244D87;color:white"><td style="padding:8px 12px">Metric</td><td style="padding:8px 12px">Value</td></tr><tr><td style="padding:8px 12px;border:1px solid #eee">Ad Spend</td><td style="padding:8px 12px;border:1px solid #eee">${spend.toLocaleString()} EGP</td></tr><tr style="background:#f5f5f5"><td style="padding:8px 12px;border:1px solid #eee">Leads</td><td style="padding:8px 12px;border:1px solid #eee">${leads}</td></tr><tr><td style="padding:8px 12px;border:1px solid #eee">Revenue</td><td style="padding:8px 12px;border:1px solid #eee">${rev.toLocaleString()} EGP</td></tr><tr style="background:#f5f5f5"><td style="padding:8px 12px;border:1px solid #eee">ROAS</td><td style="padding:8px 12px;border:1px solid #eee">${spend>0?(rev/spend).toFixed(2):0}×</td></tr>${inv?`<tr><td style="padding:8px 12px;border:1px solid #eee">Invoice</td><td style="padding:8px 12px;border:1px solid #eee">${inv.totalRevenue.toLocaleString()} EGP — ${inv.invoiceStatus}</td></tr>`:"" }</table><a href="${process.env.NEXTAUTH_URL??""}/dashboard/portal" style="background:#244D87;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;display:inline-block;margin-top:16px">View Full Report →</a></div><p style="color:#999;font-size:12px;margin-top:16px;text-align:center">VIVIT GROUP</p></div>`,
         })});
         if(!emailRes.ok)throw new Error(`Monthly report email failed for ${c.id}`);
-        await db.insert(auditLogs).values({workspaceId:currentWorkspaceId,userId:currentUserId,action:"monthly_report_emailed",entity:"client",entityId:c.id,newValues:JSON.stringify({month:pMonth,year:pYear,recipient:contact.email})});
+        await db.transaction(async tx=>{await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${deliveryKey}))`);const [existingDelivery]=await tx.select({id:auditLogs.id}).from(auditLogs).where(and(eq(auditLogs.workspaceId,currentWorkspaceId),eq(auditLogs.action,"monthly_report_emailed"),eq(auditLogs.entityId,deliveryEntityId))).limit(1);if(!existingDelivery)await tx.insert(auditLogs).values({workspaceId:currentWorkspaceId,userId:currentUserId,action:"monthly_report_emailed",entity:"client_monthly_report",entityId:deliveryEntityId,newValues:JSON.stringify({clientId:c.id,month:pMonth,year:pYear,recipient:contact.email,idempotencyKey:deliveryKey})})});
       }
     }
     const {revalidatePath}=await import("next/cache");

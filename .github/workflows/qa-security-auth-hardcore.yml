@@ -62,6 +62,8 @@ jobs:
         run: npx drizzle-kit push --force
       - name: Security auth invariants
         run: node scripts/qa-security-auth-hardcore.mjs
+      - name: API mutation authentication surface
+        run: node scripts/qa-security-api-surface.mjs
       - name: ESLint zero-warning gate
         run: npm run lint -- --max-warnings=0
       - name: TypeScript gate

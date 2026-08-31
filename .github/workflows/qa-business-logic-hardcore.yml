@@ -91,6 +91,17 @@ jobs:
             git commit -m "fix(business): harden media discovery sync"
             git push origin HEAD:audit/business-logic-hardcore-2026-08-31
           fi
+      - name: Apply VIVITO execution receipt refactor
+        run: node scripts/fix-assistant-actions-receipts.mjs
+      - name: Commit VIVITO receipt refactor
+        run: |
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add app/api/assistant/actions/route.ts
+            git commit -m "refactor(vivito): isolate atomic execution receipt states"
+            git push origin HEAD:audit/business-logic-hardcore-2026-08-31
+          fi
       - run: npm ci
       - name: Business logic radar
         continue-on-error: true

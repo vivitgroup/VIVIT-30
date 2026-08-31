@@ -5,8 +5,8 @@ import {db,fileDocuments,auditLogs,clients,sql} from "@/lib/db";
 import {eq,and,desc,inArray,or} from "drizzle-orm";
 
 const BUCKET="vivit-files",MAX_SIZE=500*1024*1024;
-const ALLOWED_MIME=new Set(["application/pdf","application/msword","application/vnd.openxmlformats-officedocument.wordprocessingml.document","application/vnd.ms-excel","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet","application/vnd.ms-powerpoint","application/vnd.openxmlformats-officedocument.presentationml.presentation","text/plain","text/csv","image/jpeg","image/png","image/webp","image/gif","image/svg+xml","video/mp4","video/quicktime","video/webm","audio/mpeg","audio/wav","audio/x-wav"]);
-const DANGEROUS_EXT=/\.(?:exe|dll|msi|bat|cmd|com|scr|ps1|psm1|vbs|vbe|js|mjs|cjs|jar|apk|dmg|pkg|sh|bash|zsh|php|py|rb|pl|cgi|htm|html|xhtml|svgz)$/i;
+const ALLOWED_MIME=new Set(["application/pdf","application/msword","application/vnd.openxmlformats-officedocument.wordprocessingml.document","application/vnd.ms-excel","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet","application/vnd.ms-powerpoint","application/vnd.openxmlformats-officedocument.presentationml.presentation","text/plain","text/csv","image/jpeg","image/png","image/webp","image/gif","video/mp4","video/quicktime","video/webm","audio/mpeg","audio/wav","audio/x-wav"]);
+const DANGEROUS_EXT=/\.(?:exe|dll|msi|bat|cmd|com|scr|ps1|psm1|vbs|vbe|js|mjs|cjs|jar|apk|dmg|pkg|sh|bash|zsh|php|py|rb|pl|cgi|htm|html|xhtml|svg|svgz)$/i;
 const base=()=>String(process.env.SUPABASE_URL||"").replace(/\/$/,"");
 const headers=()=>({apikey:process.env.SUPABASE_SERVICE_KEY!,Authorization:`Bearer ${process.env.SUPABASE_SERVICE_KEY!}`});
 const safeName=(name:string)=>name.normalize("NFKD").replace(/[^a-zA-Z0-9._-]/g,"-").replace(/-+/g,"-").slice(-140)||"file";

@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { and, eq, isNull } from "drizzle-orm";
 import { auth } from "@/lib/auth";
-import { auditLogs, companyExpenses, db, financialLedgerEntries } from "@/lib/db";
+import { auditLogs, companyExpenses, db, sql } from "@/lib/db";
 
 export async function POST(_req: NextRequest, context: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -34,16 +34,13 @@ export async function POST(_req: NextRequest, context: { params: Promise<{ id: s
 
     if (!updated) return { kind: "changed" as const };
 
-    await tx
-      .update(financialLedgerEntries)
-      .set({ approvedBy: userId })
-      .where(
-        and(
-          eq(financialLedgerEntries.workspaceId, workspaceId),
-          eq(financialLedgerEntries.sourceSheet, "ERP Manual Expense"),
-          eq(financialLedgerEntries.sourceRef, id),
-        ),
-      );
+    await tx.execute(sql`
+      update financial_ledger_entries
+      set approved_by=${userId}
+      where workspace_id=${workspaceId}
+        and source_sheet='ERP Manual Expense'
+        and source_ref=${id}
+    `);
 
     await tx.insert(auditLogs).values({
       workspaceId,

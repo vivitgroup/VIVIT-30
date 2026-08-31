@@ -16,6 +16,7 @@ jobs:
       NEXTAUTH_URL: http://localhost:3000
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      VIVITO_PROVIDER_TIMEOUT_MS: 8000
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

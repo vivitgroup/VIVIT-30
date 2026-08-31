@@ -29,7 +29,7 @@ $("Mixed style mirrors Arabic English naturally",lang.includes("same natural Ara
 $("Provider outage has deterministic local resilience",providers.includes("generateLocalVivito")&&providers.includes("generateLocalAdvisorV2")&&providers.includes('provider:"local"')&&providers.includes("localFallback"));
 $("Local resilience can plan real core task actions",local.includes('return "create_task"')&&local.includes('required=["clientName","title","brief","deadline"]'));
 $("Advisor V2 reads live ERP context",advisor.includes("ERP LIVE CONTEXT")&&advisor.includes("contextFromPrompt"));
-$("Advisor V2 can answer client-specific summaries",advisor.includes("clientSummary")&&advisor.includes("client-health")===false&&advisor.includes("finance not available for your role"));
+$("Advisor V2 can answer client-specific summaries",advisor.includes("clientSummary")&&advisor.includes("finance not available for your role")&&advisor.includes("sales lead(s) linked by name"));
 $("Advisor V2 covers priority task sales media finance",advisor.includes("priorityAnswer")&&advisor.includes("weighted pipeline")&&advisor.includes("ROAS")&&advisor.includes("Finance:"));
 $("Advisor V2 covers tracking and client health",advisor.includes("tracking-health")&&advisor.includes("client-health"));
 $("Advisor V2 explains capabilities instead of generic fallback",advisor.includes("what can you do")&&advisor.includes("execute allowed ERP actions"));

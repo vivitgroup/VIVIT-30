@@ -31,14 +31,14 @@ export async function GET(){
 export async function POST(req:NextRequest){
   const s=await sessionScope();if(!s)return NextResponse.json({error:"Unauthorized"},{status:401});
   const {workspaceId,role,userId}=s;
-  if(!["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","ACCOUNTANT"].includes(role))return NextResponse.json({error:"You do not have permission to add clients."},{status:403});
+  if(!["SUPER_ADMIN","ACCOUNT_MANAGER","ACCOUNTANT"].includes(role))return NextResponse.json({error:"You do not have permission to add clients."},{status:403});
   const b=await parseBody(req);if(!b)return NextResponse.json({error:"Invalid form data."},{status:400});
   const companyName=str(b.companyName,160);if(companyName.length<2)return NextResponse.json({error:"Company name is required."},{status:400});
   const duplicate=await db.select({id:clients.id}).from(clients).where(and(eq(clients.workspaceId,workspaceId),ilike(clients.companyName,companyName))).limit(1);
   if(duplicate[0])return NextResponse.json({error:"A client with this company name already exists.",clientId:duplicate[0].id},{status:409});
   const canSetupMarketing=role!=="ACCOUNTANT",portalUserId=canSetupMarketing?(str(b.portalUserId,80)||null):null;
   if(portalUserId){const [portalUser]=await db.select({id:users.id}).from(users).where(and(eq(users.id,portalUserId),eq(users.workspaceId,workspaceId),eq(users.role,"CLIENT"),eq(users.isActive,true),eq(users.approvalStatus,"APPROVED"))).limit(1);if(!portalUser)return NextResponse.json({error:"Choose a valid active approved client portal user."},{status:400});const existingLink=await db.select({id:clients.id}).from(clients).where(and(eq(clients.workspaceId,workspaceId),eq(clients.userId,portalUserId))).limit(1);if(existingLink[0])return NextResponse.json({error:"This portal user is already linked to another client."},{status:409});}
-  const accountManagerId=canSetupMarketing?(role==="ACCOUNT_MANAGER"?userId:str(b.accountManagerId,80)||null):null,mediaBuyerId=canSetupMarketing?(role==="MEDIA_BUYER"?userId:str(b.mediaBuyerId,80)||null):null;
+  const accountManagerId=canSetupMarketing?(role==="ACCOUNT_MANAGER"?userId:str(b.accountManagerId,80)||null):null,mediaBuyerId=canSetupMarketing?(str(b.mediaBuyerId,80)||null):null;
   if(accountManagerId){const [manager]=await db.select({id:users.id}).from(users).where(and(eq(users.id,accountManagerId),eq(users.workspaceId,workspaceId),eq(users.role,"ACCOUNT_MANAGER"),eq(users.isActive,true))).limit(1);if(!manager)return NextResponse.json({error:"Choose a valid active account manager."},{status:400});}
   if(mediaBuyerId){const [buyer]=await db.select({id:users.id}).from(users).where(and(eq(users.id,mediaBuyerId),eq(users.workspaceId,workspaceId),eq(users.role,"MEDIA_BUYER"),eq(users.isActive,true))).limit(1);if(!buyer)return NextResponse.json({error:"Choose a valid active media buyer."},{status:400});}
   const contractStart=date(b.contractStart),contractEnd=date(b.contractEnd);if(contractStart&&contractEnd&&contractEnd<contractStart)return NextResponse.json({error:"Contract end date must be on or after the start date."},{status:400});

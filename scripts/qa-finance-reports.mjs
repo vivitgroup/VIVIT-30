@@ -33,9 +33,11 @@ check("Invoice total uses stored fee and extras", finance.includes("retainer+med
 check("Invoice creation stores live workspace id", finance.includes("values({workspaceId,clientId") || finance.includes("workspaceId:workspaceId,clientId"));
 check("Invoice creation serializes duplicate races", finance.includes("pg_advisory_xact_lock") && finance.includes("lockKey"));
 check("Invoice creation writes audit history", finance.includes('action:"invoice_created"'));
+check("Invoice creation starts as DRAFT", finance.includes('invoiceStatus:"DRAFT"'));
+check("Draft invoices cannot be paid", finance.includes('invoiceStatus==="DRAFT"') && finance.includes("must be approved and sent before payment"));
 check("Expense creation stores live workspace id", finance.includes("workspaceId:workspaceId,category"));
 check("Expense validation requires positive amount", finance.includes("amount<=0") && finance.includes("Invalid expense data"));
-check("Expense creation writes audit history", finance.includes('action:"expense_logged"'));
+check("Expense creation writes pending-approval audit history", finance.includes('action:"expense_created_pending_approval"') && finance.includes("approvedBy:null"));
 check("Mark paid is finance-role gated", finance.includes("async function markPaid") && finance.includes("requireFinanceUser()"));
 check("Mark paid uses database transaction", finance.includes("db.transaction(async tx=>"));
 check("Mark paid invoice is workspace scoped", finance.includes("eq(financeRecords.id,id),eq(financeRecords.workspaceId,workspaceId)"));

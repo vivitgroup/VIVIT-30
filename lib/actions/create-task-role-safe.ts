@@ -11,7 +11,7 @@ const TASK_PRIORITIES=["URGENT","HIGH","MEDIUM","LOW"] as const;
 
 export async function createTaskRoleSafe(formData:FormData){
   const session=await auth();if(!session?.user)throw new Error("Unauthorized");
-  const role=String(session.user.role||"");if(!["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"].includes(role))throw new Error("Forbidden");
+  const role=String(session.user.role||"");if(!["SUPER_ADMIN","ACCOUNT_MANAGER"].includes(role))throw new Error("Forbidden");
   const workspaceId=String(session.user.workspaceId||"").trim(),userId=String(session.user.id||"").trim();if(!workspaceId||!userId)throw new Error("Workspace unavailable");
   const title=String(formData.get("title")||"").trim(),clientId=String(formData.get("clientId")||"").trim(),type=String(formData.get("type")||"").trim(),brief=String(formData.get("brief")||"").trim(),tov=String(formData.get("tov")||"").trim(),priority=String(formData.get("priority")||"").trim(),assignedToId=String(formData.get("assignedToId")||"").trim()||null,deadline=String(formData.get("deadline")||"").trim(),caption=String(formData.get("caption")||"").trim()||null,deadlineDate=new Date(deadline);
   if(!title||!clientId||!brief||!(TASK_TYPES as readonly string[]).includes(type)||!(TASK_PRIORITIES as readonly string[]).includes(priority)||!deadline||Number.isNaN(deadlineDate.getTime()))throw new Error("Invalid task data");

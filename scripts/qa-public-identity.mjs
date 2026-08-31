@@ -13,7 +13,9 @@ check("Approval URL base is protocol validated",issue.includes("safeHttpUrl(base
 check("Approval page hashes incoming token",approve.includes("hashApprovalToken(token)"));
 check("Approval page supports legacy raw links without generating new raw DB tokens",approve.includes("or(eq(approvalTokens.token,hash),eq(approvalTokens.token,token))"));
 check("Approval link is single-use through atomic token claim",approve.includes("tx.update(approvalTokens)")&&approve.includes("isNull(approvalTokens.usedAt)")&&approve.includes("claimed.length!==1"));
-check("Approval link only acts on REVIEW task",approve.includes('eq(creativeTasks.status,"REVIEW")'));
+check("Approval link only acts on internally APPROVED task",approve.includes('eq(creativeTasks.status,"APPROVED")')&&approve.includes('eq(creativeTasks.approvedByClient,false)'));
+check("Client approval explicitly completes task",approve.includes('status:"COMPLETED"')&&approve.includes("approvedByClient:true")&&approve.includes("completedAt:now")&&approve.includes("clientApprovalAt:now"));
+check("Client revision clears completion and approval state",approve.includes('status:"REVISION"')&&approve.includes("approvedByClient:false")&&approve.includes("clientApprovalAt:null")&&approve.includes("completedAt:null"));
 check("Public approval derives workspace from active token client",approve.includes("workspaceId:clients.workspaceId")&&approve.includes("if(!clientScope?.workspaceId)return <Invalid/>")&&approve.includes("workspaceId=String(clientScope.workspaceId)"));
 check("Approval task is constrained to derived workspace and client",approve.includes("eq(creativeTasks.workspaceId,workspaceId)")&&approve.includes("eq(creativeTasks.clientId,tokenRow.clientId)")&&approve.includes("workspace_id=${workspaceId} and archived_at is null"));
 check("Approval transaction revalidates client workspace",approve.includes("freshClient.workspaceId")&&approve.includes("String(freshClient.workspaceId)!==workspaceId"));

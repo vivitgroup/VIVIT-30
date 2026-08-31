@@ -13,7 +13,7 @@ export async function createTaskRoleSafe(formData:FormData){
   const session=await auth();
   if(!session?.user)throw new Error("Unauthorized");
   const role=String(session.user.role||"");
-  if(!["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"].includes(role))throw new Error("Forbidden");
+  if(!["SUPER_ADMIN","ACCOUNT_MANAGER"].includes(role))throw new Error("Forbidden");
   const workspaceId=String(session.user.workspaceId||"").trim(),userId=String(session.user.id||"").trim();
   if(!workspaceId||!userId)throw new Error("Workspace unavailable");
 
@@ -29,10 +29,9 @@ export async function createTaskRoleSafe(formData:FormData){
   const deadlineDate=new Date(deadline);
   if(!title||!clientId||!brief||!(TASK_TYPES as readonly string[]).includes(type)||!(TASK_PRIORITIES as readonly string[]).includes(priority)||!deadline||Number.isNaN(deadlineDate.getTime()))throw new Error("Invalid task data");
 
-  const [client]=await db.select({id:clients.id,accountManagerId:clients.accountManagerId,mediaBuyerId:clients.mediaBuyerId}).from(clients).where(and(eq(clients.id,clientId),eq(clients.workspaceId,workspaceId),eq(clients.isActive,true))).limit(1);
+  const [client]=await db.select({id:clients.id,accountManagerId:clients.accountManagerId}).from(clients).where(and(eq(clients.id,clientId),eq(clients.workspaceId,workspaceId),eq(clients.isActive,true))).limit(1);
   if(!client)throw new Error("Client not found");
   if(role==="ACCOUNT_MANAGER"&&client.accountManagerId!==userId)throw new Error("Client access denied");
-  if(role==="MEDIA_BUYER"&&client.mediaBuyerId!==userId)throw new Error("Client access denied");
 
   if(assignedToId){
     const [creator]=await db.select({id:users.id}).from(users).where(and(eq(users.id,assignedToId),eq(users.workspaceId,workspaceId),eq(users.role,"CREATOR"),eq(users.isActive,true))).limit(1);

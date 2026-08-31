@@ -1,4 +1,4 @@
-name: VIVITO Production Auth E2E
+name: VIVITO 150 Case Production Exam
 
 on:
   push:
@@ -9,35 +9,13 @@ permissions:
   contents: read
 
 jobs:
-  authenticated-production-probe:
+  vivito-150-exam:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Authenticate and run read-only VIVITO probe
-        shell: bash
-        run: |
-          node <<'NODE'
-          const fs=require('node:fs'),BASE='https://vivit-erp-theta.vercel.app',seed=fs.readFileSync('scripts/seed.ts','utf8');
-          const passMatch=seed.match(/const\s+pw\s*=\s*await\s+hash\("([^"]+)"\)/);if(!passMatch)throw new Error('No designated QA password fixture is available.');
-          const email='vivito-e2e-20260831-0956@example.invalid',password=passMatch[1],jar=new Map();
-          function absorb(res){const values=typeof res.headers.getSetCookie==='function'?res.headers.getSetCookie():[res.headers.get('set-cookie')].filter(Boolean);for(const raw of values){const first=String(raw).split(';',1)[0],i=first.indexOf('=');if(i>0)jar.set(first.slice(0,i),first.slice(i+1))}}
-          function cookieHeader(){return[...jar].map(([k,v])=>`${k}=${v}`).join('; ')}
-          async function request(path,options={}){const headers=new Headers(options.headers||{}),cookie=cookieHeader();if(cookie)headers.set('cookie',cookie);const res=await fetch(BASE+path,{...options,headers,redirect:'manual'});absorb(res);return res}
-          async function json(res){const text=await res.text();try{return JSON.parse(text)}catch{return{raw:text.slice(0,200)}}}
-          (async()=>{
-            const health=await request('/api/health'),healthBody=await json(health);if(health.status!==200||healthBody.status!=='healthy'||healthBody.database!=='connected')throw new Error(`Health gate failed (${health.status}).`);
-            const csrfRes=await request('/api/auth/csrf'),csrf=await json(csrfRes);if(csrfRes.status!==200||!csrf.csrfToken)throw new Error(`CSRF bootstrap failed (${csrfRes.status}).`);
-            const login=await request('/api/auth/callback/credentials',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({csrfToken:csrf.csrfToken,email,password,callbackUrl:BASE+'/dashboard',redirect:'false'})});if(login.status>=400)throw new Error(`Credentials callback failed (${login.status}).`);
-            const sessionRes=await request('/api/auth/session'),session=await json(sessionRes);if(sessionRes.status!==200||!session?.user?.id||session?.user?.authValid!==true)throw new Error(`Authenticated session gate failed (${sessionRes.status}).`);
-            const started=Date.now(),assistantRes=await request('/api/assistant',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({question:'Production certification probe. Read-only only. Do not create, update, delete, approve, reject, publish, send, remember, or propose any action. Do not list client names or sensitive metrics. Briefly confirm you can respond within the authorized workspace context.',attachments:[]})}),assistant=await json(assistantRes),latencyMs=Date.now()-started;
-            if(assistantRes.status!==200)throw new Error(`Assistant request failed (${assistantRes.status}): ${String(assistant?.error||'unknown').slice(0,120)}`);
-            if(typeof assistant.answer!=='string'||!assistant.answer.trim())throw new Error('Assistant returned no atomic answer.');
-            if(assistant.actionProposal||assistant.actionPlan)throw new Error('Read-only probe unexpectedly produced an executable action proposal.');
-            if(latencyMs>45000)throw new Error(`Assistant exceeded certified timeout envelope (${latencyMs}ms).`);
-            console.log(JSON.stringify({passed:true,productionHealth:true,authenticated:true,authValid:true,role:String(session.user.role||'unknown'),assistantHttp:assistantRes.status,atomicAnswer:true,noActionProposal:true,latencyMs,responseMetadata:Object.keys(assistant).filter(k=>!['answer','sources'].includes(k)).sort()},null,2));
-          })().catch(err=>{console.error(`E2E_FAIL: ${err.message}`);process.exit(1)});
-          NODE
+      - name: Run 100 questions and 50 task cases
+        run: node scripts/vivito-150-exam.mjs

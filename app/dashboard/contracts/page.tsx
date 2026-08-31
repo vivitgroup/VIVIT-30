@@ -1,8 +1,8 @@
 export const dynamic = "force-dynamic";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { db, contracts, clients } from "@/lib/db";
-import { eq, desc } from "drizzle-orm";
+import { db, contracts, clients, auditLogs } from "@/lib/db";
+import { eq, desc, and, inArray } from "drizzle-orm";
 import { Role } from "@/lib/types";
 import Link from "next/link";
 
@@ -16,6 +16,8 @@ async function createContract(fd: FormData) {
   "use server";
   const session=await auth();
   if(!session?.user||![Role.SUPER_ADMIN,Role.ACCOUNTANT].includes(session.user.role))throw new Error("Unauthorized");
+  const workspaceId=String(session.user.workspaceId||"").trim(),userId=String(session.user.id||"").trim();
+  if(!workspaceId||!userId)throw new Error("Workspace unavailable");
   const clientId=String(fd.get("clientId")||"");
   const title=String(fd.get("title")||"").trim().slice(0,140);
   const startDateRaw=String(fd.get("startDate")||"");
@@ -30,14 +32,14 @@ async function createContract(fd: FormData) {
   const startDate=new Date(startDateRaw),endDate=new Date(endDateRaw);
   if(Number.isNaN(startDate.getTime())||Number.isNaN(endDate.getTime())) throw new Error("Invalid contract dates");
   if(endDate<=startDate) throw new Error("Contract end date must be after the start date");
-  const [client]=await db.select({id:clients.id}).from(clients).where(eq(clients.id,clientId)).limit(1);
-  if(!client) throw new Error("Selected client does not exist");
-  await db.insert(contracts).values({
-    clientId,title,type,
-    value,startDate,endDate,
-    autoRenew:String(fd.get("autoRenew"))==="true",
-    renewalDays,status:"ACTIVE",
-    notes:String(fd.get("notes")||"").trim().slice(0,1000)||null,
+  const [client]=await db.select({id:clients.id}).from(clients).where(and(eq(clients.id,clientId),eq(clients.workspaceId,workspaceId),eq(clients.isActive,true))).limit(1);
+  if(!client) throw new Error("Selected client does not exist in this workspace");
+  const notes=String(fd.get("notes")||"").trim().slice(0,1000)||null,autoRenew=String(fd.get("autoRenew"))==="true";
+  await db.transaction(async tx=>{
+    const [freshClient]=await tx.select({id:clients.id}).from(clients).where(and(eq(clients.id,clientId),eq(clients.workspaceId,workspaceId),eq(clients.isActive,true))).limit(1);
+    if(!freshClient)throw new Error("Selected client is no longer active in this workspace");
+    const [contract]=await tx.insert(contracts).values({clientId,title,type,value,startDate,endDate,autoRenew,renewalDays,status:"ACTIVE",notes}).returning({id:contracts.id});
+    await tx.insert(auditLogs).values({workspaceId,userId,action:"contract_created",entity:"contracts",entityId:contract.id,newValues:JSON.stringify({clientId,title,type,value,startDate:startDate.toISOString(),endDate:endDate.toISOString(),autoRenew,renewalDays})});
   });
   const {revalidatePath}=await import("next/cache");
   revalidatePath("/dashboard/contracts");
@@ -47,11 +49,11 @@ export default async function ContractsPage(){
   const session=await auth();
   if(!session?.user)redirect("/login");
   if(![Role.SUPER_ADMIN,Role.ACCOUNTANT].includes(session.user.role))redirect("/dashboard");
+  const workspaceId=String(session.user.workspaceId||"").trim();if(!workspaceId)redirect("/login?reason=workspace_missing");
 
-  const [allContracts,allClients]=await Promise.all([
-    db.select().from(contracts).orderBy(desc(contracts.endDate)),
-    db.select({id:clients.id,companyName:clients.companyName}).from(clients).where(eq(clients.isActive,true)).orderBy(clients.companyName),
-  ]);
+  const allClients=await db.select({id:clients.id,companyName:clients.companyName}).from(clients).where(and(eq(clients.workspaceId,workspaceId),eq(clients.isActive,true))).orderBy(clients.companyName);
+  const clientIds=allClients.map(c=>c.id);
+  const allContracts=clientIds.length?await db.select().from(contracts).where(inArray(contracts.clientId,clientIds)).orderBy(desc(contracts.endDate)):[];
   const clientMap=Object.fromEntries(allClients.map(c=>[c.id,c.companyName]));
   const now=new Date();
   const active=allContracts.filter(c=>c.status==="ACTIVE");

@@ -1,0 +1,31 @@
+name: VIVITO 1000 Case Study Certification
+on:
+  push:
+    branches:
+      - feat/vivito-1000-case-certification-2026-08-31
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/vivit_ci
+      AUTH_SECRET: vivito-ci-placeholder-secret-not-for-production
+      NEXTAUTH_SECRET: vivito-ci-placeholder-secret-not-for-production
+      NEXTAUTH_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - name: 1000 case role scope certification
+        run: npx tsx scripts/qa-vivito-case-study-v4.ts
+      - name: VIVITO intelligence
+        run: npm run qa:vivito-intelligence
+      - name: VIVITO academy
+        run: npm run qa:vivito-academy
+      - name: VIVITO actions
+        run: npm run qa:vivito-actions
+      - name: ESLint
+        run: npm run lint
+      - name: TypeScript
+        run: npm run type-check

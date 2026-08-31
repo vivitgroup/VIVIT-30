@@ -1,4 +1,5 @@
 import fs from "node:fs";
+// Idempotent contract fixer; retained so future audit runs cannot reintroduce manager-side task completion.
 const file="lib/actions/index.ts";
 let s=fs.readFileSync(file,"utf8");
 const replace=(from,to,label)=>{if(s.includes(to))return;if(!s.includes(from))throw new Error(`Missing anchor: ${label}`);s=s.replace(from,to)};

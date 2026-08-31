@@ -1,0 +1,16 @@
+name: VIVITO All Roles Live Certification
+on:
+  push:
+    branches: [qa/vivito-all-roles-live-2026-08-31]
+  workflow_dispatch:
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Live 100 questions + 50 executions per role
+        run: node scripts/vivito-all-roles-live-exam.mjs

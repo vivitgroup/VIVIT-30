@@ -6,10 +6,10 @@ try{
  const health=await req("/api/health"),healthJson=await health.json().catch(()=>({}));
  if(hasDatabase){
   check("Built server health is 200 with configured database",health.status===200,`status=${health.status}`);
-  check("Runtime database connection is healthy",healthJson.status==="healthy"&&healthJson.database==="connected",JSON.stringify(healthJson));
+  check("Runtime database probe is healthy without public DB disclosure",healthJson.status==="healthy"&&!Object.prototype.hasOwnProperty.call(healthJson,"database")&&!Object.prototype.hasOwnProperty.call(healthJson,"version"),JSON.stringify(healthJson));
  }else{
-  check("Health fails closed when CI has no database credentials",health.status===503&&healthJson.status==="degraded"&&healthJson.database==="error",`status=${health.status} body=${JSON.stringify(healthJson)}`);
-  check("Degraded health still reports the built release version",healthJson.version==="41.0.0",JSON.stringify(healthJson));
+  check("Health fails closed when CI has no database credentials",health.status===503&&healthJson.status==="degraded",`status=${health.status} body=${JSON.stringify(healthJson)}`);
+  check("Degraded health keeps infrastructure details private",!Object.prototype.hasOwnProperty.call(healthJson,"database")&&!Object.prototype.hasOwnProperty.call(healthJson,"version"),JSON.stringify(healthJson));
  }
  check("Health response is no-store",String(health.headers.get("cache-control")||"").includes("no-store"));
  const login=await req("/login"),loginText=await login.text();
@@ -31,5 +31,6 @@ try{
  const sec=await req("/login");
  check("Runtime security headers deny framing",String(sec.headers.get("x-frame-options")||"").toUpperCase()==="DENY");
  check("Runtime security headers disable MIME sniffing",String(sec.headers.get("x-content-type-options")||"").toLowerCase()==="nosniff");
+ check("Runtime CSP blocks framing",String(sec.headers.get("content-security-policy")||"").includes("frame-ancestors 'none'"));
 }catch(error){check("Runtime smoke runner completed",false,String(error))}
 const failed=checks.filter(c=>!c.ok);for(const c of checks)console.log(`${c.ok?"PASS":"FAIL"}  ${c.name}${c.detail?` — ${c.detail}`:""}`);console.log(`\n${checks.length-failed.length}/${checks.length} runtime smoke checks passed.`);if(failed.length)process.exit(1);

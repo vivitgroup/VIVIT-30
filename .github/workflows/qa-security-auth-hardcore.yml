@@ -56,6 +56,8 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci
+      - name: Production dependency audit
+        run: npm audit --omit=dev --audit-level=moderate
       - name: Build base ephemeral database
         run: npx drizzle-kit push --force
       - name: Security auth invariants

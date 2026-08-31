@@ -1,0 +1,34 @@
+name: VIVITO Live Deep Audit Fix
+on:
+  push:
+    branches: [fix/vivito-live-deep-audit-2026-08-31]
+  workflow_dispatch:
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/vivit_ci
+      AUTH_SECRET: vivito-ci-placeholder-secret-not-for-production
+      NEXTAUTH_SECRET: vivito-ci-placeholder-secret-not-for-production
+      NEXTAUTH_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - name: Read-only intent regression
+        run: npx tsx scripts/qa-vivito-live-intent-regression.ts
+      - name: VIVITO actions
+        run: npm run qa:vivito-actions
+      - name: VIVITO intelligence
+        run: npm run qa:vivito-intelligence
+      - name: VIVITO academy
+        run: npm run qa:vivito-academy
+      - name: ESLint
+        run: npm run lint
+      - name: TypeScript
+        run: npx tsc --noEmit
+      - name: Full production build
+        run: npm run build

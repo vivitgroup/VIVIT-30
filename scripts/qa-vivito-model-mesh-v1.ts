@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {generateViaVivitoMesh,loadVivitoModelMesh,rankVivitoMeshModels,resetVivitoMeshHealth,vivitoMeshHealth,vivitoMeshSummary} from "../lib/vivito/model-mesh-v1";
 import {VIVITO_DEFAULT_MODEL_POOL_META} from "../lib/vivito/model-mesh-pool-v1";
+import {VIVITO_GATEWAY_ROUTES,gatewayMeshSummary,gatewayModelOrder,generateViaGatewayIntelligentMesh,rankGatewayRoutes,resetGatewayMeshHealth} from "../lib/vivito/gateway-intelligent-mesh-v3";
 
 const originalMesh=process.env.VIVITO_MODEL_MESH_JSON;
 const originalDefaultPool=process.env.VIVITO_DEFAULT_MODEL_POOL;
@@ -49,7 +50,7 @@ async function main(){
   phase="auth";
   await check("authentication failure also fails over safely",async()=>{const out=await generateViaVivitoMesh("q","s",{task:"reasoning"});assert.equal(out.modelId,"fast");assert.ok(out.errors.some(x=>x.includes("provider-auth-failure")))});
   await check("auth-failed model is hard excluded from routing",()=>{assert.equal(vivitoMeshHealth("reasoner").health,"AUTH_FAILURE");assert.equal(rankVivitoMeshModels("reasoning").some(x=>x.id==="reasoner"),false)});
-  await check("mesh summary exposes configured providers and safe health ledger",()=>{const s=vivitoMeshSummary();assert.equal(s.configured,2);assert.equal(s.providers,2);assert.equal(s.models.includes("missing"),false);assert.equal((s.health as unknown).reasoner.health,"AUTH_FAILURE")});
+  await check("mesh summary exposes configured providers and safe health ledger",()=>{const s=vivitoMeshSummary();assert.equal(s.configured,2);assert.equal(s.providers,2);assert.equal(s.models.includes("missing"),false);assert.equal((s.health as unknown as Record<string,{health:string}>).reasoner.health,"AUTH_FAILURE")});
 
   delete process.env.VIVITO_MODEL_MESH_JSON;process.env.VIVITO_DEFAULT_MODEL_POOL="1";resetVivitoMeshHealth();
   await check("default pool contains at least twenty real model routes",()=>{const all=loadVivitoModelMesh();assert.ok(all.length>=20);assert.equal(all.length,VIVITO_DEFAULT_MODEL_POOL_META.modelCount)});
@@ -59,8 +60,21 @@ async function main(){
   await check("adding one provider key immediately activates its pool model",()=>{const ranked=rankVivitoMeshModels("arabic");assert.ok(ranked.some(x=>x.id==="kimi-direct-k2.6"));assert.ok(ranked.every(x=>x.apiKeyEnv==="MOONSHOT_API_KEY"))});
   await check("pool summary declares the key environments without containing secrets",()=>{const s=vivitoMeshSummary();assert.ok(s.defaultPool.requiredKeyEnvs.includes("MOONSHOT_API_KEY"));assert.equal(JSON.stringify(s).includes("test-moonshot"),false)});
 
-  console.log(`\n${passed}/17 VIVITO Model Mesh V1 checks passed.`);
-  if(passed!==17)process.exitCode=1;
+  resetGatewayMeshHealth();
+  await check("gateway intelligent mesh exposes exactly fifty logical routes",()=>{assert.equal(VIVITO_GATEWAY_ROUTES.length,50);assert.equal(gatewayMeshSummary().routes,50)});
+  await check("gateway mesh is ten models times five routing strategies",()=>{assert.equal(new Set(VIVITO_GATEWAY_ROUTES.map(r=>r.model)).size,10);assert.equal(new Set(VIVITO_GATEWAY_ROUTES.map(r=>r.strategy)).size,5)});
+  await check("gateway task ranking returns ten unique healthy model families",()=>{const models=gatewayModelOrder("reasoning",10);assert.equal(models.length,10);assert.equal(new Set(models).size,10);assert.ok(rankGatewayRoutes("reasoning")[0]?.tasks.includes("reasoning"))});
+
+  let capturedBody:Record<string,unknown>|null=null;
+  globalThis.fetch=(async (_input:RequestInfo|URL,init?:RequestInit)=>{capturedBody=JSON.parse(String(init?.body||"{}")) as Record<string,unknown>;return new Response(JSON.stringify({model:"openai/gpt-5.6-sol",choices:[{message:{content:"atomic gateway answer"}}]}),{status:200,headers:{"Content-Type":"application/json"}})}) as typeof fetch;
+  await check("gateway responses are atomic and never stream partial provider output",async()=>{const out=await generateViaGatewayIntelligentMesh("q","s","test-token",{task:"general"});assert.equal(out.text,"atomic gateway answer");assert.equal(out.routeCount,50);assert.equal(capturedBody?.stream,false);assert.equal(Array.isArray(capturedBody?.models),true);assert.equal((capturedBody?.models as unknown[]).length,10)});
+  await check("gateway request includes internal provider routing preferences without user-visible token errors",()=>{const providerOptions=capturedBody?.providerOptions as Record<string,unknown>;assert.ok(providerOptions&&typeof providerOptions.gateway==="object");assert.equal(JSON.stringify(capturedBody).includes("test-token"),false)});
+
+  globalThis.fetch=(async()=>new Response(JSON.stringify({error:{message:"daily quota exhausted"}}),{status:429,headers:{"Content-Type":"application/json"}})) as typeof fetch;
+  await check("gateway quota exhaustion enters cooldown instead of poisoning the user response path",async()=>{await assert.rejects(()=>generateViaGatewayIntelligentMesh("q","s","test-token",{task:"finance"}));const summary=gatewayMeshSummary("finance");assert.ok(Object.values(summary.health).some(h=>h.cooldownRemainingMs>0));resetGatewayMeshHealth()});
+
+  console.log(`\n${passed}/23 VIVITO Model Mesh V1 + Gateway 50-Route checks passed.`);
+  if(passed!==23)process.exitCode=1;
 }
 
 main().catch(error=>{console.error(error);process.exitCode=1}).finally(()=>{

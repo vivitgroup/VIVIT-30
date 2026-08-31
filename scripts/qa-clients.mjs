@@ -33,7 +33,7 @@ check("Client universe exposes Add Account",universe.includes('/dashboard/client
 check("Legacy client create is atomic and duplicate guarded",actions.includes("const clientId=await db.transaction(async tx=>")&&actions.includes("ilike(clients.companyName,companyName)")&&actions.includes("await tx.insert(auditLogs)"));
 check("Client create rejects duplicate company names",api.includes("already exists")&&api.includes("status:409"));
 check("Client create validates active portal user and one-client ownership",api.includes("valid active approved client portal user")&&api.includes("already linked to another client"));
-check("Client create validates AM/Media Buyer assignments",api.includes("valid active account manager")&&api.includes("valid active media buyer"));
+check("Client create validates approved AM/Media Buyer assignments",clientPost.includes('eq(users.role,"ACCOUNT_MANAGER")')&&clientPost.includes('eq(users.role,"MEDIA_BUYER")')&&clientPost.match(/eq\(users\.approvalStatus,"APPROVED"\)/g)?.length>=2&&clientPost.includes("valid active approved account manager")&&clientPost.includes("valid active approved media buyer"));
 check("Client create validates contract date order",api.includes("Contract end date must be on or after the start date"));
 check("Client form exposes real error and saving states",form.includes("setError")&&form.includes("Creating client…")&&form.includes("role=\"alert\""));
 check("Task create is Super Admin / Account Manager only",taskAction.includes('"SUPER_ADMIN","ACCOUNT_MANAGER"')&&!taskAction.includes('"SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"')&&taskAction.includes('role==="ACCOUNT_MANAGER"&&client.accountManagerId!==userId'));

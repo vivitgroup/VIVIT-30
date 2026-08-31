@@ -1,0 +1,27 @@
+name: Monthly Reports Hardening
+on:
+  push:
+    branches: [audit/business-logic-hardcore-2026-08-31]
+permissions:
+  contents: write
+jobs:
+  harden:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply monthly reports tenant hardening
+        run: node scripts/fix-monthly-reports-tenant-audit.mjs
+      - name: Commit hardening
+        run: |
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add app/dashboard/monthly-reports/page.tsx
+            git commit -m "fix(security): tenant-scope monthly report delivery"
+            git push origin HEAD:audit/business-logic-hardcore-2026-08-31
+          fi

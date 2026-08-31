@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { db, webhooks } from "@/lib/db";
+import { db, webhooks, auditLogs } from "@/lib/db";
 import { eq, and, desc } from "drizzle-orm";
 import crypto from "crypto";
 
@@ -50,20 +50,20 @@ export async function GET(){
 
 export async function POST(req:NextRequest){
   const session=await auth();if(!session?.user)return NextResponse.json({error:"Unauthorized"},{status:401});if(!isAdmin(session))return NextResponse.json({error:"Forbidden"},{status:403});
-  const workspaceId=workspaceOf(session);if(!workspaceId)return NextResponse.json({error:"Workspace context is required"},{status:403});
+  const workspaceId=workspaceOf(session),userId=String(session.user.id||"");if(!workspaceId||!userId)return NextResponse.json({error:"Workspace context is required"},{status:403});
   const body=await req.json().catch(()=>null);if(!body)return NextResponse.json({error:"Invalid JSON body"},{status:400});
   const url=safeWebhookUrl(String(body.url||""));const events=Array.isArray(body.events)?[...new Set(body.events.map((v:unknown)=>String(v)))]:[];
   if(!url||!events.length||events.some((e:string)=>!EVENT_TYPES.includes(e)))return NextResponse.json({error:"A public HTTPS URL and valid events are required"},{status:400});
   const secret=crypto.randomBytes(32).toString("hex");
-  const [hook]=await db.insert(webhooks).values({workspaceId,url,events:JSON.stringify(events),secret,isActive:true,failCount:0}).returning({id:webhooks.id,url:webhooks.url,events:webhooks.events,isActive:webhooks.isActive,createdAt:webhooks.createdAt});
+  const hook=await db.transaction(async tx=>{const [created]=await tx.insert(webhooks).values({workspaceId,url,events:JSON.stringify(events),secret,isActive:true,failCount:0}).returning({id:webhooks.id,url:webhooks.url,events:webhooks.events,isActive:webhooks.isActive,createdAt:webhooks.createdAt});await tx.insert(auditLogs).values({workspaceId,userId,action:"webhook_created",entity:"webhooks",entityId:created.id,newValues:JSON.stringify({url,events})});return created});
   return NextResponse.json({...hook,secret,message:"Save the secret — it won't be shown again."},{headers:{"Cache-Control":"private, no-store"}});
 }
 
 export async function DELETE(req:NextRequest){
   const session=await auth();if(!session?.user)return NextResponse.json({error:"Unauthorized"},{status:401});if(!isAdmin(session))return NextResponse.json({error:"Forbidden"},{status:403});
-  const workspaceId=workspaceOf(session);if(!workspaceId)return NextResponse.json({error:"Workspace context is required"},{status:403});
+  const workspaceId=workspaceOf(session),userId=String(session.user.id||"");if(!workspaceId||!userId)return NextResponse.json({error:"Workspace context is required"},{status:403});
   const body=await req.json().catch(()=>null);const id=String(body?.id||"");if(!id)return NextResponse.json({error:"id required"},{status:400});
-  const rows=await db.delete(webhooks).where(and(eq(webhooks.id,id),eq(webhooks.workspaceId,workspaceId))).returning({id:webhooks.id});
+  const rows=await db.transaction(async tx=>{const changed=await tx.delete(webhooks).where(and(eq(webhooks.id,id),eq(webhooks.workspaceId,workspaceId))).returning({id:webhooks.id,url:webhooks.url});if(changed.length)await tx.insert(auditLogs).values({workspaceId,userId,action:"webhook_deleted",entity:"webhooks",entityId:id,newValues:JSON.stringify({url:changed[0].url})});return changed});
   if(!rows.length)return NextResponse.json({error:"Webhook not found"},{status:404});
   return NextResponse.json({success:true},{headers:{"Cache-Control":"private, no-store"}});
 }

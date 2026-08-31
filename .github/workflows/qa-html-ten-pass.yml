@@ -1,7 +1,23 @@
 name: HTML Ten Pass Audit
 on:
   push:
-    branches: [audit/html-ten-pass-2026-08-31]
+    branches: [main, audit/html-ten-pass-2026-08-31]
+    paths:
+      - 'app/**/*.tsx'
+      - 'app/**/*.jsx'
+      - 'app/**/*.css'
+      - 'components/**/*.tsx'
+      - 'components/**/*.jsx'
+      - 'scripts/qa-html-ten-pass.mjs'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'app/**/*.tsx'
+      - 'app/**/*.jsx'
+      - 'app/**/*.css'
+      - 'components/**/*.tsx'
+      - 'components/**/*.jsx'
+      - 'scripts/qa-html-ten-pass.mjs'
 jobs:
   audit:
     runs-on: ubuntu-latest

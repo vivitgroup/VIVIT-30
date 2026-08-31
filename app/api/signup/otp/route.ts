@@ -1,7 +1,7 @@
 export const dynamic="force-dynamic";
 import {NextRequest,NextResponse} from "next/server";
 import {db,users,emailVerificationCodes,sql} from "@/lib/db";
-import {eq,and} from "drizzle-orm";
+import {eq,and,gt} from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import {consumeAuthRateLimit} from "@/lib/auth-abuse";
@@ -18,21 +18,22 @@ export async function POST(req:NextRequest){
     if(!burstAllowed)return NextResponse.json({error:"Please wait before requesting another code"},{status:429,headers:{"Retry-After":"60","Cache-Control":"no-store"}});
     const hourlyAllowed=await consumeAuthRateLimit({action:"security_signup_otp_hourly",headers:req.headers,email:normalizedEmail,windowMs:60*60_000,maxPerIp:40,maxPerEmail:5});
     if(!hourlyAllowed)return NextResponse.json({error:"Too many verification requests. Please try again later."},{status:429,headers:{"Retry-After":"3600","Cache-Control":"no-store"}});
-    // Keep registration existence private. Existing users receive the same successful response,
-    // while no OTP is issued or sent for their address.
+    const cooldown=new Date(Date.now()-60_000);
+    const [recentCode]=await db.select({email:emailVerificationCodes.email}).from(emailVerificationCodes).where(and(eq(emailVerificationCodes.email,normalizedEmail),gt(emailVerificationCodes.createdAt,cooldown))).limit(1);
+    if(recentCode)return NextResponse.json({error:"Please wait before requesting another code"},{status:429,headers:{"Retry-After":"60","Cache-Control":"no-store"}});
     if((await db.select({id:users.id}).from(users).where(eq(users.email,normalizedEmail)).limit(1)).length)return generic();
     const code=String(crypto.randomInt(100000,1000000)),codeHash=await bcrypt.hash(code,10),expiresAt=new Date(Date.now()+10*60*1000),lockKey=`signup-otp:${normalizedEmail}`;
     await db.transaction(async tx=>{
       await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${lockKey}))`);
-      // Recheck existence under the issuance lock to close the signup/OTP race.
       const [existing]=await tx.select({id:users.id}).from(users).where(eq(users.email,normalizedEmail)).limit(1);
       if(existing)return;
+      const txCooldown=new Date(Date.now()-60_000);
+      const [recent]=await tx.select({email:emailVerificationCodes.email}).from(emailVerificationCodes).where(and(eq(emailVerificationCodes.email,normalizedEmail),gt(emailVerificationCodes.createdAt,txCooldown))).limit(1);
+      if(recent)throw new Error("OTP_COOLDOWN");
       await tx.insert(emailVerificationCodes).values({email:normalizedEmail,codeHash,expiresAt,attempts:0}).onConflictDoUpdate({target:emailVerificationCodes.email,set:{codeHash,expiresAt,attempts:0,createdAt:new Date()}});
-    });
-    // A user may have been created between the outer check and send. Verify the code row still
-    // belongs to this exact issuance before sending it.
+    }).catch(error=>{if(error instanceof Error&&error.message==="OTP_COOLDOWN")return;throw error});
     const [issued]=await db.select({codeHash:emailVerificationCodes.codeHash}).from(emailVerificationCodes).where(and(eq(emailVerificationCodes.email,normalizedEmail),eq(emailVerificationCodes.codeHash,codeHash))).limit(1);
-    if(!issued)return generic();
+    if(!issued)return NextResponse.json({error:"Please wait before requesting another code"},{status:429,headers:{"Retry-After":"60","Cache-Control":"no-store"}});
     const response=await fetch("https://api.resend.com/emails",{method:"POST",headers:{Authorization:`Bearer ${process.env.RESEND_API_KEY}`,"Content-Type":"application/json"},body:JSON.stringify({from:process.env.OTP_FROM_EMAIL||"VIVIT ERP <access@vivitgroup.com>",to:[normalizedEmail],subject:"Your VIVIT ERP verification code",html:`<div style="font-family:Arial;padding:28px;color:#201F20"><h2>VIVIT ERP</h2><p>Your verification code is:</p><div style="font-size:34px;font-weight:800;letter-spacing:8px">${code}</div><p>This code expires in 10 minutes. Never share it.</p></div>`}),signal:AbortSignal.timeout(8000)});
     if(!response.ok){await db.delete(emailVerificationCodes).where(and(eq(emailVerificationCodes.email,normalizedEmail),eq(emailVerificationCodes.codeHash,codeHash)));return NextResponse.json({error:"Could not send the verification email"},{status:502})}
     return generic();

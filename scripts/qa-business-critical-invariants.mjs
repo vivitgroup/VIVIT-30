@@ -45,6 +45,9 @@ check('Creative status write notification and audit are atomic',/async function 
 check('Creative status update uses compare-and-set concurrency guard',creative.includes('eq(creativeTasks.status,task.status)')&&creative.includes('changed concurrently'));
 check('Creative archive and audit are atomic',/async function archiveTask[\s\S]*?db\.transaction\(async tx=>[\s\S]*?tx\.(?:execute|update)[\s\S]*?tx\.insert\(auditLogs\)/.test(creative));
 
+const legacyActions=read('lib/actions/index.ts');
+check('Legacy task action reserves COMPLETED for client approval',!legacyActions.includes('APPROVED:[\"COMPLETED\"]')&&!legacyActions.includes('completedAt:[\"APPROVED\",\"COMPLETED\"].includes(status)'));
+
 const team=read('app/dashboard/team/page.tsx');
 check('Leave approval state write and audit are atomic',/async function approveLeave[\s\S]*?db\.transaction\(async tx=>[\s\S]*?tx\.update\(leaveRequests\)[\s\S]*?tx\.insert\(auditLogs\)/.test(team));
 check('Leave approval uses pending compare-and-set guard',/async function approveLeave[\s\S]*?eq\(leaveRequests\.status,"PENDING"\)[\s\S]*?returning/.test(team));

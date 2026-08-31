@@ -67,17 +67,17 @@ export function KeyboardShortcutsModal() {
   }, [router, toggleTheme]);
 
   if (!open) return (
-    <button onClick={() => setOpen(true)} title="Keyboard shortcuts (?)" style={{position:"fixed",bottom:"20px",left:"20px",zIndex:9990,background:"rgba(10,28,55,0.9)",border:"1px solid rgba(0,119,182,0.2)",borderRadius:"8px",padding:"6px 10px",cursor:"pointer",fontSize:"11px",color:"#5A80A0",fontFamily:"Inter,sans-serif"}}>⌨️ Shortcuts</button>
+    <button type="button" onClick={() => setOpen(true)} aria-haspopup="dialog" aria-label="Open keyboard shortcuts" title="Keyboard shortcuts (?)" style={{position:"fixed",bottom:"20px",left:"20px",zIndex:9990,background:"rgba(10,28,55,0.9)",border:"1px solid rgba(0,119,182,0.2)",borderRadius:"8px",padding:"6px 10px",minHeight:"44px",cursor:"pointer",fontSize:"11px",color:"#5A80A0",fontFamily:"Inter,sans-serif"}}>⌨️ Shortcuts</button>
   );
 
   return (
     <div style={{position:"fixed",inset:0,zIndex:9999,background:"rgba(0,0,0,0.7)",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setOpen(false)}>
-      <div style={{background:"#0D1A2E",border:"1px solid rgba(0,119,182,0.3)",borderRadius:"16px",padding:"24px",maxWidth:"480px",width:"90%",maxHeight:"80vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
+      <div role="dialog" aria-modal="true" aria-labelledby="keyboard-shortcuts-title" style={{background:"#0D1A2E",border:"1px solid rgba(0,119,182,0.3)",borderRadius:"16px",padding:"24px",maxWidth:"480px",width:"90%",maxHeight:"80vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"16px"}}>
-          <h2 style={{fontFamily:"Inter,sans-serif",fontSize:"16px",fontWeight:700,color:"#F0F8FF",margin:0}}>⌨️ Keyboard Shortcuts</h2>
+          <h2 id="keyboard-shortcuts-title" style={{fontFamily:"Inter,sans-serif",fontSize:"16px",fontWeight:700,color:"#F0F8FF",margin:0}}>⌨️ Keyboard Shortcuts</h2>
           <div style={{display:"flex",gap:"8px",alignItems:"center"}}>
-            <button onClick={toggleTheme} style={{background:"rgba(0,119,182,0.1)",border:"1px solid rgba(0,119,182,0.2)",borderRadius:"8px",padding:"4px 10px",cursor:"pointer",fontSize:"12px",color:"#00B4D8",fontFamily:"Inter,sans-serif"}}>{theme==="dark"?"☀️ Light":"🌙 Dark"}</button>
-            <button onClick={()=>setOpen(false)} style={{background:"none",border:"none",color:"#5A80A0",cursor:"pointer",fontSize:"20px",lineHeight:1}}>×</button>
+            <button type="button" onClick={toggleTheme} aria-label="Toggle light or dark theme" style={{background:"rgba(0,119,182,0.1)",border:"1px solid rgba(0,119,182,0.2)",borderRadius:"8px",padding:"4px 10px",cursor:"pointer",fontSize:"12px",color:"#00B4D8",fontFamily:"Inter,sans-serif"}}>{theme==="dark"?"☀️ Light":"🌙 Dark"}</button>
+            <button type="button" onClick={()=>setOpen(false)} aria-label="Close keyboard shortcuts" style={{background:"none",border:"none",color:"#5A80A0",cursor:"pointer",fontSize:"20px",lineHeight:1}}>×</button>
           </div>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px"}}>

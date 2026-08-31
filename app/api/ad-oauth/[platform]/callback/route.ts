@@ -14,7 +14,7 @@ export async function GET(req:NextRequest,{params}:{params:Promise<{platform:str
  const {platform:raw}=await params,platform=raw.toUpperCase() as OAuthPlatform;const state=verifyState(req.nextUrl.searchParams.get("state")||"");if(state.platform!==platform||state.userId!==userId)throw new Error("OAuth state mismatch");
  const roleScope=role==="MEDIA_BUYER"?eq(clients.mediaBuyerId,userId):role==="ACCOUNT_MANAGER"?eq(clients.accountManagerId,userId):eq(clients.workspaceId,workspaceId);
  const [client]=await db.select({id:clients.id}).from(clients).where(and(eq(clients.id,state.clientId),eq(clients.workspaceId,workspaceId),eq(clients.isActive,true),roleScope)).limit(1);if(!client)throw new Error("Client access changed or the client was archived. Start the connection again.");
- const error=req.nextUrl.searchParams.get("error");if(error)throw new Error(req.nextUrl.searchParams.get("error_description")||error);const code=req.nextUrl.searchParams.get("code")||req.nextUrl.searchParams.get("auth_code")||"";if(!code)throw new Error("Authorization code was not returned");
+ const error=req.nextUrl.searchParams.get("error");if(error)throw new Error("OAuth provider denied or failed the authorization request");const code=req.nextUrl.searchParams.get("code")||req.nextUrl.searchParams.get("auth_code")||"";if(!code)throw new Error("Authorization code was not returned");
  const tokens=await exchangeCode(platform,code);const discovered=platform==="SNAPCHAT"&&state.adAccountId==="auto"?await discoverSnapAccount(tokens.accessToken):null;const adAccountId=String(discovered?.id||state.adAccountId).replace(/^act_/i,""),accountName=(state.accountName||discovered?.name||`${platform} Ad Account`).slice(0,160);
  const encryptedAccess=encryptToken(tokens.accessToken),encryptedRefresh=encryptToken(tokens.refreshToken),tokenExpiresAt=tokens.expiresIn?new Date(Date.now()+tokens.expiresIn*1000):null;
  const row=await db.transaction(async tx=>{
@@ -32,4 +32,4 @@ export async function GET(req:NextRequest,{params}:{params:Promise<{platform:str
    return connected;
  });
  home.searchParams.set("oauth","success");home.searchParams.set("platform",platform);home.searchParams.set("connectionId",row.id);return NextResponse.redirect(home);
- }catch(e:unknown){home.searchParams.set("oauth","error");home.searchParams.set("message",String(e instanceof Error?e.message:"Connection failed").slice(0,180));return NextResponse.redirect(home);}}
+ }catch(e:unknown){console.error("OAuth callback failed",e instanceof Error?e.name:"oauth_callback_failure");home.searchParams.set("oauth","error");home.searchParams.set("message","Connection failed. Please start the connection again.");return NextResponse.redirect(home);}}

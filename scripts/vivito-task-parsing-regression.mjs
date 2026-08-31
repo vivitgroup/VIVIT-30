@@ -1,3 +1,4 @@
+// VIVITO task parsing regression — 50 executable cases.
 const BASE='https://vivit-c9gcmng2c-vivit-s-projects.vercel.app';
 const SHARE='4dxAZWVLsO1AOyeJFsRUZoFxCcpwWt25';
 const EMAIL='vivito-fix-admin-20260831@example.invalid';

@@ -64,6 +64,8 @@ jobs:
         run: node scripts/qa-security-auth-hardcore.mjs
       - name: API mutation authentication surface
         run: node scripts/qa-security-api-surface.mjs
+      - name: Legacy raw secret surface
+        run: node scripts/qa-legacy-secret-surface.mjs
       - name: ESLint zero-warning gate
         run: npm run lint -- --max-warnings=0
       - name: TypeScript gate

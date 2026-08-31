@@ -3,7 +3,7 @@ name: VIVITO Task Parsing Regression
 on:
   push:
     branches:
-      - fix/vivito-action-planner-task-parsing-2026-08-31
+      - qa/manual-vivito-task-regression
 
 permissions:
   contents: read
@@ -20,4 +20,4 @@ jobs:
       - name: Run 50 task parsing cases against Preview
         run: node scripts/vivito-task-parsing-regression.mjs
 
-# regression trigger: deterministic task entity repair certification
+# Frozen after 50/50 certification on the fix branch. Re-enable only for intentional regression runs.

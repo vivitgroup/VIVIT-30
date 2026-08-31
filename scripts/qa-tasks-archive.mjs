@@ -45,7 +45,7 @@ check("Safe task actions enforce AM and Creator ownership",safe.includes("task.a
 check("Tasks Inbox excludes archived tasks",/creative_tasks where workspace_id=\$\{workspaceId\}[\s\S]*archived_at is null/.test(inbox)&&inbox.includes("activeOnly"));
 check("Tasks Inbox scopes every role to active clients",inbox.includes("allowedClients")&&inbox.includes("eq(clients.isActive,true)")&&inbox.includes("eq(clients.workspaceId,workspaceId)")&&inbox.includes("inArray(creativeTasks.clientId,allowedIds)"));
 check("Bulk approve only transitions REVIEW to APPROVED",inbox.includes('approve:{from:["REVIEW"],status:"APPROVED"}'));
-check("Tasks Inbox reserves COMPLETED for client approval",!inbox.includes('complete:{from:["APPROVED"],status:"COMPLETED"}')&&!inbox.includes('["complete","Complete"]')&&!inbox.includes('target.status==="COMPLETED"'));
+check("Tasks Inbox reserves COMPLETED for client approval",!inbox.includes('complete:{from:["APPROVED"],status:"COMPLETED"}')&&!inbox.includes('["complete","Complete"]')&&!inbox.includes('completedAt:new Date()')&&!inbox.includes('target.status==="COMPLETED"'));
 check("Bulk in-progress only starts PENDING or REVISION",inbox.includes('in_progress:{from:["PENDING","REVISION"],status:"IN_PROGRESS"}'));
 check("Set Urgent changes priority without resetting status",inbox.includes('urgent_on:{priority:"URGENT"}')&&!inbox.includes('urgent_on:{status:"PENDING"'));
 check("Bulk approve notifies linked client portal users",inbox.includes("CREATIVE_READY")&&inbox.includes("portalUser"));

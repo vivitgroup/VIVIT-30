@@ -1,0 +1,21 @@
+name: VIVITO Live Multi-Role Exam
+
+on:
+  push:
+    branches:
+      - qa/vivito-live-multirole-20260831
+
+permissions:
+  contents: read
+
+jobs:
+  live-multirole:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run 700 live questions and 350 live actions
+        run: node scripts/vivito-live-multirole-exam.mjs

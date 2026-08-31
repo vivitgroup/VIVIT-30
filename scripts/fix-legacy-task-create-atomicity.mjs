@@ -1,6 +1,24 @@
 import fs from "node:fs";
 const file="lib/actions/index.ts";
 let s=fs.readFileSync(file,"utf8");
+if(s.includes('import {eq,and} from "drizzle-orm";'))s=s.replace('import {eq,and} from "drizzle-orm";','import {eq,and,ilike} from "drizzle-orm";');
+
+const legacyClient=/export async function createClient\(formData:FormData\)\{[\s\S]*?\n\}\n\n(?=export async function updateClient)/;
+const hardenedClient=`export async function createClient(formData:FormData){
+  const session=await auth();requireRole(session,["SUPER_ADMIN","ACCOUNT_MANAGER"]);const workspaceId=workspaceOf(session),userId=String(session.user.id||"");
+  const creatorRole=roleOf(session),requestedAm=creatorRole==="ACCOUNT_MANAGER"?userId:String(formData.get("accountManagerId")||"")||null,requestedMb=String(formData.get("mediaBuyerId")||"")||null;
+  if(requestedAm){const [am]=await db.select({id:users.id}).from(users).where(and(eq(users.id,requestedAm),eq(users.workspaceId,workspaceId),eq(users.role,"ACCOUNT_MANAGER"),eq(users.isActive,true),eq(users.approvalStatus,"APPROVED"))).limit(1);if(!am)throw new Error("Invalid account manager")}
+  if(requestedMb){const [mb]=await db.select({id:users.id}).from(users).where(and(eq(users.id,requestedMb),eq(users.workspaceId,workspaceId),eq(users.role,"MEDIA_BUYER"),eq(users.isActive,true),eq(users.approvalStatus,"APPROVED"))).limit(1);if(!mb)throw new Error("Invalid media buyer")}
+  const companyName=sanitize(String(formData.get("companyName")||""),160);if(companyName.length<2)throw new Error("Company name is required");
+  const nonNegative=(name:string)=>{const n=Number(formData.get(name)||0);if(!Number.isFinite(n)||n<0)throw new Error("Invalid client financial data");return n},monthlyRetainer=nonNegative("monthlyRetainer"),mediaBudget=nonNegative("mediaBudget"),contractValue=nonNegative("contractValue");
+  const contractStart=formData.get("contractStart")?new Date(String(formData.get("contractStart"))):null,contractEnd=formData.get("contractEnd")?new Date(String(formData.get("contractEnd"))):null;if((contractStart&&Number.isNaN(contractStart.getTime()))||(contractEnd&&Number.isNaN(contractEnd.getTime()))||(contractStart&&contractEnd&&contractEnd<contractStart))throw new Error("Invalid contract dates");
+  const clientId=await db.transaction(async tx=>{const [duplicate]=await tx.select({id:clients.id}).from(clients).where(and(eq(clients.workspaceId,workspaceId),ilike(clients.companyName,companyName))).limit(1);if(duplicate)throw new Error("A client with this company name already exists");const [client]=await tx.insert(clients).values({workspaceId,companyName,industry:String(formData.get("industry")||"")||null,website:String(formData.get("website")||"")||null,monthlyRetainer,mediaBudget,contractValue,accountManagerId:requestedAm,mediaBuyerId:requestedMb,metaAdsLink:String(formData.get("metaAdsLink")||"")||null,tiktokAdsLink:String(formData.get("tiktokAdsLink")||"")||null,snapchatAdsLink:String(formData.get("snapchatAdsLink")||"")||null,googleAdsLink:String(formData.get("googleAdsLink")||"")||null,internalNotes:String(formData.get("internalNotes")||"")||null,contractStart,contractEnd}).returning({id:clients.id});const contactName=String(formData.get("contactName")||"");if(contactName)await tx.insert(contacts).values({clientId:client.id,name:contactName,isPrimary:true,email:String(formData.get("contactEmail")||"")||null,phone:String(formData.get("contactPhone")||"")||null,whatsapp:String(formData.get("contactWhatsapp")||"")||null,title:String(formData.get("contactTitle")||"")||null});await tx.insert(auditLogs).values({workspaceId,userId,action:"client_created",entity:"Client",entityId:client.id,newValues:JSON.stringify({companyName})});return client.id});
+  revalidatePath("/dashboard/clients");redirect(\`/dashboard/clients/\${clientId}\`);
+}
+
+`;
+if(!s.includes('const clientId=await db.transaction(async tx=>{const [duplicate]=await tx.select({id:clients.id})')){if(!legacyClient.test(s))throw new Error("Missing legacy client create function");s=s.replace(legacyClient,hardenedClient)}
+
 const oldCreator='if(assignedToId){const [creator]=await db.select({id:users.id}).from(users).where(and(eq(users.id,assignedToId),eq(users.workspaceId,workspaceId),eq(users.role,"CREATOR"),eq(users.isActive,true))).limit(1);if(!creator)throw new Error("Invalid creator assignment")}';
 const newCreator='if(assignedToId){const [creator]=await db.select({id:users.id}).from(users).where(and(eq(users.id,assignedToId),eq(users.workspaceId,workspaceId),eq(users.role,"CREATOR"),eq(users.isActive,true),eq(users.approvalStatus,"APPROVED"))).limit(1);if(!creator)throw new Error("Invalid creator assignment")}';
 if(!s.includes(newCreator)){if(!s.includes(oldCreator))throw new Error("Missing legacy creator validation anchor");s=s.replace(oldCreator,newCreator)}
@@ -8,9 +26,15 @@ const oldWrites='const [task]=await db.insert(creativeTasks).values({workspaceId
 const newWrites='const taskId=await db.transaction(async tx=>{const [task]=await tx.insert(creativeTasks).values({workspaceId,title,clientId,type,brief,tov:tov||null,priority,status:"PENDING",assignedToId,deadline:deadlineDate,caption,createdById:session.user.id!}).returning({id:creativeTasks.id});if(assignedToId)await tx.insert(notifications).values({userId:assignedToId,type:"TASK_ASSIGNED",title:`New task assigned: ${title}`,message:`Deadline: ${deadlineDate.toLocaleDateString()}`,link:`/dashboard/creative/${task.id}`});await tx.insert(auditLogs).values({workspaceId,userId:session.user.id!,action:"task_created",entity:"CreativeTask",entityId:task.id,newValues:JSON.stringify({title,clientId,type,priority})});return task.id});revalidatePath("/dashboard/creative");redirect(`/dashboard/creative/${taskId}`);';
 if(!s.includes(newWrites)){if(!s.includes(oldWrites))throw new Error("Missing legacy task writes anchor");s=s.replace(oldWrites,newWrites)}
 fs.writeFileSync(file,s);
-const qa="scripts/qa-tasks-archive.mjs";
-let q=fs.readFileSync(qa,"utf8");
+
+const taskQa="scripts/qa-tasks-archive.mjs";
+let q=fs.readFileSync(taskQa,"utf8");
 q=q.replace('check("Task creation validates active creator assignment",actions.includes("eq(users.role,\\\"CREATOR\\\")")&&actions.includes("eq(users.isActive,true)")&&actions.includes("Invalid creator assignment"));','check("Task creation validates active approved creator assignment",actions.includes("eq(users.role,\\\"CREATOR\\\")")&&actions.includes("eq(users.isActive,true)")&&actions.includes("eq(users.approvalStatus,\\\"APPROVED\\\")")&&actions.includes("Invalid creator assignment"));');
 if(!q.includes("Legacy task create notification and audit are atomic"))q=q.replace('check("Task creation form blocks invalid deadline submission"','check("Legacy task create notification and audit are atomic",actions.includes("const taskId=await db.transaction(async tx=>")&&actions.includes("await tx.insert(notifications)")&&actions.includes("await tx.insert(auditLogs)"));\ncheck("Task creation form blocks invalid deadline submission"');
-fs.writeFileSync(qa,q);
-console.log("legacy task creation atomicity and creator approval enforced");
+fs.writeFileSync(taskQa,q);
+
+const clientQa="scripts/qa-clients.mjs";
+let c=fs.readFileSync(clientQa,"utf8");
+if(!c.includes("Legacy client create is atomic and duplicate guarded"))c=c.replace('check("Client create rejects duplicate company names"','check("Legacy client create is atomic and duplicate guarded",actions.includes("const clientId=await db.transaction(async tx=>")&&actions.includes("ilike(clients.companyName,companyName)")&&actions.includes("await tx.insert(auditLogs)"));\ncheck("Client create rejects duplicate company names"');
+fs.writeFileSync(clientQa,c);
+console.log("legacy client/task creation hardening enforced");

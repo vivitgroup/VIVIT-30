@@ -1,0 +1,36 @@
+name: AM MB Live Permissions Gate
+
+on:
+  push:
+    branches:
+      - fix/live-am-mb-create-clients-tasks-2026-08-31
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  DATABASE_URL: postgresql://ci_user:ci_pass@127.0.0.1:5432/vivit_ci
+  AUTH_SECRET: am-mb-ci-placeholder-secret-not-for-production
+  NEXTAUTH_SECRET: am-mb-ci-placeholder-secret-not-for-production
+  NEXTAUTH_URL: http://localhost:3000
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Client lifecycle permissions
+        run: npm run qa:clients
+      - name: ESLint
+        run: npm run lint
+      - name: TypeScript
+        run: npm run type-check
+      - name: Full production build and QA
+        run: npm run build

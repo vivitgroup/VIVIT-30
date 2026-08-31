@@ -11,6 +11,9 @@ check("Permanent deletes remain Super Admin via SA role alias",has('delete_clien
 check("Management alias is Super Admin + Account Manager",has('const SA=["SUPER_ADMIN"],MGT=["SUPER_ADMIN","ACCOUNT_MANAGER"]'));
 check("Finance alias is Super Admin + Accountant",has('FIN=["SUPER_ADMIN","ACCOUNTANT"]'));
 check("Media alias includes Super Admin AM Media Buyer",has('MEDIA=["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"]'));
+check("Media Buyer is excluded from client lifecycle mutations",has('create_client:{roles:["SUPER_ADMIN","ACCOUNT_MANAGER","ACCOUNTANT"]')&&has('update_client:{roles:MGT')&&has('add_client_contact:{roles:MGT')&&has('archive_client:{roles:MGT')&&has('restore_client:{roles:MGT'));
+check("Media Buyer is excluded from task lifecycle mutations",has('create_task:{roles:MGT')&&has('update_task:{roles:MGT')&&has('reassign_task:{roles:MGT')&&has('archive_task:{roles:MGT')&&has('restore_task:{roles:MGT'));
+check("Mark posted follows management write contract",has('mark_posted:{roles:MGT'));
 check("Sales alias is Super Admin + Sales",has('SALES=["SUPER_ADMIN","SALES"]'));
 check("Planner distinguishes advice from commands",engine.includes('{"op":"none"}')&&engine.includes("EXPLICIT imperative"));
 check("Planner never invents IDs or ambiguous records",engine.includes("Never invent IDs or ambiguous records"));
@@ -46,7 +49,7 @@ check("Client update changes explicit fields only",(extended.includes("own(args,
 check("Commercial and ownership edits are Super Admin only",extended.includes("Only Super Admin can change commercial terms or account ownership"));
 check("Client contacts can atomically replace primary",extended.includes("update contacts set is_primary=false")&&extended.includes("db.transaction"));
 check("Task update has explicit transition state machine",extended.includes("TASK_TRANSITIONS")&&extended.includes("Invalid task transition"));
-check("Task completion records completion timestamp",extended.includes('if(v==="COMPLETED")sets.completed_at=new Date()'));
+check("Extended task executor reserves completion for client approval",extended.includes('APPROVED:[]')&&!extended.includes('if(v==="COMPLETED")sets.completed_at=new Date()'));
 check("Task reassignment validates active Creator and notifies",(extended.includes('staff(args.assigneeName,["CREATOR"])')||extended.includes('staff(arg(args,"assigneeName"),["CREATOR"])'))&&extended.includes("TASK_ASSIGNED"));
 check("Scheduled post requires image/video and approved/completed task",extended.includes("Scheduled posts require an image or video")&&(extended.includes('["APPROVED","COMPLETED"].includes(String(t.status))')||extended.includes('["APPROVED","COMPLETED"].includes(t.status)')));
 check("Scheduled post is transactional and audited",extended.includes("vivito_calendar_post_scheduled")&&extended.includes("db.transaction"));

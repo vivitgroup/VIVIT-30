@@ -44,6 +44,7 @@ export async function POST(req:NextRequest){
   const value=body.value??true,now=value?new Date():null,lockKey=`onboarding:${clientId}:${step}`;
   const done=await db.transaction(async tx=>{
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${lockKey}))`);
+    const [liveClient]=await tx.select({id:clients.id}).from(clients).where(and(eq(clients.id,clientId),eq(clients.workspaceId,workspaceId),eq(clients.isActive,true))).limit(1);if(!liveClient)throw new Error("Client is no longer active or available in this workspace");
     const [existing]=await tx.select().from(onboardingProgress).where(and(eq(onboardingProgress.clientId,clientId),eq(onboardingProgress.stepId,step))).limit(1);
     const update={completed:value,completedAt:now,completedBy:value?userId:null};
     let entityId:string;

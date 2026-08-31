@@ -17,9 +17,13 @@ const hardened=`export async function updateClient(clientId:string,formData:Form
 }
 
 `;
-if(!s.includes('action:"client_updated"')){if(!re.test(s))throw new Error("Missing legacy updateClient function");s=s.replace(re,hardened)}
+const updateClientMatch=s.match(re);
+if(!updateClientMatch)throw new Error("Missing legacy updateClient function");
+const updateClientSource=updateClientMatch[0];
+const alreadyHardened=updateClientSource.includes("Client changed concurrently; refresh and try again")&&updateClientSource.includes('action:"client_updated"')&&updateClientSource.includes("eq(clients.updatedAt,existingClient.updatedAt)");
+if(!alreadyHardened)s=s.replace(re,hardened);
 fs.writeFileSync(file,s);
 const qa="scripts/qa-clients.mjs";let q=fs.readFileSync(qa,"utf8");
 if(!q.includes("Legacy client update is atomic audited and concurrency guarded"))q=q.replace('check("Existing client update validates ownership and assignments"','check("Legacy client update is atomic audited and concurrency guarded",actions.includes(\'action:"client_updated"\')&&actions.includes("Client changed concurrently")&&actions.includes("eq(clients.updatedAt,existingClient.updatedAt)")&&actions.includes("await tx.insert(auditLogs)"));\ncheck("Existing client update validates ownership and assignments"');
 fs.writeFileSync(qa,q);
-console.log("legacy client update hardening enforced");
+console.log(alreadyHardened?"legacy client update hardening already applied":"legacy client update hardening enforced");

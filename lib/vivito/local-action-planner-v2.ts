@@ -59,6 +59,12 @@ function listValue(input:string,labels:string[]){
 }
 function dateValue(input:string,labels:string[]){
  const raw=labeledSegment(input,labels);if(!raw)return undefined;
+ const hasClock=/\b20\d{2}-\d{2}-\d{2}[T ]\d{2}:\d{2}/.test(raw);
+ if(hasClock){
+  const full=raw.match(/\b20\d{2}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:?\d{2})\b/)?.[0];
+  if(full&&!Number.isNaN(Date.parse(full)))return full;
+  return undefined;
+ }
  const iso=raw.match(/\b20\d{2}-\d{2}-\d{2}\b/)?.[0];if(iso)return iso;
  const d=new Date();
  if(/^(tomorrow|tmrw|بكره|بكرة)$/i.test(raw)){d.setUTCDate(d.getUTCDate()+1);return d.toISOString().slice(0,10)}
@@ -204,8 +210,8 @@ function planOne(input:string,allowed:Set<string>):LocalPlan|null{
   case "log_expense":{const a=numericValue(input,["amount","المبلغ"]);if(a!==undefined)args.amount=a;const cat=textValue(input,["category","التصنيف"]);if(cat)args.category=cat;const d=textValue(input,["description","details","الوصف"]);if(d)args.description=d;required=["amount","description"];break}
   case "record_payment":{const c=client();if(c)args.clientName=c;const a=numericValue(input,["amount","payment amount","المبلغ"]);if(a!==undefined)args.amount=a;const method=textValue(input,["method","payment method","طريقة الدفع"]);if(method)args.method=method;required=["clientName","amount"];break}
   case "create_invoice":{const c=client();if(c)args.clientName=c;for(const [k,ls] of [["month",["month","الشهر"]],["year",["year","السنة"]],["retainer",["retainer","amount","المبلغ"]]] as [string,string[]][]){const x=numericValue(input,ls);if(x!==undefined)args[k]=x}required=["clientName","month","year","retainer"];break}
-  case "attach_file":{const c=client();if(c)args.clientName=c;const f=textValue(input,["fileId","file id","ملف"]);if(f)args.fileId=f;const t=textValue(input,["taskId","task id"]);if(t)args.taskId=t;required=["clientName","fileId"];break}
-  case "remind_me":{const title=textValue(input,["title","reminder","remind me","فكرني","ذكرني"]);if(title)args.title=title;const due=dateValue(input,["dueAt","due","date","الموعد"]);if(due)args.dueAt=due;required=["title"];break}
+  case "attach_file":{const c=client();if(c)args.clientName=c;const f=textValue(input,["fileId","file id","ملف"]);if(f)args.fileId=f;const t=textValue(input,["taskId","task id"]);if(t)args.taskId=t;const category=enumValue(input,["category","file category","التصنيف"],["GENERAL","CONTENT_PLAN","STRATEGY","BRIEF","CREATIVE","SOCIAL_POST","CONTRACT","INVOICE","FINANCE","SHEET"]);if(category)args.category=category;required=["clientName","fileId"];break}
+  case "remind_me":{const title=textValue(input,["title","reminder","remind me","فكرني","ذكرني"]);if(title)args.title=title;const dueRaw=labeledSegment(input,["dueAt","due","date","الموعد"]);if(dueRaw){const due=dateValue(input,["dueAt","due","date","الموعد"]);if(due)args.dueAt=due;required.push("scheduled reminder unsupported")}required.push("title");break}
   case "create_user":{const name=textValue(input,["name","user name","employee name","الاسم"]);if(name)args.name=name;const email=emailValue(input,["email","ايميل"]);if(email)args.email=email;const role=textValue(input,["role","الدور"]);if(role)args.role=role.toUpperCase();required=["name","email","role"];break}
   case "update_user":{const u=user();if(u)args.userName=u;for(const [k,ls] of [["name",["newName","new name"]],["phone",["phone"]],["role",["role"]]] as [string,string[]][]){const x=textValue(input,ls);if(x)args[k]=x}required=["userName"];if(!changed(args,["name","phone","role"]))required.push("change");break}
   case "set_user_active":{const u=user();if(u)args.userName=u;const active=boolValue(input,["active","enabled","status"]);if(active!==undefined)args.active=active;required=["userName","active"];break}

@@ -4,7 +4,7 @@ import {redirect} from "next/navigation";
 import {auth} from "@/lib/auth";
 import type {Session} from "next-auth";
 import {db,clients,contacts,auditLogs,notifications,calendarEvents,creativeTasks,users,fileDocuments} from "@/lib/db";
-import {eq,and} from "drizzle-orm";
+import {eq,and,ilike} from "drizzle-orm";
 
 function sanitize(str:string|null|undefined,maxLen=500):string{
   if(!str)return "";
@@ -51,15 +51,15 @@ async function taskForAccess(session:AuthSession,taskId:string){
 }
 
 export async function createClient(formData:FormData){
-  const session=await auth();requireRole(session,["SUPER_ADMIN","ACCOUNT_MANAGER"]);const workspaceId=workspaceOf(session);
-  const creatorRole=roleOf(session),requestedAm=creatorRole==="ACCOUNT_MANAGER"?session.user.id!:String(formData.get("accountManagerId")||"")||null,requestedMb=String(formData.get("mediaBuyerId")||"")||null;
-  if(requestedAm){const [am]=await db.select({id:users.id}).from(users).where(and(eq(users.id,requestedAm),eq(users.workspaceId,workspaceId),eq(users.role,"ACCOUNT_MANAGER"),eq(users.isActive,true))).limit(1);if(!am)throw new Error("Invalid account manager")}
-  if(requestedMb){const [mb]=await db.select({id:users.id}).from(users).where(and(eq(users.id,requestedMb),eq(users.workspaceId,workspaceId),eq(users.role,"MEDIA_BUYER"),eq(users.isActive,true))).limit(1);if(!mb)throw new Error("Invalid media buyer")}
+  const session=await auth();requireRole(session,["SUPER_ADMIN","ACCOUNT_MANAGER"]);const workspaceId=workspaceOf(session),userId=String(session.user.id||"");
+  const creatorRole=roleOf(session),requestedAm=creatorRole==="ACCOUNT_MANAGER"?userId:String(formData.get("accountManagerId")||"")||null,requestedMb=String(formData.get("mediaBuyerId")||"")||null;
+  if(requestedAm){const [am]=await db.select({id:users.id}).from(users).where(and(eq(users.id,requestedAm),eq(users.workspaceId,workspaceId),eq(users.role,"ACCOUNT_MANAGER"),eq(users.isActive,true),eq(users.approvalStatus,"APPROVED"))).limit(1);if(!am)throw new Error("Invalid account manager")}
+  if(requestedMb){const [mb]=await db.select({id:users.id}).from(users).where(and(eq(users.id,requestedMb),eq(users.workspaceId,workspaceId),eq(users.role,"MEDIA_BUYER"),eq(users.isActive,true),eq(users.approvalStatus,"APPROVED"))).limit(1);if(!mb)throw new Error("Invalid media buyer")}
   const companyName=sanitize(String(formData.get("companyName")||""),160);if(companyName.length<2)throw new Error("Company name is required");
-  const [client]=await db.insert(clients).values({workspaceId,companyName,industry:String(formData.get("industry")||"")||null,website:String(formData.get("website")||"")||null,monthlyRetainer:parseFloat(String(formData.get("monthlyRetainer")||""))||0,mediaBudget:parseFloat(String(formData.get("mediaBudget")||""))||0,contractValue:parseFloat(String(formData.get("contractValue")||""))||0,accountManagerId:requestedAm,mediaBuyerId:requestedMb,metaAdsLink:String(formData.get("metaAdsLink")||"")||null,tiktokAdsLink:String(formData.get("tiktokAdsLink")||"")||null,snapchatAdsLink:String(formData.get("snapchatAdsLink")||"")||null,googleAdsLink:String(formData.get("googleAdsLink")||"")||null,internalNotes:String(formData.get("internalNotes")||"")||null,contractStart:formData.get("contractStart")?new Date(String(formData.get("contractStart"))):null,contractEnd:formData.get("contractEnd")?new Date(String(formData.get("contractEnd"))):null}).returning();
-  const contactName=String(formData.get("contactName")||"");if(contactName)await db.insert(contacts).values({clientId:client.id,name:contactName,isPrimary:true,email:String(formData.get("contactEmail")||"")||null,phone:String(formData.get("contactPhone")||"")||null,whatsapp:String(formData.get("contactWhatsapp")||"")||null,title:String(formData.get("contactTitle")||"")||null});
-  await db.insert(auditLogs).values({workspaceId,userId:session.user.id!,action:"client_created",entity:"Client",entityId:client.id,newValues:JSON.stringify({companyName:client.companyName})});
-  revalidatePath("/dashboard/clients");redirect(`/dashboard/clients/${client.id}`);
+  const nonNegative=(name:string)=>{const n=Number(formData.get(name)||0);if(!Number.isFinite(n)||n<0)throw new Error("Invalid client financial data");return n},monthlyRetainer=nonNegative("monthlyRetainer"),mediaBudget=nonNegative("mediaBudget"),contractValue=nonNegative("contractValue");
+  const contractStart=formData.get("contractStart")?new Date(String(formData.get("contractStart"))):null,contractEnd=formData.get("contractEnd")?new Date(String(formData.get("contractEnd"))):null;if((contractStart&&Number.isNaN(contractStart.getTime()))||(contractEnd&&Number.isNaN(contractEnd.getTime()))||(contractStart&&contractEnd&&contractEnd<contractStart))throw new Error("Invalid contract dates");
+  const clientId=await db.transaction(async tx=>{const [duplicate]=await tx.select({id:clients.id}).from(clients).where(and(eq(clients.workspaceId,workspaceId),ilike(clients.companyName,companyName))).limit(1);if(duplicate)throw new Error("A client with this company name already exists");const [client]=await tx.insert(clients).values({workspaceId,companyName,industry:String(formData.get("industry")||"")||null,website:String(formData.get("website")||"")||null,monthlyRetainer,mediaBudget,contractValue,accountManagerId:requestedAm,mediaBuyerId:requestedMb,metaAdsLink:String(formData.get("metaAdsLink")||"")||null,tiktokAdsLink:String(formData.get("tiktokAdsLink")||"")||null,snapchatAdsLink:String(formData.get("snapchatAdsLink")||"")||null,googleAdsLink:String(formData.get("googleAdsLink")||"")||null,internalNotes:String(formData.get("internalNotes")||"")||null,contractStart,contractEnd}).returning({id:clients.id});const contactName=String(formData.get("contactName")||"");if(contactName)await tx.insert(contacts).values({clientId:client.id,name:contactName,isPrimary:true,email:String(formData.get("contactEmail")||"")||null,phone:String(formData.get("contactPhone")||"")||null,whatsapp:String(formData.get("contactWhatsapp")||"")||null,title:String(formData.get("contactTitle")||"")||null});await tx.insert(auditLogs).values({workspaceId,userId,action:"client_created",entity:"Client",entityId:client.id,newValues:JSON.stringify({companyName})});return client.id});
+  revalidatePath("/dashboard/clients");redirect(`/dashboard/clients/${clientId}`);
 }
 
 export async function updateClient(clientId:string,formData:FormData){

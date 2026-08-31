@@ -157,6 +157,17 @@ jobs:
             git commit -m "fix(business): make performance recalculation atomic"
             git push origin HEAD:audit/business-logic-hardcore-2026-08-31
           fi
+      - name: Enforce finance maker-checker lifecycle
+        run: node scripts/fix-finance-maker-checker.mjs
+      - name: Commit finance maker-checker lifecycle
+        run: |
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add app/dashboard/finance/page.tsx
+            git commit -m "fix(finance): restore draft and expense approval lifecycle"
+            git push origin HEAD:audit/business-logic-hardcore-2026-08-31
+          fi
       - run: npm ci
       - name: Business logic radar
         continue-on-error: true

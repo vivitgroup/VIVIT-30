@@ -37,11 +37,11 @@ check("Global search excludes archived sales leads",search.includes("workspace_i
 check("Global search salesperson is workspace and owner scoped",search.includes("eq(salesLeads.workspaceId,workspaceId)")&&search.includes('role==="SALES"?eq(salesLeads.salesRepId,userId)'));
 check("Global search contacts require active clients",search.includes("ilike(contacts.name,term)")&&search.includes("eq(clients.isActive,true)"));
 check("Global search fails closed on query error",search.includes("Search is temporarily unavailable")&&search.includes("status:500"));
-check("Bulk task status uses explicit state machine",bulk.includes("const TRANSITIONS")&&bulk.includes('IN_PROGRESS:["PENDING","REVISION"]')&&bulk.includes('COMPLETED:["APPROVED"]'));
+check("Bulk task status uses explicit state machine and reserves completion for client approval",bulk.includes("const TRANSITIONS")&&bulk.includes('IN_PROGRESS:["PENDING","REVISION"]')&&!bulk.includes('COMPLETED:["APPROVED"]')&&bulk.includes('target==="COMPLETED"')&&bulk.includes("reserved for final client approval"));
 check("Bulk task status rejects arbitrary transitions",bulk.includes("const from=TRANSITIONS[target]")&&bulk.includes("Invalid task IDs or transition"));
 check("Bulk task scope excludes archived tasks and inactive clients",bulk.includes("activeTaskScope")&&bulk.includes("t.workspace_id=${workspaceId}")&&bulk.includes("t.archived_at is null")&&bulk.includes("c.workspace_id=${workspaceId}")&&bulk.includes("c.is_active=true"));
 check("Bulk Account Manager ownership is active and workspace scoped",bulk.includes("eq(clients.workspaceId,workspaceId)")&&bulk.includes("eq(clients.accountManagerId,userId)")&&bulk.includes("eq(clients.isActive,true)"));
-check("Bulk completed transition records completedAt",bulk.includes('target==="COMPLETED"?new Date():undefined'));
+check("Bulk API cannot stamp completedAt",!bulk.includes('target==="COMPLETED"?new Date():undefined')&&bulk.includes("Task completion is reserved for final client approval."));
 check("Bulk client export is active workspace scoped",bulk.includes("eq(clients.workspaceId,workspaceId),eq(clients.isActive,true)"));
 check("Bulk task export and notification reuse active task scope",bulk.includes('case"tasks.export"')&&bulk.includes('case"tasks.notify"')&&bulk.includes("taskScope(ids,role,owned,userId,workspaceId)"));
 check("Bulk overdue invoices are workspace scoped",bulk.includes("eq(financeRecords.workspaceId,workspaceId)")&&bulk.includes("overdue_marked"));

@@ -26,8 +26,9 @@ check("Media Buyer list is ownership scoped",list.includes("eq(clients.mediaBuye
 check("Client detail has a centralized active-record guard",guard.includes("eq(clients.isActive,true)")&&guard.includes("redirect(\"/dashboard/clients\")"));
 check("Client detail direct URL scopes Account Managers",guard.includes("client.accountManagerId!==userId"));
 check("Client detail direct URL scopes Media Buyers",guard.includes("client.mediaBuyerId!==userId"));
-check("New client page and API exclude Media Buyer from client creation",newPage.includes("SUPER_ADMIN\",\"ACCOUNT_MANAGER\",\"ACCOUNTANT")&&api.includes("SUPER_ADMIN\",\"ACCOUNT_MANAGER\",\"ACCOUNTANT")&&!newPage.includes("SUPER_ADMIN\",\"ACCOUNT_MANAGER\",\"MEDIA_BUYER\",\"ACCOUNTANT")&&!api.includes("SUPER_ADMIN\",\"ACCOUNT_MANAGER\",\"MEDIA_BUYER\",\"ACCOUNTANT"));
-check("Media Buyer cannot self-create clients",!api.includes('role==="MEDIA_BUYER"?userId')&&!newPage.includes('role==="MEDIA_BUYER"?'));
+const clientPost=api.slice(api.indexOf("export async function POST"));
+check("New client page and API exclude Media Buyer from client creation",newPage.includes('["SUPER_ADMIN","ACCOUNT_MANAGER","ACCOUNTANT"].includes(role)')&&!newPage.includes('["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","ACCOUNTANT"].includes(role)')&&clientPost.includes('["SUPER_ADMIN","ACCOUNT_MANAGER","ACCOUNTANT"].includes(role)')&&!clientPost.includes('["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","ACCOUNTANT"].includes(role)'));
+check("Media Buyer cannot self-create clients",!clientPost.includes('role==="MEDIA_BUYER"?userId')&&!newPage.includes('role==="MEDIA_BUYER"?'));
 check("Client universe exposes Add Account",universe.includes('/dashboard/clients/new')&&universe.includes('+ Add Account'));
 check("Client create rejects duplicate company names",api.includes("already exists")&&api.includes("status:409"));
 check("Client create validates active portal user and one-client ownership",api.includes("valid active approved client portal user")&&api.includes("already linked to another client"));

@@ -48,6 +48,8 @@ export function missingVivitoFields(op:VivitoActionOp,args:Record<string,unknown
 }
 
 export function buildVivitoDryRun(op:VivitoActionOp,args:Record<string,unknown>,role:string){
-  const approval=decideVivitoApproval(op,role),missingFields=missingVivitoFields(op,args);
+  let approval=decideVivitoApproval(op,role);
+  if(op==="update_task"&&String(args.status||"").trim().toUpperCase()==="COMPLETED")approval={mode:"BLOCK",reason:"Task completion is reserved for final client approval; internal users may only move work to APPROVED for client review.",risk:"high",requiresConfirmation:true,requiresSuperAdmin:false};
+  const missingFields=missingVivitoFields(op,args);
   return{dryRun:true,op,description:VIVITO_ACTION_CATALOG[op]?.description||"Unknown action",approval,missingFields,ready:approval.mode!=="BLOCK"&&missingFields.length===0,willWrite:false};
 }

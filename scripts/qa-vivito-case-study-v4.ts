@@ -1,0 +1,14 @@
+import {VIVITO_CASE_STUDY_BENCHMARK_V4,VIVITO_CASE_STUDY_ROLE_SCOPE} from "../lib/vivito/case-study-benchmark-v4";
+const fail:string[]=[];const pass=(name:string,ok:boolean)=>{console.log(`${ok?"PASS":"FAIL"}  ${name}`);if(!ok)fail.push(name)};
+pass("exactly 1000 total cases",VIVITO_CASE_STUDY_BENCHMARK_V4.length===1000);
+for(const d of ["marketing","finance","business","media_buying"] as const)pass(`${d} has 250 cases`,VIVITO_CASE_STUDY_BENCHMARK_V4.filter(c=>c.domain===d).length===250);
+pass("Super Admin receives all 1000",VIVITO_CASE_STUDY_ROLE_SCOPE.SUPER_ADMIN.length===1000);
+pass("Account Manager receives all cross-functional cases",VIVITO_CASE_STUDY_ROLE_SCOPE.ACCOUNT_MANAGER.length===1000);
+pass("Media Buyer receives marketing + media buying",VIVITO_CASE_STUDY_ROLE_SCOPE.MEDIA_BUYER.length===500&&VIVITO_CASE_STUDY_ROLE_SCOPE.MEDIA_BUYER.every(c=>c.domain==="marketing"||c.domain==="media_buying"));
+pass("Accountant receives finance + business",VIVITO_CASE_STUDY_ROLE_SCOPE.ACCOUNTANT.length===500&&VIVITO_CASE_STUDY_ROLE_SCOPE.ACCOUNTANT.every(c=>c.domain==="finance"||c.domain==="business"));
+pass("Creator receives marketing cases",VIVITO_CASE_STUDY_ROLE_SCOPE.CREATOR.length===250&&VIVITO_CASE_STUDY_ROLE_SCOPE.CREATOR.every(c=>c.domain==="marketing"));
+pass("Sales receives marketing + business",VIVITO_CASE_STUDY_ROLE_SCOPE.SALES.length===500&&VIVITO_CASE_STUDY_ROLE_SCOPE.SALES.every(c=>c.domain==="marketing"||c.domain==="business"));
+pass("Client receives marketing + business + media",VIVITO_CASE_STUDY_ROLE_SCOPE.CLIENT.length===750&&VIVITO_CASE_STUDY_ROLE_SCOPE.CLIENT.every(c=>["marketing","business","media_buying"].includes(c.domain)));
+pass("every case has decision-grade rubric",VIVITO_CASE_STUDY_BENCHMARK_V4.every(c=>c.mustAddress.length>=7&&c.prompt.length>160));
+pass("IDs unique",new Set(VIVITO_CASE_STUDY_BENCHMARK_V4.map(c=>c.id)).size===1000);
+const total=14;console.log(`\n${total-fail.length}/${total} VIVITO Case Study V4 checks passed.`);if(fail.length)process.exit(1);

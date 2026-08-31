@@ -1,0 +1,57 @@
+name: VIVITO 1000 Case Study Certification
+on:
+  push:
+    branches:
+      - feat/vivito-1000-case-certification-2026-08-31
+concurrency:
+  group: vivito-case-study-v4-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/vivit_ci
+      AUTH_SECRET: vivito-ci-placeholder-secret-not-for-production
+      NEXTAUTH_SECRET: vivito-ci-placeholder-secret-not-for-production
+      NEXTAUTH_URL: http://localhost:3000
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      VIVITO_PROVIDER_TIMEOUT_MS: 8000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - name: 1000 case role scope certification
+        run: npx tsx scripts/qa-vivito-case-study-v4.ts
+      - name: 1000 case local resilience certification
+        run: npx tsx scripts/qa-vivito-case-study-local-fallback-v4.ts
+      - name: Real-answer smoke Super Admin
+        env:
+          VIVITO_CASE_ROLE: SUPER_ADMIN
+          VIVITO_CASE_LIMIT: 5
+          VIVITO_CASE_PACE_MS: 150
+        run: npx tsx scripts/run-vivito-case-study-v4.ts
+      - name: Real-answer smoke Media Buyer
+        env:
+          VIVITO_CASE_ROLE: MEDIA_BUYER
+          VIVITO_CASE_LIMIT: 5
+          VIVITO_CASE_PACE_MS: 150
+        run: npx tsx scripts/run-vivito-case-study-v4.ts
+      - name: Real-answer smoke Accountant
+        env:
+          VIVITO_CASE_ROLE: ACCOUNTANT
+          VIVITO_CASE_LIMIT: 5
+          VIVITO_CASE_PACE_MS: 150
+        run: npx tsx scripts/run-vivito-case-study-v4.ts
+      - name: VIVITO intelligence
+        run: npm run qa:vivito-intelligence
+      - name: VIVITO academy
+        run: npm run qa:vivito-academy
+      - name: VIVITO actions
+        run: npm run qa:vivito-actions
+      - name: ESLint
+        run: npm run lint
+      - name: TypeScript
+        run: npm run type-check

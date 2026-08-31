@@ -5,6 +5,7 @@ import {and,eq} from "drizzle-orm";
 import {auth} from "@/lib/auth";
 import {db,clients,creativeTasks,users,notifications,auditLogs} from "@/lib/db";
 
+type CreativeTaskInsert=typeof creativeTasks.$inferInsert;
 const TASK_TYPES=["REEL","GRAPHIC","CAROUSEL","MOTION_GRAPHIC","VIDEO_EDIT","PHOTO_SESSION","STORY","UGC"] as const;
 const TASK_PRIORITIES=["URGENT","HIGH","MEDIUM","LOW"] as const;
 
@@ -38,7 +39,7 @@ export async function createTaskRoleSafe(formData:FormData){
     if(!creator)throw new Error("Invalid creator assignment");
   }
 
-  const [task]=await db.insert(creativeTasks).values({workspaceId,title,clientId,type:type as typeof creativeTasks.$inferInsert.type,brief,tov:tov||null,priority:priority as typeof creativeTasks.$inferInsert.priority,status:"PENDING",assignedToId,deadline:deadlineDate,caption,createdById:userId}).returning();
+  const [task]=await db.insert(creativeTasks).values({workspaceId,title,clientId,type:type as CreativeTaskInsert["type"],brief,tov:tov||null,priority:priority as CreativeTaskInsert["priority"],status:"PENDING",assignedToId,deadline:deadlineDate,caption,createdById:userId}).returning();
   if(assignedToId)await db.insert(notifications).values({userId:assignedToId,type:"TASK_ASSIGNED",title:`New task assigned: ${title}`,message:`Deadline: ${deadlineDate.toLocaleDateString()}`,link:`/dashboard/creative/${task.id}`});
   await db.insert(auditLogs).values({workspaceId,userId,action:"task_created",entity:"CreativeTask",entityId:task.id,newValues:JSON.stringify({title,clientId,type,priority,createdByRole:role})});
   for(const path of ["/dashboard/creative","/dashboard/tasks-inbox","/dashboard/today","/dashboard/calendar"])revalidatePath(path);

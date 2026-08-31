@@ -15,13 +15,15 @@ export async function GET(req: NextRequest) {
   if (req.nextUrl.searchParams.get("type") === "health") {
     const session=await auth();
     if(!session?.user||session.user.role!=="SUPER_ADMIN") return NextResponse.json({error:"Forbidden"},{status:403});
+    const workspaceId=String(session.user.workspaceId||"");
+    if(!workspaceId) return NextResponse.json({error:"Workspace unavailable"},{status:403});
     try {
       const { db, users } = await import("@/lib/db");
-      const { count } = await import("drizzle-orm");
-      const [r] = await db.select({ cnt: count() }).from(users).limit(1);
-      return NextResponse.json({status:"healthy",db:"connected",users:Number(r?.cnt??0),ts:new Date().toISOString()});
+      const { count, eq } = await import("drizzle-orm");
+      const [r] = await db.select({ cnt: count() }).from(users).where(eq(users.workspaceId,workspaceId));
+      return NextResponse.json({status:"healthy",db:"connected",users:Number(r?.cnt??0),ts:new Date().toISOString()},{headers:{"Cache-Control":"private, no-store"}});
     } catch {
-      return NextResponse.json({ status:"unhealthy" }, { status:503 });
+      return NextResponse.json({ status:"unhealthy" }, { status:503,headers:{"Cache-Control":"private, no-store"} });
     }
   }
   return NextResponse.json({ ok: true });

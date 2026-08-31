@@ -1,0 +1,11 @@
+import fs from 'node:fs';
+const providers=fs.readFileSync('lib/vivito/providers.ts','utf8');
+const fallback=fs.readFileSync('lib/vivito/action-plan-fallback-v1.ts','utf8');
+const engine=fs.readFileSync('lib/vivito/action-engine.ts','utf8');
+const checks=[];const ok=(name,value)=>checks.push([name,!!value]);
+ok('Arabic input is detected at provider layer',providers.includes('const ARABIC_RE=/[\\u0600-\\u06ff]/'));
+ok('Arabic input gets explicit arabic mesh task',providers.includes('task:"arabic"'));
+ok('All provider calls use routed effective options',providers.includes('effectiveOptions=routedOptions(prompt,options)')&&providers.includes('callGateway(prompt,system,effectiveOptions)')&&providers.includes('generateViaVivitoMesh(prompt,system,effectiveOptions)')&&providers.includes('callGemini(prompt,system,effectiveOptions)'));
+ok('Reminder is allowed for all seven roles',engine.includes('remind_me:{roles:["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CREATOR","ACCOUNTANT","SALES","CLIENT"]'));
+ok('Reminder optional fields cannot block execution',fallback.includes('String(plan.op||"")==="remind_me"')&&fallback.includes('missingFields:[]'));
+const failures=checks.filter(([,v])=>!v);for(const [name,v] of checks)console.log(`${v?'PASS':'FAIL'}  ${name}`);console.log(`\n${checks.length-failures.length}/${checks.length} VIVITO multi-role Arabic/action regression checks passed.`);if(failures.length)process.exit(1);

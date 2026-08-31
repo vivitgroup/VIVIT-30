@@ -7,7 +7,8 @@
 .mobile-menu-drawer :where(a,button):focus-visible,
 .va-panel :where(a,button,textarea):focus-visible,
 .va-fab:focus-visible,
-.vx-apps :where(a,button):focus-visible {
+.vx-apps :where(a,button):focus-visible,
+.realtime-toast-stack button:focus-visible {
   outline: 3px solid color-mix(in srgb, var(--blue, #244d87) 72%, white) !important;
   outline-offset: 2px !important;
 }
@@ -30,29 +31,29 @@
   font-size: 10px !important;
 }
 
-/* The Apps launcher previously overlapped the VIVITO floating action button. */
+/* Keep the Apps launcher clear of VIVITO and mobile safe areas. */
 .vx-apps { right: 104px !important; bottom: 22px !important; }
-.vx-apps-btn { min-height: 44px !important; height: 44px !important; padding-inline: 14px !important; font-size: 12px !important; }
+.vx-apps-btn { min-width: 44px !important; min-height: 44px !important; height: 44px !important; padding-inline: 14px !important; font-size: 12px !important; }
 .vx-apps-menu { bottom: 52px !important; }
 .vx-apps-menu a { min-height: 44px !important; align-items: center !important; }
 .vx-apps-menu b { font-size: 12px !important; }
 .vx-apps-menu span { font-size: 11px !important; line-height: 1.35 !important; }
 
-/* VIVITO: improve readability and touch ergonomics without changing the visual direction. */
+/* VIVITO: readable micro-copy and comfortable touch ergonomics. */
 .va-head > button { width: 44px !important; height: 44px !important; border-radius: 12px !important; }
-.va-head small { font-size: 9px !important; line-height: 1.35 !important; }
+.va-head small { font-size: 10px !important; line-height: 1.35 !important; }
 .va-context { font-size: 11.5px !important; }
 .va-quick button { min-height: 44px !important; padding: 10px 11px !important; font-size: 10.5px !important; line-height: 1.35 !important; }
-.va-speaker { font-size: 8.5px !important; }
+.va-speaker { font-size: 10px !important; line-height: 1.25 !important; }
 .va-msg { font-size: 12px !important; line-height: 1.65 !important; }
-.va-sources span { font-size: 9px !important; }
-.va-action-top { font-size: 9px !important; }
+.va-sources span { font-size: 10px !important; line-height: 1.3 !important; }
+.va-action-top { font-size: 10px !important; line-height: 1.3 !important; }
 .va-action button { min-height: 44px !important; font-size: 11px !important; }
 .va-action-missing,.va-action-error,.va-action-auto,.va-plan-steps li,.va-thinking,.va-attachments span { font-size: 10px !important; }
-.va-plan-steps b { font-size: 9px !important; }
+.va-plan-steps b { font-size: 10px !important; }
 .va-input > button { width: 44px !important; height: 44px !important; }
 .va-input textarea { min-height: 44px !important; font-size: 12px !important; line-height: 1.45 !important; }
-.va-foot { font-size: 8.5px !important; line-height: 1.35 !important; }
+.va-foot { font-size: 10px !important; line-height: 1.35 !important; color: color-mix(in srgb, #f7f3f8 50%, #5f5663) !important; }
 
 /* Loading skeleton should not force desktop columns onto small screens. */
 @media (max-width: 768px) {
@@ -70,8 +71,9 @@
   .mobile-menu-drawer section > a { min-height: 48px !important; }
   .dashboard-skeleton-kpis { grid-template-columns: repeat(2,minmax(0,1fr)) !important; }
   .dashboard-skeleton-main { grid-template-columns: minmax(0,1fr) !important; }
-  .vx-apps { right: 86px !important; bottom: 82px !important; }
+  .vx-apps { right: 86px !important; bottom: calc(82px + env(safe-area-inset-bottom)) !important; }
   .vx-apps-btn { min-height: 44px !important; height: 44px !important; }
+  .realtime-toast-stack { bottom: calc(88px + env(safe-area-inset-bottom)) !important; }
 }
 
 @media (max-width: 420px) {
@@ -81,6 +83,6 @@
 
 /* Respect motion preferences for all floating UI controls. */
 @media (prefers-reduced-motion: reduce) {
-  .va-fab,.mobile-menu-drawer,.vx-apps-menu { transition: none !important; animation: none !important; }
+  .va-fab,.mobile-menu-drawer,.vx-apps-menu,.realtime-toast-stack > * { transition: none !important; animation: none !important; }
   .va-thinking span { animation: none !important; }
 }

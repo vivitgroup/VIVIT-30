@@ -1,6 +1,6 @@
 import fs from"node:fs";
 const r=p=>fs.readFileSync(p,"utf8"),c=[],$=(n,v)=>c.push([n,!!v]);
-const lang=r("lib/vivito/language.ts"),actions=r("lib/vivito/action-engine.ts"),orch=r("lib/vivito/orchestrator.ts"),play=r("lib/vivito/playbook.ts"),intel=r("lib/vivito/intelligence.ts"),red=r("lib/vivito/red-team.ts"),local=r("lib/vivito/local-provider.ts"),providers=r("lib/vivito/providers.ts");
+const lang=r("lib/vivito/language.ts"),actions=r("lib/vivito/action-engine.ts"),orch=r("lib/vivito/orchestrator.ts"),play=r("lib/vivito/playbook.ts"),intel=r("lib/vivito/intelligence.ts"),red=r("lib/vivito/red-team.ts"),local=r("lib/vivito/local-provider.ts"),advisor=r("lib/vivito/local-advisor-v2.ts"),providers=r("lib/vivito/providers.ts");
 $("Language layer detects Franco",lang.includes('return "FRANCO"')&&lang.includes("FRANCO_HINT"));
 $("Language layer detects Egyptian slang",lang.includes('return "EGYPTIAN"')&&lang.includes("EGYPTIAN_HINT"));
 $("Language layer detects mixed Arabic English",lang.includes('return "MIXED"'));
@@ -26,8 +26,13 @@ $("Critic preserves detected style",intel.includes("buildVivitoRedTeamCriticProm
 $("Franco response style is explicitly supported",lang.includes("Reply in natural Egyptian Franco/Arabizi"));
 $("Gen Z response style avoids forced slang",lang.includes("without sounding forced"));
 $("Mixed style mirrors Arabic English naturally",lang.includes("same natural Arabic-English mix"));
-$("Provider outage has deterministic local resilience",providers.includes("generateLocalVivito")&&providers.includes('provider:"local"')&&providers.includes("localFallback"));
+$("Provider outage has deterministic local resilience",providers.includes("generateLocalVivito")&&providers.includes("generateLocalAdvisorV2")&&providers.includes('provider:"local"')&&providers.includes("localFallback"));
 $("Local resilience can plan real core task actions",local.includes('return "create_task"')&&local.includes('required=["clientName","title","brief","deadline"]'));
-$("Local resilience varies advisor replies by live intent",local.includes("active tasks")&&local.includes("sales pipeline")&&local.includes("Live media context")&&local.includes("Finance context"));
+$("Advisor V2 reads live ERP context",advisor.includes("ERP LIVE CONTEXT")&&advisor.includes("contextFromPrompt"));
+$("Advisor V2 can answer client-specific summaries",advisor.includes("clientSummary")&&advisor.includes("client-health")===false&&advisor.includes("finance not available for your role"));
+$("Advisor V2 covers priority task sales media finance",advisor.includes("priorityAnswer")&&advisor.includes("weighted pipeline")&&advisor.includes("ROAS")&&advisor.includes("Finance:"));
+$("Advisor V2 covers tracking and client health",advisor.includes("tracking-health")&&advisor.includes("client-health"));
+$("Advisor V2 explains capabilities instead of generic fallback",advisor.includes("what can you do")&&advisor.includes("execute allowed ERP actions"));
+$("Advisor V2 never impersonates planners or governed special modes",advisor.includes("VIVITO Action Planner")&&advisor.includes("VIVITO Operating Orchestrator")&&advisor.includes("VIVITO RED TEAM")&&advisor.includes("return null"));
 $("Local resilience never impersonates critic/artifact/memory research",local.includes("independent VIVITO critic")&&local.includes("Artifact|Memory Planner|Competitive")&&local.includes("return null"));
 const f=c.filter(x=>!x[1]);for(const[n,v]of c)console.log(`${v?"PASS":"FAIL"}  ${n}`);console.log(`\n${c.length-f.length}/${c.length} VIVITO language/resilience checks passed.`);if(f.length)process.exit(1);

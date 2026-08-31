@@ -1,4 +1,4 @@
-# Final consolidated audit trigger after lifecycle and QA hardening.
+# Final stabilized audit trigger after lifecycle and QA hardening.
 name: Legacy Task Create Contract
 on:
   push:

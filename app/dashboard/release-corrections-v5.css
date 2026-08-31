@@ -1,0 +1,62 @@
+/* VIVIT release corrections v5 — screenshot-driven acceptance fixes. */
+
+/* English-only ERP chrome. VIVITO conversation content may still be Arabic/Franco. */
+html:has(.app-main-shell),body:has(.app-main-shell){direction:ltr!important}
+body:has(.app-main-shell) .app-main-shell,
+body:has(.app-main-shell) .app-header,
+body:has(.app-main-shell) .app-content,
+body:has(.app-main-shell) .vivit-ar-sidebar{direction:ltr!important;text-align:left!important}
+body:has(.app-main-shell) .header-language{display:none!important}
+body:has(.app-main-shell) .vivit-ar-sidebar .sidebar-logo,
+body:has(.app-main-shell) .vivit-ar-sidebar .sidebar-user-card,
+body:has(.app-main-shell) .vivit-ar-sidebar .nav-item,
+body:has(.app-main-shell) .vivit-ar-sidebar .sidebar-theme-button{direction:ltr!important;text-align:left!important}
+body:has(.app-main-shell) .vivit-ar-sidebar .sidebar-user-copy,
+body:has(.app-main-shell) .vivit-ar-sidebar .sidebar-section-label,
+body:has(.app-main-shell) .vivit-ar-sidebar .nav-label{direction:ltr!important;text-align:left!important}
+
+/* Client universe: never let a third card sit outside the usable content viewport. */
+body:has(.app-main-shell) .vx-client-universe{width:100%!important;max-width:100%!important;min-width:0!important;overflow:visible!important}
+body:has(.app-main-shell) .vx-client-universe .vx-world-hero,
+body:has(.app-main-shell) .vx-client-universe .vx-focus-strip,
+body:has(.app-main-shell) .vx-client-universe .vx-universe-grid{width:100%!important;max-width:100%!important;min-width:0!important;box-sizing:border-box!important}
+body:has(.app-main-shell) .vx-client-universe .vx-universe-grid{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr))!important;gap:16px!important;overflow:visible!important}
+body:has(.app-main-shell) .vx-client-universe .vx-universe-grid>.card,
+body:has(.app-main-shell) .vx-client-universe .vx-universe-grid>.card>a{width:100%!important;min-width:0!important;max-width:100%!important;box-sizing:border-box!important}
+
+/* Creative workflow: task cards must scroll, never shrink into white strips. */
+body:has(.app-main-shell) .app-content section:has(article a[href^="/dashboard/creative/"]){width:286px!important;min-width:286px!important;max-width:286px!important;flex:0 0 286px!important;align-self:flex-start!important}
+body:has(.app-main-shell) .app-content section:has(article a[href^="/dashboard/creative/"])>div:last-child{display:flex!important;flex-direction:column!important;align-items:stretch!important;gap:10px!important;overflow-y:auto!important;overflow-x:hidden!important;max-height:min(690px,calc(100vh - 245px))!important;min-height:180px!important;overscroll-behavior:contain!important;scrollbar-gutter:stable!important}
+body:has(.app-main-shell) .app-content article:has(a[href^="/dashboard/creative/"]){display:block!important;flex:0 0 auto!important;flex-shrink:0!important;width:100%!important;height:auto!important;min-height:132px!important;max-height:none!important;overflow:visible!important;box-sizing:border-box!important}
+body:has(.app-main-shell) .app-content article:has(a[href^="/dashboard/creative/"]) a[href^="/dashboard/creative/"]{display:block!important;white-space:normal!important;overflow-wrap:anywhere!important;line-height:1.35!important}
+body:has(.app-main-shell) .app-content article:has(a[href^="/dashboard/creative/"]) :is(p,span,small,b,strong){white-space:normal!important;overflow-wrap:anywhere!important}
+body:has(.app-main-shell) .app-content article:has(a[href^="/dashboard/creative/"]) form{flex:0 0 auto!important;min-height:max-content!important}
+
+/* Sales CRM: the stage itself scrolls; lead cards are not allowed to flex-shrink. */
+body:has(.app-main-shell) .sales-page .pipeline-wrap{overflow-x:auto!important;overflow-y:visible!important;padding-bottom:16px!important;scrollbar-gutter:stable!important}
+body:has(.app-main-shell) .sales-page .pipeline{grid-auto-columns:minmax(320px,340px)!important;gap:14px!important;align-items:start!important}
+body:has(.app-main-shell) .sales-page .stage{min-width:320px!important;max-width:340px!important;width:340px!important;height:min(660px,calc(100vh - 245px))!important;min-height:420px!important;overflow:hidden!important}
+body:has(.app-main-shell) .sales-page .stage-list{display:flex!important;flex-direction:column!important;align-items:stretch!important;justify-content:flex-start!important;gap:10px!important;min-height:0!important;height:auto!important;max-height:none!important;overflow-y:auto!important;overflow-x:hidden!important;padding:10px!important;scrollbar-gutter:stable!important;overscroll-behavior:contain!important}
+body:has(.app-main-shell) .sales-page .stage-list>.lead-card{display:block!important;position:relative!important;flex:0 0 auto!important;flex-shrink:0!important;width:100%!important;height:auto!important;min-height:132px!important;max-height:none!important;overflow:visible!important;padding:13px!important;box-sizing:border-box!important}
+body:has(.app-main-shell) .sales-page .lead-card>*{min-width:0!important;max-width:100%!important}
+body:has(.app-main-shell) .sales-page .lead-card :is(h3,p,small,strong,span,label){white-space:normal!important;overflow-wrap:anywhere!important;line-height:1.35!important}
+body:has(.app-main-shell) .sales-page .lead-card form{height:auto!important;min-height:max-content!important;overflow:visible!important}
+body:has(.app-main-shell) .sales-page .lead-move{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:7px!important}
+body:has(.app-main-shell) .sales-page .lead-notes{display:grid!important;grid-template-columns:1fr!important;gap:7px!important}
+body:has(.app-main-shell) .sales-page .lead-notes textarea{min-height:58px!important;height:auto!important;max-height:120px!important}
+
+/* Client social actions: decorative hero layers never intercept the click target. */
+body:has(.app-main-shell) .cw-hero::before,
+body:has(.app-main-shell) .cw-hero::after{pointer-events:none!important}
+body:has(.app-main-shell) .cw-social{position:relative!important;z-index:20!important;pointer-events:auto!important}
+body:has(.app-main-shell) .cw-social a{position:relative!important;z-index:21!important;pointer-events:auto!important;cursor:pointer!important;touch-action:manipulation!important}
+
+@media(max-width:1100px){
+ body:has(.app-main-shell) .vx-client-universe .vx-universe-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+}
+@media(max-width:760px){
+ body:has(.app-main-shell) .vx-client-universe .vx-universe-grid{grid-template-columns:1fr!important}
+ body:has(.app-main-shell) .app-content section:has(article a[href^="/dashboard/creative/"]){width:min(320px,86vw)!important;min-width:min(320px,86vw)!important;max-width:min(320px,86vw)!important;flex-basis:min(320px,86vw)!important}
+ body:has(.app-main-shell) .sales-page .pipeline{grid-auto-columns:minmax(286px,86vw)!important}
+ body:has(.app-main-shell) .sales-page .stage{width:86vw!important;min-width:286px!important;max-width:86vw!important;height:calc(100vh - 205px)!important}
+}

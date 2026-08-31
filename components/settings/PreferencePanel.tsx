@@ -22,7 +22,7 @@ export function PreferencePanel(){
   return <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(250px,1fr))",gap:14}}>
     <section className="card"><div className="card-body">
       <h2 className="card-title">Appearance</h2>
-      <p className="page-subtitle">Use the language switch in the top bar for English or Arabic. Your choice is saved on this device.</p>
+      <p className="page-subtitle">The ERP interface uses English consistently across desktop and mobile.</p>
       <label className="form-label" style={{marginTop:12}}>Theme</label>
       <select className="form-select" value={theme} onChange={e=>applyTheme(e.target.value)}><option value="light">Light</option><option value="dark">Dark</option></select>
     </div></section>

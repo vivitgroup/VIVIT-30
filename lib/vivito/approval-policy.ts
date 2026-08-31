@@ -4,12 +4,12 @@ export type VivitoApprovalMode="AUTO"|"CONFIRM"|"SUPER_ADMIN_CONFIRM"|"BLOCK";
 export type VivitoApprovalDecision={mode:VivitoApprovalMode;reason:string;risk:VivitoActionRisk;requiresConfirmation:boolean;requiresSuperAdmin:boolean};
 
 const SUPER_ADMIN_ONLY_CONFIRM=new Set<VivitoActionOp>([
-  "delete_client","delete_task","revoke_api_key","revoke_webhook","disconnect_integration","update_workspace_settings"
+  "delete_client","delete_task","revoke_api_key","revoke_webhook","update_workspace_settings"
 ]);
 const ALWAYS_CONFIRM=new Set<VivitoActionOp>([
   "archive_client","archive_task","move_lead","schedule_post","log_expense","record_payment","create_invoice","create_user","update_user","set_user_active",
   "decide_leave","upsert_payroll","set_payroll_status","create_contract","update_contract","send_email","send_whatsapp","create_api_key","create_webhook",
-  "update_campaign","start_integration","bulk_update_tasks","bulk_remind_clients"
+  "update_campaign","start_integration","disconnect_integration","bulk_update_tasks","bulk_remind_clients"
 ]);
 const SAFE_AUTO=new Set<VivitoActionOp>([
   "remind_me","restore_client","restore_task","create_task","update_task","reassign_task","create_client","update_client","add_client_contact","attach_file",
@@ -22,8 +22,9 @@ export function decideVivitoApproval(op:VivitoActionOp,role:string):VivitoApprov
   if(SUPER_ADMIN_ONLY_CONFIRM.has(op))return role==="SUPER_ADMIN"
     ?{mode:"SUPER_ADMIN_CONFIRM",reason:"Destructive or workspace-critical action requires explicit Super Admin confirmation.",risk:meta.risk,requiresConfirmation:true,requiresSuperAdmin:true}
     :{mode:"BLOCK",reason:"This action is restricted to Super Admin.",risk:meta.risk,requiresConfirmation:true,requiresSuperAdmin:true};
-  if(meta.risk==="destructive")return{mode:role==="SUPER_ADMIN"?"SUPER_ADMIN_CONFIRM":"BLOCK",reason:"Destructive actions never auto-execute.",risk:meta.risk,requiresConfirmation:true,requiresSuperAdmin:true};
-  if(ALWAYS_CONFIRM.has(op)||meta.risk==="high")return{mode:"CONFIRM",reason:"High-impact, financial, external-send, access-control or lifecycle action requires explicit confirmation.",risk:meta.risk,requiresConfirmation:true,requiresSuperAdmin:false};
+  if(ALWAYS_CONFIRM.has(op))return{mode:"CONFIRM",reason:"High-impact, financial, external-send, access-control or lifecycle action requires explicit confirmation.",risk:meta.risk,requiresConfirmation:true,requiresSuperAdmin:false};
+  if(meta.risk==="destructive")return{mode:role==="SUPER_ADMIN"?"SUPER_ADMIN_CONFIRM":"BLOCK",reason:"Destructive actions never auto-execute unless the catalog explicitly authorizes a confirmed scoped workflow.",risk:meta.risk,requiresConfirmation:true,requiresSuperAdmin:role==="SUPER_ADMIN"};
+  if(meta.risk==="high")return{mode:"CONFIRM",reason:"High-impact, financial, external-send, access-control or lifecycle action requires explicit confirmation.",risk:meta.risk,requiresConfirmation:true,requiresSuperAdmin:false};
   if(SAFE_AUTO.has(op)&&["low","medium"].includes(meta.risk))return{mode:"AUTO",reason:"Bounded reversible/operational action may auto-execute inside the caller's RBAC scope.",risk:meta.risk,requiresConfirmation:false,requiresSuperAdmin:false};
   return{mode:"CONFIRM",reason:"Action requires explicit confirmation by default.",risk:meta.risk,requiresConfirmation:true,requiresSuperAdmin:false};
 }

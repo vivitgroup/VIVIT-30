@@ -15,10 +15,15 @@ const SAFE_AUTO=new Set<VivitoActionOp>([
   "remind_me","restore_client","restore_task","create_task","update_task","reassign_task","create_client","update_client","add_client_contact","attach_file",
   "create_lead","update_lead","sync_campaign","export_data","generate_report","update_onboarding","record_nps","create_referral","create_leave_request"
 ]);
+const MEDIA_BUYER_READ_ONLY_BLOCK=new Set<VivitoActionOp>([
+  "create_client","update_client","add_client_contact","archive_client","restore_client","delete_client",
+  "create_task","update_task","reassign_task","archive_task","restore_task","delete_task","bulk_update_tasks"
+]);
 
 export function decideVivitoApproval(op:VivitoActionOp,role:string):VivitoApprovalDecision{
   const meta=VIVITO_ACTION_CATALOG[op];
   if(!meta||!meta.roles.includes(role))return{mode:"BLOCK",reason:"This role is not authorized for the requested ERP action.",risk:meta?.risk||"high",requiresConfirmation:true,requiresSuperAdmin:false};
+  if(role==="MEDIA_BUYER"&&MEDIA_BUYER_READ_ONLY_BLOCK.has(op))return{mode:"BLOCK",reason:"Media Buyer access is read-only for client and creative-task lifecycle mutations.",risk:meta.risk,requiresConfirmation:true,requiresSuperAdmin:false};
   if(SUPER_ADMIN_ONLY_CONFIRM.has(op))return role==="SUPER_ADMIN"
     ?{mode:"SUPER_ADMIN_CONFIRM",reason:"Destructive or workspace-critical action requires explicit Super Admin confirmation.",risk:meta.risk,requiresConfirmation:true,requiresSuperAdmin:true}
     :{mode:"BLOCK",reason:"This action is restricted to Super Admin.",risk:meta.risk,requiresConfirmation:true,requiresSuperAdmin:true};

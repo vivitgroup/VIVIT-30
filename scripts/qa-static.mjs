@@ -29,7 +29,7 @@ pass("Archived files excluded from active view",filesApi.includes("archived_at i
 pass("Files UI exposes edit/delete actions",/Edit/.test(filesPage)&&/Delete/.test(filesPage));
 pass("File storage bucket self-heals",/ensureBucket/.test(filesApi));pass("File links are role/client scoped",/validateLinks/.test(filesApi)&&/ACCOUNT_MANAGER/.test(filesApi)&&/MEDIA_BUYER/.test(filesApi));
 pass("Lifecycle API has archive restore delete",lifecycleApi.includes('"archive","restore","delete"')&&lifecycleApi.includes("client_archived")&&lifecycleApi.includes("task_archived")&&lifecycleApi.includes("lead_archived"));
-pass("Client permanent delete is scoped to Super Admin or owning AM/MB",lifecycleApi.includes('role==="ACCOUNT_MANAGER"&&record.account_manager_id===userId')&&lifecycleApi.includes('role==="MEDIA_BUYER"&&record.media_buyer_id===userId')&&lifecycleApi.includes('role!=="SUPER_ADMIN"&&!ownsClient'));
+pass("Client lifecycle is Super Admin or owning Account Manager only",lifecycleApi.includes('const ownsClient=role==="ACCOUNT_MANAGER"&&record.account_manager_id===userId')&&lifecycleApi.includes('role!=="SUPER_ADMIN"&&!ownsClient')&&!lifecycleApi.includes('record.media_buyer_id===userId'));
 pass("Hard delete blocks linked client data",lifecycleApi.includes("Archive it instead of permanent deletion")&&lifecycleApi.includes("dependencies"));
 pass("Task hard delete blocks linked files/calendar/comments",lifecycleApi.includes("linked files, comments, or calendar items")&&lifecycleApi.includes("task_comments"));
 pass("Converted leads cannot hard delete",lifecycleApi.includes("converted to a client"));

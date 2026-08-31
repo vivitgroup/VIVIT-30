@@ -1,0 +1,51 @@
+name: Run AM MB Lifecycle VIVITO Fix
+
+on:
+  push:
+    branches:
+      - fix/am-mb-lifecycle-vivito-2026-08-31
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-validate:
+    if: "!startsWith(github.event.head_commit.message, 'fix(am-mb): lifecycle and VIVITO permissions')"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: postgresql://ci_user:ci_pass@127.0.0.1:5432/vivit_ci
+      AUTH_SECRET: vivito-ci-placeholder-secret-not-for-production
+      NEXTAUTH_SECRET: vivito-ci-placeholder-secret-not-for-production
+      NEXTAUTH_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/am-mb-lifecycle-vivito-2026-08-31
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply deterministic patch
+        run: python scripts/apply-am-mb-lifecycle-vivito.py
+      - name: Install dependencies
+        run: npm ci
+      - name: Focused lifecycle and VIVITO gate
+        run: node scripts/qa-am-mb-lifecycle-vivito.mjs
+      - name: Client lifecycle gate
+        run: npm run qa:clients
+      - name: Media control gate
+        run: npm run qa:media-control
+      - name: ESLint
+        run: npm run lint
+      - name: TypeScript
+        run: npm run type-check
+      - name: Full production build and QA
+        run: npm run build
+      - name: Commit validated fixes
+        run: |
+          git config user.name "vivitgroup"
+          git config user.email "groupvivit@gmail.com"
+          git add app/dashboard/clients/page.tsx app/api/lifecycle/route.ts app/dashboard/archive/page.tsx app/api/media-control-v2/route.ts lib/vivito/action-engine.ts app/api/assistant/route.ts lib/vivito/executor.ts scripts/qa-clients.mjs scripts/qa-am-mb-lifecycle-vivito.mjs
+          git commit -m "fix(am-mb): lifecycle and VIVITO permissions"
+          git push origin HEAD:fix/am-mb-lifecycle-vivito-2026-08-31

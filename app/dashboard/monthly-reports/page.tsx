@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { db, clients } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
 import { Role } from "@/lib/types";
-type SessionUser={role?:Role|string;id?:string};
+type SessionUser={role?:Role|string;id?:string;workspaceId?:string};
 
 export default async function MonthlyReportsPage() {
   const session = await auth();
@@ -12,12 +12,14 @@ export default async function MonthlyReportsPage() {
   const sessionUser=session.user as unknown as SessionUser;
   const role=sessionUser.role as Role;
   if (![Role.SUPER_ADMIN, Role.ACCOUNT_MANAGER].includes(role)) redirect("/dashboard");
+  const workspaceId=String(sessionUser.workspaceId||"");
+  if(!workspaceId) redirect("/login?reason=workspace_missing");
 
   const userId=String(sessionUser.id||"");
   const allClients = await db.select({ id:clients.id, companyName:clients.companyName, isActive:clients.isActive })
     .from(clients).where(role === Role.ACCOUNT_MANAGER
-      ? and(eq(clients.isActive, true), eq(clients.accountManagerId, userId))
-      : eq(clients.isActive, true)).orderBy(clients.companyName);
+      ? and(eq(clients.workspaceId,workspaceId),eq(clients.isActive, true), eq(clients.accountManagerId, userId))
+      : and(eq(clients.workspaceId,workspaceId),eq(clients.isActive, true))).orderBy(clients.companyName);
 
   const now = new Date();
   const MONTHS = ["","January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -26,7 +28,7 @@ export default async function MonthlyReportsPage() {
   async function sendAllReports() {
     "use server";
     const {auth:getAuth}=await import("@/lib/auth");
-    const {db,clients,contacts,financeRecords,mediaMetrics}=await import("@/lib/db");
+    const {db,clients,contacts,financeRecords,mediaMetrics,auditLogs}=await import("@/lib/db");
     const {eq,and,gte,sum}=await import("drizzle-orm");
     const MONTHS=["","January","February","March","April","May","June","July","August","September","October","November","December"];
     const current=await getAuth();
@@ -36,23 +38,26 @@ export default async function MonthlyReportsPage() {
     const now2=new Date();
     const pMonth=now2.getMonth()===0?12:now2.getMonth();
     const pYear=now2.getMonth()===0?now2.getFullYear()-1:now2.getFullYear();
-    const currentUserId=String(currentUser?.id||"");
+    const currentUserId=String(currentUser?.id||""),currentWorkspaceId=String(currentUser?.workspaceId||"");
+    if(!currentUserId||!currentWorkspaceId)throw new Error("Workspace unavailable");
     const allC=await db.select({id:clients.id,companyName:clients.companyName}).from(clients).where(currentRole===Role.ACCOUNT_MANAGER
-      ? and(eq(clients.isActive,true),eq(clients.accountManagerId,currentUserId))
-      : eq(clients.isActive,true));
+      ? and(eq(clients.workspaceId,currentWorkspaceId),eq(clients.isActive,true),eq(clients.accountManagerId,currentUserId))
+      : and(eq(clients.workspaceId,currentWorkspaceId),eq(clients.isActive,true)));
     for(const c of allC){
       const [contact]=await db.select().from(contacts).where(and(eq(contacts.clientId,c.id),eq(contacts.isPrimary,true)));
       if(!contact?.email) continue;
       const monthStart2=new Date(pYear,pMonth-1,1);
-      const [inv]=await db.select().from(financeRecords).where(and(eq(financeRecords.clientId,c.id),eq(financeRecords.month,pMonth),eq(financeRecords.year,pYear)));
-      const [mAgg]=await db.select({spend:sum(mediaMetrics.adSpend),leads:sum(mediaMetrics.leads),rev:sum(mediaMetrics.revenue)}).from(mediaMetrics).where(and(eq(mediaMetrics.clientId,c.id),gte(mediaMetrics.date,monthStart2)));
+      const [inv]=await db.select().from(financeRecords).where(and(eq(financeRecords.workspaceId,currentWorkspaceId),eq(financeRecords.clientId,c.id),eq(financeRecords.month,pMonth),eq(financeRecords.year,pYear)));
+      const [mAgg]=await db.select({spend:sum(mediaMetrics.adSpend),leads:sum(mediaMetrics.leads),rev:sum(mediaMetrics.revenue)}).from(mediaMetrics).where(and(eq(mediaMetrics.workspaceId,currentWorkspaceId),eq(mediaMetrics.clientId,c.id),gte(mediaMetrics.date,monthStart2)));
       const spend=Number(mAgg?.spend??0);const leads=Number(mAgg?.leads??0);const rev=Number(mAgg?.rev??0);
       if(process.env.RESEND_API_KEY){
-        await fetch("https://api.resend.com/emails",{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${process.env.RESEND_API_KEY}`},body:JSON.stringify({
+        const emailRes=await fetch("https://api.resend.com/emails",{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${process.env.RESEND_API_KEY}`},body:JSON.stringify({
           from:process.env.EMAIL_FROM??"noreply@vivitcrm.com",to:[contact.email],
           subject:`📊 ${c.companyName} — ${MONTHS[pMonth]} ${pYear} Performance Report`,
           html:`<div style="font-family:Inter,sans-serif;max-width:600px;margin:0 auto;padding:24px"><div style="background:linear-gradient(135deg,#17345F,#244D87);color:white;padding:24px;border-radius:12px 12px 0 0"><h1 style="margin:0;font-size:20px">📊 ${MONTHS[pMonth]} Report</h1></div><div style="background:#f9f9f9;padding:24px;border-radius:0 0 12px 12px"><h2>${c.companyName}</h2><table style="width:100%;border-collapse:collapse"><tr style="background:#244D87;color:white"><td style="padding:8px 12px">Metric</td><td style="padding:8px 12px">Value</td></tr><tr><td style="padding:8px 12px;border:1px solid #eee">Ad Spend</td><td style="padding:8px 12px;border:1px solid #eee">${spend.toLocaleString()} EGP</td></tr><tr style="background:#f5f5f5"><td style="padding:8px 12px;border:1px solid #eee">Leads</td><td style="padding:8px 12px;border:1px solid #eee">${leads}</td></tr><tr><td style="padding:8px 12px;border:1px solid #eee">Revenue</td><td style="padding:8px 12px;border:1px solid #eee">${rev.toLocaleString()} EGP</td></tr><tr style="background:#f5f5f5"><td style="padding:8px 12px;border:1px solid #eee">ROAS</td><td style="padding:8px 12px;border:1px solid #eee">${spend>0?(rev/spend).toFixed(2):0}×</td></tr>${inv?`<tr><td style="padding:8px 12px;border:1px solid #eee">Invoice</td><td style="padding:8px 12px;border:1px solid #eee">${inv.totalRevenue.toLocaleString()} EGP — ${inv.invoiceStatus}</td></tr>`:"" }</table><a href="${process.env.NEXTAUTH_URL??""}/dashboard/portal" style="background:#244D87;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;display:inline-block;margin-top:16px">View Full Report →</a></div><p style="color:#999;font-size:12px;margin-top:16px;text-align:center">VIVIT GROUP</p></div>`,
         })});
+        if(!emailRes.ok)throw new Error(`Monthly report email failed for ${c.id}`);
+        await db.insert(auditLogs).values({workspaceId:currentWorkspaceId,userId:currentUserId,action:"monthly_report_emailed",entity:"client",entityId:c.id,newValues:JSON.stringify({month:pMonth,year:pYear,recipient:contact.email})});
       }
     }
     const {revalidatePath}=await import("next/cache");

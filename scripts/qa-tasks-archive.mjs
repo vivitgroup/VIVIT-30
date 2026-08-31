@@ -51,6 +51,7 @@ check("Safe task actions enforce AM and Creator ownership",safe.includes("task.a
 check("Safe task mutations exclude Media Buyer",!safe.includes('role==="MEDIA_BUYER"')&&!safe.includes("media_buyer_id"));
 check("Safe task mutations exclude Media Buyer",!safe.includes('role==="MEDIA_BUYER"')&&!safe.includes("media_buyer_id"));
 check("Safe task mutations exclude Media Buyer",!safe.includes('role==="MEDIA_BUYER"')&&!safe.includes("media_buyer_id"));
+check("Safe task mutations exclude Media Buyer",!safe.includes('role==="MEDIA_BUYER"')&&!safe.includes("media_buyer_id"));
 check("Tasks Inbox excludes archived tasks",/creative_tasks where workspace_id=\$\{workspaceId\}[\s\S]*archived_at is null/.test(inbox)&&inbox.includes("activeOnly"));
 check("Tasks Inbox scopes every role to active clients",inbox.includes("allowedClients")&&inbox.includes("eq(clients.isActive,true)")&&inbox.includes("eq(clients.workspaceId,workspaceId)")&&inbox.includes("inArray(creativeTasks.clientId,allowedIds)"));
 check("Bulk approve only transitions REVIEW to APPROVED",inbox.includes('approve:{from:["REVIEW"],status:"APPROVED"}'));

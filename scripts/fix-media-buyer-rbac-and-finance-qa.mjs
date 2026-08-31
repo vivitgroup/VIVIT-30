@@ -28,3 +28,4 @@ finance=finance.replace('check("Expense creation writes audit history", finance.
 if(!finance.includes('check("Invoice creation starts as DRAFT"')) finance=finance.replace('check("Invoice creation writes audit history", finance.includes(\'action:"invoice_created"\'));','check("Invoice creation writes audit history", finance.includes(\'action:"invoice_created"\'));\ncheck("Invoice creation starts as DRAFT", finance.includes(\'invoiceStatus:"DRAFT"\'));\ncheck("Draft invoices cannot be paid", finance.includes(\'invoiceStatus==="DRAFT"\') && finance.includes("must be approved and sent before payment"));');
 fs.writeFileSync("scripts/qa-finance-reports.mjs",finance);
 console.log("Media Buyer RBAC contract and finance QA synchronized.");
+// trigger: source contract synchronized before full-gate verification

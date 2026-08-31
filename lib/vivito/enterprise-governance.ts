@@ -22,9 +22,10 @@ function workspaceId(v:string){const x=clean(v,160);if(!x)throw new Error("vivit
 export async function assertAutonomyAllowed(scope:GovernanceScope){
  const w=workspaceId(scope.workspaceId);
  const c=Array.from(await db.execute(sql<GovernanceControlRow>`select scope_type,scope_id,autonomy_enabled,kill_switch,max_daily_actions,max_daily_ai_calls,policy_version from vivito_governance_controls where workspace_id=${w} and ((scope_type='WORKSPACE' and scope_id is null) or (scope_type='CLIENT' and scope_id=${scope.clientId||null}) or (scope_type='ACTION' and scope_id=${scope.actionOp||null})) order by case scope_type when 'ACTION' then 1 when 'CLIENT' then 2 else 3 end`));
- if(c.some(x=>x.kill_switch||!x.autonomy_enabled))throw new Error("vivito-autonomy-disabled-by-governance");
  const workspace=c.find(x=>x.scope_type==='WORKSPACE');
- return{allowed:true,maxDailyActions:Number(workspace?.max_daily_actions??100),maxDailyAiCalls:Number(workspace?.max_daily_ai_calls??500),policyVersion:String(workspace?.policy_version||'v1')};
+ if(!workspace)throw new Error("vivito-governance-control-not-configured");
+ if(c.some(x=>x.kill_switch||!x.autonomy_enabled))throw new Error("vivito-autonomy-disabled-by-governance");
+ return{allowed:true,maxDailyActions:Number(workspace.max_daily_actions??100),maxDailyAiCalls:Number(workspace.max_daily_ai_calls??500),policyVersion:String(workspace.policy_version||'v1')};
 }
 
 export function assessEvidence(e:EvidenceInput):EvidenceAssessment{

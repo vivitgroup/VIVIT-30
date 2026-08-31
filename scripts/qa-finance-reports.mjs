@@ -30,7 +30,8 @@ check("Invoice amounts reject negative and invalid numbers", finance.includes("!
 check("Agency fee percentage comes from workspace", finance.includes("workspaces.agencyFeePercent") && finance.includes("feePercent=Math.max(0,Number(workspace?.agencyFeePercent??20))"));
 check("Invoice stores media buying fee explicitly", finance.includes("mediaBuyingFee=Number((adSpend*feePercent/100).toFixed(2))") && finance.includes("retainer,mediaBuyingFee,extraServices,totalRevenue:total"));
 check("Invoice total uses stored fee and extras", finance.includes("retainer+mediaBuyingFee+extraServices"));
-check("Invoice creation stores live workspace id", finance.includes("workspaceId:workspaceId,clientId"));
+check("Invoice creation stores live workspace id", finance.includes("values({workspaceId,clientId") || finance.includes("workspaceId:workspaceId,clientId"));
+check("Invoice creation serializes duplicate races", finance.includes("pg_advisory_xact_lock") && finance.includes("lockKey"));
 check("Invoice creation writes audit history", finance.includes('action:"invoice_created"'));
 check("Expense creation stores live workspace id", finance.includes("workspaceId:workspaceId,category"));
 check("Expense validation requires positive amount", finance.includes("amount<=0") && finance.includes("Invalid expense data"));

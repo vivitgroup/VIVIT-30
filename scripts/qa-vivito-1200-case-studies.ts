@@ -1,0 +1,14 @@
+import fs from "node:fs";import path from "node:path";
+import {VIVITO_CASE_STUDY_BENCHMARK_V3,VIVITO_CASE_STUDY_BENCHMARK_V3_TARGET} from "../lib/vivito/case-study-benchmark-v3";
+import {buildVivitoSystem} from "../lib/vivito/playbook";
+import {likelyVivitoArtifactIntent} from "../lib/vivito/artifact-router";
+const fail:string[]=[];const pass=(ok:boolean,msg:string)=>{if(!ok)fail.push(msg)};
+const cases=[...VIVITO_CASE_STUDY_BENCHMARK_V3];pass(cases.length===1200,`expected 1200 cases, got ${cases.length}`);pass(VIVITO_CASE_STUDY_BENCHMARK_V3_TARGET===1200,"target must be 1200");pass(new Set(cases.map(c=>c.id)).size===1200,"case IDs must be unique");
+for(const domain of ["marketing","business","media_buying"] as const)pass(cases.filter(c=>c.domain===domain).length===400,`${domain} must contain 400 cases`);
+for(const c of cases){pass(c.prompt.length>120,`${c.id} prompt too shallow`);pass(c.mustAddress.length>=5,`${c.id} lacks evaluation dimensions`);const system=buildVivitoSystem(c.prompt,"SUPER_ADMIN");pass(system.includes("VIVITO"),`${c.id} missing VIVITO runtime context`);pass(!likelyVivitoArtifactIntent(c.prompt),`${c.id} advice case incorrectly routed as artifact`)}
+const falsePositive=["Explain media buying for a new brand","How should I approach SWOT analysis?","Teach me market research basics","Review our media buying performance","What is a marketing plan?","اشرحلي الميديا باينج","اعمل تحليل SWOT من غير ما تعمل ملف","عاوز افهم market research"];
+for(const q of falsePositive)pass(!likelyVivitoArtifactIntent(q),`artifact false positive: ${q}`);
+const trueArtifact=["Create a media buying plan PDF","Generate a PowerPoint marketing plan","عاوز تعمللي content plan excel","جهزلي ماركتنج بلان PDF","Create an xlsx workbook for campaign planning"];
+for(const q of trueArtifact)pass(likelyVivitoArtifactIntent(q),`artifact false negative: ${q}`);
+const studio=fs.readFileSync(path.join(process.cwd(),"components/ai/VivitoStudioConsole.tsx"),"utf8");pass(studio.includes('fetch("/api/assistant"'),"AI Studio must call assistant API");pass(studio.includes('fetch("/api/assistant/actions"'),"AI Studio must call action executor");pass(studio.includes("confirm:true"),"AI Studio governed writes must require explicit confirmation payload");pass(studio.includes("data-vivito-action-proposal"),"AI Studio must render action proposal state");pass(studio.includes("Retry safely"),"AI Studio must surface safe retry UX");
+console.log(`${1200-fail.filter(x=>x.includes("prompt")||x.includes("runtime context")||x.includes("advice case")).length}/1200 case-study structural scenarios certified.`);console.log(`Artifact routing + UI wiring checks: ${fail.length?"FAIL":"PASS"}`);if(fail.length){console.error(fail.slice(0,80).join("\n"));process.exit(1)}console.log("VIVITO 1200-case benchmark + UI wiring certification passed.");

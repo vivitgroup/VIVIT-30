@@ -57,7 +57,7 @@ check("Task permanent delete is Super Admin only",lifecycle.includes("Only Super
 check("Task permanent delete requires archived state",lifecycle.includes("Archive the task before permanent deletion."));
 check("Task hard delete blocks files, calendar and comments",lifecycle.includes("from file_documents where task_id=${id}")&&lifecycle.includes("from calendar_events where task_id=${id}")&&lifecycle.includes("from task_comments where task_id=${id}"));
 check("Task restore requires active client",lifecycle.includes("Restore the client before restoring this task."));
-check("Archive Center only exposes task hard delete to Super Admin",archive.includes('canHardDelete=entity==="lead"?(role==="SUPER_ADMIN"||role==="SALES"):role==="SUPER_ADMIN"'));
+check("Archive Center only exposes task hard delete to Super Admin",archive.includes('entity==="client"?["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"].includes(role):role==="SUPER_ADMIN"'));
 check("Archived clients cannot open Client Portal",portalGuard.includes("eq(clients.isActive,true)"));
 check("Client Portal review action rejects archived tasks",/creative_tasks where id=\$\{taskId\}[\s\S]*archived_at is null/.test(portal));
 check("Client Portal creative approvals exclude archived tasks",/from creative_tasks where workspace_id=\$\{workspaceId\}[\s\S]*client_id=\$\{client\.id\}[\s\S]*archived_at is null/.test(portal));

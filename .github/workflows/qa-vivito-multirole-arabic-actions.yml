@@ -1,0 +1,38 @@
+name: QA VIVITO Multi-Role Arabic Actions
+
+on:
+  push:
+    branches:
+      - fix/vivito-multirole-arabic-actions-20260831
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DATABASE_URL: postgresql://ci_user:ci_pass@127.0.0.1:5432/vivit_ci
+      AUTH_SECRET: vivito-ci-placeholder-secret-not-for-production
+      NEXTAUTH_SECRET: vivito-ci-placeholder-secret-not-for-production
+      NEXTAUTH_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm ci
+      - name: Multi-role Arabic/action regression
+        run: node scripts/qa-vivito-multirole-arabic-actions.mjs
+      - name: VIVITO language gate
+        run: npm run qa:vivito-language
+      - name: VIVITO actions gate
+        run: npm run qa:vivito-actions
+      - name: ESLint
+        run: npm run lint
+      - name: TypeScript
+        run: npm run type-check
+      - name: Full production build and QA
+        run: npm run build

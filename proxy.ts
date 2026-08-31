@@ -9,6 +9,7 @@ function secHeaders(res:NextResponse):NextResponse{
   res.headers.set("Referrer-Policy","strict-origin-when-cross-origin");
   res.headers.set("Permissions-Policy","camera=(),microphone=(),geolocation=()");
   res.headers.set("X-Robots-Tag","noindex,nofollow");
+  if(res.status>=400)res.headers.set("Cache-Control","private, no-store");
   const scriptSrc=process.env.NODE_ENV==="production"?"'self' 'unsafe-inline' https://fonts.googleapis.com":"'self' 'unsafe-inline' 'unsafe-eval' https://fonts.googleapis.com";
   res.headers.set("Content-Security-Policy",`default-src 'self';script-src ${scriptSrc};style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;font-src 'self' https://fonts.gstatic.com;img-src 'self' data: blob: https:;connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.anthropic.com https://api.resend.com https://graph.facebook.com https://www.facebook.com;frame-ancestors 'none';base-uri 'self';form-action 'self';object-src 'none';`);
   if(process.env.NODE_ENV==="production")res.headers.set("Strict-Transport-Security","max-age=31536000;includeSubDomains");
@@ -34,8 +35,6 @@ function mutationCsrfValid(req:NextRequest){
   if(site==="cross-site")return false;
   const origin=req.headers.get("origin");
   if(origin)return sameOrigin(origin,req.url);
-  // Non-browser/server-to-server clients can legitimately omit Origin. A cookie-authenticated
-  // browser mutation cannot: require Origin when a session cookie is present.
   if(hasSessionCookie(req))return false;
   return site===""||site==="same-origin"||site==="same-site"||site==="none";
 }

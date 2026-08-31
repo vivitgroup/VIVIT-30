@@ -1,5 +1,6 @@
 import {classifyVivitoProviderFailure,clearVivitoProviderCooldown,markVivitoProviderCooldown,vivitoProviderCooldownRemaining} from "./quota-resilience";
 import {generateViaVivitoMesh,vivitoMeshSummary,type VivitoMeshTask} from "./model-mesh-v1";
+import {generateViaGatewayIntelligentMesh} from "./gateway-intelligent-mesh-v3";
 import {generateLocalVivito} from "./local-provider";
 import {generateLocalActionPlanV2} from "./local-action-planner-v2";
 import {generateLocalAdvisorV2} from "./local-advisor-v2";
@@ -16,45 +17,21 @@ const asArray=(value:unknown):unknown[]=>Array.isArray(value)?value:[];
 const errorStatus=(error:unknown)=>{if(!error||typeof error!=="object"||!("status" in error))return undefined;const status=Number((error as {status?:unknown}).status);return Number.isFinite(status)?status:undefined};
 const providerError=(message:string,status:number):ProviderHttpError=>{const error=new Error(message) as ProviderHttpError;error.status=status;return error};
 
-const AI_GATEWAY_URL="https://ai-gateway.vercel.sh/v1/chat/completions";
 const ANTHROPIC_URL="https://api.anthropic.com/v1/messages";
 const MIN_TIMEOUT_MS=2000;
 const DEFAULT_TIMEOUT_MS=25000;
 const MAX_TIMEOUT_MS=45000;
 const DEFAULT_GEMINI_FREE_MODEL_CHAIN=["gemini-3.5-flash-lite","gemini-3.6-flash","gemini-3.7-flash","gemini-3.5-flash","gemini-3.1-flash-lite"] as const;
-const DEFAULT_GATEWAY_MODEL_CHAIN=[
-  "openai/gpt-5.6-sol",
-  "anthropic/claude-opus-4.7",
-  "google/gemini-3.6-flash",
-  "amazon/nova-2-lite",
-  "mistral/mistral-medium-3.5",
-  "deepseek/deepseek-v3.2-thinking",
-  "meta/muse-spark-1.2",
-  "moonshotai/kimi-k2.6",
-  "zai/glm-5.2",
-  "alibaba/qwen3-max-thinking",
-] as const;
 
 function boundedTimeout(options:GenerateOptions){const requested=Number(options.timeoutMs??process.env.VIVITO_PROVIDER_TIMEOUT_MS??DEFAULT_TIMEOUT_MS);if(!Number.isFinite(requested))return DEFAULT_TIMEOUT_MS;return Math.max(MIN_TIMEOUT_MS,Math.min(MAX_TIMEOUT_MS,Math.round(requested)))}
 function requestSignal(options:GenerateOptions){return AbortSignal.timeout(boundedTimeout(options))}
 async function safeJson(r:Response):Promise<unknown>{return r.json().catch(()=>({}))}
 
 function gatewayToken(){return String(process.env.AI_GATEWAY_API_KEY||process.env.VERCEL_OIDC_TOKEN||"").trim()}
-function gatewayModelChain(){
-  const explicit=String(process.env.VIVITO_GATEWAY_MODEL||"").trim();
-  const configured=String(process.env.VIVITO_GATEWAY_FALLBACK_MODELS||"").split(",").map(x=>x.trim()).filter(Boolean);
-  const chain=explicit?[explicit,...configured,...DEFAULT_GATEWAY_MODEL_CHAIN]:configured.length?[...configured,...DEFAULT_GATEWAY_MODEL_CHAIN]:[...DEFAULT_GATEWAY_MODEL_CHAIN];
-  return [...new Set(chain)].filter(Boolean).slice(0,10);
-}
 async function callGateway(prompt:string,system:string,options:GenerateOptions){
   const token=gatewayToken();if(!token)throw new Error("gateway-not-configured");
-  const models=gatewayModelChain(),model=models[0];if(!model)throw new Error("gateway-model-chain-empty");
-  const body:JsonRecord={model,models,messages:[{role:"system",content:system},{role:"user",content:prompt}],stream:false,max_tokens:options.maxTokens||3200};
-  const r=await fetch(AI_GATEWAY_URL,{method:"POST",signal:requestSignal(options),headers:{"Authorization":`Bearer ${token}`,"Content-Type":"application/json","ai-reporting-tags":"product:vivito,mode:erp-assistant,resilience:atomic-10-provider"},body:JSON.stringify(body)});
-  const d=asRecord(await safeJson(r)),apiError=asRecord(d.error);if(!r.ok)throw providerError(String(apiError.message||`gateway-${r.status}`),r.status);
-  const choice=asRecord(asArray(d.choices)[0]),message=asRecord(choice.message),raw=message.content;
-  const text=(typeof raw==="string"?raw:asArray(raw).map(asRecord).map(part=>String(part.text||"")).join("\n")).trim();if(!text)throw new Error("gateway-empty-response");
-  return{text,modelId:String(d.model||model)};
+  const result=await generateViaGatewayIntelligentMesh(prompt,system,token,options);
+  return{text:result.text,modelId:result.modelId};
 }
 
 async function callClaude(prompt:string,system:string,options:GenerateOptions){

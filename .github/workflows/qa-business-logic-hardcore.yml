@@ -1,3 +1,4 @@
+# Stabilized read-only acceptance gate.
 name: Business Logic Hardcore Audit
 on:
   push:

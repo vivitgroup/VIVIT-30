@@ -7,6 +7,7 @@ function walk(dir){for(const entry of fs.readdirSync(dir,{withFileTypes:true})){
 walk(root);
 
 const publicMutationAllowlist=new Set([
+  "app/api/auth/[...nextauth]/route.ts", // Auth.js owns its login/callback/CSRF protocol.
   "app/api/signup/route.ts",
   "app/api/signup/otp/route.ts",
   "app/api/password/forgot/route.ts",
@@ -26,3 +27,11 @@ for(const file of files){
 console.log(`Scanned ${files.length} API route files for mutation authentication.`);
 if(findings.length){for(const finding of findings)console.log(`FAIL  ${finding}`);process.exit(1)}
 console.log("PASS  Every non-public API mutation is authenticated or centrally cron-secret protected.");
+
+const authAbuse=fs.readFileSync(path.join(process.cwd(),"lib/auth-abuse.ts"),"utf8"),signup=fs.readFileSync(path.join(process.cwd(),"app/api/signup/route.ts"),"utf8");
+const regressionChecks=[
+  ["Public auth abuse logs use an explicit tenant-neutral scope",authAbuse.includes('PUBLIC_AUTH_AUDIT_SCOPE="__public_auth__"')&&authAbuse.includes("workspaceId:PUBLIC_AUTH_AUDIT_SCOPE")],
+  ["Signup duplicate is rechecked under the transaction lock",signup.includes("tx.select({id:users.id})")&&signup.includes('if(already)return "EMAIL_ALREADY_REGISTERED"')],
+];
+for(const [name,ok] of regressionChecks){console.log(`${ok?"PASS":"FAIL"}  ${name}`);if(!ok)process.exitCode=1}
+if(process.exitCode)process.exit(process.exitCode);

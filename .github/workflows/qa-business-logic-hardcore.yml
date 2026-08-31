@@ -1,4 +1,4 @@
-# Stabilized read-only acceptance gate.
+# Stabilized read-only acceptance gate for reconciled business logic.
 name: Business Logic Hardcore Audit
 on:
   push:

@@ -2,6 +2,7 @@ import {createHash} from "node:crypto";
 import {and,eq,gt} from "drizzle-orm";
 import {auditLogs,db,sql} from "@/lib/db";
 
+const PUBLIC_AUTH_AUDIT_SCOPE="__public_auth__";
 const clean=(value:string|null|undefined,max=128)=>String(value??"").trim().slice(0,max);
 
 export function requestIp(headers:Headers):string{
@@ -32,7 +33,9 @@ export async function consumeAuthRateLimit(input:LimitInput):Promise<boolean>{
     if(ipRows.length>=input.maxPerIp)return false;
     const subjectRows=await tx.select({id:auditLogs.id}).from(auditLogs).where(and(eq(auditLogs.action,input.action),eq(auditLogs.entity,"auth_security"),eq(auditLogs.entityId,entityId),gt(auditLogs.createdAt,since))).limit(input.maxPerEmail);
     if(subjectRows.length>=input.maxPerEmail)return false;
-    await tx.insert(auditLogs).values({workspaceId:"default",userId:"anonymous",action:input.action,entity:"auth_security",entityId,ipAddress:ip,newValues:JSON.stringify({rateLimited:false})});
+    // Pre-authentication activity has no authenticated tenant. Keep it in an explicit neutral
+    // audit scope instead of attributing anonymous abuse traffic to a real/default workspace.
+    await tx.insert(auditLogs).values({workspaceId:PUBLIC_AUTH_AUDIT_SCOPE,userId:"anonymous",action:input.action,entity:"auth_security",entityId,ipAddress:ip,newValues:JSON.stringify({rateLimited:false})});
     return true;
   });
 }

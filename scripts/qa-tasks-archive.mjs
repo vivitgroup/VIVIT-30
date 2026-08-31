@@ -29,7 +29,7 @@ check("Task creation form blocks invalid deadline submission",newForm.includes("
 check("Creative board excludes archived tasks",/creative_tasks where[\s\S]*archived_at is null/.test(board)&&board.includes("activeOnly"));
 check("Creative board scopes every role to active clients",board.includes("activeClientScope")&&board.includes("eq(clients.isActive,true)")&&board.includes("eq(clients.workspaceId,workspaceId)")&&board.includes("inArray(creativeTasks.clientId,ids)"));
 check("Creative board rejects status mutations on archived tasks",board.includes("Archived tasks cannot be changed. Restore the task first."));
-check("Creative board reserves COMPLETED for client approval",!creativePage.includes('task.status==="APPROVED"&&next==="COMPLETED"')&&!creativePage.includes('status="COMPLETED" label="Complete"')&&!creativePage.includes('completedAt:next==="COMPLETED"'));
+check("Creative board reserves COMPLETED for client approval",!board.includes('task.status==="APPROVED"&&next==="COMPLETED"')&&!board.includes('status="COMPLETED" label="Complete"')&&!board.includes('completedAt:next==="COMPLETED"'));
 check("Creative board task archive is management-only",board.includes("[\"SUPER_ADMIN\",\"ACCOUNT_MANAGER\"].includes(role)"));
 check("Account Manager task archive uses client ownership",board.includes("eq(clients.accountManagerId,userId)")&&board.includes("You can only archive tasks for clients assigned to you."));
 check("Task archive revalidates board, inbox, calendar and archive",["/dashboard/creative","/dashboard/tasks-inbox","/dashboard/calendar","/dashboard/archive"].every(p=>board.includes(`\"${p}\"`))&&board.includes("revalidatePath(p)"));
@@ -57,7 +57,8 @@ check("Task permanent delete is Super Admin only",lifecycle.includes("Only Super
 check("Task permanent delete requires archived state",lifecycle.includes("Archive the task before permanent deletion."));
 check("Task hard delete blocks files, calendar and comments",lifecycle.includes("from file_documents where task_id=${id}")&&lifecycle.includes("from calendar_events where task_id=${id}")&&lifecycle.includes("from task_comments where task_id=${id}"));
 check("Task restore requires active client",lifecycle.includes("Restore the client before restoring this task."));
-check("Archive Center only exposes task hard delete to Super Admin",archive.includes('entity==="client"?["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"].includes(role):role==="SUPER_ADMIN"'));
+check("Archive Center client lifecycle controls exclude Media Buyer",archive.includes('canRestore=entity==="client"?["SUPER_ADMIN","ACCOUNT_MANAGER"].includes(role)')&&archive.includes('entity==="client"?["SUPER_ADMIN","ACCOUNT_MANAGER"].includes(role):role==="SUPER_ADMIN"')&&!archive.includes('["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"].includes(role)'));
+check("Archive Center only exposes task hard delete to Super Admin",archive.includes('entity==="client"?["SUPER_ADMIN","ACCOUNT_MANAGER"].includes(role):role==="SUPER_ADMIN"'));
 check("Archived clients cannot open Client Portal",portalGuard.includes("eq(clients.isActive,true)"));
 check("Client Portal review action rejects archived tasks",/creative_tasks where id=\$\{taskId\}[\s\S]*archived_at is null/.test(portal));
 check("Client Portal creative approvals exclude archived tasks",/from creative_tasks where workspace_id=\$\{workspaceId\}[\s\S]*client_id=\$\{client\.id\}[\s\S]*archived_at is null/.test(portal));

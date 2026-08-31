@@ -1,6 +1,6 @@
 import fs from"node:fs";
 const r=p=>fs.readFileSync(p,"utf8"),c=[],$=(n,v)=>c.push([n,!!v]);
-const lang=r("lib/vivito/language.ts"),actions=r("lib/vivito/action-engine.ts"),orch=r("lib/vivito/orchestrator.ts"),play=r("lib/vivito/playbook.ts"),intel=r("lib/vivito/intelligence.ts"),red=r("lib/vivito/red-team.ts");
+const lang=r("lib/vivito/language.ts"),actions=r("lib/vivito/action-engine.ts"),orch=r("lib/vivito/orchestrator.ts"),play=r("lib/vivito/playbook.ts"),intel=r("lib/vivito/intelligence.ts"),red=r("lib/vivito/red-team.ts"),local=r("lib/vivito/local-provider.ts"),providers=r("lib/vivito/providers.ts");
 $("Language layer detects Franco",lang.includes('return "FRANCO"')&&lang.includes("FRANCO_HINT"));
 $("Language layer detects Egyptian slang",lang.includes('return "EGYPTIAN"')&&lang.includes("EGYPTIAN_HINT"));
 $("Language layer detects mixed Arabic English",lang.includes('return "MIXED"'));
@@ -26,4 +26,8 @@ $("Critic preserves detected style",intel.includes("buildVivitoRedTeamCriticProm
 $("Franco response style is explicitly supported",lang.includes("Reply in natural Egyptian Franco/Arabizi"));
 $("Gen Z response style avoids forced slang",lang.includes("without sounding forced"));
 $("Mixed style mirrors Arabic English naturally",lang.includes("same natural Arabic-English mix"));
-const f=c.filter(x=>!x[1]);for(const[n,v]of c)console.log(`${v?"PASS":"FAIL"}  ${n}`);console.log(`\n${c.length-f.length}/${c.length} VIVITO language checks passed.`);if(f.length)process.exit(1);
+$("Provider outage has deterministic local resilience",providers.includes("generateLocalVivito")&&providers.includes('provider:"local"')&&providers.includes("localFallback"));
+$("Local resilience can plan real core task actions",local.includes('return "create_task"')&&local.includes('required=["clientName","title","brief","deadline"]'));
+$("Local resilience varies advisor replies by live intent",local.includes("active tasks")&&local.includes("sales pipeline")&&local.includes("Live media context")&&local.includes("Finance context"));
+$("Local resilience never impersonates critic/artifact/memory research",local.includes("independent VIVITO critic")&&local.includes("Artifact|Memory Planner|Competitive")&&local.includes("return null"));
+const f=c.filter(x=>!x[1]);for(const[n,v]of c)console.log(`${v?"PASS":"FAIL"}  ${n}`);console.log(`\n${c.length-f.length}/${c.length} VIVITO language/resilience checks passed.`);if(f.length)process.exit(1);

@@ -9,53 +9,19 @@ const OPS=["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"];
 const ALL=["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CREATOR","SALES","ACCOUNTANT","CLIENT"];
 const SECTIONS:{label:string;items:Item[]}[]=[
  {label:"MAIN",items:[
-  {icon:"🏠",label:"Dashboard",href:"/dashboard",roles:["SUPER_ADMIN"]},
-  {icon:"🏢",label:"Clients",href:"/dashboard/universe",roles:OPS},
-  {icon:"🏢",label:"Clients",href:"/dashboard/clients",roles:["ACCOUNTANT"]},
-  {icon:"🎯",label:"Sales CRM",href:"/dashboard/sales",roles:["SUPER_ADMIN","SALES"]},
-  {icon:"💬",label:"WhatsApp",href:"/dashboard/whatsapp",roles:[...OPS,"SALES"]},
-  {icon:"📣",label:"Media Control",href:"/dashboard/media/control-center",roles:OPS},
-  {icon:"🔄",label:"Platform Sync",href:"/dashboard/media/sync",roles:OPS},
-  {icon:"🎨",label:"Creative",href:"/dashboard/creative",roles:[...OPS,"CREATOR"]},
-  {icon:"📥",label:"Tasks Inbox",href:"/dashboard/tasks-inbox",roles:OPS},
-  {icon:"📅",label:"Calendar",href:"/dashboard/calendar",roles:[...OPS,"CREATOR","SALES","CLIENT"]}
+  {icon:"🏠",label:"Dashboard",href:"/dashboard",roles:["SUPER_ADMIN"]},{icon:"🏢",label:"Clients",href:"/dashboard/universe",roles:OPS},{icon:"🏢",label:"Clients",href:"/dashboard/clients",roles:["ACCOUNTANT"]},{icon:"🎯",label:"Sales CRM",href:"/dashboard/sales",roles:["SUPER_ADMIN","SALES"]},{icon:"💬",label:"WhatsApp",href:"/dashboard/whatsapp",roles:[...OPS,"SALES"]},{icon:"📣",label:"Media Control",href:"/dashboard/media/control-center",roles:OPS},{icon:"🔄",label:"Platform Sync",href:"/dashboard/media/sync",roles:OPS},{icon:"🎨",label:"Creative",href:"/dashboard/creative",roles:[...OPS,"CREATOR"]},{icon:"📥",label:"Tasks Inbox",href:"/dashboard/tasks-inbox",roles:OPS},{icon:"📅",label:"Calendar",href:"/dashboard/calendar",roles:[...OPS,"CREATOR","SALES","CLIENT"]}
  ]},
- {label:"FINANCE & HR",items:[
-  {icon:"💰",label:"Finance",href:"/dashboard/finance",roles:["SUPER_ADMIN","ACCOUNTANT"]},
-  {icon:"💳",label:"Accounts Payment",href:"/dashboard/clients/accounts-payment",roles:["SUPER_ADMIN","ACCOUNTANT"]},
-  {icon:"📋",label:"Contracts",href:"/dashboard/contracts",roles:["SUPER_ADMIN","ACCOUNTANT"]},
-  {icon:"👥",label:"HR & Team",href:"/dashboard/team",roles:["SUPER_ADMIN"]},
-  {icon:"💎",label:"LTV & Revenue",href:"/dashboard/ltv",roles:["SUPER_ADMIN","ACCOUNTANT"]}
- ]},
- {label:"ANALYTICS",items:[
-  {icon:"📊",label:"Analytics",href:"/dashboard/analytics",roles:["SUPER_ADMIN"]},
-  {icon:"📈",label:"Forecast",href:"/dashboard/forecast",roles:["SUPER_ADMIN","ACCOUNTANT"]},
-  {icon:"🎯",label:"KPIs & BI",href:"/dashboard/kpis",roles:["SUPER_ADMIN"]},
-  {icon:"📋",label:"Reports",href:"/dashboard/reports",roles:["SUPER_ADMIN","ACCOUNTANT","ACCOUNT_MANAGER","MEDIA_BUYER","SALES"]}
- ]},
- {label:"AI & TOOLS",items:[
-  {icon:"✨",label:"AI Assistant",href:"/dashboard/ai-studio",roles:ALL},
-  {icon:"📁",label:"Files",href:"/dashboard/files",roles:ALL},
-  {icon:"🗄️",label:"Archive",href:"/dashboard/archive",roles:[...OPS,"SALES"]},
-  {icon:"🔔",label:"Notifications",href:"/dashboard/notifications",roles:ALL},
-  {icon:"⚙️",label:"Settings",href:"/dashboard/settings",roles:ALL}
- ]},
+ {label:"FINANCE & HR",items:[{icon:"💰",label:"Finance",href:"/dashboard/finance",roles:["SUPER_ADMIN","ACCOUNTANT"]},{icon:"💳",label:"Accounts Payment",href:"/dashboard/clients/accounts-payment",roles:["SUPER_ADMIN","ACCOUNTANT"]},{icon:"📋",label:"Contracts",href:"/dashboard/contracts",roles:["SUPER_ADMIN","ACCOUNTANT"]},{icon:"👥",label:"HR & Team",href:"/dashboard/team",roles:["SUPER_ADMIN"]},{icon:"💎",label:"LTV & Revenue",href:"/dashboard/ltv",roles:["SUPER_ADMIN","ACCOUNTANT"]}]},
+ {label:"ANALYTICS",items:[{icon:"📊",label:"Analytics",href:"/dashboard/analytics",roles:["SUPER_ADMIN"]},{icon:"📈",label:"Forecast",href:"/dashboard/forecast",roles:["SUPER_ADMIN","ACCOUNTANT"]},{icon:"🎯",label:"KPIs & BI",href:"/dashboard/kpis",roles:["SUPER_ADMIN"]},{icon:"📋",label:"Reports",href:"/dashboard/reports",roles:["SUPER_ADMIN","ACCOUNTANT","ACCOUNT_MANAGER","MEDIA_BUYER","SALES"]}]},
+ {label:"AI & TOOLS",items:[{icon:"✨",label:"AI Assistant",href:"/dashboard/ai-studio",roles:ALL},{icon:"📁",label:"Files",href:"/dashboard/files",roles:ALL},{icon:"🗄️",label:"Archive",href:"/dashboard/archive",roles:[...OPS,"SALES"]},{icon:"🔔",label:"Notifications",href:"/dashboard/notifications",roles:ALL},{icon:"⚙️",label:"Settings",href:"/dashboard/settings",roles:ALL}]},
  {label:"CLIENT PORTAL",items:[{icon:"🌐",label:"My Portal",href:"/dashboard/portal",roles:["CLIENT"]}]}
 ];
-const QUICK:Record<string,QuickItem[]>={
- SUPER_ADMIN:[{icon:"🏠",label:"Home",href:"/apps"},{icon:"🏢",label:"Clients",href:"/dashboard/universe"},{icon:"📣",label:"Media",href:"/dashboard/media/control-center"},{icon:"🔔",label:"Alerts",href:"/dashboard/notifications"}],
- ACCOUNT_MANAGER:[{icon:"🏠",label:"Home",href:"/apps"},{icon:"🏢",label:"Clients",href:"/dashboard/universe"},{icon:"🎨",label:"Creative",href:"/dashboard/creative"},{icon:"📅",label:"Calendar",href:"/dashboard/calendar"}],
- MEDIA_BUYER:[{icon:"🏠",label:"Home",href:"/apps"},{icon:"📣",label:"Media",href:"/dashboard/media/control-center"},{icon:"🏢",label:"Clients",href:"/dashboard/universe"},{icon:"🔄",label:"Sync",href:"/dashboard/media/sync"}],
- CREATOR:[{icon:"🏠",label:"Home",href:"/apps"},{icon:"🎨",label:"Creative",href:"/dashboard/creative"},{icon:"📅",label:"Calendar",href:"/dashboard/calendar"},{icon:"📁",label:"Files",href:"/dashboard/files"}],
- ACCOUNTANT:[{icon:"🏠",label:"Home",href:"/apps"},{icon:"💰",label:"Finance",href:"/dashboard/finance"},{icon:"🏢",label:"Clients",href:"/dashboard/clients"},{icon:"💳",label:"Payments",href:"/dashboard/clients/accounts-payment"}],
- SALES:[{icon:"🏠",label:"Home",href:"/apps"},{icon:"🎯",label:"Sales",href:"/dashboard/sales"},{icon:"📅",label:"Calendar",href:"/dashboard/calendar"},{icon:"💬",label:"WhatsApp",href:"/dashboard/whatsapp"}],
- CLIENT:[{icon:"🏠",label:"Home",href:"/apps"},{icon:"🌐",label:"Portal",href:"/dashboard/portal"},{icon:"📅",label:"Calendar",href:"/dashboard/calendar"},{icon:"📁",label:"Files",href:"/dashboard/files"}],
-};
+const QUICK:Record<string,QuickItem[]>={SUPER_ADMIN:[{icon:"🏠",label:"Home",href:"/apps"},{icon:"🏢",label:"Clients",href:"/dashboard/universe"},{icon:"📣",label:"Media",href:"/dashboard/media/control-center"},{icon:"🔔",label:"Alerts",href:"/dashboard/notifications"}],ACCOUNT_MANAGER:[{icon:"🏠",label:"Home",href:"/apps"},{icon:"🏢",label:"Clients",href:"/dashboard/universe"},{icon:"🎨",label:"Creative",href:"/dashboard/creative"},{icon:"📅",label:"Calendar",href:"/dashboard/calendar"}],MEDIA_BUYER:[{icon:"🏠",label:"Home",href:"/apps"},{icon:"📣",label:"Media",href:"/dashboard/media/control-center"},{icon:"🏢",label:"Clients",href:"/dashboard/universe"},{icon:"🔄",label:"Sync",href:"/dashboard/media/sync"}],CREATOR:[{icon:"🏠",label:"Home",href:"/apps"},{icon:"🎨",label:"Creative",href:"/dashboard/creative"},{icon:"📅",label:"Calendar",href:"/dashboard/calendar"},{icon:"📁",label:"Files",href:"/dashboard/files"}],ACCOUNTANT:[{icon:"🏠",label:"Home",href:"/apps"},{icon:"💰",label:"Finance",href:"/dashboard/finance"},{icon:"🏢",label:"Clients",href:"/dashboard/clients"},{icon:"💳",label:"Payments",href:"/dashboard/clients/accounts-payment"}],SALES:[{icon:"🏠",label:"Home",href:"/apps"},{icon:"🎯",label:"Sales",href:"/dashboard/sales"},{icon:"📅",label:"Calendar",href:"/dashboard/calendar"},{icon:"💬",label:"WhatsApp",href:"/dashboard/whatsapp"}],CLIENT:[{icon:"🏠",label:"Home",href:"/apps"},{icon:"🌐",label:"Portal",href:"/dashboard/portal"},{icon:"📅",label:"Calendar",href:"/dashboard/calendar"},{icon:"📁",label:"Files",href:"/dashboard/files"}]};
 export function MobileNav({role}:{role:string}){
  const path=usePathname(),[open,setOpen]=useState(false),menuButtonRef=useRef<HTMLButtonElement>(null),closeButtonRef=useRef<HTMLButtonElement>(null);
  const visible=SECTIONS.map(s=>({...s,items:s.items.filter(i=>i.roles.includes(role))})).filter(s=>s.items.length),all=visible.flatMap(s=>s.items),quick=QUICK[role]||QUICK.CLIENT;
  const active=all.filter(i=>path===i.href||(i.href!=="/dashboard"&&path.startsWith(i.href+"/"))).sort((a,b)=>b.href.length-a.href.length)[0]?.href;
  useEffect(()=>{document.body.style.overflow=open?"hidden":"";if(open)requestAnimationFrame(()=>closeButtonRef.current?.focus());return()=>{document.body.style.overflow=""}},[open]);
  const close=()=>{setOpen(false);requestAnimationFrame(()=>menuButtonRef.current?.focus())};
- return <>{open&&<div className="mobile-menu-backdrop" onClick={close} aria-hidden="true"/>}<aside className={`mobile-menu-drawer${open?" open":""}`} aria-hidden={!open} inert={!open} aria-label="Full navigation"><div className="mobile-menu-head"><div><strong>VIVIT</strong><span>{role.replace(/_/g," ")}</span></div><button ref={closeButtonRef} type="button" onClick={close} aria-label="Close menu">×</button></div><nav>{visible.map(s=><section key={s.label}><p>{s.label}</p>{s.items.map(i=><Link key={i.href} href={i.href} onClick={()=>setOpen(false)} className={active===i.href?"active":""} aria-current={active===i.href?"page":undefined}><span aria-hidden="true">{i.icon}</span><b>{i.label}</b></Link>)}</section>)}</nav></aside><nav className="mobile-nav" aria-label="Mobile navigation">{quick.slice(0,4).map(i=>{const isActive=path===i.href||path.startsWith(i.href+"/");return <Link key={i.href} href={i.href} onClick={()=>setOpen(false)} className={isActive?"active":""} aria-current={isActive?"page":undefined}><span aria-hidden="true">{i.icon}</span><small>{i.label}</small></Link>})}<button ref={menuButtonRef} type="button" className={open?"active":""} onClick={()=>setOpen(v=>!v)} aria-expanded={open} aria-controls="vivit-mobile-full-menu" aria-label={open?"Close full menu":"Open full menu"}><span aria-hidden="true">☰</span><small>Menu</small></button></nav></>;
+ return <>{open&&<div className="mobile-menu-backdrop" onClick={close} aria-hidden="true"/>}<aside id="vivit-mobile-full-menu" className={`mobile-menu-drawer${open?" open":""}`} aria-hidden={!open} inert={!open} aria-label="Full navigation"><div className="mobile-menu-head"><div><strong>VIVIT</strong><span>{role.replace(/_/g," ")}</span></div><button ref={closeButtonRef} type="button" onClick={close} aria-label="Close menu">×</button></div><nav>{visible.map(s=><section key={s.label}><p>{s.label}</p>{s.items.map(i=><Link key={i.href} href={i.href} onClick={()=>setOpen(false)} className={active===i.href?"active":""} aria-current={active===i.href?"page":undefined}><span aria-hidden="true">{i.icon}</span><b>{i.label}</b></Link>)}</section>)}</nav></aside><nav className="mobile-nav" aria-label="Mobile navigation">{quick.slice(0,4).map(i=>{const isActive=path===i.href||path.startsWith(i.href+"/");return <Link key={i.href} href={i.href} onClick={()=>setOpen(false)} className={isActive?"active":""} aria-current={isActive?"page":undefined}><span aria-hidden="true">{i.icon}</span><small>{i.label}</small></Link>})}<button ref={menuButtonRef} type="button" className={open?"active":""} onClick={()=>setOpen(v=>!v)} aria-expanded={open} aria-controls="vivit-mobile-full-menu" aria-label={open?"Close full menu":"Open full menu"}><span aria-hidden="true">☰</span><small>Menu</small></button></nav></>;
 }

@@ -30,6 +30,7 @@ const clientPost=api.slice(api.indexOf("export async function POST"));
 check("New client page and API exclude Media Buyer from client creation",newPage.includes('["SUPER_ADMIN","ACCOUNT_MANAGER","ACCOUNTANT"].includes(role)')&&!newPage.includes('["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","ACCOUNTANT"].includes(role)')&&clientPost.includes('["SUPER_ADMIN","ACCOUNT_MANAGER","ACCOUNTANT"].includes(role)')&&!clientPost.includes('["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","ACCOUNTANT"].includes(role)'));
 check("Media Buyer cannot self-create clients",!clientPost.includes('role==="MEDIA_BUYER"?userId')&&!newPage.includes('role==="MEDIA_BUYER"?'));
 check("Client universe exposes Add Account",universe.includes('/dashboard/clients/new')&&universe.includes('+ Add Account'));
+check("Legacy client create is atomic and duplicate guarded",actions.includes("const clientId=await db.transaction(async tx=>")&&actions.includes("ilike(clients.companyName,companyName)")&&actions.includes("await tx.insert(auditLogs)"));
 check("Client create rejects duplicate company names",api.includes("already exists")&&api.includes("status:409"));
 check("Client create validates active portal user and one-client ownership",api.includes("valid active approved client portal user")&&api.includes("already linked to another client"));
 check("Client create validates AM/Media Buyer assignments",api.includes("valid active account manager")&&api.includes("valid active media buyer"));

@@ -1,0 +1,32 @@
+name: VIVITO Code Gates
+
+on:
+  push:
+    branches:
+      - fix/vivito-action-planner-task-parsing-2026-08-31
+
+permissions:
+  contents: read
+
+jobs:
+  code-gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Read-only intent regression
+        run: npx tsx scripts/qa-vivito-readonly-intent.ts
+      - name: ESLint
+        run: npm run lint
+      - name: TypeScript
+        run: npm run type-check
+      - name: VIVITO action QA
+        run: npm run qa:vivito-actions
+      - name: Production build and full QA gates
+        run: npm run build

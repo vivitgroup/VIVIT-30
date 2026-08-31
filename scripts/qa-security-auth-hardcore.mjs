@@ -1,7 +1,7 @@
 import fs from "node:fs";
 
 const read=p=>fs.readFileSync(p,"utf8");
-const auth=read("lib/auth.ts"),abuse=read("lib/auth-abuse.ts"),otp=read("app/api/signup/otp/route.ts"),signup=read("app/api/signup/route.ts"),forgot=read("app/api/password/forgot/route.ts"),reset=read("app/api/password/reset/route.ts"),config=read("auth.config.ts"),proxy=read("proxy.ts"),apiGuard=read("lib/public-api-auth.ts"),apiKeysRoute=read("app/api/api-keys/route.ts"),v1Clients=read("app/api/v1/clients/route.ts"),v1Metrics=read("app/api/v1/metrics/route.ts"),v1Tasks=read("app/api/v1/tasks/route.ts"),webhooks=read("app/api/webhooks/route.ts"),oauth=read("lib/ad-oauth.ts"),oauthStart=read("app/api/ad-oauth/[platform]/start/route.ts"),oauthCallback=read("app/api/ad-oauth/[platform]/callback/route.ts"),approval=read("app/approve/[token]/page.tsx"),health=read("app/api/health/route.ts");
+const auth=read("lib/auth.ts"),abuse=read("lib/auth-abuse.ts"),otp=read("app/api/signup/otp/route.ts"),signup=read("app/api/signup/route.ts"),forgot=read("app/api/password/forgot/route.ts"),reset=read("app/api/password/reset/route.ts"),config=read("auth.config.ts"),proxy=read("proxy.ts"),apiGuard=read("lib/public-api-auth.ts"),apiKeysRoute=read("app/api/api-keys/route.ts"),v1Clients=read("app/api/v1/clients/route.ts"),v1Metrics=read("app/api/v1/metrics/route.ts"),v1Tasks=read("app/api/v1/tasks/route.ts"),webhooks=read("app/api/webhooks/route.ts"),oauth=read("lib/ad-oauth.ts"),oauthStart=read("app/api/ad-oauth/[platform]/start/route.ts"),oauthCallback=read("app/api/ad-oauth/[platform]/callback/route.ts"),approval=read("app/approve/[token]/page.tsx"),health=read("app/api/health/route.ts"),files=read("app/api/files/route.ts");
 const checks=[];const check=(name,ok)=>checks.push({name,ok:Boolean(ok)});
 
 check("Credential login uses shared DB-backed rate limiting",auth.includes("consumeAuthRateLimit")&&auth.includes("security_login_attempt"));
@@ -54,6 +54,7 @@ check("OAuth connection write and audit are one DB transaction",oauthCallback.in
 check("Approval links accept only hashed token storage",approval.includes("eq(approvalTokens.token,hash)")&&!approval.includes("eq(approvalTokens.token,token)"));
 check("Approval links are single-use claimed atomically",approval.includes("isNull(approvalTokens.usedAt)")&&approval.includes("claimed.length!==1"));
 check("Public health endpoint reveals no version or database detail",!health.includes("pkg.version")&&!health.includes('database:"connected"')&&!health.includes('database:"error"'));
+check("Active SVG uploads are rejected",!files.includes('"image/svg+xml"')&&/svg\|svgz/.test(files));
 
 check("Live session rejects inactive/unapproved users",config.includes('live?.is_active')&&config.includes('approval_status||"")==="APPROVED"'));
 check("Password change invalidates older JWTs",config.includes("passwordChangedAt")&&config.includes("passwordChangedMs<=issuedAtMs"));

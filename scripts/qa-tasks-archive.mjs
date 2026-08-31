@@ -40,10 +40,15 @@ check("Task detail guard scopes Account Manager",detailGuard.includes("task.acco
 check("Task detail guard scopes Creator",detailGuard.includes("task.assigned_to_id===userId"));
 check("Task detail guard scopes Client portal user",detailGuard.includes("task.client_user_id===userId"));
 check("Task detail mutations use safe active-task wrappers",detail.includes("safeUpdateTaskStatus")&&detail.includes("safeSubmitTaskFile")&&detail.includes("safeUpdateTaskCaption")&&!detail.includes('from "@/lib/actions"'));
+check("Legacy task status transition is atomic and compare-and-set",actions.includes("eq(creativeTasks.status,taskBefore.status)")&&actions.includes("Task status changed concurrently")&&actions.includes("await tx.insert(auditLogs)"));
+check("Legacy file submission locks approved/completed work",actions.includes("allowedStatuses=isManager?[\"PENDING\",\"IN_PROGRESS\",\"REVIEW\",\"REVISION\"]")&&!actions.includes("[\"PENDING\",\"IN_PROGRESS\",\"REVIEW\",\"REVISION\",\"APPROVED\",\"COMPLETED\"]"));
+check("Posted flag cannot bypass client completion",actions.includes('task.status!=="COMPLETED"||!task.approvedByClient')&&!actions.includes('status:"COMPLETED",updatedAt'));
+check("Approved/completed caption is locked for Super Admin too",actions.includes('const {workspaceId,task}=await taskForAccess(session,taskId),role=roleOf(session),editable=["PENDING","IN_PROGRESS","REVIEW","REVISION"]'));
 check("Task comments reject archived, deleted or inactive-client tasks",detail.includes("t.archived_at is null")&&detail.includes("t.deleted_at is null")&&detail.includes("c.is_active=true")&&/Task (?:is archived or )?unavailable/i.test(detail));
 check("Safe task actions reject archived tasks",safe.includes("t.archived_at is null")&&safe.includes("t.deleted_at is null")&&/Task is archived or unavailable/i.test(safe));
 check("Safe task actions reject archived clients",safe.includes("task.client_active===false"));
 check("Safe task actions enforce AM and Creator ownership",safe.includes("task.account_manager_id===userId")&&safe.includes("task.assigned_to_id===userId"));
+check("Safe task mutations exclude Media Buyer",!safe.includes('role==="MEDIA_BUYER"')&&!safe.includes("media_buyer_id"));
 check("Tasks Inbox excludes archived tasks",/creative_tasks where workspace_id=\$\{workspaceId\}[\s\S]*archived_at is null/.test(inbox)&&inbox.includes("activeOnly"));
 check("Tasks Inbox scopes every role to active clients",inbox.includes("allowedClients")&&inbox.includes("eq(clients.isActive,true)")&&inbox.includes("eq(clients.workspaceId,workspaceId)")&&inbox.includes("inArray(creativeTasks.clientId,allowedIds)"));
 check("Bulk approve only transitions REVIEW to APPROVED",inbox.includes('approve:{from:["REVIEW"],status:"APPROVED"}'));

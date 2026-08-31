@@ -4,7 +4,7 @@ import {generateViaGatewayIntelligentMesh} from "./gateway-intelligent-mesh-v3";
 import {generateLocalVivito} from "./local-provider";
 import {generateLocalActionPlanV2} from "./local-action-planner-v2";
 import {generateLocalAdvisorV2} from "./local-advisor-v2";
-import {repairVivitoActionPlan} from "./action-plan-repair-v3";
+import {repairOrFallbackVivitoActionPlan} from "./action-plan-fallback-v1";
 
 export type VivitoProviderName="gateway"|"gemini"|"claude"|"mesh"|"local";
 export type VivitoGeneration={text:string;provider:VivitoProviderName;attempted:VivitoProviderName[];errors:string[];latencyMs:number;modelId?:string};
@@ -54,7 +54,7 @@ async function callGemini(prompt:string,system:string,options:GenerateOptions){
 export function configuredVivitoProviders():VivitoProviderName[]{const providers:VivitoProviderName[]=[];if(gatewayToken())providers.push("gateway");if(process.env.GEMINI_API_KEY)providers.push("gemini");if(vivitoMeshSummary().configured>0)providers.push("mesh");if(process.env.ANTHROPIC_API_KEY)providers.push("claude");return providers}
 function safeError(provider:VivitoProviderName,error:unknown){const failure=classifyVivitoProviderFailure(error,errorStatus(error));return `${provider}:${failure.safeCode}`}
 // Audit invariant: the hardened action planner remains preferred over the legacy local planner: generateLocalActionPlanV2(prompt,system)||generateLocalVivito(prompt,system)
-function localFallback(prompt:string,system:string,attempted:VivitoProviderName[],errors:string[],started:number){const local=generateLocalActionPlanV2(prompt,system)||generateLocalAdvisorV2(prompt,system)||generateLocalVivito(prompt,system);if(!local)return null;const next=[...attempted,"local" as const],text=repairVivitoActionPlan(prompt,system,local.text);console.warn("VIVITO provider fallback",{attempted:next,errors:errors.slice(-6),localModel:local.modelId});return{text,provider:"local" as const,attempted:next,errors,latencyMs:Date.now()-started,modelId:local.modelId}}
+function localFallback(prompt:string,system:string,attempted:VivitoProviderName[],errors:string[],started:number){const local=generateLocalActionPlanV2(prompt,system)||generateLocalAdvisorV2(prompt,system)||generateLocalVivito(prompt,system);if(!local)return null;const next=[...attempted,"local" as const],text=repairOrFallbackVivitoActionPlan(prompt,system,local.text);console.warn("VIVITO provider fallback",{attempted:next,errors:errors.slice(-6),localModel:local.modelId});return{text,provider:"local" as const,attempted:next,errors,latencyMs:Date.now()-started,modelId:local.modelId}}
 
 export async function generateVivito(prompt:string,system:string,options:GenerateOptions={}):Promise<VivitoGeneration>{
   const started=Date.now(),configured=configuredVivitoProviders(),attempted:VivitoProviderName[]=[],errors:string[]=[];
@@ -66,9 +66,9 @@ export async function generateVivito(prompt:string,system:string,options:Generat
     if(vivitoProviderCooldownRemaining(provider)>0&&order.some(p=>p!==provider&&p!=="local"&&vivitoProviderCooldownRemaining(p)===0)){errors.push(`${provider}:provider-cooldown-active`);continue}
     attempted.push(provider);
     try{
-      if(provider==="gateway"){const result=await callGateway(prompt,system,options),text=repairVivitoActionPlan(prompt,system,result.text);clearVivitoProviderCooldown(provider);return{text,provider,attempted,errors,latencyMs:Date.now()-started,modelId:result.modelId}}
-      if(provider==="mesh"){const result=await generateViaVivitoMesh(prompt,system,options),text=repairVivitoActionPlan(prompt,system,result.text);clearVivitoProviderCooldown(provider);return{text,provider,attempted,errors:[...errors,...result.errors],latencyMs:Date.now()-started,modelId:result.modelId}}
-      const generated=provider==="gemini"?await callGemini(prompt,system,options):await callClaude(prompt,system,options),text=repairVivitoActionPlan(prompt,system,generated);clearVivitoProviderCooldown(provider);return{text,provider,attempted,errors,latencyMs:Date.now()-started};
+      if(provider==="gateway"){const result=await callGateway(prompt,system,options),text=repairOrFallbackVivitoActionPlan(prompt,system,result.text);clearVivitoProviderCooldown(provider);return{text,provider,attempted,errors,latencyMs:Date.now()-started,modelId:result.modelId}}
+      if(provider==="mesh"){const result=await generateViaVivitoMesh(prompt,system,options),text=repairOrFallbackVivitoActionPlan(prompt,system,result.text);clearVivitoProviderCooldown(provider);return{text,provider,attempted,errors:[...errors,...result.errors],latencyMs:Date.now()-started,modelId:result.modelId}}
+      const generated=provider==="gemini"?await callGemini(prompt,system,options):await callClaude(prompt,system,options),text=repairOrFallbackVivitoActionPlan(prompt,system,generated);clearVivitoProviderCooldown(provider);return{text,provider,attempted,errors,latencyMs:Date.now()-started};
     }catch(error:unknown){const failure=classifyVivitoProviderFailure(error,errorStatus(error));markVivitoProviderCooldown(provider,failure);errors.push(safeError(provider,error))}
   }
   const local=localFallback(prompt,system,attempted,errors,started);if(local)return local;

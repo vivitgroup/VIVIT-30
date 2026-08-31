@@ -1,28 +1,35 @@
 export const dynamic = "force-dynamic";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { db, users, creatorProfiles, creativeTasks, clients } from "@/lib/db";
+import { db, users, creatorProfiles, creativeTasks, clients, auditLogs } from "@/lib/db";
 import { eq, and, inArray } from "drizzle-orm";
 import { Role } from "@/lib/types";
 
 async function saveProfile(fd: FormData) {
   "use server";
   const { auth: getAuth } = await import("@/lib/auth");
-  const { db, creatorProfiles } = await import("@/lib/db");
-  const { eq } = await import("drizzle-orm");
+  const { db, creatorProfiles, users, auditLogs } = await import("@/lib/db");
+  const { eq, and } = await import("drizzle-orm");
   const session = await getAuth();
   if (!session?.user || session.user.role !== Role.CREATOR) throw new Error("Unauthorized");
-  const existing = await db.select().from(creatorProfiles).where(eq(creatorProfiles.userId, session.user.id!));
+  const workspaceId=String(session.user.workspaceId||""),userId=String(session.user.id||"");
+  if(!workspaceId||!userId)throw new Error("Workspace unavailable");
+  const [creator]=await db.select({id:users.id}).from(users).where(and(eq(users.id,userId),eq(users.workspaceId,workspaceId),eq(users.role,"CREATOR"),eq(users.isActive,true),eq(users.approvalStatus,"APPROVED"))).limit(1);
+  if(!creator)throw new Error("Creator account is not active in this workspace");
+  const existing = await db.select().from(creatorProfiles).where(eq(creatorProfiles.userId,userId));
   const data = {
-    userId: session.user.id!, bio: fd.get("bio") as string,
-    portfolioUrl: fd.get("portfolio") as string || null,
+    userId, bio: String(fd.get("bio")||"").trim().slice(0,1000),
+    portfolioUrl: String(fd.get("portfolio")||"").trim().slice(0,1000) || null,
     ratePerTask: Math.max(0, Number.parseFloat(String(fd.get("rate")||"0")) || 0),
-    specialties: fd.get("specialties") as string,
+    specialties: String(fd.get("specialties")||"").trim().slice(0,500),
     isAvailable: fd.get("available") === "true",
     updatedAt: new Date(),
   };
-  if (existing.length > 0) await db.update(creatorProfiles).set(data).where(eq(creatorProfiles.userId, session.user.id!));
-  else await db.insert(creatorProfiles).values(data);
+  await db.transaction(async tx=>{
+    if (existing.length > 0) await tx.update(creatorProfiles).set(data).where(eq(creatorProfiles.userId,userId));
+    else await tx.insert(creatorProfiles).values(data);
+    await tx.insert(auditLogs).values({workspaceId,userId,action:"creator_profile_saved",entity:"creator_profiles",entityId:existing[0]?.id||userId,newValues:JSON.stringify({isAvailable:data.isAvailable,ratePerTask:data.ratePerTask,hasPortfolio:Boolean(data.portfolioUrl)})});
+  });
   const { revalidatePath } = await import("next/cache");
   revalidatePath("/dashboard/marketplace");
 }
@@ -49,7 +56,7 @@ export default async function MarketplacePage() {
     const ids=owned.map(c=>c.id);
     openTasks=ids.length?await db.select().from(creativeTasks).where(and(eq(creativeTasks.workspaceId,workspaceId),eq(creativeTasks.status,"PENDING"),inArray(creativeTasks.clientId,ids))).limit(10):[];
   }
-  const myProfile = role === Role.CREATOR ? await db.select().from(creatorProfiles).where(eq(creatorProfiles.userId, session.user.id!)).then(r=>r[0]) : null;
+  const myProfile = role === Role.CREATOR ? await db.select().from(creatorProfiles).where(eq(creatorProfiles.userId,userId)).then(r=>r[0]) : null;
 
   const TYPE_ICON: Record<string,string> = {REEL:"🎬",GRAPHIC:"🎨",CAROUSEL:"📊",MOTION_GRAPHIC:"✨",VIDEO_EDIT:"🎥",PHOTO_SESSION:"📸",STORY:"📱",UGC:"👤"};
 

@@ -1,0 +1,34 @@
+name: UIUX Micro Audit
+on:
+  push:
+    branches: [fix/live-uiux-micro-audit-2026-08-31]
+  workflow_dispatch:
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/vivit_ci
+      AUTH_SECRET: uiux-ci-placeholder-secret-not-for-production
+      NEXTAUTH_SECRET: uiux-ci-placeholder-secret-not-for-production
+      NEXTAUTH_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - name: UIUX micro audit regression
+        run: node scripts/qa-uiux-micro-audit.mjs
+      - name: Mobile UX regression
+        run: npm run qa:mobile-ux
+      - name: Resilience UX regression
+        run: npm run qa:resilience-ux
+      - name: RBAC/navigation regression
+        run: npm run qa:rbac-security
+      - name: ESLint
+        run: npm run lint
+      - name: TypeScript
+        run: npx tsc --noEmit
+      - name: Full production build
+        run: npm run build

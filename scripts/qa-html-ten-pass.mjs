@@ -1,3 +1,4 @@
+// Ten-pass HTML/JSX/CSS regression audit for dashboard UI hardening.
 import fs from 'node:fs';
 import path from 'node:path';
 

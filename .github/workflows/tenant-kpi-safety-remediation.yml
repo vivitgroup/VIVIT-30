@@ -13,58 +13,74 @@ jobs:
         with:
           ref: feat/vivito-internal-100
           fetch-depth: 0
-      - name: Apply effective multi-role KPI access
+      - name: Enforce one campaign metric truth
         shell: bash
         run: |
           python - <<'PY'
           from pathlib import Path
           def patch(path,a,b):
               p=Path(path); s=p.read_text()
-              if a not in s: raise SystemExit(f"{path}: missing {a[:120]}")
+              if a not in s: raise SystemExit(f"{path}: missing {a[:140]}")
               p.write_text(s.replace(a,b))
 
-          # Client workspace honors secondary roles while retaining workspace/ownership fences.
+          # Client Workspace: displayed metrics always come from persisted daily TOTAL/root rows.
           p='app/dashboard/clients/[id]/page.tsx'
-          patch(p,'import {db,sql} from "@/lib/db";','import {db,sql} from "@/lib/db";\nimport {effectiveRoles} from "@/lib/session-access";')
-          patch(p,
-            'const role=String(s.user.role||""),uid=String(s.user.id||""),workspaceId=String(s.user.workspaceId||"");if(!workspaceId||!["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"].includes(role))throw new Error("Forbidden");',
-            'const roles=effectiveRoles(s.user),role=String(s.user.role||""),uid=String(s.user.id||""),workspaceId=String(s.user.workspaceId||"");if(!workspaceId||!roles.some(r=>["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"].includes(String(r))))throw new Error("Forbidden");')
-          patch(p,
-            'if(role==="ACCOUNT_MANAGER"&&c.account_manager_id!==uid||role==="MEDIA_BUYER"&&c.media_buyer_id!==uid)throw new Error("Client access denied");',
-            'if(!roles.includes("SUPER_ADMIN")&&!((roles.includes("ACCOUNT_MANAGER")&&c.account_manager_id===uid)||(roles.includes("MEDIA_BUYER")&&c.media_buyer_id===uid)))throw new Error("Client access denied");')
-          patch(p,
-            'const role=String(s.user.role||""),uid=String(s.user.id||""),workspaceId=String(s.user.workspaceId||"");if(!workspaceId)redirect("/login");',
-            'const roles=effectiveRoles(s.user),role=String(s.user.role||""),uid=String(s.user.id||""),workspaceId=String(s.user.workspaceId||"");if(!workspaceId)redirect("/login");')
-          patch(p,
-            'if(!["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","ACCOUNTANT"].includes(role))redirect("/dashboard");',
-            'if(!roles.some(r=>["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","ACCOUNTANT"].includes(String(r))))redirect("/dashboard");')
-          patch(p,
-            'if(role==="ACCOUNT_MANAGER"&&client.account_manager_id!==uid||role==="MEDIA_BUYER"&&client.media_buyer_id!==uid)redirect("/dashboard/universe");const canOperate=["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"].includes(role),canFinance=["SUPER_ADMIN","ACCOUNTANT"].includes(role);',
-            'if(!roles.includes("SUPER_ADMIN")&&!((roles.includes("ACCOUNT_MANAGER")&&client.account_manager_id===uid)||(roles.includes("MEDIA_BUYER")&&client.media_buyer_id===uid)||(roles.includes("ACCOUNTANT"))))redirect("/dashboard/universe");const canOperate=roles.some(r=>["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"].includes(String(r))),canFinance=roles.some(r=>["SUPER_ADMIN","ACCOUNTANT"].includes(String(r)));')
+          old='const metric=(x:CampaignRow,start:string,end:string):CampaignMetric=>{let r:Record<string,unknown>={};try{const parsed:unknown=typeof x.reported_metrics==="string"?JSON.parse(x.reported_metrics):{};r=asRecord(parsed)}catch{}const same=String(x.reported_period_start||"").slice(0,10)===start&&String(x.reported_period_end||"").slice(0,10)===end;return same&&Object.keys(r).length?{spend:numeric(r.spend),results:numeric(r.results),atc:numeric(r.addToCart),purchases:numeric(r.purchases),impressions:numeric(r.impressions),clicks:numeric(r.clicks),revenue:numeric(r.revenue)}:{spend:n(x.spend),results:n(x.results),atc:n(x.atc),purchases:n(x.purchases),impressions:n(x.impressions),clicks:n(x.clicks),revenue:n(x.revenue)}};'
+          new='const metric=(x:CampaignRow,_start:string,_end:string):CampaignMetric=>({spend:n(x.spend),results:n(x.results),atc:n(x.atc),purchases:n(x.purchases),impressions:n(x.impressions),clicks:n(x.clicks),revenue:n(x.revenue)});'
+          patch(p,old,new)
 
-          # Media V2 uses role union and union ownership for AM/MB secondary roles.
+          # Media Control V2: no provider-total override; provider reported fields remain evidence/metadata only.
           p='app/api/media-control-v2/route.ts'
-          patch(p,'import {connectionAccessToken} from "@/lib/ad-oauth";','import {connectionAccessToken} from "@/lib/ad-oauth";\nimport {effectiveRoles} from "@/lib/session-access";')
-          patch(p,'import {and,desc,eq,inArray,gte,lte,isNull} from "drizzle-orm";','import {and,desc,eq,inArray,gte,lte,isNull,or} from "drizzle-orm";')
-          old='async function ctx(){const s=await auth();if(!s?.user||!ROLES.includes(String(s.user.role)))return null;const role=String(s.user.role),userId=String(s.user.id),workspaceId=String(s.user.workspaceId||"");if(!workspaceId)return null;const ownerScope=role==="MEDIA_BUYER"?eq(clients.mediaBuyerId,userId):role==="ACCOUNT_MANAGER"?eq(clients.accountManagerId,userId):sql`true`;const owned=await db.select({id:clients.id,name:clients.companyName}).from(clients).where(and(eq(clients.workspaceId,workspaceId),eq(clients.isActive,true),ownerScope));return {role,userId,workspaceId,clients:owned,ids:owned.map(x=>x.id)}}'
-          new='async function ctx(){const s=await auth();if(!s?.user)return null;const roles=effectiveRoles(s.user),allowed=roles.filter(r=>ROLES.includes(String(r)));if(!allowed.length)return null;const role=roles.includes("SUPER_ADMIN")?"SUPER_ADMIN":roles.includes("MEDIA_BUYER")?"MEDIA_BUYER":"ACCOUNT_MANAGER",userId=String(s.user.id),workspaceId=String(s.user.workspaceId||"");if(!workspaceId)return null;const ownerScope=roles.includes("SUPER_ADMIN")?sql`true`:roles.includes("MEDIA_BUYER")&&roles.includes("ACCOUNT_MANAGER")?or(eq(clients.mediaBuyerId,userId),eq(clients.accountManagerId,userId)):roles.includes("MEDIA_BUYER")?eq(clients.mediaBuyerId,userId):eq(clients.accountManagerId,userId);const owned=await db.select({id:clients.id,name:clients.companyName}).from(clients).where(and(eq(clients.workspaceId,workspaceId),eq(clients.isActive,true),ownerScope));return {role,userId,workspaceId,clients:owned,ids:owned.map(x=>x.id)}}'
+          old='const campaignPerf=perf.filter(p=>p.campaignId===x.id&&!p.adSetId&&!p.adId),m:MetricBundle|JsonRecord=reported&&same?{...reported,resultLabel:rr?.reported_result_label,periodStart:r.start,periodEnd:r.end}:metrics(campaignPerf),hierarchy='
+          new='const campaignPerf=perf.filter(p=>p.campaignId===x.id&&p.breakdownType==="TOTAL"&&!p.adSetId&&!p.adId),m:MetricBundle|JsonRecord={...metrics(campaignPerf),resultLabel:rr?.reported_result_label,periodStart:r.start,periodEnd:r.end},hierarchy='
+          patch(p,old,new)
+          # Keep evidence flag explicit rather than calling it displayed metric source.
+          old='metricSource:reported&&same?"META_REPORTED":"ERP_DAILY"'
+          new='metricSource:"ERP_DAILY",reportedEvidenceAvailable:Boolean(reported&&same)'
           patch(p,old,new)
 
-          # Legacy media context gets the same effective-role model.
-          p='app/api/media-control/route.ts'
-          patch(p,'import {and,desc,eq,inArray,gte,isNull} from "drizzle-orm";','import {and,desc,eq,inArray,gte,isNull,or} from "drizzle-orm";')
-          patch(p,'import {connectionAccessToken,oauthConfigured} from "@/lib/ad-oauth";','import {connectionAccessToken,oauthConfigured} from "@/lib/ad-oauth";\nimport {effectiveRoles} from "@/lib/session-access";')
-          old='async function context(){const session=await auth();if(!session?.user)return null;const role=String(session.user.role||"");if(!isAllowedRole(role))return null;const userId=String(session.user.id||""),workspaceId=String(session.user.workspaceId||"");if(!workspaceId)return null;const owned=await db.select({id:clients.id,name:clients.companyName,budget:clients.mediaBudget}).from(clients).where(and(eq(clients.workspaceId,workspaceId),eq(clients.isActive,true),role==="MEDIA_BUYER"?eq(clients.mediaBuyerId,userId):role==="ACCOUNT_MANAGER"?eq(clients.accountManagerId,userId):eq(clients.workspaceId,workspaceId)));return {session,role,userId,workspaceId,clients:owned,clientIds:owned.map(x=>x.id)};}'
-          new='async function context(){const session=await auth();if(!session?.user)return null;const roles=effectiveRoles(session.user),role=roles.includes("SUPER_ADMIN")?"SUPER_ADMIN":roles.includes("MEDIA_BUYER")?"MEDIA_BUYER":roles.includes("ACCOUNT_MANAGER")?"ACCOUNT_MANAGER":"";if(!isAllowedRole(role))return null;const userId=String(session.user.id||""),workspaceId=String(session.user.workspaceId||"");if(!workspaceId)return null;const ownerScope=roles.includes("SUPER_ADMIN")?eq(clients.workspaceId,workspaceId):roles.includes("MEDIA_BUYER")&&roles.includes("ACCOUNT_MANAGER")?or(eq(clients.mediaBuyerId,userId),eq(clients.accountManagerId,userId)):roles.includes("MEDIA_BUYER")?eq(clients.mediaBuyerId,userId):eq(clients.accountManagerId,userId);const owned=await db.select({id:clients.id,name:clients.companyName,budget:clients.mediaBudget}).from(clients).where(and(eq(clients.workspaceId,workspaceId),eq(clients.isActive,true),ownerScope));return {session,role,userId,workspaceId,clients:owned,clientIds:owned.map(x=>x.id)};}'
-          patch(p,old,new)
+          # Monthly summary: p.results is generic Results, not universally Leads.
+          p='app/api/monthly-summary/[clientId]/route.ts'
+          s=Path(p).read_text()
+          s=s.replace('leads=metrics.reduce((s,m)=>s+Number(m.leads||0),0),purch=', 'results=metrics.reduce((s,m)=>s+Number(m.leads||0),0),purch=')
+          s=s.replace('cpl=leads>0?spend/leads:0,fee=', 'costPerResult=results>0?spend/results:0,fee=')
+          s=s.replace('🎯 Leads: ${leads}', '🎯 Results: ${results}')
+          s=s.replace('💵 CPL: ${money(cpl,currency)}', '💵 Cost / Result: ${money(costPerResult,currency)}')
+          s=s.replace('${d.leads} leads', '${d.leads} results')
+          s=s.replace('media:{spend,rev,leads,purch,roas,cpl,fee,feePercent,currency,byPlatform}', 'media:{spend,rev,results,leads:results,purch,roas,costPerResult,cpl:costPerResult,fee,feePercent,currency,byPlatform,resultLabel:"Results"}')
+          if '🎯 Results: ${results}' not in s or 'costPerResult' not in s: raise SystemExit('monthly semantic patch failed')
+          Path(p).write_text(s)
 
-          Path('scripts/qa-kpi-effective-roles.mjs').write_text('''import fs from "node:fs";\nconst read=p=>fs.readFileSync(p,"utf8"),client=read("app/dashboard/clients/[id]/page.tsx"),v2=read("app/api/media-control-v2/route.ts"),legacy=read("app/api/media-control/route.ts"),checks=[\n["Client workspace effective roles",client.includes("effectiveRoles(s.user)")&&client.includes('roles.includes("ACCOUNT_MANAGER")')],\n["Client workspace effective finance",client.includes("canFinance=roles.some")],\n["Media V2 effective roles",v2.includes("effectiveRoles(s.user)")&&v2.includes("or(eq(clients.mediaBuyerId,userId),eq(clients.accountManagerId,userId))")],\n["Legacy media effective roles",legacy.includes("effectiveRoles(session.user)")&&legacy.includes("ownerScope")],\n];let bad=0;for(const [n,ok] of checks){console.log((ok?"PASS":"FAIL")+"  "+n);if(!ok)bad++}if(bad)process.exit(1);\n''')
+          # PDF report uses generic Results/Cost per Result too.
+          p='app/api/pdf-report/[clientId]/route.ts'; s=Path(p).read_text()
+          s=s.replace('spend=Number(mAgg?.spend||0),leads=Number(mAgg?.leads||0),revenue=', 'spend=Number(mAgg?.spend||0),results=Number(mAgg?.leads||0),revenue=')
+          s=s.replace('cpl=leads?spend/leads:0,company=', 'costPerResult=results?spend/results:0,company=')
+          s=s.replace('${leads.toLocaleString()}</b><span>Leads</span>', '${results.toLocaleString()}</b><span>Results</span>')
+          s=s.replace('<tr><td>CPL</td><td>${leads?money(cpl):"—"}</td></tr><tr><td>Total Leads</td><td>${leads.toLocaleString()}</td></tr>', '<tr><td>Cost / Result</td><td>${results?money(costPerResult):"—"}</td></tr><tr><td>Total Results</td><td>${results.toLocaleString()}</td></tr>')
+          if '<span>Results</span>' not in s or 'Total Results' not in s: raise SystemExit('pdf semantic patch failed')
+          Path(p).write_text(s)
+
+          # Public API exposes results canonically; legacy leads alias stays temporarily for compatibility.
+          p='app/api/v1/metrics/route.ts'; s=Path(p).read_text()
+          s=s.replace('type MetricRow={platform:string;adSpend:number|string|null;leads:number|string|null;revenue:number|string|null};','type MetricRow={platform:string;adSpend:number|string|null;results:number|string|null;revenue:number|string|null};')
+          s=s.replace('coalesce(sum(p.results),0) leads,', 'coalesce(sum(p.results),0) results,')
+          s=s.replace('leads:Number(row.leads||0),revenue,roas:', 'results:Number(row.results||0),leads:Number(row.results||0),revenue,roas:')
+          s=s.replace('source:"ad_performance_daily:TOTAL"', 'source:"ad_performance_daily:TOTAL",resultLabel:"Results"')
+          if 'results:Number(row.results||0)' not in s: raise SystemExit('api metrics semantic patch failed')
+          Path(p).write_text(s)
+
+          # Legacy sync delete must target only root TOTAL row.
+          p='app/api/media-control/route.ts'; s=Path(p).read_text()
+          s=s.replace('eq(adPerformanceDaily.breakdownType,"TOTAL"),isNull(adPerformanceDaily.adId)))','eq(adPerformanceDaily.breakdownType,"TOTAL"),isNull(adPerformanceDaily.adSetId),isNull(adPerformanceDaily.adId)))')
+          Path(p).write_text(s)
+
+          Path('scripts/qa-campaign-metric-truth.mjs').write_text('''import fs from "node:fs";\nconst read=p=>fs.readFileSync(p,"utf8"),client=read("app/dashboard/clients/[id]/page.tsx"),v2=read("app/api/media-control-v2/route.ts"),monthly=read("app/api/monthly-summary/[clientId]/route.ts"),pdf=read("app/api/pdf-report/[clientId]/route.ts"),v1=read("app/api/v1/metrics/route.ts"),legacy=read("app/api/media-control/route.ts"),checks=[\n["Client displayed metrics ignore reported override",client.includes("const metric=(x:CampaignRow,_start:string,_end:string)")&&!client.includes("same&&Object.keys(r).length")],\n["Media V2 uses TOTAL root daily truth",v2.includes('p.breakdownType==="TOTAL"')&&v2.includes('metricSource:"ERP_DAILY"')&&!v2.includes('m:MetricBundle|JsonRecord=reported&&same?')],\n["Monthly labels generic Results",monthly.includes("🎯 Results")&&monthly.includes("Cost / Result")&&monthly.includes("leads:results"))],\n["PDF labels generic Results",pdf.includes("Total Results")&&pdf.includes("Cost / Result"))],\n["Public API canonical Results",v1.includes("results:Number(row.results||0)")&&v1.includes("leads:Number(row.results||0)"))],\n["Legacy sync deletes root TOTAL only",legacy.includes('eq(adPerformanceDaily.breakdownType,"TOTAL"),isNull(adPerformanceDaily.adSetId),isNull(adPerformanceDaily.adId)'))],\n];let bad=0;for(const [n,ok] of checks){console.log((ok?"PASS":"FAIL")+"  "+n);if(!ok)bad++}if(bad)process.exit(1);\n'''.replace('))],',')],').replace('))],',')],'))
           PY
-          node scripts/qa-kpi-effective-roles.mjs
+          node scripts/qa-campaign-metric-truth.mjs
       - name: Commit fixes
         run: |
           git config user.name vivitgroup
           git config user.email groupvivit@gmail.com
-          git add app scripts/qa-kpi-effective-roles.mjs
-          git commit -m "fix(auth): honor effective roles across client KPI surfaces"
+          git add app scripts/qa-campaign-metric-truth.mjs
+          git commit -m "fix(data): enforce one campaign metric truth across surfaces"
           git push origin HEAD:feat/vivito-internal-100

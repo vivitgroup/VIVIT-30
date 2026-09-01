@@ -63,6 +63,12 @@ jobs:
       - name: Build ephemeral database
         run: npx drizzle-kit push --force
 
+      - name: Apply staged Client Portal runtime contract
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/20260901_client_portal_runtime_contract.sql
+
+      - name: Client Portal fresh-schema contract
+        run: node scripts/qa-client-portal-schema-contract.mjs
+
       - name: Database and data-integrity regression
         run: node scripts/qa-database-data-integrity.mjs
 

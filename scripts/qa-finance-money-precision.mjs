@@ -17,6 +17,8 @@ check("Migration aborts when duplicate invoice periods exist", sql.includes("HAV
 check("Finance records money uses numeric(18,2)", ["retainer","media_buying_fee","extra_services","total_revenue","paid","outstanding","commission_paid"].every(c => sql.includes(`ALTER COLUMN ${c} TYPE numeric(18,2)`)));
 check("Company expenses use numeric(18,2)", sql.includes("ALTER TABLE company_expenses") && sql.includes("ALTER COLUMN amount TYPE numeric(18,2)"));
 check("Payment records use numeric(18,2)", sql.includes("ALTER TABLE payment_records") && sql.includes("ALTER COLUMN amount TYPE numeric(18,2)"));
+check("Client payment profile amounts use numeric(18,2)", sql.includes("ALTER TABLE client_payment_profiles") && ["amount_due","amount_paid","amount_remaining"].every(c => sql.includes(`ALTER COLUMN ${c} TYPE numeric(18,2)`)));
+check("Client payment profile ratio uses numeric(9,4)", sql.includes("ALTER TABLE client_payment_profiles") && sql.includes("ALTER COLUMN payment_ratio TYPE numeric(9,4)"));
 check("Payroll money uses numeric(18,2)", ["base_salary","bonus","deductions","net_pay"].every(c => sql.includes(`ALTER COLUMN ${c} TYPE numeric(18,2)`)));
 check("Journal totals and lines use numeric(18,2)", ["total_debit","total_credit","debit","credit"].every(c => sql.includes(`ALTER COLUMN ${c} TYPE numeric(18,2)`)));
 check("Accounts payable money uses numeric(18,2)", ["amount","tax","total"].every(c => sql.includes(`ALTER COLUMN ${c} TYPE numeric(18,2)`)) && sql.includes("ALTER TABLE purchase_orders"));

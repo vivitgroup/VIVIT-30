@@ -1,0 +1,28 @@
+name: Finance Schema Contract
+
+on:
+  push:
+    branches:
+      - audit/finance-deep-2026-09-01
+  pull_request:
+    paths:
+      - "db/schema.ts"
+      - "drizzle/20260901_finance_fixed_precision_candidate.sql"
+      - "scripts/qa-finance-schema-contract.mjs"
+      - ".github/workflows/finance-schema-contract.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  finance-schema-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Enforce finance fixed-precision schema contract
+        run: node scripts/qa-finance-schema-contract.mjs

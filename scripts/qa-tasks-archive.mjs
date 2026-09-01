@@ -75,10 +75,12 @@ check("Client Portal creative approvals exclude archived tasks",/from creative_t
 check("Client Portal deliverable counts derive only from active task query",/db\.execute<TaskRow>\(sql`[\s\S]*from creative_tasks where workspace_id=\$\{workspaceId\}[\s\S]*client_id=\$\{client\.id\}[\s\S]*archived_at is null/.test(portal)&&/tasks=Array\.from\(taskResult\)/.test(portal));
 check("Client Portal calendar cannot expose archived-task events",!portal.includes("from calendar_events")||/calendar_events[\s\S]*creative_tasks[\s\S]*archived_at is null/.test(portal));
 check("Client Portal documents exclude archived files",/from file_documents where workspace_id=\$\{workspaceId\}[\s\S]*client_id=\$\{client\.id\}[\s\S]*archived_at is null/.test(portal));
-check("Files API validates task target before Super Admin bypass",files.indexOf("if(taskId)")<files.indexOf('if(role==="SUPER_ADMIN")return true'));
-check("Files API rejects archived task and archived client targets",files.includes("t.archived_at is null and c.is_active=true")&&files.includes("eq(clients.isActive,true)"));
+const taskValidation=files.indexOf("if (taskId)");
+const superAdminTaskBypass=files.indexOf('if (role === "SUPER_ADMIN") return true',taskValidation);
+check("Files API validates task target before Super Admin bypass",taskValidation>=0&&superAdminTaskBypass>taskValidation);
+check("Files API rejects archived/deleted task and archived client targets",/t\.archived_at is null[\s\S]*t\.deleted_at is null[\s\S]*c\.is_active=true/.test(files)&&files.includes("eq(clients.isActive, true)"));
 check("Task-scoped file GET rejects unavailable archived targets",files.includes("The selected client or task is archived or unavailable to you."));
-check("Creator file scope excludes archived tasks and clients",files.includes("t.assigned_to_id=${userId} and t.archived_at is null and c.is_active=true"));
+check("Creator file scope excludes archived/deleted tasks and clients",/t\.assigned_to_id=\$\{userId\}[\s\S]*t\.archived_at is null[\s\S]*t\.deleted_at is null[\s\S]*c\.is_active=true/.test(files));
 
 const failed=checks.filter(c=>!c.ok);
 for(const c of checks)console.log(`${c.ok?"PASS":"FAIL"}  ${c.name}`);

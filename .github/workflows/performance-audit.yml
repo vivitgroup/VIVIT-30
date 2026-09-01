@@ -1,0 +1,47 @@
+name: Performance Audit
+
+on:
+  push:
+    branches:
+      - audit/finance-deep-2026-09-01
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  DATABASE_URL: postgresql://build:build@127.0.0.1:5432/vivit_build
+  NEXTAUTH_SECRET: exact-head-ci-performance-secret-not-for-production
+  AUTH_SECRET: exact-head-ci-performance-secret-not-for-production
+  NEXTAUTH_URL: http://127.0.0.1:3000
+  AUTH_URL: http://127.0.0.1:3000
+
+jobs:
+  performance-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Use Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Performance source contracts
+        run: node scripts/qa-performance.mjs
+
+      - name: TypeScript
+        run: npm run type-check
+
+      - name: Build exact-head production artifact
+        run: npx next build
+
+      - name: Static bundle budgets
+        run: node scripts/qa-performance.mjs

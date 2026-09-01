@@ -1,6 +1,6 @@
 import NextAuth from "next-auth";
 import authConfig from "@/auth.config";
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 
 function secHeaders(res:NextResponse):NextResponse{
   res.headers.set("X-Frame-Options","DENY");
@@ -9,7 +9,9 @@ function secHeaders(res:NextResponse):NextResponse{
   res.headers.set("Referrer-Policy","strict-origin-when-cross-origin");
   res.headers.set("Permissions-Policy","camera=(),microphone=(),geolocation=()");
   res.headers.set("X-Robots-Tag","noindex,nofollow");
-  res.headers.set("Content-Security-Policy","default-src 'self';script-src 'self' 'unsafe-inline' 'unsafe-eval' https://fonts.googleapis.com;style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;font-src 'self' https://fonts.gstatic.com;img-src 'self' data: blob: https:;connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.anthropic.com https://api.resend.com https://graph.facebook.com https://www.facebook.com;frame-ancestors 'none';");
+  if(res.status>=400)res.headers.set("Cache-Control","private, no-store");
+  const scriptSrc=process.env.NODE_ENV==="production"?"'self' 'unsafe-inline' https://fonts.googleapis.com":"'self' 'unsafe-inline' 'unsafe-eval' https://fonts.googleapis.com";
+  res.headers.set("Content-Security-Policy",`default-src 'self';script-src ${scriptSrc};style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;font-src 'self' https://fonts.gstatic.com;img-src 'self' data: blob: https:;connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.anthropic.com https://api.resend.com https://graph.facebook.com https://www.facebook.com;frame-ancestors 'none';base-uri 'self';form-action 'self';object-src 'none';`);
   if(process.env.NODE_ENV==="production")res.headers.set("Strict-Transport-Security","max-age=31536000;includeSubDomains");
   return res;
 }
@@ -22,19 +24,30 @@ function corsHeaders(res:NextResponse,origin:string|null):NextResponse{
   res.headers.set("Vary","Origin");
   return res;
 }
-function sameOrigin(origin:string|null,reqUrl:string){
-  if(!origin)return true;
+function sameOrigin(origin:string,reqUrl:string){
   try{const a=new URL(origin),b=new URL(reqUrl);return a.protocol===b.protocol&&a.host===b.host}catch{return false}
+}
+function hasSessionCookie(req:NextRequest){
+  return ["authjs.session-token","__Secure-authjs.session-token","next-auth.session-token","__Secure-next-auth.session-token"].some(name=>Boolean(req.cookies.get(name)?.value));
+}
+function mutationCsrfValid(req:NextRequest){
+  const site=String(req.headers.get("sec-fetch-site")||"").toLowerCase();
+  if(site==="cross-site")return false;
+  const origin=req.headers.get("origin");
+  if(origin)return sameOrigin(origin,req.url);
+  if(hasSessionCookie(req))return false;
+  return site===""||site==="same-origin"||site==="same-site"||site==="none";
 }
 
 const {auth}=NextAuth(authConfig);
 const OPS=["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"];
+const STAFF=[...OPS,"CREATOR","SALES","ACCOUNTANT"];
 const clientTaskDetailPath=(pathname:string)=>/^\/dashboard\/creative\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(pathname);
 
 export default auth((req)=>{
   const {pathname}=req.nextUrl,session=req.auth,origin=req.headers.get("origin");
   if(req.method==="OPTIONS"&&pathname.startsWith("/api/v1"))return corsHeaders(new NextResponse(null,{status:204}),origin);
-  if(["POST","PUT","DELETE","PATCH"].includes(req.method)&&!pathname.startsWith("/api/v1")&&!pathname.startsWith("/api/auth")&&!sameOrigin(origin,req.url))return secHeaders(new NextResponse("CSRF validation failed",{status:403}));
+  if(["POST","PUT","DELETE","PATCH"].includes(req.method)&&!pathname.startsWith("/api/v1")&&!pathname.startsWith("/api/auth")&&!mutationCsrfValid(req))return secHeaders(new NextResponse("CSRF validation failed",{status:403}));
   if(pathname.startsWith("/api/cron")){
     const bearer=req.headers.get("authorization")?.replace(/^Bearer\s+/i,""),secret=req.headers.get("x-cron-secret")??bearer,expected=process.env.CRON_SECRET;
     if(!expected||secret!==expected)return secHeaders(NextResponse.json({error:"Unauthorized"},{status:401}));
@@ -65,7 +78,7 @@ export default auth((req)=>{
     ["/dashboard/executive",["SUPER_ADMIN"]],["/dashboard/operations",["SUPER_ADMIN","ACCOUNT_MANAGER"]],
     ["/dashboard/whatsapp",[...OPS,"SALES"]],
     ["/dashboard/settings",["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CREATOR","ACCOUNTANT","SALES","CLIENT"]],
-    ["/dashboard/archive",[...OPS,"SALES"]],
+    ["/dashboard/archive",STAFF],
     ["/dashboard/team",["SUPER_ADMIN"]],["/dashboard/workspace",["SUPER_ADMIN"]],["/dashboard/activity",["SUPER_ADMIN"]],["/dashboard/kpis",["SUPER_ADMIN"]],["/dashboard/billing",["SUPER_ADMIN"]],["/dashboard/referrals",["SUPER_ADMIN"]],["/dashboard/saas-analytics",["SUPER_ADMIN"]],["/dashboard/revenue-attribution",["SUPER_ADMIN"]],["/dashboard/nps",["SUPER_ADMIN"]],
     ["/dashboard/onboarding",OPS],["/dashboard/monthly-reports",OPS],["/dashboard/marketplace",[...OPS,"CREATOR"]],["/dashboard/budget",OPS],
     ["/dashboard/contracts",["SUPER_ADMIN","ACCOUNTANT"]],["/dashboard/finance",["SUPER_ADMIN","ACCOUNTANT"]],["/dashboard/forecast",["SUPER_ADMIN","ACCOUNTANT"]],["/dashboard/ltv",["SUPER_ADMIN","ACCOUNTANT"]],

@@ -1,0 +1,40 @@
+name: Finance Schema Remediation
+
+on:
+  push:
+    branches:
+      - audit/finance-deep-2026-09-01
+    paths:
+      - "scripts/remediate-finance-schema-contract.mjs"
+      - ".github/workflows/finance-schema-remediation.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: audit/finance-deep-2026-09-01
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Apply scoped schema remediation
+        run: node scripts/remediate-finance-schema-contract.mjs
+      - name: Verify schema contract locally
+        run: node scripts/qa-finance-schema-contract.mjs
+      - name: Commit schema remediation
+        run: |
+          if git diff --quiet -- db/schema.ts; then
+            echo "No schema changes required"
+            exit 0
+          fi
+          git config user.name "vivit-finance-audit-bot"
+          git config user.email "vivit-finance-audit-bot@users.noreply.github.com"
+          git add db/schema.ts
+          git commit -m "fix(finance): align schema with fixed-precision contract"
+          git push origin HEAD:audit/finance-deep-2026-09-01

@@ -1,21 +1,11 @@
 export const dynamic="force-dynamic";
 import {NextRequest,NextResponse} from "next/server";
-import {db,clients,apiKeys} from "@/lib/db";
+import {db,clients} from "@/lib/db";
 import {eq,desc,ilike,count,and,type SQL} from "drizzle-orm";
-import crypto from "crypto";
+import {authenticatePublicRead} from "@/lib/public-api-auth";
 
-const READ_PERMISSIONS=new Set(["read","read_write","admin"]);
-async function authenticateAPIKey(req:NextRequest){
- const raw=req.headers.get("x-api-key")??req.headers.get("authorization")?.replace(/^Bearer\s+/i,"");
- if(!raw)return null;
- const hashed=crypto.createHash("sha256").update(raw).digest("hex");
- const [found]=await db.select().from(apiKeys).where(and(eq(apiKeys.keyHash,hashed),eq(apiKeys.isActive,true))).limit(1);
- if(!found||!READ_PERMISSIONS.has(String(found.permissions||"")))return null;
- await db.update(apiKeys).set({lastUsedAt:new Date()}).where(and(eq(apiKeys.id,found.id),eq(apiKeys.workspaceId,found.workspaceId)));
- return found;
-}
 export async function GET(req:NextRequest){
- const apiKey=await authenticateAPIKey(req);if(!apiKey)return NextResponse.json({error:"Invalid API key"},{status:401,headers:{"WWW-Authenticate":"ApiKey"}});
+ const apiKey=await authenticatePublicRead(req);if(!apiKey)return NextResponse.json({error:"Invalid API key or rate limit exceeded"},{status:401,headers:{"WWW-Authenticate":"ApiKey","Cache-Control":"no-store"}});
  const url=req.nextUrl,page=Math.max(1,parseInt(url.searchParams.get("page")??"1")||1),limit=Math.min(100,Math.max(1,parseInt(url.searchParams.get("limit")??"20")||20)),search=String(url.searchParams.get("search")||"").slice(0,120),risk=url.searchParams.get("churn_risk"),offset=(page-1)*limit;
  const conditions:SQL[]=[eq(clients.workspaceId,apiKey.workspaceId),eq(clients.isActive,true)];if(search)conditions.push(ilike(clients.companyName,`%${search}%`));if(risk)conditions.push(eq(clients.churnRisk,risk));
  const [data,[totalRow]]=await Promise.all([

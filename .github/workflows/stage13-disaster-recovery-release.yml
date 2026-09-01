@@ -1,0 +1,85 @@
+name: Stage 13 Disaster Recovery Release
+
+on:
+  push:
+    branches:
+      - audit/finance-deep-2026-09-01
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stage13-disaster-recovery-release-${{ github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  disaster-recovery-release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: vivito
+          POSTGRES_PASSWORD: vivito
+          POSTGRES_DB: vivito_stage13
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U vivito -d vivito_stage13"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://vivito:vivito@127.0.0.1:5432/vivito_stage13
+      DRIZZLE_DATABASE_URL: postgresql://vivito:vivito@127.0.0.1:5432/vivito_stage13
+      DATABASE_SSL_DISABLED: "1"
+      AUTH_SECRET: ci-stage13-secret-not-for-production
+      NEXTAUTH_SECRET: ci-stage13-secret-not-for-production
+      NEXTAUTH_URL: http://127.0.0.1:3000
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Assert exact head
+        shell: bash
+        run: |
+          ACTUAL="$(git rev-parse HEAD)"
+          EXPECTED="${{ github.sha }}"
+          echo "actual=$ACTUAL"
+          echo "expected=$EXPECTED"
+          test "$ACTUAL" = "$EXPECTED"
+
+      - name: Use Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Disaster recovery and release contracts
+        run: npm run qa:release-operations
+
+      - name: Build isolated ephemeral database
+        run: npx drizzle-kit push --force
+
+      - name: Ephemeral backup and isolated restore drill
+        shell: bash
+        run: |
+          pg_dump "$DATABASE_URL" --format=custom --file=/tmp/vivit-stage13.dump
+          test -s /tmp/vivit-stage13.dump
+          psql postgresql://vivito:vivito@127.0.0.1:5432/postgres -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS vivito_stage13_restore;"
+          psql postgresql://vivito:vivito@127.0.0.1:5432/postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE vivito_stage13_restore;"
+          pg_restore --exit-on-error --no-owner --no-privileges --dbname=postgresql://vivito:vivito@127.0.0.1:5432/vivito_stage13_restore /tmp/vivit-stage13.dump
+          psql postgresql://vivito:vivito@127.0.0.1:5432/vivito_stage13_restore -v ON_ERROR_STOP=1 -c "select 1;"
+          TABLE_COUNT="$(psql postgresql://vivito:vivito@127.0.0.1:5432/vivito_stage13_restore -Atc "select count(*) from information_schema.tables where table_schema='public';")"
+          echo "restored_public_table_count=$TABLE_COUNT"
+          test "$TABLE_COUNT" -gt 0
+
+      - name: TypeScript
+        run: npm run type-check
+
+      - name: Exact-head production build
+        run: npx next build

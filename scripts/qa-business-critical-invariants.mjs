@@ -11,7 +11,7 @@ check('Auto-assign update and audit are atomic',auto.includes('db.transaction(as
 
 const signup=read('app/api/signup/route.ts');
 check('Signup creation notification audit and OTP consumption are atomic',signup.includes('await db.transaction(async tx=>')&&signup.includes('tx.insert(users)')&&signup.includes('tx.insert(notifications)')&&signup.includes('tx.insert(auditLogs)')&&signup.includes('tx.delete(emailVerificationCodes)'));
-check('Signup rechecks email inside transaction',signup.includes('tx.select({id:users.id})')&&signup.includes('EMAIL_ALREADY_REGISTERED'));
+check('Signup rechecks email inside transaction',signup.includes('tx.select({id:users.id})')&&signup.includes('if(already)return "EMAIL_ALREADY_REGISTERED"'));
 
 const clients=read('app/api/clients/route.ts');
 check('Client create plus contact and audit are atomic',clients.includes('await db.transaction(async tx=>')&&clients.includes('tx.insert(clients)')&&clients.includes('tx.insert(contacts)')&&clients.includes('tx.insert(auditLogs)'));

@@ -4,6 +4,8 @@ import { auth } from "@/lib/auth";
 import { db,clients,contacts,auditLogs,users,notifications } from "@/lib/db";
 import {and,eq,ilike,inArray} from "drizzle-orm";
 
+const CLIENT_LIST_LIMIT=250;
+const CREATOR_TASK_SCOPE_LIMIT=1000;
 const str=(v:unknown,n=500)=>String(v??"").trim().slice(0,n);
 const date=(v:unknown)=>v&&!Number.isNaN(new Date(String(v)).getTime())?new Date(String(v)):null;
 const sessionScope=async()=>{const session=await auth();if(!session?.user)return null;const workspaceId=str(session.user.workspaceId,160);if(!workspaceId)return null;return{session,workspaceId,role:String(session.user.role??""),userId:session.user.id}};
@@ -18,15 +20,15 @@ export async function GET(){
   let rows:{id:string;companyName:string}[]=[];
   if(role==="CREATOR"){
     const {creativeTasks}=await import("@/lib/db");
-    const taskRows=await db.select({clientId:creativeTasks.clientId}).from(creativeTasks).where(and(eq(creativeTasks.workspaceId,workspaceId),eq(creativeTasks.assignedToId,userId)));
-    const ids=[...new Set(taskRows.map(t=>t.clientId))];
-    rows=ids.length?await db.select({id:clients.id,companyName:clients.companyName}).from(clients).where(and(eq(clients.workspaceId,workspaceId),eq(clients.isActive,true),inArray(clients.id,ids))):[];
+    const taskRows=await db.select({clientId:creativeTasks.clientId}).from(creativeTasks).where(and(eq(creativeTasks.workspaceId,workspaceId),eq(creativeTasks.assignedToId,userId))).limit(CREATOR_TASK_SCOPE_LIMIT);
+    const ids=[...new Set(taskRows.map(t=>t.clientId))].slice(0,CLIENT_LIST_LIMIT);
+    rows=ids.length?await db.select({id:clients.id,companyName:clients.companyName}).from(clients).where(and(eq(clients.workspaceId,workspaceId),eq(clients.isActive,true),inArray(clients.id,ids))).limit(CLIENT_LIST_LIMIT):[];
   }else{
     const base=and(eq(clients.workspaceId,workspaceId),eq(clients.isActive,true));
     const roleFilter=role==="ACCOUNT_MANAGER"?eq(clients.accountManagerId,userId):role==="MEDIA_BUYER"?eq(clients.mediaBuyerId,userId):role==="CLIENT"?eq(clients.userId,userId):undefined;
-    rows=await db.select({id:clients.id,companyName:clients.companyName}).from(clients).where(and(base,roleFilter));
+    rows=await db.select({id:clients.id,companyName:clients.companyName}).from(clients).where(and(base,roleFilter)).limit(CLIENT_LIST_LIMIT);
   }
-  return NextResponse.json({clients:rows},{headers:{"Cache-Control":"private, no-store"}});
+  return NextResponse.json({clients:rows,limit:CLIENT_LIST_LIMIT},{headers:{"Cache-Control":"private, no-store"}});
 }
 
 export async function POST(req:NextRequest){

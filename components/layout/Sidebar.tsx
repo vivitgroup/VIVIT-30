@@ -8,7 +8,8 @@ import Image from "next/image";
 type Item = { icon: string; label: string; href: string; roles: string[] };
 
 const OPS = ["SUPER_ADMIN", "ACCOUNT_MANAGER", "MEDIA_BUYER"];
-const ALL = ["SUPER_ADMIN", "ACCOUNT_MANAGER", "MEDIA_BUYER", "CREATOR", "SALES", "ACCOUNTANT", "CLIENT"];
+const STAFF = ["SUPER_ADMIN", "ACCOUNT_MANAGER", "MEDIA_BUYER", "CREATOR", "SALES", "ACCOUNTANT"];
+const ALL = [...STAFF, "CLIENT"];
 
 const SECTIONS: { label: string; items: Item[] }[] = [
   { label: "MAIN", items: [
@@ -39,7 +40,8 @@ const SECTIONS: { label: string; items: Item[] }[] = [
   { label: "AI & TOOLS", items: [
     { icon: "✦", label: "VIVITO", href: "/dashboard/ai-studio", roles: ALL },
     { icon: "▱", label: "Files", href: "/dashboard/files", roles: ALL },
-    { icon: "▣", label: "Archive", href: "/dashboard/archive", roles: [...OPS, "SALES"] },
+    { icon: "▣", label: "Archive", href: "/dashboard/archive", roles: STAFF },
+    { icon: "⌫", label: "Delete", href: "/dashboard/delete", roles: ["SUPER_ADMIN"] },
     { icon: "◔", label: "Notifications", href: "/dashboard/notifications", roles: ALL },
     { icon: "⚙", label: "Settings", href: "/dashboard/settings", roles: ALL },
   ]},
@@ -151,7 +153,8 @@ export function Sidebar({ role, userName }: { role: string; userName: string }) 
  They are comments only and are never rendered:
  label:"VIVITO",href:"/dashboard/ai-studio",roles:ALL
  label:"التقويم",href:"/dashboard/calendar",roles:[...OPS,"CREATOR","SALES","CLIENT"]
- label:"الأرشيف",href:"/dashboard/archive",roles:[...OPS,"SALES"]
+ label:"الأرشيف",href:"/dashboard/archive",roles:STAFF
+ label:"الحذف",href:"/dashboard/delete",roles:["SUPER_ADMIN"]
  label:"المالية",href:"/dashboard/finance",roles:["SUPER_ADMIN","ACCOUNTANT"]
  label:"المبيعات",href:"/dashboard/sales",roles:["SUPER_ADMIN","SALES"]
  label:"ربط المنصات",href:"/dashboard/media/sync",roles:OPS

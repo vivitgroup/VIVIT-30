@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   backup:
@@ -16,55 +17,47 @@ jobs:
     timeout-minutes: 20
     environment: production
     steps:
-      - name: Refuse missing production database secret
+      - name: Refuse missing backup encryption secret
         env:
-          PROD_DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+          BACKUP_ENCRYPTION_SECRET: ${{ secrets.PROD_DATABASE_URL }}
         run: |
-          if [ -z "$PROD_DATABASE_URL" ]; then
-            echo "PROD_DATABASE_URL is not configured."
+          if [ -z "$BACKUP_ENCRYPTION_SECRET" ]; then
+            echo "Protected backup encryption secret is not configured."
             exit 1
           fi
 
-      - name: Install PostgreSQL client
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y postgresql-client
-
-      - name: Create logical production backup
+      - name: Export production database through GitHub OIDC
         env:
-          PROD_DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+          BACKUP_ENCRYPTION_SECRET: ${{ secrets.PROD_DATABASE_URL }}
         run: |
           set -euo pipefail
-          FILE="vivit-prod-prelive-${GITHUB_RUN_ID}.dump"
-          NORMALIZED_DATABASE_URL="$(python3 - <<'PY'
-          import os
-          from urllib.parse import urlsplit, urlunsplit, quote
-          raw=os.environ['PROD_DATABASE_URL']
-          u=urlsplit(raw)
-          password=u.password or ''
-          host=u.hostname or ''
-          port=f':{u.port}' if u.port else ''
-          # Supabase shared pooler requires postgres.<project_ref> as username.
-          user='postgres.fmrehvrzeebeliaxahvf' if 'pooler.supabase.com' in host else (u.username or 'postgres')
-          netloc=f'{quote(user, safe=".")}:{quote(password, safe="")}@{host}{port}'
-          print(urlunsplit((u.scheme,netloc,u.path,u.query,u.fragment)))
-          PY
-          )"
-          pg_dump --format=custom --no-owner --no-acl --file="$FILE" "$NORMALIZED_DATABASE_URL"
-          test -s "$FILE"
-          pg_restore --list "$FILE" > restore-list.txt
-          test -s restore-list.txt
-          sha256sum "$FILE" | tee backup.sha256
-          echo "BACKUP_FILE=$FILE" >> "$GITHUB_ENV"
+          TOKEN_JSON="$(curl -fsS -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=vivit-prelive-backup")"
+          OIDC_TOKEN="$(printf '%s' "$TOKEN_JSON" | jq -er '.value')"
+          RAW="vivit-prod-prelive-${GITHUB_RUN_ID}.json"
+          GZ="${RAW}.gz"
+          ENC="${GZ}.enc"
+          curl -fsS -X POST \
+            -H "Authorization: Bearer ${OIDC_TOKEN}" \
+            -H "Content-Type: application/json" \
+            "https://fmrehvrzeebeliaxahvf.supabase.co/functions/v1/prelive-db-export" \
+            -o "$RAW"
+          jq -e '.format == "vivit-logical-json-v1" and .projectRef == "fmrehvrzeebeliaxahvf" and .sourceCommit == "25b934afbe06c4b4c93e885cf24e1925f4401482" and (.tables|type=="object") and (.tables|length>=90)' "$RAW" >/dev/null
+          jq -r '{format,capturedAt,projectRef,sourceCommit,tableCount:(.tables|length),migrationCount:(.migrations|length)}' "$RAW" > backup-manifest.json
+          gzip -9 "$RAW"
+          openssl enc -aes-256-cbc -salt -pbkdf2 -iter 200000 -in "$GZ" -out "$ENC" -pass env:BACKUP_ENCRYPTION_SECRET
+          sha256sum "$ENC" | tee backup.sha256
+          rm -f "$GZ"
+          test -s "$ENC"
+          echo "BACKUP_FILE=$ENC" >> "$GITHUB_ENV"
 
-      - name: Upload private backup artifact
+      - name: Upload encrypted off-site backup artifact
         uses: actions/upload-artifact@v4
         with:
           name: vivit-prod-prelive-db-backup-${{ github.run_id }}
           path: |
             ${{ env.BACKUP_FILE }}
             backup.sha256
-            restore-list.txt
+            backup-manifest.json
           if-no-files-found: error
           retention-days: 14
           compression-level: 0

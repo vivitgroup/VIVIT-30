@@ -1,17 +1,26 @@
+import crypto from "crypto";
 import {NextRequest,NextResponse} from "next/server";
 import {auth} from "@/lib/auth";
 import {db,adPlatformConnections,auditLogs,clients,sql} from "@/lib/db";
 import {and,eq} from "drizzle-orm";
 import {exchangeCode,verifyState,encryptToken,OAuthPlatform} from "@/lib/ad-oauth";
 
+const stateCookieName=(platform:OAuthPlatform)=>`vivit_oauth_state_${platform.toLowerCase()}`;
+const stateCookiePath=(platform:OAuthPlatform)=>`/api/ad-oauth/${platform.toLowerCase()}/callback`;
+const stateDigest=(state:string)=>crypto.createHash("sha256").update(state).digest("base64url");
+const sameValue=(left:string,right:string)=>left.length===right.length&&crypto.timingSafeEqual(Buffer.from(left),Buffer.from(right));
+const clearStateCookie=(response:NextResponse,name:string,path:string)=>response.cookies.set(name,"",{httpOnly:true,secure:process.env.NODE_ENV==="production",sameSite:"lax",maxAge:0,path});
+
 async function discoverSnapAccount(accessToken:string){const headers={Authorization:`Bearer ${accessToken}`};const orgRes=await fetch("https://adsapi.snapchat.com/v1/me/organizations",{headers,signal:AbortSignal.timeout(8000)});const orgJson=await orgRes.json();if(!orgRes.ok)throw new Error(orgJson?.request_status||"Unable to list Snapchat organizations");for(const item of orgJson.organizations||[]){const org=item.organization||item;if(!org?.id)continue;const accountRes=await fetch(`https://adsapi.snapchat.com/v1/organizations/${org.id}/adaccounts`,{headers,signal:AbortSignal.timeout(8000)});const accountJson=await accountRes.json();if(!accountRes.ok)continue;const first=(accountJson.adaccounts||[])[0];const account=first?.adaccount||first;if(account?.id)return{id:String(account.id),name:String(account.name||org.name||"Snapchat Ad Account")};}throw new Error("No Snapchat ad account is available for this user");}
 
-export async function GET(req:NextRequest,{params}:{params:Promise<{platform:string}>}){const home=new URL("/dashboard/media/control-center",req.url);try{
+export async function GET(req:NextRequest,{params}:{params:Promise<{platform:string}>}){const home=new URL("/dashboard/media/control-center",req.url);let cookieName="",cookiePath="";try{
  const session=await auth();if(!session?.user)throw new Error("Session expired — sign in and try again");
  const role=String(session.user.role||""),userId=String(session.user.id||""),workspaceId=String(session.user.workspaceId||"").trim();
  if(!workspaceId)throw new Error("Workspace context is missing");
  if(!["SUPER_ADMIN","MEDIA_BUYER","ACCOUNT_MANAGER"].includes(role))throw new Error("You no longer have permission to connect ad accounts");
- const {platform:raw}=await params,platform=raw.toUpperCase() as OAuthPlatform;const state=verifyState(req.nextUrl.searchParams.get("state")||"");if(state.platform!==platform||state.userId!==userId)throw new Error("OAuth state mismatch");
+ const {platform:raw}=await params,platform=raw.toUpperCase() as OAuthPlatform;cookieName=stateCookieName(platform);cookiePath=stateCookiePath(platform);
+ const rawState=req.nextUrl.searchParams.get("state")||"",state=verifyState(rawState);if(state.platform!==platform||state.userId!==userId)throw new Error("OAuth state mismatch");
+ const browserState=req.cookies.get(cookieName)?.value||"";if(!browserState||!sameValue(browserState,stateDigest(rawState)))throw new Error("OAuth request is not bound to this browser or was already consumed");
  const roleScope=role==="MEDIA_BUYER"?eq(clients.mediaBuyerId,userId):role==="ACCOUNT_MANAGER"?eq(clients.accountManagerId,userId):eq(clients.workspaceId,workspaceId);
  const [client]=await db.select({id:clients.id}).from(clients).where(and(eq(clients.id,state.clientId),eq(clients.workspaceId,workspaceId),eq(clients.isActive,true),roleScope)).limit(1);if(!client)throw new Error("Client access changed or the client was archived. Start the connection again.");
  const error=req.nextUrl.searchParams.get("error");if(error)throw new Error("OAuth provider denied or failed the authorization request");const code=req.nextUrl.searchParams.get("code")||req.nextUrl.searchParams.get("auth_code")||"";if(!code)throw new Error("Authorization code was not returned");
@@ -31,5 +40,5 @@ export async function GET(req:NextRequest,{params}:{params:Promise<{platform:str
    await tx.insert(auditLogs).values({workspaceId,userId,action:"ad_platform_oauth_connected",entity:"ad_platform_connections",entityId:connected.id,newValues:JSON.stringify({platform,adAccountId,clientId:state.clientId})});
    return connected;
  });
- home.searchParams.set("oauth","success");home.searchParams.set("platform",platform);home.searchParams.set("connectionId",row.id);return NextResponse.redirect(home);
- }catch(e:unknown){console.error("OAuth callback failed",e instanceof Error?e.name:"oauth_callback_failure");home.searchParams.set("oauth","error");home.searchParams.set("message","Connection failed. Please start the connection again.");return NextResponse.redirect(home);}}
+ home.searchParams.set("oauth","success");home.searchParams.set("platform",platform);home.searchParams.set("connectionId",row.id);const response=NextResponse.redirect(home);clearStateCookie(response,cookieName,cookiePath);return response;
+ }catch(e:unknown){console.error("OAuth callback failed",e instanceof Error?e.name:"oauth_callback_failure");home.searchParams.set("oauth","error");home.searchParams.set("message","Connection failed. Please start the connection again.");const response=NextResponse.redirect(home);if(cookieName&&cookiePath)clearStateCookie(response,cookieName,cookiePath);return response;}}

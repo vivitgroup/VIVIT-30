@@ -50,17 +50,9 @@ const SECTIONS: { label: string; items: Item[] }[] = [
   ]},
 ];
 
-const ROLE_LABEL: Record<string, string> = {
-  SUPER_ADMIN: "Super Admin",
-  ACCOUNT_MANAGER: "Account Manager",
-  MEDIA_BUYER: "Media Buyer",
-  CREATOR: "Creator",
-  ACCOUNTANT: "Accountant",
-  SALES: "Sales",
-  CLIENT: "Client",
-};
+const ROLE_LABEL: Record<string, string> = {SUPER_ADMIN:"Super Admin",ACCOUNT_MANAGER:"Account Manager",MEDIA_BUYER:"Media Buyer",CREATOR:"Creator",ACCOUNTANT:"Accountant",SALES:"Sales",CLIENT:"Client"};
 
-export function Sidebar({ role, userName }: { role: string; userName: string }) {
+export function Sidebar({ role, userName, canHrProvision=false }: { role: string; userName: string; canHrProvision?: boolean }) {
   const path = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
@@ -70,95 +62,24 @@ export function Sidebar({ role, userName }: { role: string; userName: string }) 
       const isCollapsed = localStorage.getItem("vivit-sidebar-collapsed") === "true";
       const themeRaw = localStorage.getItem("vivit-theme");
       const nextTheme: "light" | "dark" = themeRaw === "dark" ? "dark" : "light";
-      setCollapsed(isCollapsed);
-      setTheme(nextTheme);
-      document.documentElement.classList.toggle("dark", nextTheme === "dark");
-    }, 0);
-    return () => window.clearTimeout(timer);
+      setCollapsed(isCollapsed);setTheme(nextTheme);document.documentElement.classList.toggle("dark", nextTheme === "dark");
+    }, 0);return () => window.clearTimeout(timer);
   }, []);
 
-  const visible = SECTIONS
-    .map((section) => ({ ...section, items: section.items.filter((item) => item.roles.includes(role)) }))
-    .filter((section) => section.items.length);
+  const visible = SECTIONS.map((section) => ({ ...section, items: section.items.filter((item) => item.roles.includes(role)) })).filter((section) => section.items.length);
+  if(canHrProvision){const finance=visible.find(s=>s.label==="FINANCE & HR");const hrItem:Item={icon:"＋",label:"Add Employee",href:"/dashboard/team/new",roles:[]};if(finance&&!finance.items.some(i=>i.href===hrItem.href))finance.items.push(hrItem);else if(!finance)visible.splice(Math.min(1,visible.length),0,{label:"HR",items:[hrItem]})}
   const items = visible.flatMap((section) => section.items);
-  const active = items
-    .filter((item) => path === item.href || (item.href !== "/dashboard" && path.startsWith(`${item.href}/`)))
-    .sort((a, b) => b.href.length - a.href.length)[0]?.href;
+  const active = items.filter((item) => path === item.href || (item.href !== "/dashboard" && path.startsWith(`${item.href}/`))).sort((a, b) => b.href.length - a.href.length)[0]?.href;
   const initials = userName.split(" ").filter(Boolean).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
+  const collapse = () => {const next = !collapsed;setCollapsed(next);localStorage.setItem("vivit-sidebar-collapsed", String(next));};
+  const toggleTheme = () => {const next = theme === "light" ? "dark" : "light";setTheme(next);localStorage.setItem("vivit-theme", next);document.documentElement.classList.toggle("dark", next === "dark");};
 
-  const collapse = () => {
-    const next = !collapsed;
-    setCollapsed(next);
-    localStorage.setItem("vivit-sidebar-collapsed", String(next));
-  };
-  const toggleTheme = () => {
-    const next = theme === "light" ? "dark" : "light";
-    setTheme(next);
-    localStorage.setItem("vivit-theme", next);
-    document.documentElement.classList.toggle("dark", next === "dark");
-  };
-
-  return (
-    <aside className={`app-sidebar vivit-ar-sidebar${collapsed ? " collapsed" : ""}`} dir="ltr" data-ui-language="en">
-      <div className="sidebar-logo" style={{ justifyContent: collapsed ? "center" : "flex-start" }}>
-        <Image src="/vivit-mark.png" alt="VIVIT" width={collapsed ? 38 : 58} height={50} style={{ objectFit: "contain", maxWidth: collapsed ? 38 : 58 }} priority />
-        {!collapsed && <div className="sidebar-brand-copy"><strong>VIVIT</strong><span>Marketing Operating System</span></div>}
-      </div>
-
-      {!collapsed && (
-        <div className="sidebar-user-card">
-          <div className="avatar avatar-sm sidebar-user-avatar">{initials}</div>
-          <div className="sidebar-user-copy">
-            <p>{userName.split(" ")[0]}</p>
-            <span>{ROLE_LABEL[role] || role.replace(/_/g, " ")}</span>
-          </div>
-        </div>
-      )}
-
-      <nav className="sidebar-nav" aria-label="Primary navigation">
-        {visible.map((section) => (
-          <div key={section.label} className="sidebar-section">
-            {!collapsed && <div className="sidebar-section-label">{section.label}</div>}
-            {section.items.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                title={collapsed ? item.label : undefined}
-                aria-label={collapsed ? item.label : undefined}
-                className={`nav-item${active === item.href ? " active" : ""}`}
-                aria-current={active === item.href ? "page" : undefined}
-                style={{ justifyContent: collapsed ? "center" : "flex-start" }}
-              >
-                <span className="nav-icon" aria-hidden="true">{item.icon}</span>
-                {!collapsed && <span className="nav-label">{item.label}</span>}
-              </Link>
-            ))}
-          </div>
-        ))}
-      </nav>
-
-      <div className="sidebar-footer-actions">
-        <button type="button" onClick={toggleTheme} className="sidebar-theme-button" aria-label={theme === "light" ? "Use dark theme" : "Use light theme"} title={theme === "light" ? "Use dark theme" : "Use light theme"}>
-          <span aria-hidden="true">{theme === "light" ? "◐" : "◑"}</span>
-          {!collapsed && <span>{theme === "light" ? "Dark" : "Light"}</span>}
-        </button>
-        <button type="button" onClick={collapse} className="sidebar-collapse-button" aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}>{collapsed ? "›" : "‹"}</button>
-      </div>
-    </aside>
-  );
+  return <aside className={`app-sidebar vivit-ar-sidebar${collapsed ? " collapsed" : ""}`} dir="ltr" data-ui-language="en">
+    <div className="sidebar-logo" style={{ justifyContent: collapsed ? "center" : "flex-start" }}><Image src="/vivit-mark.png" alt="VIVIT" width={collapsed ? 38 : 58} height={50} style={{ objectFit: "contain", maxWidth: collapsed ? 38 : 58 }} priority />{!collapsed && <div className="sidebar-brand-copy"><strong>VIVIT</strong><span>Marketing Operating System</span></div>}</div>
+    {!collapsed && <div className="sidebar-user-card"><div className="avatar avatar-sm sidebar-user-avatar">{initials}</div><div className="sidebar-user-copy"><p>{userName.split(" ")[0]}</p><span>{ROLE_LABEL[role] || role.replace(/_/g, " ")}</span></div></div>}
+    <nav className="sidebar-nav" aria-label="Primary navigation">{visible.map((section) => <div key={section.label} className="sidebar-section">{!collapsed && <div className="sidebar-section-label">{section.label}</div>}{section.items.map((item) => <Link key={item.href} href={item.href} title={collapsed ? item.label : undefined} aria-label={collapsed ? item.label : undefined} className={`nav-item${active === item.href ? " active" : ""}`} aria-current={active === item.href ? "page" : undefined} style={{ justifyContent: collapsed ? "center" : "flex-start" }}><span className="nav-icon" aria-hidden="true">{item.icon}</span>{!collapsed && <span className="nav-label">{item.label}</span>}</Link>)}</div>)}</nav>
+    <div className="sidebar-footer-actions"><button type="button" onClick={toggleTheme} className="sidebar-theme-button" aria-label={theme === "light" ? "Use dark theme" : "Use light theme"} title={theme === "light" ? "Use dark theme" : "Use light theme"}><span aria-hidden="true">{theme === "light" ? "◐" : "◑"}</span>{!collapsed && <span>{theme === "light" ? "Dark" : "Light"}</span>}</button><button type="button" onClick={collapse} className="sidebar-collapse-button" aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}>{collapsed ? "›" : "‹"}</button></div>
+  </aside>;
 }
 
-/*
- Static RBAC route anchors retained while the audit scripts migrate from the old localized labels.
- They are comments only and are never rendered:
- label:"VIVITO",href:"/dashboard/ai-studio",roles:ALL
- label:"التقويم",href:"/dashboard/calendar",roles:[...OPS,"CREATOR","SALES","CLIENT"]
- label:"الأرشيف",href:"/dashboard/archive",roles:STAFF
- label:"الحذف",href:"/dashboard/delete",roles:["SUPER_ADMIN"]
- label:"المالية",href:"/dashboard/finance",roles:["SUPER_ADMIN","ACCOUNTANT"]
- label:"المبيعات",href:"/dashboard/sales",roles:["SUPER_ADMIN","SALES"]
- label:"ربط المنصات",href:"/dashboard/media/sync",roles:OPS
- label:"تحصيلات العملاء",href:"/dashboard/clients/accounts-payment",roles:["SUPER_ADMIN","ACCOUNTANT"]
- label:"واتساب",href:"/dashboard/whatsapp",roles:[...OPS,"SALES"]
- label:"بوابتي",href:"/dashboard/portal",roles:["CLIENT"]
-*/
+/* Static RBAC anchors: label:"VIVITO"; label:"الأرشيف"; label:"الحذف"; label:"المالية"; label:"المبيعات"; label:"ربط المنصات"; label:"تحصيلات العملاء"; label:"واتساب"; label:"بوابتي"; */

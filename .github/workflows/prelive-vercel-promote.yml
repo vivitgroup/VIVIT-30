@@ -39,6 +39,9 @@ jobs:
       NEXTAUTH_SECRET: ci-only-nextauth-secret-not-production
       AUTH_SECRET: ci-only-auth-secret-not-production
       CRON_SECRET: ci-only-cron-secret-not-production
+      NEXTAUTH_URL: https://vivit-erp-theta.vercel.app
+      AUTH_URL: https://vivit-erp-theta.vercel.app
+      NEXT_PUBLIC_APP_URL: https://vivit-erp-theta.vercel.app
     steps:
       - name: Require and validate Vercel production token
         env:
@@ -74,7 +77,10 @@ jobs:
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
+          set -euo pipefail
           npx --yes vercel@latest pull --yes --environment=production --token="$VERCEL_TOKEN" --scope=vivit-s-projects
+          rm -f .vercel/.env.production.local
+          test -s .vercel/project.json
 
       - name: Build exact main prebuilt artifact
         env:

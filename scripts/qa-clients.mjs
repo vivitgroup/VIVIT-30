@@ -6,6 +6,8 @@ check("Clients list remains role protected",list.includes("session")&&list.inclu
 check("Account Manager client list remains ownership scoped",list.includes("accountManagerId")&&list.includes("userId"));
 check("Media Buyer client list remains ownership scoped",list.includes("mediaBuyerId")&&list.includes("userId"));
 check("Client detail keeps centralized active-record guard",guard.includes("isActive")&&guard.includes("redirect"));
+check("New client page honors effective create roles",newPage.includes("hasEffectiveRole(session.user")&&newPage.includes('["SUPER_ADMIN","ACCOUNT_MANAGER","ACCOUNTANT"]'));
+check("New client assignment picker includes secondary roles and workspace scope",newPage.includes("user_role_assignments")&&newPage.includes("u.workspace_id=${workspaceId}")&&newPage.includes("ura.workspace_id=u.workspace_id"));
 check("New client form requires report frequency",form.includes('name="reportFrequency"')&&form.includes("EVERY_3_DAYS")&&form.includes("WEEKLY"));
 check("New client form starts with one competitor",form.includes("[emptyCompetitor()]")&&form.includes("Competitors *"));
 check("New client form caps competitors at five",form.includes("current.length>=5")&&form.includes("competitors.length>=5"));
@@ -14,6 +16,7 @@ check("Client API rejects fewer than 1 or more than 5 competitors",api.includes(
 check("Client API requires all three competitor social links",api.includes("!item.facebook||!item.instagram||!item.tiktok")&&api.includes("Facebook, Instagram and TikTok links"));
 check("Client API validates social profile URLs",api.includes("validUrl")&&api.includes("facebook")&&api.includes("instagram")&&api.includes("tiktok"));
 check("Client create authorization honors effective roles",api.includes("hasEffectiveRole(session.user")&&api.includes('["SUPER_ADMIN","ACCOUNT_MANAGER","ACCOUNTANT"]'));
+check("Client API accepts workspace-scoped secondary AM and Media Buyer roles",api.includes("user_role_assignments ura")&&api.includes("ura.workspace_id=u.workspace_id")&&api.includes("ura.role='ACCOUNT_MANAGER'")&&api.includes("ura.role='MEDIA_BUYER'"));
 check("Client API validates report cadence allowlist",api.includes('["DAILY","EVERY_3_DAYS","WEEKLY"]'));
 check("Client and competitor setup share one transaction",api.includes("db.transaction")&&api.includes("competitor_watchlists")&&api.includes("competitor_social_profiles"));
 check("Client create rejects duplicate company names",api.includes("already exists")&&api.includes("status:409"));

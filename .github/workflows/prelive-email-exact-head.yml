@@ -1,0 +1,42 @@
+name: Prelive Email Exact Head
+
+on:
+  push:
+    branches:
+      - ops/prelive-backup-2026-09-02
+    paths:
+      - .github/workflows/prelive-email-exact-head.yml
+
+permissions:
+  contents: read
+
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout exact audit head
+        uses: actions/checkout@v4
+        with:
+          ref: 61a126ac0ff85c5d34e57b16e32d674499950b06
+
+      - name: Verify exact head
+        run: test "$(git rev-parse HEAD)" = "61a126ac0ff85c5d34e57b16e32d674499950b06"
+
+      - name: Use Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Notifications and email contracts
+        run: node scripts/qa-notifications-email.mjs
+
+      - name: TypeScript
+        run: npm run type-check
+
+      - name: Full release build
+        run: npm run build

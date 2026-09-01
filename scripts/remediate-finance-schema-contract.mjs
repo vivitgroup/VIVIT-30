@@ -1,0 +1,72 @@
+import fs from "node:fs";
+
+const path = "db/schema.ts";
+let source = fs.readFileSync(path, "utf8");
+
+function updateTable(exportName, mutator) {
+  const startToken = `export const ${exportName} = pgTable(`;
+  const start = source.indexOf(startToken);
+  if (start === -1) throw new Error(`Table ${exportName} not found`);
+  const next = source.indexOf("export const ", start + startToken.length);
+  const end = next === -1 ? source.length : next;
+  const before = source.slice(0, start);
+  const body = source.slice(start, end);
+  const after = source.slice(end);
+  const updated = mutator(body);
+  if (updated === body) throw new Error(`No change produced for ${exportName}`);
+  source = before + updated + after;
+}
+
+function numericColumn(body, property, dbName, precision = 18, scale = 2, { nullable = false, defaultValue = "0" } = {}) {
+  const realPattern = new RegExp(`${property}:\\s*real\\("${dbName}"\\)(\\.notNull\\(\\))?(\\.default\\([^)]*\\))?`);
+  const match = body.match(realPattern);
+  if (!match) throw new Error(`Expected REAL column ${property}/${dbName} not found`);
+  let replacement = `${property}:     numeric("${dbName}", { precision: ${precision}, scale: ${scale} })`;
+  if (!nullable) replacement += `.notNull()`;
+  if (defaultValue !== null) replacement += `.default("${defaultValue}")`;
+  return body.replace(realPattern, replacement);
+}
+
+function applyColumns(table, columns) {
+  updateTable(table, body => {
+    let next = body;
+    for (const col of columns) next = numericColumn(next, ...col);
+    return next;
+  });
+}
+
+applyColumns("financeRecords", [
+  ["retainer", "retainer"],
+  ["mediaBuyingFee", "media_buying_fee"],
+  ["extraServices", "extra_services"],
+  ["totalRevenue", "total_revenue"],
+  ["paid", "paid"],
+  ["outstanding", "outstanding"],
+  ["commissionRate", "commission_rate", 9, 4, { nullable: true, defaultValue: null }],
+  ["commissionPaid", "commission_paid", 18, 2, { nullable: true, defaultValue: "0" }],
+]);
+
+updateTable("financeRecords", body => {
+  if (body.includes('unique("uq_finance_records_workspace_client_period")')) return body;
+  const closing = /\}\);\s*$/;
+  if (!closing.test(body)) throw new Error("financeRecords closing marker not found");
+  return body.replace(closing, '}, t=>[unique("uq_finance_records_workspace_client_period").on(t.workspaceId,t.clientId,t.year,t.month)]);\n\n');
+});
+
+applyColumns("companyExpenses", [["amount", "amount", 18, 2, { nullable: false, defaultValue: null }]]);
+applyColumns("paymentRecords", [["amount", "amount", 18, 2, { nullable: false, defaultValue: null }]]);
+applyColumns("payroll", [
+  ["baseSalary", "base_salary"],
+  ["bonus", "bonus"],
+  ["deductions", "deductions"],
+  ["netPay", "net_pay"],
+]);
+applyColumns("chartOfAccounts", [["balance", "balance"]]);
+applyColumns("journalEntries", [["totalDebit", "total_debit"], ["totalCredit", "total_credit"]]);
+applyColumns("journalLines", [["debit", "debit"], ["credit", "credit"]]);
+applyColumns("purchaseOrders", [["amount", "amount"], ["tax", "tax"], ["total", "total"]]);
+applyColumns("expenseClaims", [["amount", "amount"]]);
+applyColumns("projectBudgets", [["totalBudget", "total_budget"], ["spentBudget", "spent_budget"]]);
+
+fs.writeFileSync(path, source);
+console.log("Finance schema fixed-precision contract remediated.");

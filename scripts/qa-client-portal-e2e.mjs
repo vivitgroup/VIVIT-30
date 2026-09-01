@@ -38,7 +38,8 @@ check("Portal calendar task relation excludes soft-deleted creatives",portalSour
 check("Client task detail uses explicit client ownership",taskSource.includes('role==="CLIENT"&&task.client_user_id===userId'));
 check("Client task comments hide internal notes",taskSource.includes("tc.is_internal=false"));
 check("File API client scope is linked-client only",filesSource.includes('role==="CLIENT"')&&filesSource.includes("eq(clients.userId,userId)")&&filesSource.includes("eq(clients.isActive,true)"));
-check("File link validation checks client ownership",filesSource.includes('if(role==="CLIENT")return client.userId===userId'));
+check("File link validation checks client ownership",filesSource.includes('if(role==="CLIENT")return task.user_id===userId')&&filesSource.includes('if(role==="CLIENT")return client.userId===userId'));
+check("File task links reject archived and soft-deleted creatives",filesSource.includes("t.archived_at is null and t.deleted_at is null and c.is_active=true limit 1"));
 check("Client list API filters by linked portal user",clientsSource.includes('role==="CLIENT"?eq(clients.userId,userId)'));
 
 const sql=postgres(dbUrl,{ssl:false,prepare:false,max:1});
@@ -98,6 +99,7 @@ try{
  const clients=await request("/api/clients",{jar:alpha}),cj=await clients.json();check("Client API returns exactly linked client",clients.status===200&&Array.isArray(cj.clients)&&cj.clients.length===1&&cj.clients[0]?.id===alphaClient,JSON.stringify(cj));
  const ownFiles=await request(`/api/files?clientId=${alphaClient}`,{jar:alpha}),of=await ownFiles.json();check("Client file API returns own-client files",ownFiles.status===200&&of.files?.some(x=>x.id===alphaFile)&&!of.files?.some(x=>x.id===betaFile),`status=${ownFiles.status}`);
  const betaFiles=await request(`/api/files?clientId=${betaClient}`,{jar:alpha});check("Cross-client file query is forbidden",betaFiles.status===403,`status=${betaFiles.status}`);
+ const deletedTaskFiles=await request(`/api/files?taskId=${alphaDeletedTask}`,{jar:alpha});check("Soft-deleted task file query is forbidden",deletedTaskFiles.status===403,`status=${deletedTaskFiles.status}`);
  const ownTask=await request(`/dashboard/creative/${alphaTask}`,{jar:alpha}),ownHtml=await ownTask.text();check("Client can open owned creative detail",ownTask.status===200&&ownHtml.includes("ALPHA_VISIBLE_CREATIVE"),`status=${ownTask.status}`);check("Client detail shows public comment",ownHtml.includes("ALPHA_PUBLIC_COMMENT"));check("Client detail hides internal comment",!ownHtml.includes("ALPHA_INTERNAL_SECRET"));
  const foreignTask=await request(`/dashboard/creative/${betaTask}`,{jar:alpha}),foreignLoc=String(foreignTask.headers.get("location")||"");check("Cross-client creative detail redirects to portal",redirected(foreignTask)&&foreignLoc.includes("/dashboard/portal"),`status=${foreignTask.status} location=${foreignLoc}`);
  const deletedTask=await request(`/dashboard/creative/${alphaDeletedTask}`,{jar:alpha});check("Soft-deleted owned creative is not available",deletedTask.status===404,`status=${deletedTask.status}`);

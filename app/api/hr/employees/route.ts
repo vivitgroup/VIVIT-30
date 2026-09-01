@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import {auth} from "@/lib/auth";
 import {db,sql,auditLogs} from "@/lib/db";
 import {PERMISSION_GROUPS} from "@/lib/permissions";
+import {hasEffectiveRole} from "@/lib/session-access";
 
 const EMPLOYEE_ROLES=new Set(["HR","ACCOUNT_MANAGER","MEDIA_BUYER","CREATOR","ACCOUNTANT","SALES"]);
 const KNOWN_PERMISSIONS=new Set(PERMISSION_GROUPS.flatMap(group=>group.permissions.map(permission=>String(permission.key))));
@@ -13,9 +14,9 @@ const asRows=(value:unknown)=>Array.from(value as Iterable<Record<string,unknown
 export async function POST(req:NextRequest){
  const session=await auth();
  if(!session?.user)return NextResponse.json({error:"Unauthorized"},{status:401});
- const workspaceId=clean(session.user.workspaceId,160),actorId=clean(session.user.id,100),actorRole=clean(session.user.role,40);
+ const workspaceId=clean(session.user.workspaceId,160),actorId=clean(session.user.id,100);
  if(!workspaceId)return NextResponse.json({error:"Workspace unavailable"},{status:403});
- if(!["SUPER_ADMIN","HR"].includes(actorRole))return NextResponse.json({error:"Only HR or Super Admin can add employees."},{status:403});
+ if(!hasEffectiveRole(session.user,["SUPER_ADMIN","HR"]))return NextResponse.json({error:"Only HR or Super Admin can add employees."},{status:403});
  const body=await req.json().catch(()=>null) as Record<string,unknown>|null;
  if(!body)return NextResponse.json({error:"Invalid request"},{status:400});
  const name=clean(body.name,160),email=clean(body.email,254).toLowerCase(),phone=clean(body.phone,60)||null,password=String(body.password??""),salary=Number(body.salary??0);

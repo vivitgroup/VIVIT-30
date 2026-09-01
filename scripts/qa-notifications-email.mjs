@@ -27,9 +27,6 @@ const notificationBypasses=runtimeFiles.filter(file=>/\binsert\s*\(\s*notificati
 const emailLogBypasses=runtimeFiles.filter(file=>/\binsert\s*\(\s*emailLogs\s*\)/.test(read(file))).sort();
 const providerBypasses=runtimeFiles.filter(file=>read(file).includes("api.resend.com/emails")).sort();
 
-// Legacy in-app notification writers are retained because several are deliberately
-// embedded in domain transactions or interactive reminder actions. The read boundary
-// is enforced at user+workspace, and this inventory makes any new bypass fail CI.
 const auditedNotificationWriters=[
   "app/api/bulk/route.ts",
   "app/api/clients/route.ts",
@@ -49,10 +46,6 @@ const auditedNotificationWriters=[
   "lib/vivito/executor.ts",
 ].sort();
 
-// Direct Resend callers below are system/auth/cron/reporting flows, not the generic
-// business email API. They remain explicit inventory so any new provider bypass fails.
-// Provider retry/idempotency hardening for these operational flows is re-verified in
-// Reliability & Failure Recovery (Stage 10); Stage 8 owns the business-email contract.
 const auditedSystemProviderPaths=[
   "app/api/approve-token/route.ts",
   "app/api/cron/competitive-intelligence/route.ts",
@@ -77,7 +70,7 @@ const checks=[
   ["Notification poll is current-user scoped",poll.includes("eq(notifications.userId,userId)")],
   ["Notification poll caps result volume",poll.includes(".limit(100)")],
   ["Notification poll disables shared caching",poll.includes('"Cache-Control":"private, no-store"')],
-  ["Email sender uses active workspace provider key",service.includes("eq(workspaces.id,workspaceId)")&&service.includes("eq(workspaces.isActive,true)")&&service.includes("workspaces.resendApiKey")],
+  ["Email sender validates active workspace and uses server-side provider key",service.includes("eq(workspaces.id,workspaceId)")&&service.includes("eq(workspaces.isActive,true)")&&service.includes("process.env.RESEND_API_KEY?.trim()")&&!service.includes("workspaces.resendApiKey")],
   ["Business email route uses scoped delivery service",businessEmail.includes('import {sendWorkspaceEmail} from "@/lib/notifications"')&&businessEmail.includes("sendWorkspaceEmail({workspaceId,to,subject,type,html,idempotencyKey:eventKey})")&&!businessEmail.includes("api.resend.com/emails")],
   ["Email delivery has deterministic idempotency",service.includes('stableId("email",workspaceId,to,idempotencyKey)')&&service.includes('"Idempotency-Key":id')],
   ["Already-sent business email is not sent twice",service.includes('existing?.status==="sent"')&&service.includes('status:"duplicate"')],
@@ -86,7 +79,7 @@ const checks=[
   ["Email log tracks pending/sent/failed state",service.includes('status:"pending"')&&service.includes('status:"sent"')&&service.includes('status:"failed"')],
   ["Email body is not persisted in email logs",emailInsertIsMetadataOnly&&emailSchemaHasNoBody],
   ["Provider/network error details are not persisted",service.includes("Provider/network details are intentionally not persisted or returned")],
-  ["Email provider API key is not returned",!service.includes("return {status:\"sent\",id,apiKey")&&!service.includes("return workspace.resendApiKey")],
+  ["Email provider API key is not returned",!service.includes("return {status:\"sent\",id,apiKey")&&!service.includes("return providerKey")],
   ["Legacy notification writer surface is explicit and unchanged",sameSet(notificationBypasses,auditedNotificationWriters)],
   ["No runtime path bypasses scoped email logging",emailLogBypasses.length===0],
   ["Direct provider surface is limited to audited system flows",sameSet(providerBypasses,auditedSystemProviderPaths)],

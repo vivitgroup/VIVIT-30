@@ -1,0 +1,56 @@
+name: Prelive Production Backup
+
+on:
+  push:
+    branches:
+      - ops/prelive-backup-2026-09-02
+    paths:
+      - .github/workflows/prelive-production-backup.yml
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    steps:
+      - name: Refuse missing production database secret
+        env:
+          PROD_DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+        run: |
+          if [ -z "$PROD_DATABASE_URL" ]; then
+            echo "PROD_DATABASE_URL is not configured."
+            exit 1
+          fi
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y postgresql-client
+
+      - name: Create logical production backup
+        env:
+          PROD_DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          FILE="vivit-prod-prelive-${GITHUB_RUN_ID}.dump"
+          pg_dump --format=custom --no-owner --no-acl --file="$FILE" "$PROD_DATABASE_URL"
+          test -s "$FILE"
+          pg_restore --list "$FILE" > restore-list.txt
+          test -s restore-list.txt
+          sha256sum "$FILE" | tee backup.sha256
+          echo "BACKUP_FILE=$FILE" >> "$GITHUB_ENV"
+
+      - name: Upload private backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vivit-prod-prelive-db-backup-${{ github.run_id }}
+          path: |
+            ${{ env.BACKUP_FILE }}
+            backup.sha256
+            restore-list.txt
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0

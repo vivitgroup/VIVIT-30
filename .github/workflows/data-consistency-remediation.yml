@@ -23,6 +23,6 @@ jobs:
           if git diff --quiet; then exit 0; fi
           git config user.name vivitgroup
           git config user.email groupvivit@gmail.com
-          git add app/dashboard/page.tsx app/dashboard/clients/'[id]'/page.tsx app/dashboard/portal/page.tsx package.json
-          git commit -m "fix(data): unify campaign metrics and date ranges"
+          git add app lib scripts package.json
+          git commit -m "fix(data): unify campaign KPI sources across reports and Vivito"
           git push origin HEAD:feat/vivito-internal-100

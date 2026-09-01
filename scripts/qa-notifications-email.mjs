@@ -6,7 +6,8 @@ const compact=(value)=>value.replace(/\s+/g," ");
 const servicePath="lib/notifications.ts";
 const service=compact(read(servicePath));
 const poll=compact(read("app/api/notifications/poll/route.ts"));
-const schema=compact(read("db/schema.ts"));
+const rawSchema=read("db/schema.ts");
+const emailLogSchema=compact(rawSchema.match(/export const emailLogs = pgTable\("email_logs", \{[\s\S]*?\n\}\);/)?.[0]??"");
 
 function sourceFiles(root){
   if(!fs.existsSync(root))return [];
@@ -23,6 +24,8 @@ const runtimeFiles=[...sourceFiles("app"),...sourceFiles("lib")].filter(file=>fi
 const notificationBypasses=runtimeFiles.filter(file=>/\binsert\s*\(\s*notifications\s*\)/.test(read(file)));
 const emailLogBypasses=runtimeFiles.filter(file=>/\binsert\s*\(\s*emailLogs\s*\)/.test(read(file)));
 const providerBypasses=runtimeFiles.filter(file=>read(file).includes("api.resend.com/emails"));
+const emailInsertIsMetadataOnly=service.includes('db.insert(emailLogs).values({id,to,subject:safeSubject,type:safeType,status:"pending"})');
+const emailSchemaHasNoBody=emailLogSchema.length>0&&!/\b(?:html|body|content)\s*:/.test(emailLogSchema);
 
 const checks=[
   ["Notification creation validates recipient workspace",service.includes("eq(users.id,userId)")&&service.includes("eq(users.workspaceId,workspaceId)")&&service.includes("eq(users.isActive,true)")],
@@ -39,7 +42,7 @@ const checks=[
   ["Email delivery retries transient failures",service.includes("for(let attempt=0;attempt<3;attempt++)")&&service.includes("response.status<500&&response.status!==429")&&service.includes("sleep(250*(2**attempt))")],
   ["Email provider calls have a hard timeout",service.includes("AbortSignal.timeout(5000)")],
   ["Email log tracks pending/sent/failed state",service.includes('status:"pending"')&&service.includes('status:"sent"')&&service.includes('status:"failed"')],
-  ["Email body is not persisted in email logs",!service.includes("html:input.html,status")&&!schema.includes('html: text("html")')&&!schema.includes('body: text("body")')],
+  ["Email body is not persisted in email logs",emailInsertIsMetadataOnly&&emailSchemaHasNoBody],
   ["Provider/network error details are not persisted",service.includes("Provider/network details are intentionally not persisted or returned")],
   ["Email provider API key is not returned",!service.includes("return {status:\"sent\",id,apiKey")&&!service.includes("return workspace.resendApiKey")],
   ["No runtime path bypasses scoped notification writes",notificationBypasses.length===0],

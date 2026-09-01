@@ -8,6 +8,8 @@ check("Client workspace reported override requires exact same range",client.incl
 check("Client workspace carries range to Media Control",client.includes("media/control-center?from=${from}&to=${to}"));
 check("Client portal has selectable from/to",portal.includes("searchParams")&&portal.includes('name="from"')&&portal.includes('name="to"'));
 check("Client portal uses selected range",portal.includes("p.date>=${from}::date")&&portal.includes("p.date<=${to}::date"));
+check("Client surfaces use canonical TOTAL root rows",client.includes("p.breakdown_type='TOTAL'")&&client.includes("p.ad_set_id is null")&&client.includes("p.ad_id is null")&&portal.includes("p.breakdown_type='TOTAL'")&&portal.includes("p.ad_set_id is null")&&portal.includes("p.ad_id is null"));
 check("Main dashboard no longer uses legacy mediaMetrics",!dash.includes("mediaMetrics")&&dash.includes("adPerformanceDaily")&&dash.includes("adCampaigns"));
 check("Main dashboard uses TOTAL top-level rows",dash.includes('eq(adPerformanceDaily.breakdownType,"TOTAL")')&&dash.includes("isNull(adPerformanceDaily.adSetId)")&&dash.includes("isNull(adPerformanceDaily.adId)"));
+check("Main dashboard excludes archived and deleted campaigns",dash.includes("archived_at is null and deleted_at is null"));
 const failed=checks.filter(x=>!x.o);for(const x of checks)console.log(`${x.o?"PASS":"FAIL"}  ${x.n}`);console.log(`\n${checks.length-failed.length}/${checks.length} campaign data consistency checks passed.`);if(failed.length)process.exit(1);

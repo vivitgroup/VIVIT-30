@@ -1,0 +1,49 @@
+name: Integrations Audit
+
+on:
+  push:
+    branches:
+      - audit/integrations-2026-09-01
+  pull_request:
+    branches:
+      - audit/client-portal-2026-09-01
+
+permissions:
+  contents: read
+
+jobs:
+  integrations-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Integration security contract
+        run: node scripts/qa-integrations-audit.mjs
+
+      - name: Media integration regression
+        run: npm run qa:media-control
+
+      - name: RBAC security regression
+        run: npm run qa:rbac-security
+
+      - name: ESLint zero warnings
+        run: npm run lint -- --max-warnings=0
+
+      - name: TypeScript
+        run: npm run type-check
+
+      - name: Production build
+        run: npm run build

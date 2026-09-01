@@ -34,3 +34,5 @@ jobs:
             --token="$VERCEL_TOKEN" \
             --scope=vivit-s-projects \
             --yes
+
+# second push triggers the workflow after creation

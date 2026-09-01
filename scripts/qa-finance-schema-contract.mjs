@@ -106,3 +106,4 @@ if (failures.length) {
 }
 
 console.log("Finance schema contract: PASS");
+// Exact-head certification trigger: keep this check coupled to schema remediation commits.

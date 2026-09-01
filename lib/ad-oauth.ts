@@ -19,7 +19,7 @@ function appBase(){
  return u.origin;
 }
 const callback=(p:string)=>`${appBase()}/api/ad-oauth/${p.toLowerCase()}/callback`;
-function encryptionSecret(){const secret=String(process.env.OAUTH_ENCRYPTION_KEY||process.env.AUTH_SECRET||process.env.NEXTAUTH_SECRET||"").trim();if(!secret)throw new Error("OAuth encryption secret is not configured");if(process.env.NODE_ENV==="production"&&secret.length<32)throw new Error("OAuth encryption secret is too short");return secret;}
+function encryptionSecret(){const secret=String(process.env.OAUTH_ENCRYPTION_KEY||"").trim();if(!secret)throw new Error("OAuth encryption secret is not configured");if(secret.length<32)throw new Error("OAuth encryption secret is too short");return secret;}
 const key=()=>crypto.createHash("sha256").update(encryptionSecret()).digest();
 const META_APP_ID="1009736748777817";
 const META_CONFIG_ID="1591787738522063";

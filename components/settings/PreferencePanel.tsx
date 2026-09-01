@@ -1,4 +1,5 @@
 "use client";
+import Image from "next/image";
 import {useEffect,useState} from "react";
 
 export function PreferencePanel(){
@@ -35,7 +36,7 @@ export function PreferencePanel(){
   return <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(250px,1fr))",gap:14}}>
     <section className="card"><div className="card-body">
       <h2 className="card-title">Profile Image</h2><p className="page-subtitle">Shown on your account across the ERP.</p>
-      <div style={{display:"flex",alignItems:"center",gap:14,marginTop:14}}>{avatar?<img src={avatar} alt="Profile" style={{width:72,height:72,borderRadius:"50%",objectFit:"cover",border:"1px solid var(--card-border)"}}/>:<div className="avatar" style={{width:72,height:72,fontSize:22}}>👤</div>}<label className="btn btn-secondary" style={{cursor:"pointer"}}>{avatarBusy?"Saving…":"Choose Image"}<input type="file" accept="image/jpeg,image/png,image/webp" hidden disabled={avatarBusy} onChange={e=>uploadAvatar(e.target.files?.[0]||null)}/></label></div>
+      <div style={{display:"flex",alignItems:"center",gap:14,marginTop:14}}>{avatar?<Image src={avatar} alt="Profile" width={72} height={72} unoptimized style={{width:72,height:72,borderRadius:"50%",objectFit:"cover",border:"1px solid var(--card-border)"}}/>:<div className="avatar" style={{width:72,height:72,fontSize:22}}>👤</div>}<label className="btn btn-secondary" style={{cursor:"pointer"}}>{avatarBusy?"Saving…":"Choose Image"}<input type="file" accept="image/jpeg,image/png,image/webp" hidden disabled={avatarBusy} onChange={e=>uploadAvatar(e.target.files?.[0]||null)}/></label></div>
       {avatarError&&<p role="alert" style={{color:"var(--red)",fontSize:12,marginTop:10}}>{avatarError}</p>}
       <p style={{fontSize:11,color:"var(--text-muted)",marginTop:10}}>JPG, PNG or WebP · max 1 MB</p>
     </div></section>

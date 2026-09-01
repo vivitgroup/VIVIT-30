@@ -8,6 +8,7 @@ import { MobileNav } from "@/components/layout/MobileNav";
 import { OperatingSystemLauncher } from "@/components/layout/OperatingSystemLauncher";
 import { ClientLogoManager } from "@/components/clients/ClientLogoManager";
 import { ClientSocialLinkRuntime } from "@/components/clients/ClientSocialLinkRuntime";
+import { CompetitiveDeliveryApprovalRuntime } from "@/components/clients/CompetitiveDeliveryApprovalRuntime";
 import { TaskReminderWatcher } from "@/components/reminders/TaskReminderWatcher";
 import { RealtimeNotifications } from "@/components/realtime-notifications";
 import { KeyboardShortcutsModal } from "@/components/keyboard-shortcuts";
@@ -41,5 +42,5 @@ export default async function DashboardLayout({children}:{children:React.ReactNo
   const role=session.user.role??"CLIENT",userName=session.user.name??session.user.email??"User",userId=session.user.id??"";
   const unreadRows=await db.select({value:count()}).from(notifications).where(and(eq(notifications.userId,userId),eq(notifications.isRead,false))).catch(()=>[]),unreadCount=Number(unreadRows[0]?.value??0);
   const showTaskReminders=["SUPER_ADMIN","ACCOUNT_MANAGER","CREATOR"].includes(String(role));
-  return <div style={{display:"flex",minHeight:"100vh",background:"var(--bg-primary)"}}><ExperienceRuntime role={role}/><Sidebar role={role} userName={userName}/><div className="app-main-shell" id="app-main" dir="ltr" data-ui-language="en"><Header role={role} unreadCount={unreadCount}/><main style={{flex:1,padding:0}}><Suspense fallback={<PageSkeleton/>}><div className="app-content animate-fade-up">{children}</div></Suspense></main></div><RealtimeNotifications/><KeyboardShortcutsModal/><TaskReferenceRuntime/><MobileNav role={role}/><DashboardLanguage/><ClientSocialLinkRuntime/>{showTaskReminders&&<TaskReminderWatcher/>}<SystemAssistant role={role}/><ClientLogoManager role={role}/><OperatingSystemLauncher role={role}/></div>;
+  return <div style={{display:"flex",minHeight:"100vh",background:"var(--bg-primary)"}}><ExperienceRuntime role={role}/><Sidebar role={role} userName={userName}/><div className="app-main-shell" id="app-main" dir="ltr" data-ui-language="en"><Header role={role} unreadCount={unreadCount}/><main style={{flex:1,padding:0}}><Suspense fallback={<PageSkeleton/>}><div className="app-content animate-fade-up">{children}</div></Suspense></main></div><RealtimeNotifications/><KeyboardShortcutsModal/><TaskReferenceRuntime/><CompetitiveDeliveryApprovalRuntime role={String(role)}/><MobileNav role={role}/><DashboardLanguage/><ClientSocialLinkRuntime/>{showTaskReminders&&<TaskReminderWatcher/>}<SystemAssistant role={role}/><ClientLogoManager role={role}/><OperatingSystemLauncher role={role}/></div>;
 }

@@ -41,6 +41,9 @@ check("Expense creation writes pending-approval audit history", finance.includes
 check("Mark paid is finance-role gated", finance.includes("async function markPaid") && finance.includes("requireFinanceUser()"));
 check("Mark paid uses database transaction", finance.includes("db.transaction(async tx=>"));
 check("Mark paid invoice is workspace scoped", finance.includes("eq(financeRecords.id,id),eq(financeRecords.workspaceId,workspaceId)"));
+check("Mark paid serializes concurrent settlement", finance.includes('lockKey=`payment:${workspaceId}:${id}`') && finance.includes("pg_advisory_xact_lock(hashtext(${lockKey}))"));
+check("Mark paid accepts manual bank and cash only", finance.includes('!["bank","cash"].includes(method)') && !finance.includes('<option value="stripe">') && !finance.includes('<option value="paymob">') && !finance.includes('<option value="paytabs">'));
+check("Manual settlement does not masquerade as provider confirmation", finance.includes('verification:"manual"') && finance.includes("Provider-confirmed online payments require a verified provider flow"));
 check("Mark paid is idempotent for settled invoices", finance.includes('remaining<=0||r.invoiceStatus==="PAID"'));
 check("Mark paid creates payment history row", finance.includes("tx.insert(paymentRecords).values"));
 check("Payment history records invoice and client", finance.includes("invoiceId:r.id,clientId:r.clientId"));
@@ -52,6 +55,8 @@ check("Finance page shows recent payment history", finance.includes("Recent paym
 check("Workspace currency drives finance display", finance.includes("workspaces.currency") && finance.includes('currency=workspace?.currency||"EGP"'));
 check("Accounts Payment rejects Account Manager and Media Buyer", accounts.includes("Role.SUPER_ADMIN,Role.ACCOUNTANT") && accounts.includes('redirect("/dashboard/universe")'));
 check("Accounts Payment only includes active clients for admin/accountant", accounts.includes('workspaceId=String(session.user.workspaceId||"")') && accounts.includes("p.workspace_id=${workspaceId}") && accounts.includes("where c.workspace_id=${workspaceId} and c.is_active=true"));
+check("Accounts Payment formats each row using its stored currency", accounts.includes('const currency=String(r.currency||"EGP").toUpperCase()') && accounts.includes("money(r.amount_due,currency)") && accounts.includes("money(r.amount_paid,currency)") && accounts.includes("money(r.amount_remaining,currency)"));
+check("Accounts Payment does not sum mixed currencies into a false aggregate", accounts.includes('aggregate=(n:number)=>singleCurrency?money(n,singleCurrency):"Mixed currencies"') && accounts.includes('singleCurrency?`${collection}%`:"Per currency"'));
 check("Invoice API derives workspace from authenticated session", derivesWorkspace(invoice));
 check("Invoice API is workspace scoped", invoice.includes("eq(financeRecords.workspaceId,workspaceId)"));
 check("Invoice API validates finance client access", invoice.includes("canAccessClient(session,record.clientId,{finance:true})"));

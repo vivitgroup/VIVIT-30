@@ -34,6 +34,14 @@ ALTER TABLE company_expenses
 ALTER TABLE payment_records
   ALTER COLUMN amount TYPE numeric(18,2) USING round(amount::numeric, 2);
 
+-- Client finance handoff / collection profiles are finance-grade values too.
+-- Keep payment amounts exact and use four decimal places for the percentage ratio.
+ALTER TABLE client_payment_profiles
+  ALTER COLUMN amount_due TYPE numeric(18,2) USING round(amount_due::numeric, 2),
+  ALTER COLUMN amount_paid TYPE numeric(18,2) USING round(amount_paid::numeric, 2),
+  ALTER COLUMN amount_remaining TYPE numeric(18,2) USING round(amount_remaining::numeric, 2),
+  ALTER COLUMN payment_ratio TYPE numeric(9,4) USING round(payment_ratio::numeric, 4);
+
 ALTER TABLE payroll
   ALTER COLUMN base_salary TYPE numeric(18,2) USING round(base_salary::numeric, 2),
   ALTER COLUMN bonus TYPE numeric(18,2) USING round(bonus::numeric, 2),

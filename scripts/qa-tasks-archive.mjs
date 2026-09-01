@@ -76,9 +76,9 @@ check("Client Portal deliverable counts derive only from active task query",/db\
 check("Client Portal calendar cannot expose archived-task events",!portal.includes("from calendar_events")||/calendar_events[\s\S]*creative_tasks[\s\S]*archived_at is null/.test(portal));
 check("Client Portal documents exclude archived files",/from file_documents where workspace_id=\$\{workspaceId\}[\s\S]*client_id=\$\{client\.id\}[\s\S]*archived_at is null/.test(portal));
 check("Files API validates task target before Super Admin bypass",files.indexOf("if(taskId)")<files.indexOf('if(role==="SUPER_ADMIN")return true'));
-check("Files API rejects archived task and archived client targets",files.includes("t.archived_at is null and c.is_active=true")&&files.includes("eq(clients.isActive,true)"));
+check("Files API rejects archived/deleted task and archived client targets",files.includes("t.archived_at is null and t.deleted_at is null and c.is_active=true")&&files.includes("eq(clients.isActive,true)"));
 check("Task-scoped file GET rejects unavailable archived targets",files.includes("The selected client or task is archived or unavailable to you."));
-check("Creator file scope excludes archived tasks and clients",files.includes("t.assigned_to_id=${userId} and t.archived_at is null and c.is_active=true"));
+check("Creator file scope excludes archived/deleted tasks and clients",files.includes("t.assigned_to_id=${userId} and t.archived_at is null and t.deleted_at is null and c.is_active=true"));
 
 const failed=checks.filter(c=>!c.ok);
 for(const c of checks)console.log(`${c.ok?"PASS":"FAIL"}  ${c.name}`);

@@ -36,6 +36,9 @@ jobs:
       - name: Finance lifecycle contract
         run: npm run qa:finance-reports
 
+      - name: Finance fixed-precision migration contract
+        run: node scripts/qa-finance-money-precision.mjs
+
       - name: Recurring invoice contract
         run: npm run qa:finance-recurring
 

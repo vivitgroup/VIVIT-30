@@ -53,11 +53,11 @@ async function login(role){
 }
 const homes={SUPER_ADMIN:null,ACCOUNT_MANAGER:"/dashboard/universe",MEDIA_BUYER:"/dashboard/universe",CREATOR:"/dashboard/creative",ACCOUNTANT:"/dashboard/finance",SALES:"/dashboard/sales",CLIENT:"/dashboard/portal"};
 const allowed={
- SUPER_ADMIN:["/dashboard/executive","/dashboard/team","/dashboard/finance","/dashboard/media","/dashboard/sales","/dashboard/creative","/dashboard/reports"],
- ACCOUNT_MANAGER:["/dashboard/universe","/dashboard/media","/dashboard/creative","/dashboard/reports","/dashboard/whatsapp"],
- MEDIA_BUYER:["/dashboard/universe","/dashboard/media","/dashboard/creative","/dashboard/reports","/dashboard/whatsapp"],
- CREATOR:["/dashboard/creative","/dashboard/creative/quality","/dashboard/calendar","/dashboard/ai-studio"],
- ACCOUNTANT:["/dashboard/finance","/dashboard/contracts","/dashboard/clients/accounts-payment","/dashboard/reports","/dashboard/clients"],
+ SUPER_ADMIN:["/dashboard/executive","/dashboard/team","/dashboard/finance","/dashboard/media","/dashboard/sales","/dashboard/creative","/dashboard/reports","/dashboard/archive"],
+ ACCOUNT_MANAGER:["/dashboard/universe","/dashboard/media","/dashboard/creative","/dashboard/reports","/dashboard/whatsapp","/dashboard/archive"],
+ MEDIA_BUYER:["/dashboard/universe","/dashboard/media","/dashboard/creative","/dashboard/reports","/dashboard/whatsapp","/dashboard/archive"],
+ CREATOR:["/dashboard/creative","/dashboard/creative/quality","/dashboard/calendar","/dashboard/ai-studio","/dashboard/archive"],
+ ACCOUNTANT:["/dashboard/finance","/dashboard/contracts","/dashboard/clients/accounts-payment","/dashboard/reports","/dashboard/clients","/dashboard/archive"],
  SALES:["/dashboard/sales","/dashboard/calendar","/dashboard/reports","/dashboard/whatsapp","/dashboard/archive"],
  CLIENT:["/dashboard/portal","/dashboard/calendar","/dashboard/ai-studio","/dashboard/files","/dashboard/settings"]
 };
@@ -67,7 +67,7 @@ const denied={
  CREATOR:["/dashboard/finance","/dashboard/team","/dashboard/media","/dashboard/sales","/dashboard/reports","/dashboard/portal"],
  ACCOUNTANT:["/dashboard/team","/dashboard/media","/dashboard/sales","/dashboard/creative","/dashboard/portal"],
  SALES:["/dashboard/finance","/dashboard/team","/dashboard/media","/dashboard/creative","/dashboard/clients","/dashboard/portal"],
- CLIENT:["/dashboard/finance","/dashboard/team","/dashboard/media","/dashboard/sales","/dashboard/clients","/dashboard/reports","/dashboard/executive"]
+ CLIENT:["/dashboard/finance","/dashboard/team","/dashboard/media","/dashboard/sales","/dashboard/clients","/dashboard/reports","/dashboard/executive","/dashboard/archive"]
 };
 function isRedirect(r){return [301,302,303,307,308].includes(r.status)}
 try{

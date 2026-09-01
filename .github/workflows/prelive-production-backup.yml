@@ -54,3 +54,5 @@ jobs:
           if-no-files-found: error
           retention-days: 14
           compression-level: 0
+
+# second push intentionally triggers the one-time backup workflow

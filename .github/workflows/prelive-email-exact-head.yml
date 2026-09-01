@@ -33,13 +33,13 @@ jobs:
       NEXTAUTH_SECRET: ci-email-exact-head-secret-not-for-production
       NEXTAUTH_URL: http://127.0.0.1:3000
     steps:
-      - name: Checkout exact audit head
+      - name: Checkout exact main head
         uses: actions/checkout@v4
         with:
-          ref: 61a126ac0ff85c5d34e57b16e32d674499950b06
+          ref: 999a1c6e772e9fcae2699825dcd9632e43255b1e
 
       - name: Verify exact head
-        run: test "$(git rev-parse HEAD)" = "61a126ac0ff85c5d34e57b16e32d674499950b06"
+        run: test "$(git rev-parse HEAD)" = "999a1c6e772e9fcae2699825dcd9632e43255b1e"
 
       - name: Use Node 22
         uses: actions/setup-node@v4

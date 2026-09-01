@@ -15,6 +15,10 @@ jobs:
   integrations-audit:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      # Static/QA imports initialize the database client during the full build.
+      # This is an isolated CI-only placeholder and never points at Preview/Production data.
+      DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/vivit_ci
     steps:
       - name: Checkout exact commit
         uses: actions/checkout@v4

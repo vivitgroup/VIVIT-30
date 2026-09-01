@@ -24,7 +24,7 @@ pass("Scheduled posts accept images and video",/image\/\*,video\/\*/.test(calend
 pass("Files support 500 MB",/500\s*\*\s*1024\s*\*\s*1024/.test(filesApi)&&/500\s*\*\s*1024\s*\*\s*1024/.test(filesPage));
 pass("Files API supports owner/admin edit",/export async function PATCH/.test(filesApi)&&/uploadedBy/.test(filesApi)&&/SUPER_ADMIN/.test(filesApi));
 pass("Files API supports owner/admin delete",/export async function DELETE/.test(filesApi)&&/uploadedBy/.test(filesApi)&&/SUPER_ADMIN/.test(filesApi));
-pass("Files support archive and restore",filesApi.includes('op==="archive"')&&filesApi.includes('op==="restore"')&&filesPage.includes("Archive")&&filesPage.includes("Restore"));
+pass("Files support archive and restore",/op\s*===\s*["']archive["']/.test(filesApi)&&/op\s*===\s*["']restore["']/.test(filesApi)&&filesPage.includes("Archive")&&filesPage.includes("Restore"));
 pass("Archived files excluded from active view",filesApi.includes("archived_at is null")&&filesApi.includes("archived_at is not null"));
 pass("Files UI exposes edit/delete actions",/Edit/.test(filesPage)&&/Delete/.test(filesPage));
 pass("File storage bucket self-heals",/ensureBucket/.test(filesApi));pass("File links are role/client scoped",/validateLinks/.test(filesApi)&&/ACCOUNT_MANAGER/.test(filesApi)&&/MEDIA_BUYER/.test(filesApi));

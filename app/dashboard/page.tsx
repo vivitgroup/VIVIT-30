@@ -2,9 +2,9 @@ export const dynamic = "force-dynamic";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { db, clients, financeRecords, creativeTasks, salesLeads,
-  mediaMetrics, companyExpenses, notifications,
+  adPerformanceDaily, adCampaigns, companyExpenses, notifications,
   agencyHealthScores, payrollLocks } from "@/lib/db";
-import { eq, and, gte, lte, sum, count, desc, notInArray, lt } from "drizzle-orm";
+import { eq, and, gte, lte, sum, count, desc, notInArray, lt, isNull, sql } from "drizzle-orm";
 import { Role } from "@/lib/types";
 import Link from "next/link";
 
@@ -36,8 +36,8 @@ export default async function DashboardPage() {
       .from(financeRecords).where(and(eq(financeRecords.workspaceId,workspaceId),eq(financeRecords.month,month===1?12:month-1),eq(financeRecords.year,month===1?year-1:year))),
     db.select({ total:sum(financeRecords.totalRevenue), paid:sum(financeRecords.paid) })
       .from(financeRecords).where(and(eq(financeRecords.workspaceId,workspaceId),gte(financeRecords.createdAt,yrStart))),
-    db.select({ spend:sum(mediaMetrics.adSpend), leads:sum(mediaMetrics.leads), revenue:sum(mediaMetrics.revenue) })
-      .from(mediaMetrics).where(and(eq(mediaMetrics.workspaceId,workspaceId),gte(mediaMetrics.date,moStart))),
+    db.select({spend:sum(adPerformanceDaily.spend),leads:sum(adPerformanceDaily.results),revenue:sum(adPerformanceDaily.revenue)})
+      .from(adPerformanceDaily).innerJoin(adCampaigns,eq(adPerformanceDaily.campaignId,adCampaigns.id)).innerJoin(clients,eq(adCampaigns.clientId,clients.id)).where(and(eq(clients.workspaceId,workspaceId),eq(clients.isActive,true),gte(adPerformanceDaily.date,moStart),eq(adPerformanceDaily.breakdownType,"TOTAL"),isNull(adPerformanceDaily.adSetId),isNull(adPerformanceDaily.adId),sql`${adCampaigns.id} in (select id from ad_campaigns where archived_at is null and deleted_at is null)`)),
     db.select({cnt:count()}).from(creativeTasks).where(and(eq(creativeTasks.workspaceId,workspaceId),notInArray(creativeTasks.status,["COMPLETED","REJECTED"]))),
     db.select({cnt:count()}).from(creativeTasks).where(and(eq(creativeTasks.workspaceId,workspaceId),eq(creativeTasks.status,"REVIEW"))),
     db.select({cnt:count()}).from(creativeTasks).where(and(eq(creativeTasks.workspaceId,workspaceId),lt(creativeTasks.deadline,today),notInArray(creativeTasks.status,["COMPLETED","REJECTED","APPROVED"]))),

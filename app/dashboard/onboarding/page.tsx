@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { db, clients, onboardingProgress, auditLogs, sql } from "@/lib/db";
+import { db, clients, onboardingProgress } from "@/lib/db";
 import { eq, and, inArray } from "drizzle-orm";
 import { Role } from "@/lib/types";
 

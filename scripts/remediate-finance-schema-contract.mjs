@@ -71,3 +71,4 @@ applyColumns("projectBudgets", [["totalBudget", "total_budget"], ["spentBudget",
 
 fs.writeFileSync(path, source);
 console.log("Finance schema fixed-precision number-mode contract remediated.");
+// Re-run marker: number-mode gate synchronized with schema contract.

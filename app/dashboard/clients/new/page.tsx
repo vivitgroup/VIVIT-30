@@ -15,7 +15,7 @@ export default async function NewClientPage(){
   if(!hasEffectiveRole(session.user,["SUPER_ADMIN","ACCOUNT_MANAGER","ACCOUNTANT"]))redirect("/dashboard/clients");
   const workspaceId=String(session.user.workspaceId||"");
   if(!workspaceId)redirect("/login");
-  const roles=effectiveRoles(session.user),primaryRole=String(session.user.role||"");
+  const roles=effectiveRoles(session.user);
   const isSuper=roles.includes("SUPER_ADMIN"),isAccountManager=roles.includes("ACCOUNT_MANAGER")&&!isSuper,isAccountant=roles.includes("ACCOUNTANT")&&!isSuper&&!roles.includes("ACCOUNT_MANAGER");
   const [teamRows,portalUsers,linked]=await Promise.all([
     db.execute(sql`

@@ -12,6 +12,7 @@ const oauthStart=read('app/api/ad-oauth/[platform]/start/route.ts');
 const oauthCallback=read('app/api/ad-oauth/[platform]/callback/route.ts');
 const cron=read('app/api/cron/media-sync/route.ts');
 const webhooks=read('app/api/webhooks/route.ts');
+const whatsapp=read('app/api/whatsapp-templates/route.ts');
 
 check('CRON_SECRET example has no reusable default', /CRON_SECRET=""/.test(env) && !env.includes('vivit-cron-secret-2025'));
 check('OAuth encryption uses dedicated key only', oauth.includes('process.env.OAUTH_ENCRYPTION_KEY||""') && !oauth.includes('process.env.OAUTH_ENCRYPTION_KEY||process.env.AUTH_SECRET'));
@@ -37,6 +38,10 @@ check('Webhook targets require public HTTPS', webhooks.includes('u.protocol!=="h
 check('Webhook redirects are disabled', webhooks.includes('redirect:"manual"'));
 check('Webhook deliveries are signed and identifiable', webhooks.includes('createHmac("sha256",hook.secret)') && webhooks.includes('X-Vivit-Signature') && webhooks.includes('X-Vivit-Delivery') && webhooks.includes('X-Vivit-Timestamp'));
 check('Webhook deliveries have timeout and retries', webhooks.includes('AbortSignal.timeout(5000)') && webhooks.includes('attempt<3'));
+check('WhatsApp send is authenticated and role gated', whatsapp.includes('allowedRoles=["SUPER_ADMIN","ACCOUNT_MANAGER","SALES"]') && whatsapp.includes('await auth()'));
+check('WhatsApp client association is workspace scoped', whatsapp.includes('eq(clients.workspaceId,workspaceId)') && whatsapp.includes('eq(clients.isActive,true)'));
+check('WhatsApp provider request has timeout', whatsapp.includes('AbortSignal.timeout(10000)'));
+check('WhatsApp message state is workspace scoped', whatsapp.includes('eq(whatsappMessages.workspaceId,input.workspaceId)'));
 
 const failed=checks.filter((x)=>!x.ok);
 for(const item of checks) console.log(`${item.ok?'PASS':'FAIL'}  ${item.name}`);

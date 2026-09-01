@@ -17,7 +17,7 @@ async function sendWhatsAppMessage(input:{workspaceId:string;to:string;body:stri
  const [msg]=await db.insert(whatsappMessages).values({workspaceId:input.workspaceId,to,template:mode==="template"?templateName:"custom",body:input.body,clientId:input.clientId||null,status:"PENDING"}).returning();
  const payload=mode==="template"?{messaging_product:"whatsapp",to,type:"template",template:{name:templateName,language:{code:languageCode}}}:{messaging_product:"whatsapp",to,type:"text",text:{preview_url:false,body:input.body}};
  try{
-  const res=await fetch(`https://graph.facebook.com/${graphVersion()}/${encodeURIComponent(phoneId)}/messages`,{method:"POST",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify(payload),cache:"no-store"});
+  const res=await fetch(`https://graph.facebook.com/${graphVersion()}/${encodeURIComponent(phoneId)}/messages`,{method:"POST",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify(payload),cache:"no-store",signal:AbortSignal.timeout(10000)});
   const data=await res.json();const messageId=data?.messages?.[0]?.id;
   if(!res.ok||!messageId)throw new Error(data?.error?.message||"WhatsApp rejected the message.");
   if(msg)await db.update(whatsappMessages).set({waMessageId:messageId,status:"SENT"}).where(and(eq(whatsappMessages.id,msg.id),eq(whatsappMessages.workspaceId,input.workspaceId)));

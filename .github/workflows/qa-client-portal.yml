@@ -108,7 +108,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: client-portal-e2e-${{ github.sha }}
-          path: /tmp/client-portal-e2e.log
+          path: |
+            /tmp/client-portal-e2e.log
+            /tmp/vivit-client-portal-server.log
           if-no-files-found: ignore
           retention-days: 3
 

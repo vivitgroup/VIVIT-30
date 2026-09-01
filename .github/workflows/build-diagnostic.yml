@@ -11,6 +11,11 @@ permissions:
 jobs:
   build-diagnostic:
     runs-on: ubuntu-latest
+    env:
+      # Build-only placeholder. Next.js imports API route modules while collecting
+      # route metadata, and lib/db.ts validates that DATABASE_URL exists at import
+      # time. No database connection is made by this diagnostic build.
+      DATABASE_URL: postgresql://build:build@127.0.0.1:5432/vivit_build
     steps:
       - name: Checkout exact commit
         uses: actions/checkout@v4

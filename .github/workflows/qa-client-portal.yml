@@ -98,10 +98,26 @@ jobs:
         run: node scripts/qa-role-by-role-e2e.mjs
 
       - name: Client Portal cross-client isolation E2E
-        run: node scripts/qa-client-portal-e2e.mjs
+        shell: bash
+        run: |
+          set -o pipefail
+          node scripts/qa-client-portal-e2e.mjs | tee /tmp/client-portal-e2e.log
+
+      - name: Upload focused Client Portal diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-portal-e2e-${{ github.sha }}
+          path: /tmp/client-portal-e2e.log
+          if-no-files-found: ignore
+          retention-days: 3
 
       - name: Anonymous runtime security regression
         run: node scripts/qa-runtime-smoke.mjs
+
+      - name: Dump focused E2E failures
+        if: failure()
+        run: grep '^FAIL' /tmp/client-portal-e2e.log || true
 
       - name: Dump server log on failure
         if: failure()

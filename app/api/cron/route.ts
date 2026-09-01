@@ -8,7 +8,7 @@ import { slackAlert } from "@/lib/slack";
 export async function GET(req: NextRequest) {
   const startTime = Date.now();
   const bearer = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
-  const secret = req.headers.get("x-cron-secret") ?? bearer ?? req.nextUrl.searchParams.get("secret");
+  const secret = req.headers.get("x-cron-secret") ?? bearer;
   if (process.env.NODE_ENV === "production" && secret !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -369,13 +369,13 @@ export async function GET(req: NextRequest) {
       await notify(am.id, "GENERAL", "high",
         "📊 Monthly Reports Due",
         `It's the 1st — time to generate and send monthly performance reports to all your clients.`,
-        `/dashboard/monthly-reports`);
+        "/dashboard/monthly-reports");
     }
     for (const u of admins) {
       await notify(u.id, "GENERAL", "normal",
         "📋 Month closed — recurring invoices due",
         `Generate recurring invoices for all active clients from Settings.`,
-        `/dashboard/settings`);
+        "/dashboard/settings");
     }
     sent["monthly_reminders"] = ams.length + admins.length;
   }
@@ -413,15 +413,20 @@ export async function GET(req: NextRequest) {
   }
   sent["low_roas_alerts"] = roasAlerts;
 
-  // Fix 80: Log completion time
-  const duration = Date.now() - startTime;
-  console.log(`Cron completed in ${duration}ms`);
+  const runtime_ms = Date.now() - startTime;
+  const totalNotifications = Object.values(sent).reduce((a,b) => a+b, 0);
+  console.info("cron_completed", {
+    runtime_ms,
+    automations_ran: Object.keys(sent).length,
+    total_notifications: totalNotifications,
+  });
 
   return NextResponse.json({
     success: true,
     timestamp: now.toISOString(),
+    runtime_ms,
     automations_ran: Object.keys(sent).length,
     results: sent,
-    total_notifications: Object.values(sent).reduce((a,b) => a+b, 0),
+    total_notifications: totalNotifications,
   });
 }

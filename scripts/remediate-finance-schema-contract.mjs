@@ -48,9 +48,9 @@ applyColumns("financeRecords", [
 
 updateTable("financeRecords", body => {
   if (body.includes('unique("uq_finance_records_workspace_client_period")')) return body;
-  const closing = /\}\);\s*$/;
-  if (!closing.test(body)) throw new Error("financeRecords closing marker not found");
-  return body.replace(closing, '}, t=>[unique("uq_finance_records_workspace_client_period").on(t.workspaceId,t.clientId,t.year,t.month)]);\n\n');
+  const closingIndex = body.indexOf("\n});");
+  if (closingIndex === -1) throw new Error("financeRecords closing marker not found");
+  return `${body.slice(0, closingIndex)}\n}, t=>[unique("uq_finance_records_workspace_client_period").on(t.workspaceId,t.clientId,t.year,t.month)]);${body.slice(closingIndex + 4)}`;
 });
 
 applyColumns("companyExpenses", [["amount", "amount", 18, 2, { nullable: false, defaultValue: null }]]);

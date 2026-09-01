@@ -25,7 +25,10 @@ check('OAuth provider requests have timeout', oauth.includes('AbortSignal.timeou
 check('OAuth start has provider allowlist', oauthStart.includes('const allowed=["META","TIKTOK","GOOGLE","SNAPCHAT","LINKEDIN"]'));
 check('OAuth start is role gated', oauthStart.includes('SUPER_ADMIN') && oauthStart.includes('MEDIA_BUYER') && oauthStart.includes('ACCOUNT_MANAGER'));
 check('OAuth start is workspace and active-client scoped', oauthStart.includes('eq(clients.workspaceId,workspaceId)') && oauthStart.includes('eq(clients.isActive,true)'));
+check('OAuth start binds signed state to browser-only short-lived cookie', oauthStart.includes('httpOnly:true') && oauthStart.includes('sameSite:"lax"') && oauthStart.includes('maxAge:10*60') && oauthStart.includes('stateDigest(state)'));
 check('OAuth callback binds state to current user and platform', oauthCallback.includes('state.platform!==platform||state.userId!==userId'));
+check('OAuth callback enforces browser-bound state digest', oauthCallback.includes('req.cookies.get(cookieName)') && oauthCallback.includes('timingSafeEqual') && oauthCallback.includes('stateDigest(rawState)'));
+check('OAuth callback consumes browser state after attempt', oauthCallback.includes('clearStateCookie(response,cookieName,cookiePath)') && oauthCallback.includes('maxAge:0'));
 check('OAuth callback rechecks workspace and active-client access', oauthCallback.includes('eq(clients.workspaceId,workspaceId)') && oauthCallback.includes('eq(clients.isActive,true)'));
 check('OAuth callback blocks cross-tenant ad-account reassignment', oauthCallback.includes('already connected outside this client workspace'));
 check('OAuth callback stores encrypted tokens', oauthCallback.includes('encryptToken(tokens.accessToken)') && oauthCallback.includes('encryptToken(tokens.refreshToken)'));

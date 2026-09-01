@@ -1,0 +1,47 @@
+name: CTO Monthly Summary Closeout
+on:
+  push:
+    branches: [feat/vivito-internal-100]
+permissions:
+  contents: write
+jobs:
+  remediate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-internal-100
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Harden monthly summary canonical scope and lifecycle
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('app/api/monthly-summary/[clientId]/route.ts')
+          s=p.read_text()
+          s=s.replace('select id from creative_tasks where archived_at is null)', 'select id from creative_tasks where archived_at is null and deleted_at is null)')
+          p.write_text(s)
+
+          q=Path('scripts/qa-finance-reports.mjs')
+          s=q.read_text()
+          s=s.replace('check("Monthly summary media is workspace scoped", monthly.includes("eq(mediaMetrics.workspaceId,workspaceId)"));', 'check("Monthly summary media is workspace scoped", monthly.includes("a.workspace_id=${workspaceId}") && monthly.includes("a.client_id=${clientId}") && monthly.includes("ad_performance_daily") && monthly.includes("ad_campaigns"));')
+          s=s.replace('check("Monthly summary excludes archived tasks", monthly.includes("creative_tasks where archived_at is null"));', 'check("Monthly summary excludes archived/deleted tasks", monthly.includes("creative_tasks where archived_at is null and deleted_at is null"));')
+          s=s.replace('check("Monthly summary excludes calendar items for archived tasks", monthly.includes("activeCalendar") && monthly.includes("creative_tasks where archived_at is null"));', 'check("Monthly summary excludes calendar items for archived/deleted tasks", monthly.includes("activeCalendar") && monthly.includes("creative_tasks where archived_at is null and deleted_at is null"));')
+          q.write_text(s)
+          PY
+      - run: node scripts/qa-finance-reports.mjs
+      - run: node scripts/qa-campaign-data-consistency.mjs
+      - run: npm run type-check
+      - name: Commit remediation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/api/monthly-summary/[clientId]/route.ts scripts/qa-finance-reports.mjs
+          git diff --cached --quiet && exit 0
+          git commit -m "fix(reports): harden monthly summary canonical scope"
+          git push origin HEAD:feat/vivito-internal-100

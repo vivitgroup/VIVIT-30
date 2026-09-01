@@ -1,0 +1,13 @@
+import fs from "node:fs";
+const read=p=>fs.readFileSync(p,"utf8"),checks=[],check=(n,o)=>checks.push({n,o:Boolean(o)});
+const client=read("app/dashboard/clients/[id]/page.tsx"),portal=read("app/dashboard/portal/page.tsx"),dash=read("app/dashboard/page.tsx"),media=read("app/api/media-control-v2/route.ts");
+check("Media Control canonical source",media.includes("adPerformanceDaily")&&media.includes('breakdownType,"TOTAL"')&&media.includes("isNull(adPerformanceDaily.adSetId)")&&media.includes("isNull(adPerformanceDaily.adId)"));
+check("Client workspace has selectable from/to",client.includes("searchParams")&&client.includes('name="from"')&&client.includes('name="to"'));
+check("Client workspace uses selected range",client.includes("p.date>=${from}::date")&&client.includes("p.date<=${to}::date"));
+check("Client workspace reported override requires exact same range",client.includes("reported_period_start")&&client.includes("===start")&&client.includes("===end"));
+check("Client workspace carries range to Media Control",client.includes("media/control-center?from=${from}&to=${to}"));
+check("Client portal has selectable from/to",portal.includes("searchParams")&&portal.includes('name="from"')&&portal.includes('name="to"'));
+check("Client portal uses selected range",portal.includes("p.date>=${from}::date")&&portal.includes("p.date<=${to}::date"));
+check("Main dashboard no longer uses legacy mediaMetrics",!dash.includes("mediaMetrics")&&dash.includes("adPerformanceDaily")&&dash.includes("adCampaigns"));
+check("Main dashboard uses TOTAL top-level rows",dash.includes('eq(adPerformanceDaily.breakdownType,"TOTAL")')&&dash.includes("isNull(adPerformanceDaily.adSetId)")&&dash.includes("isNull(adPerformanceDaily.adId)"));
+const failed=checks.filter(x=>!x.o);for(const x of checks)console.log(`${x.o?"PASS":"FAIL"}  ${x.n}`);console.log(`\n${checks.length-failed.length}/${checks.length} campaign data consistency checks passed.`);if(failed.length)process.exit(1);

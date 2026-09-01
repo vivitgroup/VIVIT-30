@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import {NextRequest,NextResponse} from "next/server";
 import {auth} from "@/lib/auth";
 import {authorizationUrl,oauthConfigured,signState,OAuthPlatform} from "@/lib/ad-oauth";
@@ -5,6 +6,9 @@ import {db,clients} from "@/lib/db";
 import {and,eq} from "drizzle-orm";
 
 const allowed=["META","TIKTOK","GOOGLE","SNAPCHAT","LINKEDIN"];
+const stateCookieName=(platform:OAuthPlatform)=>`vivit_oauth_state_${platform.toLowerCase()}`;
+const stateDigest=(state:string)=>crypto.createHash("sha256").update(state).digest("base64url");
+
 export async function GET(req:NextRequest,{params}:{params:Promise<{platform:string}>}){
  const session=await auth();if(!session?.user)return NextResponse.redirect(new URL("/login",req.url));
  const role=String(session.user.role||""),userId=String(session.user.id||""),workspaceId=String(session.user.workspaceId||"").trim();
@@ -17,5 +21,8 @@ export async function GET(req:NextRequest,{params}:{params:Promise<{platform:str
  const roleScope=role==="MEDIA_BUYER"?eq(clients.mediaBuyerId,userId):role==="ACCOUNT_MANAGER"?eq(clients.accountManagerId,userId):eq(clients.workspaceId,workspaceId);
  const access=and(eq(clients.id,clientId),eq(clients.workspaceId,workspaceId),eq(clients.isActive,true),roleScope);
  if(!(await db.select({id:clients.id}).from(clients).where(access).limit(1))[0])return NextResponse.redirect(new URL("/dashboard/media/sync?oauth=forbidden",req.url));
- const state=signState({platform,clientId,adAccountId,accountName,userId});return NextResponse.redirect(authorizationUrl(platform,state));
+ const state=signState({platform,clientId,adAccountId,accountName,userId});
+ const response=NextResponse.redirect(authorizationUrl(platform,state));
+ response.cookies.set(stateCookieName(platform),stateDigest(state),{httpOnly:true,secure:process.env.NODE_ENV==="production",sameSite:"lax",maxAge:10*60,path:`/api/ad-oauth/${platform.toLowerCase()}/callback`});
+ return response;
 }

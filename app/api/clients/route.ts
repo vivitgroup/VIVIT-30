@@ -32,7 +32,7 @@ export async function GET(){
 export async function POST(req:NextRequest){
   const s=await sessionScope();if(!s)return NextResponse.json({error:"Unauthorized"},{status:401});
   const {workspaceId,role,userId}=s;
-  if(!["SUPER_ADMIN","ACCOUNT_MANAGER","ACCOUNTANT"].includes(role))return NextResponse.json({error:"You do not have permission to add clients."},{status:403});
+  if(!["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","ACCOUNTANT"].includes(role))return NextResponse.json({error:"You do not have permission to add clients."},{status:403});
   const b=await parseBody(req);if(!b)return NextResponse.json({error:"Invalid form data."},{status:400});
 
   // Client creation is operational onboarding only. Finance is a separate
@@ -67,7 +67,7 @@ export async function POST(req:NextRequest){
   }
 
   const accountManagerId=canSetupMarketing?(role==="ACCOUNT_MANAGER"?userId:str(b.accountManagerId,80)||null):null;
-  const mediaBuyerId=canSetupMarketing?(str(b.mediaBuyerId,80)||null):null;
+  const mediaBuyerId=canSetupMarketing?(role==="MEDIA_BUYER"?userId:str(b.mediaBuyerId,80)||null):null;
   if(canSetupMarketing&&!accountManagerId)return NextResponse.json({error:"Account manager assignment is required."},{status:400});
   if(canSetupMarketing&&!mediaBuyerId)return NextResponse.json({error:"Media buyer assignment is required."},{status:400});
   if(accountManagerId){

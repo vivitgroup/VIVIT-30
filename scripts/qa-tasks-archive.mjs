@@ -18,7 +18,7 @@ check("Core lifecycle supports task archive/delete/restore_deleted",lifecycle.in
 check("Task delete remains soft delete",lifecycle.includes("update creative_tasks set deleted_at=now(),deleted_by=${userId}")&&!lifecycle.includes("delete from creative_tasks where id=${id}"));
 check("Assigned Creator can manage its task lifecycle",lifecycle.includes("r.assigned_to_id===userId"));
 check("Lifecycle center is ledger driven for all registered entities",lifecycle.includes("distinct on (entity_type,entity_id)")&&lifecycle.includes("BUSINESS_LIFECYCLE_SPECS"));
-check("Archive UI is registry/ledger driven and displays actor",archive.includes("d.items||[]")&&archive.includes("Archived by")&&archive.includes("actor_name"));
+check("Archive UI is registry/ledger driven and displays actor",archive.includes("archiveData.items||[]")&&archive.includes("Archived by")&&archive.includes("actor_name"));
 check("Delete Center is registry/ledger driven and displays actor",deleted.includes("d.items||[]")&&deleted.includes("Deleted by")&&deleted.includes("actor_name"));
 check("Delete Center restores any registered entity",deleted.includes('action:"restore_deleted"')&&deleted.includes("row.entity"));
 check("Business lifecycle registry covers files media HR finance sales and knowledge",["file_documents","media_plans","leave_requests","expense_claims","proposals","knowledge_base","journal_entries"].every(x=>registry.includes(x)));

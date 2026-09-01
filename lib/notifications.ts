@@ -59,11 +59,12 @@ export async function sendWorkspaceEmail(input:EmailInput):Promise<EmailResult>{
   const idempotencyKey=input.idempotencyKey.trim();
   if(!workspaceId||!to||!idempotencyKey||!input.subject.trim()||!input.type.trim())throw new Error("Invalid email delivery request");
 
-  const [workspace]=await db.select({id:workspaces.id,resendApiKey:workspaces.resendApiKey})
+  const [workspace]=await db.select({id:workspaces.id})
     .from(workspaces)
     .where(and(eq(workspaces.id,workspaceId),eq(workspaces.isActive,true)))
     .limit(1);
-  if(!workspace?.resendApiKey)return {status:"failed",id:stableId("email",workspaceId,to,idempotencyKey)};
+  const providerKey=process.env.RESEND_API_KEY?.trim();
+  if(!workspace||!providerKey)return {status:"failed",id:stableId("email",workspaceId,to,idempotencyKey)};
 
   const id=stableId("email",workspaceId,to,idempotencyKey);
   const [existing]=await db.select({status:emailLogs.status,resendId:emailLogs.resendId})
@@ -91,7 +92,7 @@ export async function sendWorkspaceEmail(input:EmailInput):Promise<EmailResult>{
       const response=await fetch("https://api.resend.com/emails",{
         method:"POST",
         headers:{
-          Authorization:`Bearer ${workspace.resendApiKey}`,
+          Authorization:`Bearer ${providerKey}`,
           "Content-Type":"application/json",
           "Idempotency-Key":id,
         },

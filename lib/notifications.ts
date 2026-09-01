@@ -81,7 +81,7 @@ export async function sendWorkspaceEmail(input:EmailInput):Promise<EmailResult>{
     await db.insert(emailLogs).values({id,to,subject:safeSubject,type:safeType,status:"pending"});
   }
 
-  const from=process.env.RESEND_FROM_EMAIL?.trim();
+  const from=process.env.RESEND_FROM_EMAIL?.trim()||process.env.EMAIL_FROM?.trim()||process.env.OTP_FROM_EMAIL?.trim();
   if(!from){
     await db.update(emailLogs).set({status:"failed"}).where(eq(emailLogs.id,id));
     return {status:"failed",id};

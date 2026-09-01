@@ -12,8 +12,26 @@ permissions:
 
 jobs:
   certify:
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: vivito
+          POSTGRES_PASSWORD: vivito
+          POSTGRES_DB: vivito_email_cert
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U vivito -d vivito_email_cert"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://vivito:vivito@127.0.0.1:5432/vivito_email_cert
+      DRIZZLE_DATABASE_URL: postgresql://vivito:vivito@127.0.0.1:5432/vivito_email_cert
+      DATABASE_SSL_DISABLED: "1"
+      AUTH_SECRET: ci-email-exact-head-secret-not-for-production
+      NEXTAUTH_SECRET: ci-email-exact-head-secret-not-for-production
+      NEXTAUTH_URL: http://127.0.0.1:3000
     steps:
       - name: Checkout exact audit head
         uses: actions/checkout@v4
@@ -32,6 +50,9 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
+      - name: Initialize isolated schema
+        run: npx drizzle-kit push --force
+
       - name: Notifications and email contracts
         run: node scripts/qa-notifications-email.mjs
 
@@ -40,5 +61,3 @@ jobs:
 
       - name: Full release build
         run: npm run build
-
-# Triggered after workflow registration; target SHA is intentionally immutable.

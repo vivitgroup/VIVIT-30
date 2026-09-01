@@ -1,6 +1,12 @@
 -- Pre-CTO feature gate: HR provisioning, task references and competitive reporting.
 -- Additive/idempotent migration; no production execution is performed by this commit.
 
+-- Campaign lifecycle existed with archived_at in the media model, but actor attribution
+-- must be guaranteed for Archive/Delete Center traceability.
+alter table if exists ad_campaigns add column if not exists archived_at timestamptz;
+alter table if exists ad_campaigns add column if not exists archived_by text;
+create index if not exists ad_campaigns_archive_scope_idx on ad_campaigns(workspace_id,client_id,archived_at desc);
+
 create table if not exists task_references (
   id uuid primary key default gen_random_uuid(),
   workspace_id text not null,

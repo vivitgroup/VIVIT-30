@@ -15,7 +15,7 @@ export default async function MonthlyReportsPage() {
   const workspaceId=String(sessionUser.workspaceId||"");
   if(!workspaceId) redirect("/login?reason=workspace_missing");
 
-  const userId=String(sessionUser.id||""),workspaceId=String(sessionUser.workspaceId||"");if(!workspaceId)redirect("/login");
+  const userId=String(sessionUser.id||"");
   const allClients = await db.select({ id:clients.id, companyName:clients.companyName, isActive:clients.isActive })
     .from(clients).where(role === Role.ACCOUNT_MANAGER
       ? and(eq(clients.workspaceId,workspaceId),eq(clients.isActive, true), eq(clients.accountManagerId, userId))
@@ -28,7 +28,7 @@ export default async function MonthlyReportsPage() {
   async function sendAllReports() {
     "use server";
     const {auth:getAuth}=await import("@/lib/auth");
-    const {db,clients,contacts,financeRecords,sql}=await import("@/lib/db");
+    const {db,clients,contacts,financeRecords,auditLogs,sql}=await import("@/lib/db");
     const {eq,and}=await import("drizzle-orm");
     const MONTHS=["","January","February","March","April","May","June","July","August","September","October","November","December"];
     const current=await getAuth();
@@ -38,8 +38,8 @@ export default async function MonthlyReportsPage() {
     const now2=new Date();
     const pMonth=now2.getMonth()===0?12:now2.getMonth();
     const pYear=now2.getMonth()===0?now2.getFullYear()-1:now2.getFullYear();
-    const currentUserId=String(currentUser?.id||""),currentWorkspaceId=String(currentUser?.workspaceId||"");
-    if(!currentUserId||!currentWorkspaceId)throw new Error("Workspace unavailable");
+    const currentUserId=String(currentUser?.id||"");
+    if(!currentUserId)throw new Error("User unavailable");
     const allC=await db.select({id:clients.id,companyName:clients.companyName}).from(clients).where(currentRole===Role.ACCOUNT_MANAGER
       ? and(eq(clients.workspaceId,currentWorkspaceId),eq(clients.isActive,true),eq(clients.accountManagerId,currentUserId))
       : and(eq(clients.workspaceId,currentWorkspaceId),eq(clients.isActive,true)));

@@ -65,9 +65,9 @@ for (const [table, columns] of Object.entries(moneyColumns)) {
     forbidPattern(`${table}.${column} is not REAL`, body, new RegExp(`${escaped}\\s*:\\s*real\\(`));
     const [p, s] = precision.split(", ");
     requirePattern(
-      `${table}.${column} is NUMERIC(${precision})`,
+      `${table}.${column} is NUMERIC(${precision}) number mode`,
       body,
-      new RegExp(`${escaped}\\s*:\\s*numeric\\([^)]*\\{\\s*precision:\\s*${p},\\s*scale:\\s*${s}\\s*\\}`),
+      new RegExp(`${escaped}\\s*:\\s*numeric\\([^)]*\\{[^}]*precision:\\s*${p}[^}]*scale:\\s*${s}[^}]*mode:\\s*["']number["'][^}]*\\}`),
     );
   }
 }
@@ -75,9 +75,9 @@ for (const [table, columns] of Object.entries(moneyColumns)) {
 const finance = section(schema, "financeRecords");
 forbidPattern("financeRecords.commissionRate is not REAL", finance, /commissionRate\s*:\s*real\(/);
 requirePattern(
-  "financeRecords.commissionRate is NUMERIC(9,4)",
+  "financeRecords.commissionRate is NUMERIC(9,4) number mode",
   finance,
-  /commissionRate\s*:\s*numeric\([^)]*\{\s*precision:\s*9,\s*scale:\s*4\s*\}/,
+  /commissionRate\s*:\s*numeric\([^)]*\{[^}]*precision:\s*9[^}]*scale:\s*4[^}]*mode:\s*["']number["'][^}]*\}/,
 );
 requirePattern(
   "Drizzle invoice period unique contract",
@@ -106,4 +106,3 @@ if (failures.length) {
 }
 
 console.log("Finance schema contract: PASS");
-// Exact-head certification trigger: keep this check coupled to schema remediation commits.

@@ -1,7 +1,7 @@
 "use client";
 import {useMemo,useState} from "react";
 import Link from "next/link";
-import {createTask} from "@/lib/actions";
+import {createTaskWithReference} from "@/lib/actions/task-create-with-reference";
 import {TASK_TEMPLATES} from "@/lib/task-templates";
 
 type Option={id:string;name:string};
@@ -16,15 +16,14 @@ function addDays(days:number){const d=new Date();d.setDate(d.getDate()+days);ret
 function formatDateInput(raw:string){const digits=raw.replace(/\D/g,"").slice(0,8);return digits.length<=2?digits:digits.length<=4?`${digits.slice(0,2)}/${digits.slice(2)}`:`${digits.slice(0,2)}/${digits.slice(2,4)}/${digits.slice(4)}`}
 
 export default function NewTaskForm({clients,creators}:{clients:Client[];creators:Option[]}){
- const [title,setTitle]=useState(""),[type,setType]=useState(""),[priority,setPriority]=useState("MEDIUM"),[brief,setBrief]=useState(""),[tov,setTov]=useState(""),[reference,setReference]=useState(""),[deadlineText,setDeadlineText]=useState(""),[activeTemplate,setActiveTemplate]=useState("");
+ const [title,setTitle]=useState(""),[type,setType]=useState(""),[priority,setPriority]=useState("MEDIUM"),[brief,setBrief]=useState(""),[tov,setTov]=useState(""),[referenceUrl,setReferenceUrl]=useState(""),[deadlineText,setDeadlineText]=useState(""),[activeTemplate,setActiveTemplate]=useState("");
  const deadline=useMemo(()=>toIso(deadlineText),[deadlineText]);
- const combinedBrief=useMemo(()=>reference.trim()?`${brief.trim()}\n\nREFERENCE / INSPIRATION\n${reference.trim()}`:brief,[brief,reference]);
  function applyTemplate(t:TaskTemplate){setActiveTemplate(t.id);setTitle(String(t.name||"").replace(/^[^\s]+\s/,""));setType(t.type);setPriority(t.priority);setBrief(t.brief);setTov(t.tov||"");setDeadlineText(toDisplay(addDays(Number(t.daysToDeadline||3))));setTimeout(()=>document.getElementById("taskForm")?.scrollIntoView({behavior:"smooth",block:"start"}),50)}
  return <div className="animate-fade-up" style={{display:"grid",gap:18,maxWidth:980}}>
-  <div className="flex items-center gap-3"><Link href="/dashboard/creative" className="text-[#6B8FAF] text-xl">←</Link><div><h1 className="page-title">New Creative Task</h1><p className="page-subtitle">Create a clear task, add a reference and set an exact deadline.</p></div></div>
+  <div className="flex items-center gap-3"><Link href="/dashboard/creative" className="text-[#6B8FAF] text-xl">←</Link><div><h1 className="page-title">New Creative Task</h1><p className="page-subtitle">Create a clear task, add a link or image reference and set an exact deadline.</p></div></div>
   <div className="card"><div className="card-header"><div><p className="card-title">⚡ Quick Templates</p><p className="page-subtitle" style={{margin:0}}>Click once to fill the title, type, brief, priority and suggested deadline.</p></div></div><div className="card-body" style={{display:"flex",flexWrap:"wrap",gap:8}}>{TASK_TEMPLATES.map(t=><button key={t.id} type="button" onClick={()=>applyTemplate(t)} className={activeTemplate===t.id?"btn btn-primary btn-sm":"btn btn-ghost btn-sm"} style={{cursor:"pointer"}}>{t.name}</button>)}</div></div>
-  <form action={createTask} id="taskForm" style={{display:"grid",gap:18}}>
-   <input type="hidden" name="brief" value={combinedBrief}/><input type="hidden" name="deadline" value={deadline}/>
+  <form action={createTaskWithReference} id="taskForm" style={{display:"grid",gap:18}}>
+   <input type="hidden" name="deadline" value={deadline}/>
    <div className="card"><div className="card-header"><p className="card-title">Task Details</p></div><div className="card-body" style={{display:"grid",gap:14}}>
     <label className="form-label">TASK TITLE *<input name="title" value={title} onChange={e=>setTitle(e.target.value)} required className="form-input" placeholder="e.g. Summer Campaign Reel"/></label>
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:12}}><label className="form-label">CLIENT *<select name="clientId" required className="form-select"><option value="">Select client…</option>{clients.map(c=><option key={c.id} value={c.id}>{c.companyName}</option>)}</select></label><label className="form-label">CREATIVE TYPE *<select name="type" required value={type} onChange={e=>setType(e.target.value)} className="form-select"><option value="">Select type…</option>{types.map(t=><option key={t} value={t}>{typeLabels[t]}</option>)}</select></label></div>
@@ -32,8 +31,8 @@ export default function NewTaskForm({clients,creators}:{clients:Client[];creator
     <div style={{display:"grid",gridTemplateColumns:"minmax(220px,1fr) auto",gap:10,alignItems:"end"}}><label className="form-label">DEADLINE * <small style={{fontWeight:500,color:"var(--text-muted)"}}>DD/MM/YYYY</small><input value={deadlineText} onChange={e=>setDeadlineText(formatDateInput(e.target.value))} inputMode="numeric" placeholder="24/08/2026" maxLength={10} required className="form-input" style={{fontVariantNumeric:"tabular-nums"}}/></label><label className="btn btn-ghost" style={{position:"relative",overflow:"hidden",cursor:"pointer",height:42,display:"flex",alignItems:"center"}}>Pick date<input type="date" aria-label="Pick deadline" onChange={e=>e.target.value&&setDeadlineText(toDisplay(e.target.value))} style={{position:"absolute",inset:0,opacity:0,cursor:"pointer"}}/></label></div>{deadlineText&&!deadline&&<p className="form-error">Enter a valid date as DD/MM/YYYY.</p>}
    </div></div>
    <div className="card"><div className="card-header"><p className="card-title">Creative Brief & Reference</p></div><div className="card-body" style={{display:"grid",gap:14}}>
-    <label className="form-label">BRIEF *<textarea value={brief} onChange={e=>setBrief(e.target.value)} required rows={7} className="form-input" style={{resize:"vertical"}} placeholder="Objective, key message, audience, deliverables…"/></label>
-    <label className="form-label">REFERENCE / INSPIRATION<input value={reference} onChange={e=>setReference(e.target.value)} className="form-input" placeholder="Paste a Drive, Instagram, Behance, TikTok or website reference link"/><small style={{display:"block",marginTop:5,color:"var(--text-muted)"}}>This reference is saved with the task brief so the creator sees it in the task.</small></label>
+    <label className="form-label">BRIEF *<textarea name="brief" value={brief} onChange={e=>setBrief(e.target.value)} required rows={7} className="form-input" style={{resize:"vertical"}} placeholder="Objective, key message, audience, deliverables…"/></label>
+    <div style={{padding:12,border:"1px solid var(--card-border)",borderRadius:12,display:"grid",gap:10}}><div><b style={{fontSize:12}}>REFERENCE</b><p className="page-subtitle">Add a link, an image, or both. The creator gets a dedicated Reference button on the task.</p></div><label className="form-label">REFERENCE LINK<input name="referenceUrl" type="url" value={referenceUrl} onChange={e=>setReferenceUrl(e.target.value)} className="form-input" placeholder="Drive, Instagram, Behance, TikTok or website URL"/></label><label className="form-label">REFERENCE IMAGE<input name="referenceImage" type="file" accept="image/*" className="form-input"/><small style={{display:"block",marginTop:5,color:"var(--text-muted)"}}>Image only · max 25 MB.</small></label></div>
     <label className="form-label">TONE OF VOICE<textarea name="tov" value={tov} onChange={e=>setTov(e.target.value)} rows={2} className="form-input" style={{resize:"vertical"}} placeholder="Professional, energetic, luxury…"/></label>
     <label className="form-label">CAPTION / COPY<textarea name="caption" rows={3} className="form-input" style={{resize:"vertical"}} placeholder="Optional social caption…"/></label>
    </div></div>

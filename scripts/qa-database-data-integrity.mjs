@@ -29,8 +29,11 @@ const url=String(process.env.DATABASE_URL||"").trim();
 if(!url){check("Ephemeral PostgreSQL integration executed",false,"DATABASE_URL missing");}
 else{
  const sql=postgres(url,{ssl:false,prepare:false,max:1});
+ const testWorkspace="__db_audit__",testPeriod="2099-12",testUser="__db_audit_user__",testEmail="__db_audit_user__@example.invalid";
  try{
-   const testWorkspace="__db_audit__",testPeriod="2099-12",testUser="__db_audit_user__";
+   await sql`delete from commissions where workspace_id=${testWorkspace} and user_id=${testUser}`;
+   await sql`delete from users where id=${testUser} or email=${testEmail}`;
+   await sql`insert into users(id,workspace_id,name,email,password,role,is_active,approval_status) values(${testUser},${testWorkspace},'Database Audit Fixture',${testEmail},'not-a-real-password-hash','ACCOUNT_MANAGER',true,'APPROVED')`;
 
    await sql`delete from agency_health_scores where workspace_id=${testWorkspace} and period=${testPeriod}`;
    await sql`insert into agency_health_scores(id,workspace_id,period,overall_score) values(gen_random_uuid()::text,${testWorkspace},${testPeriod},1)`;
@@ -62,11 +65,15 @@ else{
    await sql`insert into commissions(id,workspace_id,user_id,period,revenue_collected,commission_rate,commission_amount,type,client_id) values(gen_random_uuid()::text,${testWorkspace},${testUser},${testPeriod},'100',0.1,'10','ACCOUNT_MANAGER',null) on conflict do nothing`;
    const commissionRows=await sql`select id from commissions where workspace_id=${testWorkspace} and user_id=${testUser} and period=${testPeriod} and type='ACCOUNT_MANAGER' and client_id is null`;
    check("Repeated commission calculation is idempotent",commissionRows.length===1);
-   await sql`delete from commissions where workspace_id=${testWorkspace} and user_id=${testUser} and period=${testPeriod}`;
 
    check("Ephemeral PostgreSQL integration executed",true);
  }catch(error){check("Ephemeral PostgreSQL integration executed",false,String(error?.message||error));}
- finally{await sql.end({timeout:1});}
+ finally{
+   try{await sql`delete from commissions where workspace_id=${testWorkspace} and user_id=${testUser}`;}catch{}
+   try{await sql`delete from agency_health_scores where workspace_id=${testWorkspace}`;}catch{}
+   try{await sql`delete from users where id=${testUser} or email=${testEmail}`;}catch{}
+   await sql.end({timeout:1});
+ }
 }
 
 const failed=checks.filter(c=>!c.ok);

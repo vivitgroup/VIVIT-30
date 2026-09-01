@@ -6,7 +6,7 @@ check("Notification links only allow same-app paths",safe.includes('raw.startsWi
 check("Notification poll sanitizes stored links",poll.includes("safeInternalPath(n.link)"));
 check("Notification center sanitizes stored links",page.includes("safeInternalPath(n.link)"));
 check("Notification read mutation is owner scoped",page.includes("eq(notifications.userId,String(session.user.id))"));
-check("Notification poll is owner scoped",poll.includes("eq(notifications.userId,String(session.user.id))"));
+check("Notification poll is owner scoped",/eq\(notifications\.userId,\s*String\(session(?:User)?\.id\)\)/.test(poll)||(/const\s+userId\s*=\s*String\(sessionUser\.id\)/.test(poll)&&/eq\(notifications\.userId,\s*userId\)/.test(poll)));
 check("Notification poll is bounded and no-store",poll.includes(".limit(100)")&&poll.includes('\"Cache-Control\":\"private, no-store\"'));
 const fileSessionWorkspace=(fileCompact.includes("workspaceId=clean((session.userasany).workspaceId")||fileCompact.includes("workspaceId=clean(sessionUser.workspaceId"));
 check("File API derives explicit workspace boundary from authenticated session",fileCompact.includes("asyncfunctionsessionScope()")&&fileCompact.includes("constsession=awaitauth()")&&fileSessionWorkspace&&fileCompact.includes("if(!workspaceId||!userId)returnnull")&&!fileCompact.includes('constWORKSPACE=\"default\"'));

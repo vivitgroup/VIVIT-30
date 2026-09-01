@@ -1,10 +1,7 @@
 import {db,sql} from "@/lib/db";
 
 export type LifecycleAction="archive"|"restore"|"delete"|"restore_deleted";
-export type LifecycleSpec={
- entity:string;table:string;labelColumn:string;ownerColumn?:string;roles:string[];statusColumn?:string;
- deleteAllowedStatuses?:string[];deleteBlockedMessage?:string;activeColumn?:string;category:string;
-};
+export type LifecycleSpec={entity:string;table:string;labelColumn:string;ownerColumn?:string;roles:string[];statusColumn?:string;deleteAllowedStatuses?:string[];deleteBlockedMessage?:string;activeColumn?:string;category:string};
 
 // User-managed business records only. Audit/security/telemetry/payment/payroll history
 // is intentionally excluded from user lifecycle controls to preserve evidence and accounting integrity.
@@ -38,28 +35,9 @@ const byEntity=new Map(BUSINESS_LIFECYCLE_SPECS.map(s=>[s.entity,s]));
 export const businessLifecycleSpec=(entity:string)=>byEntity.get(entity);
 const ident=(value:string)=>sql.raw(`"${value.replaceAll('"','')}"`);
 
-export type GenericLifecycleRow={id:string;name:string;owner_id?:string|null;archived_by?:string|null;archived_at?:unknown;deleted_at?:unknown;status?:string|null};
-export async function loadBusinessRecord(spec:LifecycleSpec,id:string,workspaceId:string):Promise<GenericLifecycleRow|null>{
- const owner=spec.ownerColumn?ident(spec.ownerColumn):sql.raw("null"),status=spec.statusColumn?ident(spec.statusColumn):sql.raw("null");
- const result=Array.from(await db.execute(sql`select id,coalesce(${ident(spec.labelColumn)}::text,'Untitled') name,${owner}::text owner_id,archived_by,archived_at,deleted_at,${status}::text status from ${ident(spec.table)} where id=${id} and workspace_id=${workspaceId} limit 1`)) as GenericLifecycleRow[];
- return result[0]||null;
-}
+export type GenericLifecycleRow={id:string;name:string;owner_id?:string|null;archived_by?:string|null;archived_at?:unknown;deleted_at?:unknown;status?:string|null;entity?:string;category?:string};
+export async function loadBusinessRecord(spec:LifecycleSpec,id:string,workspaceId:string):Promise<GenericLifecycleRow|null>{const owner=spec.ownerColumn?ident(spec.ownerColumn):sql.raw("null"),status=spec.statusColumn?ident(spec.statusColumn):sql.raw("null");const result=Array.from(await db.execute(sql`select id,coalesce(${ident(spec.labelColumn)}::text,'Untitled') name,${owner}::text owner_id,archived_by,archived_at,deleted_at,${status}::text status from ${ident(spec.table)} where id=${id} and workspace_id=${workspaceId} limit 1`)) as GenericLifecycleRow[];return result[0]||null}
 export function canManageBusinessRecord(spec:LifecycleSpec,row:GenericLifecycleRow,userId:string,roles:string[]){return roles.includes("SUPER_ADMIN")||row.owner_id===userId||roles.some(r=>spec.roles.includes(r))}
 export function assertBusinessDeleteAllowed(spec:LifecycleSpec,row:GenericLifecycleRow){if(spec.deleteAllowedStatuses?.length&&!spec.deleteAllowedStatuses.includes(String(row.status||"")))throw new Error(spec.deleteBlockedMessage||"This record cannot be deleted in its current state.")}
-
-export async function mutateBusinessRecord(spec:LifecycleSpec,id:string,workspaceId:string,userId:string,action:LifecycleAction){
- const table=ident(spec.table),active=spec.activeColumn?ident(spec.activeColumn):null;
- if(action==="archive"){
-  if(active)await db.execute(sql`update ${table} set archived_at=now(),archived_by=${userId},${active}=false where id=${id} and workspace_id=${workspaceId} and deleted_at is null`);
-  else await db.execute(sql`update ${table} set archived_at=now(),archived_by=${userId} where id=${id} and workspace_id=${workspaceId} and deleted_at is null`);
- }else if(action==="restore"){
-  if(active)await db.execute(sql`update ${table} set archived_at=null,archived_by=null,${active}=true where id=${id} and workspace_id=${workspaceId} and deleted_at is null`);
-  else await db.execute(sql`update ${table} set archived_at=null,archived_by=null where id=${id} and workspace_id=${workspaceId} and deleted_at is null`);
- }else if(action==="delete"){
-  if(active)await db.execute(sql`update ${table} set deleted_at=now(),deleted_by=${userId},archived_at=null,archived_by=null,${active}=false where id=${id} and workspace_id=${workspaceId} and deleted_at is null`);
-  else await db.execute(sql`update ${table} set deleted_at=now(),deleted_by=${userId},archived_at=null,archived_by=null where id=${id} and workspace_id=${workspaceId} and deleted_at is null`);
- }else{
-  if(active)await db.execute(sql`update ${table} set deleted_at=null,deleted_by=null,${active}=true where id=${id} and workspace_id=${workspaceId} and deleted_at is not null`);
-  else await db.execute(sql`update ${table} set deleted_at=null,deleted_by=null where id=${id} and workspace_id=${workspaceId} and deleted_at is not null`);
- }
-}
+export async function listManageableBusinessRecords(workspaceId:string,userId:string,roles:string[]):Promise<GenericLifecycleRow[]>{const result:GenericLifecycleRow[]=[];for(const spec of BUSINESS_LIFECYCLE_SPECS){const moduleAccess=roles.includes("SUPER_ADMIN")||spec.roles.some(r=>roles.includes(r));if(!moduleAccess&&!spec.ownerColumn)continue;const owner=spec.ownerColumn?ident(spec.ownerColumn):sql.raw("null"),status=spec.statusColumn?ident(spec.statusColumn):sql.raw("null"),access=moduleAccess?sql`true`:spec.ownerColumn?sql`${ident(spec.ownerColumn)}=${userId}`:sql`false`;const records=Array.from(await db.execute(sql`select id,coalesce(${ident(spec.labelColumn)}::text,'Untitled') name,${owner}::text owner_id,${status}::text status from ${ident(spec.table)} where workspace_id=${workspaceId} and archived_at is null and deleted_at is null and ${access} order by id desc limit 100`)) as GenericLifecycleRow[];for(const record of records)result.push({...record,entity:spec.entity,category:spec.category})}return result}
+export async function mutateBusinessRecord(spec:LifecycleSpec,id:string,workspaceId:string,userId:string,action:LifecycleAction){const table=ident(spec.table),active=spec.activeColumn?ident(spec.activeColumn):null;if(action==="archive"){if(active)await db.execute(sql`update ${table} set archived_at=now(),archived_by=${userId},${active}=false where id=${id} and workspace_id=${workspaceId} and deleted_at is null`);else await db.execute(sql`update ${table} set archived_at=now(),archived_by=${userId} where id=${id} and workspace_id=${workspaceId} and deleted_at is null`)}else if(action==="restore"){if(active)await db.execute(sql`update ${table} set archived_at=null,archived_by=null,${active}=true where id=${id} and workspace_id=${workspaceId} and deleted_at is null`);else await db.execute(sql`update ${table} set archived_at=null,archived_by=null where id=${id} and workspace_id=${workspaceId} and deleted_at is null`)}else if(action==="delete"){if(active)await db.execute(sql`update ${table} set deleted_at=now(),deleted_by=${userId},archived_at=null,archived_by=null,${active}=false where id=${id} and workspace_id=${workspaceId} and deleted_at is null`);else await db.execute(sql`update ${table} set deleted_at=now(),deleted_by=${userId},archived_at=null,archived_by=null where id=${id} and workspace_id=${workspaceId} and deleted_at is null`)}else{if(active)await db.execute(sql`update ${table} set deleted_at=null,deleted_by=null,${active}=true where id=${id} and workspace_id=${workspaceId} and deleted_at is not null`);else await db.execute(sql`update ${table} set deleted_at=null,deleted_by=null where id=${id} and workspace_id=${workspaceId} and deleted_at is not null`)}}

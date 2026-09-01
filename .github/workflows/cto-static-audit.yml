@@ -5,6 +5,7 @@ on:
     branches:
       - feat/vivito-internal-100
       - release/vivito-rc1-2026-08-27
+      - release/reconcile-2026-09-02
   pull_request:
     branches: [main]
   workflow_dispatch:

@@ -1,0 +1,72 @@
+name: Database Data Integrity Audit
+
+on:
+  push:
+    branches:
+      - audit/database-data-integrity-2026-09-01
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: database-data-integrity-${{ github.event.pull_request.head.sha || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  database-integrity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: vivito
+          POSTGRES_PASSWORD: vivito
+          POSTGRES_DB: vivito_database_audit
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U vivito -d vivito_database_audit"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://vivito:vivito@127.0.0.1:5432/vivito_database_audit
+      DRIZZLE_DATABASE_URL: postgresql://vivito:vivito@127.0.0.1:5432/vivito_database_audit
+      DATABASE_SSL_DISABLED: "1"
+      AUTH_SECRET: ci-database-audit-secret-not-for-production
+      NEXTAUTH_SECRET: ci-database-audit-secret-not-for-production
+      NEXTAUTH_URL: http://127.0.0.1:3000
+    steps:
+      - name: Checkout exact candidate SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Assert exact candidate SHA
+        shell: bash
+        run: |
+          ACTUAL="$(git rev-parse HEAD)"
+          EXPECTED="${{ github.event.pull_request.head.sha || github.sha }}"
+          test "$ACTUAL" = "$EXPECTED"
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Build base ephemeral database
+        run: npx drizzle-kit push --force
+      - name: Database and data-integrity invariants
+        run: node scripts/qa-database-data-integrity.mjs
+      - name: Security regression gate
+        run: node scripts/qa-security-auth-hardcore.mjs
+      - name: API mutation authentication regression
+        run: node scripts/qa-security-api-surface.mjs
+      - name: ESLint zero-warning gate
+        run: npm run lint -- --max-warnings=0
+      - name: TypeScript gate
+        run: npx tsc --noEmit
+      - name: Production build gate
+        run: npm run build

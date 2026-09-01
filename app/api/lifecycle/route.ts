@@ -3,8 +3,9 @@ import {NextRequest,NextResponse} from "next/server";
 import {auth} from "@/lib/auth";
 import {db,auditLogs,sql} from "@/lib/db";
 import {effectiveRoles} from "@/lib/session-access";
+import {BUSINESS_LIFECYCLE_SPECS,businessLifecycleSpec,loadBusinessRecord,canManageBusinessRecord,assertBusinessDeleteAllowed,mutateBusinessRecord} from "@/lib/business-lifecycle";
 
-const allowedEntities=new Set(["client","task","lead","campaign"]),allowedActions=new Set(["archive","restore","delete","restore_deleted"]);
+const coreEntities=new Set(["client","task","lead","campaign"]),allowedEntities=new Set([...coreEntities,...BUSINESS_LIFECYCLE_SPECS.map(x=>x.entity)]),allowedActions=new Set(["archive","restore","delete","restore_deleted"]);
 type DbRow=Record<string,unknown>;
 const clean=(v:unknown,n=120)=>String(v||"").trim().slice(0,n),rows=async(q:Parameters<typeof db.execute>[0]):Promise<DbRow[]>=>Array.from(await db.execute(q)) as DbRow[];
 async function sessionScope(){const session=await auth();if(!session?.user)return null;const userId=String(session.user.id),roles=effectiveRoles(session.user),workspaceId=clean(session.user.workspaceId,160);return workspaceId?{userId,roles,workspaceId}:null}
@@ -13,25 +14,39 @@ async function ledger(workspaceId:string,userId:string,entity:string,id:string,n
 
 export async function GET(req:NextRequest){
  const s=await sessionScope();if(!s)return NextResponse.json({error:"Unauthorized"},{status:401});const {userId,roles,workspaceId}=s,isAdmin=roles.includes("SUPER_ADMIN"),view=req.nextUrl.searchParams.get("view")==="deleted"?"deleted":"archive";
- if(view==="deleted"){
-  if(!isAdmin)return NextResponse.json({error:"Only Super Admin can view deleted records."},{status:403});
-  const clients=await rows(sql`select c.id,c.company_name name,c.deleted_at,u.name actor_name,c.deleted_by actor_user_id from clients c left join users u on u.id=c.deleted_by where c.workspace_id=${workspaceId} and c.deleted_at is not null order by c.deleted_at desc limit 150`);
-  const tasks=await rows(sql`select t.id,t.title name,t.deleted_at,u.name actor_name,t.deleted_by actor_user_id from creative_tasks t left join users u on u.id=t.deleted_by where t.workspace_id=${workspaceId} and t.deleted_at is not null order by t.deleted_at desc limit 200`);
-  const leads=await rows(sql`select l.id,l.company_name name,l.deleted_at,u.name actor_name,l.deleted_by actor_user_id from sales_leads l left join users u on u.id=l.deleted_by where l.workspace_id=${workspaceId} and l.deleted_at is not null order by l.deleted_at desc limit 150`);
-  const campaigns=await rows(sql`select c.id,c.name,c.deleted_at,u.name actor_name,c.deleted_by actor_user_id from ad_campaigns c left join users u on u.id=c.deleted_by where c.workspace_id=${workspaceId} and c.deleted_at is not null order by c.deleted_at desc limit 150`);
-  return NextResponse.json({clients,tasks,leads,campaigns},{headers:{"Cache-Control":"private, no-store"}});
- }
- const scope=isAdmin?sql`true`:sql`x.archived_by=${userId}`;
- const clients=await rows(sql`select x.id,x.company_name name,x.archived_at,u.name actor_name,x.archived_by actor_user_id from clients x left join users u on u.id=x.archived_by where x.workspace_id=${workspaceId} and x.archived_at is not null and x.deleted_at is null and ${scope} order by x.archived_at desc limit 150`);
- const tasks=await rows(sql`select x.id,x.title name,x.archived_at,u.name actor_name,x.archived_by actor_user_id from creative_tasks x left join users u on u.id=x.archived_by where x.workspace_id=${workspaceId} and x.archived_at is not null and x.deleted_at is null and ${scope} order by x.archived_at desc limit 200`);
- const leads=await rows(sql`select x.id,x.company_name name,x.archived_at,u.name actor_name,x.archived_by actor_user_id from sales_leads x left join users u on u.id=x.archived_by where x.workspace_id=${workspaceId} and x.archived_at is not null and x.deleted_at is null and ${scope} order by x.archived_at desc limit 150`);
- const campaigns=await rows(sql`select x.id,x.name,x.archived_at,u.name actor_name,x.archived_by actor_user_id from ad_campaigns x left join users u on u.id=x.archived_by where x.workspace_id=${workspaceId} and x.archived_at is not null and x.deleted_at is null and ${scope} order by x.archived_at desc limit 150`);
- return NextResponse.json({clients,tasks,leads,campaigns},{headers:{"Cache-Control":"private, no-store"}});
+ if(view==="deleted"&&!isAdmin)return NextResponse.json({error:"Only Super Admin can view deleted records."},{status:403});
+ const expectedAction=view==="deleted"?"delete":"archive";
+ const actorScope=isAdmin?sql`true`:sql`e.actor_user_id=${userId}`;
+ const items=await rows(sql`
+   with latest as (
+    select distinct on (entity_type,entity_id) entity_type,entity_id,entity_name,action,actor_user_id,actor_name,metadata,created_at
+    from lifecycle_events where workspace_id=${workspaceId}
+    order by entity_type,entity_id,created_at desc
+   )
+   select e.entity_type entity,e.entity_id id,coalesce(e.entity_name,'Untitled') name,e.actor_user_id,e.actor_name,e.created_at state_at,e.metadata
+   from latest e where e.action=${expectedAction} and ${actorScope}
+   order by e.created_at desc limit 1000
+ `);
+ return NextResponse.json({view,items},{headers:{"Cache-Control":"private, no-store"}});
 }
 
 export async function POST(req:NextRequest){
- const s=await sessionScope();if(!s)return NextResponse.json({error:"Unauthorized"},{status:401});const {userId,roles,workspaceId}=s,isAdmin=roles.includes("SUPER_ADMIN"),body=await req.json().catch(()=>null);if(!body)return NextResponse.json({error:"Invalid request."},{status:400});const entity=clean(body.entity,30),action=clean(body.action,30),id=clean(body.id,100);if(!allowedEntities.has(entity)||!allowedActions.has(action)||!id)return NextResponse.json({error:"Invalid lifecycle request."},{status:400});
+ const s=await sessionScope();if(!s)return NextResponse.json({error:"Unauthorized"},{status:401});const {userId,roles,workspaceId}=s,isAdmin=roles.includes("SUPER_ADMIN"),body=await req.json().catch(()=>null);if(!body)return NextResponse.json({error:"Invalid request."},{status:400});const entity=clean(body.entity,40),action=clean(body.action,30),id=clean(body.id,100);if(!allowedEntities.has(entity)||!allowedActions.has(action)||!id)return NextResponse.json({error:"Invalid lifecycle request."},{status:400});
  if(action==="restore_deleted"&&!isAdmin)return NextResponse.json({error:"Only Super Admin can restore deleted records."},{status:403});
+
+ const businessSpec=businessLifecycleSpec(entity);
+ if(businessSpec){
+  const record=await loadBusinessRecord(businessSpec,id,workspaceId);if(!record)return NextResponse.json({error:"Record not found."},{status:404});
+  if(!canManageBusinessRecord(businessSpec,record,userId,roles)&&action!=="restore_deleted")return NextResponse.json({error:"You do not have permission to change this record."},{status:403});
+  if(action==="restore"&&!isAdmin&&record.archived_by!==userId)return NextResponse.json({error:"You can only restore items you archived."},{status:403});
+  if(action==="archive"&&record.deleted_at)return NextResponse.json({error:"Deleted records cannot be archived."},{status:409});
+  if(action==="delete"){try{assertBusinessDeleteAllowed(businessSpec,record)}catch(e){return NextResponse.json({error:e instanceof Error?e.message:"Record cannot be deleted."},{status:409})}}
+  await mutateBusinessRecord(businessSpec,id,workspaceId,userId,action as "archive"|"restore"|"delete"|"restore_deleted");
+  await ledger(workspaceId,userId,entity,id,String(record.name||businessSpec.category),action,{category:businessSpec.category});
+  await audit(workspaceId,userId,`lifecycle_${action}`,businessSpec.table,id,{entity,softDelete:action==="delete"});
+  return NextResponse.json({success:true,state:action==="archive"?"archived":action==="delete"?"deleted":"active"});
+ }
+
  if(entity==="client"){
   const [r]=await rows(sql`select id,company_name name,account_manager_id,created_by,archived_at,archived_by,deleted_at from clients where id=${id} and workspace_id=${workspaceId} limit 1`);if(!r)return NextResponse.json({error:"Client not found."},{status:404});
   const canManage=isAdmin||r.created_by===userId||r.account_manager_id===userId;if(!canManage&&action!=="restore_deleted")return NextResponse.json({error:"You can only archive or delete clients you created or manage."},{status:403});
@@ -55,7 +70,7 @@ export async function POST(req:NextRequest){
   if(action==="delete"){await db.execute(sql`update ad_campaigns set deleted_at=now(),deleted_by=${userId},archived_at=null,archived_by=null,updated_at=now() where id=${id} and workspace_id=${workspaceId} and deleted_at is null`);await ledger(workspaceId,userId,entity,id,String(r.name),"delete");return NextResponse.json({success:true,state:"deleted"})}
   await db.execute(sql`update ad_campaigns set deleted_at=null,deleted_by=null,updated_at=now() where id=${id} and workspace_id=${workspaceId} and deleted_at is not null`);await ledger(workspaceId,userId,entity,id,String(r.name),"restore_deleted");return NextResponse.json({success:true,state:"active"});
  }
- const [r]=await rows(sql`select id,company_name name,sales_rep_id,archived_by,deleted_at from sales_leads where id=${id} and workspace_id=${workspaceId} limit 1`);if(!r)return NextResponse.json({error:"Lead not found."},{status:404});const canManage=isAdmin||r.sales_rep_id===userId;if(!canManage&&action!=="restore_deleted")return NextResponse.json({error:"You can only change leads assigned to you."},{status:403});
+ const [r]=await rows(sql`select id,company_name name,sales_rep_id,archived_by,deleted_at from sales_leads where id=${id} and workspace_id=${workspaceId} limit 1`);if(!r)return NextResponse.json({error:"Lead not found."},{status:404});const canManage=isAdmin||r.sales_rep_id===userId||roles.includes("SALES");if(!canManage&&action!=="restore_deleted")return NextResponse.json({error:"You can only change leads assigned to you."},{status:403});
  if(action==="archive"){await db.execute(sql`update sales_leads set archived_at=now(),archived_by=${userId},updated_at=now() where id=${id} and workspace_id=${workspaceId} and deleted_at is null`);await ledger(workspaceId,userId,entity,id,String(r.name),"archive");return NextResponse.json({success:true,state:"archived"})}
  if(action==="restore"){if(!isAdmin&&r.archived_by!==userId)return NextResponse.json({error:"You can only restore items you archived."},{status:403});await db.execute(sql`update sales_leads set archived_at=null,archived_by=null,updated_at=now() where id=${id} and workspace_id=${workspaceId} and deleted_at is null`);await ledger(workspaceId,userId,entity,id,String(r.name),"restore");return NextResponse.json({success:true,state:"active"})}
  if(action==="delete"){await db.execute(sql`update sales_leads set deleted_at=now(),deleted_by=${userId},archived_at=null,archived_by=null,updated_at=now() where id=${id} and workspace_id=${workspaceId} and deleted_at is null`);await ledger(workspaceId,userId,entity,id,String(r.name),"delete");return NextResponse.json({success:true,state:"deleted"})}

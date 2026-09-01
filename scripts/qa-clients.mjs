@@ -27,7 +27,7 @@ check("Client form exposes error and saving states",form.includes("setError")&&f
 check("Lifecycle supports client archive delete restore",lifecycle.includes('entity==="client"')&&lifecycle.includes('action==="archive"')&&lifecycle.includes('action==="restore_deleted"'));
 check("Client delete is soft delete with actor",lifecycle.includes("update clients set is_active=false,deleted_at=now(),deleted_by=${userId}")&&!lifecycle.includes("delete from clients where id=${id}"));
 check("Client creator or manager can delete/archive owned client",lifecycle.includes("r.created_by===userId")&&lifecycle.includes("r.account_manager_id===userId"));
-check("Archive Center is ledger-driven and labels clients",archive.includes('client:"Clients"')&&archive.includes("actor_name")&&archive.includes("d.items||[]"));
+check("Archive Center is ledger-driven and labels clients",archive.includes('client:"Clients"')&&archive.includes("actor_name")&&archive.includes("archiveData.items||[]"));
 check("Delete Center is ledger-driven and labels clients",deleted.includes('client:"Clients"')&&deleted.includes("actor_name")&&deleted.includes("d.items||[]"));
 check("Migration persists cadence and lifecycle fields",migration.includes("report_frequency")&&migration.includes("report_last_sent_at")&&migration.includes("archived_by")&&migration.includes("deleted_by"));
 check("Existing client update action remains present",actions.includes("export async function updateClient"));

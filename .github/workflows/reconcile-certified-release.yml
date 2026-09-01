@@ -1,0 +1,28 @@
+name: Reconcile Certified Release
+on:
+  push:
+    branches: [feat/vivito-internal-100]
+    paths:
+      - .github/workflows/reconcile-certified-release.yml
+permissions:
+  contents: write
+jobs:
+  reconcile:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/vivito-internal-100
+          fetch-depth: 0
+      - name: Reconcile candidate onto current main
+        run: |
+          set -euo pipefail
+          git config user.name vivitgroup
+          git config user.email groupvivit@gmail.com
+          git fetch origin main feat/vivito-internal-100
+          git checkout -B release/reconcile-2026-09-02 origin/main
+          git merge --no-commit --no-ff -X theirs origin/feat/vivito-internal-100
+          git rm -f .github/workflows/reconcile-certified-release.yml
+          git rm -f .github/workflows/data-consistency-remediation.yml || true
+          git commit -m "merge(release): reconcile certified candidate with current main"
+          git push --force-with-lease origin HEAD:release/reconcile-2026-09-02

@@ -35,6 +35,8 @@ jobs:
         run: npm audit --omit=dev --audit-level=moderate
       - name: Build base ephemeral database
         run: npx drizzle-kit push --force
+      - name: Apply HR lifecycle reporting contracts
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/20260901_hr_lifecycle_reporting_contract.sql
       - name: Apply Direct Operator V1 persistence
         run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/20260828_vivito_direct_operator.sql
       - name: Apply Direct Operator V2 hardening
@@ -49,6 +51,11 @@ jobs:
         run: |
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
           do $$ begin
+            if to_regclass('public.user_role_assignments') is null then raise exception 'missing user role assignments'; end if;
+            if to_regclass('public.user_permission_grants') is null then raise exception 'missing user permission grants'; end if;
+            if to_regclass('public.lifecycle_events') is null then raise exception 'missing lifecycle events'; end if;
+            if to_regclass('public.competitor_report_approvals') is null then raise exception 'missing competitor approvals'; end if;
+            if to_regclass('public.vivito_report_runs') is null then raise exception 'missing report runs'; end if;
             if to_regclass('public.vivito_autonomy_events') is null then raise exception 'missing autonomy'; end if;
             if to_regclass('public.vivito_approval_events') is null then raise exception 'missing approvals'; end if;
             if to_regclass('public.vivito_decision_journal') is null then raise exception 'missing journal'; end if;

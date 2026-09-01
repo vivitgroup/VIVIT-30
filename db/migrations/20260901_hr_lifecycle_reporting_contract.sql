@@ -63,6 +63,57 @@ ALTER TABLE ad_campaigns ADD COLUMN IF NOT EXISTS archived_by text;
 ALTER TABLE ad_campaigns ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
 ALTER TABLE ad_campaigns ADD COLUMN IF NOT EXISTS deleted_by text;
 
+-- Mutable business records receive the same lifecycle contract. System-derived,
+-- audit, security, payment and locked payroll/ledger history are deliberately
+-- excluded so lifecycle controls cannot destroy evidentiary/financial history.
+DO $$
+DECLARE t text;
+BEGIN
+  FOREACH t IN ARRAY ARRAY[
+    'file_documents','media_plans','calendar_events','leave_requests','assets','vendors',
+    'purchase_orders','time_entries','expense_claims','project_budgets','proposals',
+    'service_catalog','workflow_rules','email_campaigns','workspace_roles','knowledge_base',
+    'follow_up_reminders','finance_records','company_expenses','contracts','chart_of_accounts',
+    'journal_entries','contacts'
+  ] LOOP
+    IF to_regclass('public.'||t) IS NOT NULL THEN
+      EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS archived_at timestamptz',t);
+      EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS archived_by text',t);
+      EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS deleted_at timestamptz',t);
+      EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS deleted_by text',t);
+    END IF;
+  END LOOP;
+END $$;
+
+-- Capture creator where legacy tables did not already have an ownership column.
+DO $$
+DECLARE t text;
+BEGIN
+  FOREACH t IN ARRAY ARRAY[
+    'calendar_events','assets','vendors','purchase_orders','project_budgets','proposals',
+    'service_catalog','workflow_rules','email_campaigns','finance_records','company_expenses',
+    'contracts','chart_of_accounts','contacts'
+  ] LOOP
+    IF to_regclass('public.'||t) IS NOT NULL THEN
+      EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS created_by text',t);
+    END IF;
+  END LOOP;
+END $$;
+
+-- Contracts/contacts pre-date workspace scoping; derive their workspace from client.
+DO $$ BEGIN
+  IF to_regclass('public.contracts') IS NOT NULL THEN
+    ALTER TABLE contracts ADD COLUMN IF NOT EXISTS workspace_id text;
+    UPDATE contracts x SET workspace_id=c.workspace_id FROM clients c WHERE c.id=x.client_id AND x.workspace_id IS NULL;
+    ALTER TABLE contracts ALTER COLUMN workspace_id SET DEFAULT 'default';
+  END IF;
+  IF to_regclass('public.contacts') IS NOT NULL THEN
+    ALTER TABLE contacts ADD COLUMN IF NOT EXISTS workspace_id text;
+    UPDATE contacts x SET workspace_id=c.workspace_id FROM clients c WHERE c.id=x.client_id AND x.workspace_id IS NULL;
+    ALTER TABLE contacts ALTER COLUMN workspace_id SET DEFAULT 'default';
+  END IF;
+END $$;
+
 CREATE TABLE IF NOT EXISTS lifecycle_events (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id text NOT NULL DEFAULT 'default',
@@ -78,8 +129,14 @@ CREATE TABLE IF NOT EXISTS lifecycle_events (
 CREATE INDEX IF NOT EXISTS lifecycle_events_workspace_action_idx ON lifecycle_events(workspace_id,action,created_at DESC);
 CREATE INDEX IF NOT EXISTS lifecycle_events_entity_idx ON lifecycle_events(workspace_id,entity_type,entity_id,created_at DESC);
 
-ALTER TABLE competitor_watchlists ADD COLUMN IF NOT EXISTS sort_order int NOT NULL DEFAULT 0;
-ALTER TABLE competitor_watchlists ADD COLUMN IF NOT EXISTS report_enabled boolean NOT NULL DEFAULT true;
+-- Competitive tables are introduced by the Vivito persistence migrations. This
+-- migration may run before them in ephemeral CI, so only alter them when present.
+DO $$ BEGIN
+  IF to_regclass('public.competitor_watchlists') IS NOT NULL THEN
+    ALTER TABLE competitor_watchlists ADD COLUMN IF NOT EXISTS sort_order int NOT NULL DEFAULT 0;
+    ALTER TABLE competitor_watchlists ADD COLUMN IF NOT EXISTS report_enabled boolean NOT NULL DEFAULT true;
+  END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS competitor_report_approvals (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

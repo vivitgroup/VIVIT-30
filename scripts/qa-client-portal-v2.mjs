@@ -6,14 +6,14 @@ t("Campaign totals exclude hierarchy",p.includes("p.ad_set_id is null and p.ad_i
 t("ATC campaigns use add-to-cart as primary",p.includes('kind==="ATC"?atc'));
 t("Sales campaigns use purchases as primary",p.includes('kind==="SALES"?purchases'));
 t("Cost/result uses primary result",p.includes("cpr:primary?spend/primary:0"));
-t("Creative tasks exclude archived",/from creative_tasks where workspace_id=\$\{workspaceId\}[\s\S]*client_id=\$\{client\.id\}[\s\S]*archived_at is null order by updated_at/.test(p));
-t("Approval action rechecks active unarchived task",/from creative_tasks where id=\$\{taskId\}[\s\S]*client_id=\$\{client\.id\}[\s\S]*workspace_id=\$\{workspaceId\}[\s\S]*archived_at is null limit 1/.test(p));
-t("Approval write is archive safe",/update creative_tasks set approved_by_client=true[\s\S]*where id=\$\{taskId\}[\s\S]*client_id=\$\{client\.id\}[\s\S]*workspace_id=\$\{workspaceId\}[\s\S]*archived_at is null/.test(p)&&/update creative_tasks set approved_by_client=false[\s\S]*where id=\$\{taskId\}[\s\S]*client_id=\$\{client\.id\}[\s\S]*workspace_id=\$\{workspaceId\}[\s\S]*archived_at is null/.test(p));
+t("Creative tasks exclude archived and deleted",/from creative_tasks where workspace_id=\$\{workspaceId\}[\s\S]*client_id=\$\{client\.id\}[\s\S]*archived_at is null and deleted_at is null order by updated_at/.test(p));
+t("Approval action rechecks active unarchived undeleted task",/from creative_tasks where id=\$\{taskId\}[\s\S]*client_id=\$\{client\.id\}[\s\S]*workspace_id=\$\{workspaceId\}[\s\S]*archived_at is null and deleted_at is null limit 1/.test(p));
+t("Approval write is archive and soft-delete safe",/update creative_tasks set approved_by_client=true[\s\S]*where id=\$\{taskId\}[\s\S]*client_id=\$\{client\.id\}[\s\S]*workspace_id=\$\{workspaceId\}[\s\S]*archived_at is null and deleted_at is null/.test(p)&&/update creative_tasks set approved_by_client=false[\s\S]*where id=\$\{taskId\}[\s\S]*client_id=\$\{client\.id\}[\s\S]*workspace_id=\$\{workspaceId\}[\s\S]*archived_at is null and deleted_at is null/.test(p));
 t("Review queue only shows final asset decisions",p.includes('t.file_url&&["APPROVED","COMPLETED"].includes(t.status)&&!t.approved_by_client'));
 t("Revision requires client notes",p.includes('decision==="REVISION"&&!comment'));
 t("Documents client scoped and archive safe",/file_documents where workspace_id=\$\{workspaceId\}[\s\S]*client_id=\$\{client\.id\}[\s\S]*archived_at is null/.test(p));
 t("Finance is client scoped",/finance_records where workspace_id=\$\{workspaceId\}[\s\S]*client_id=\$\{client\.id\}/.test(p));
-t("Calendar excludes archived task events",p.includes("exists(select 1 from creative_tasks t")&&p.includes("t.archived_at is null"));
+t("Calendar excludes archived and deleted task events",p.includes("exists(select 1 from creative_tasks t")&&p.includes("t.archived_at is null and t.deleted_at is null"));
 t("Notifications are user scoped",p.includes("notifications where user_id=${userId}"));
 t("Live auto refresh exists",a.includes("router.refresh()")&&a.includes("setInterval"));
 t("Portal refresh cadence is 30 seconds",p.includes("<PortalAutoRefresh seconds={30}/>") );

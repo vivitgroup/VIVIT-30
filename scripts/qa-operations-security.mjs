@@ -7,10 +7,12 @@ check("Notification center sanitizes stored links",page.includes("safeInternalPa
 check("Notification read mutation is owner scoped",page.includes("eq(notifications.userId,String(session.user.id))"));
 check("Notification poll is owner scoped",poll.includes("eq(notifications.userId,String(session.user.id))"));
 check("Notification poll is bounded and no-store",poll.includes(".limit(100)")&&poll.includes('"Cache-Control":"private, no-store"'));
-const fileSessionWorkspace=(files.includes("workspaceId=clean((session.user as any).workspaceId")||files.includes("workspaceId=clean(sessionUser.workspaceId"));
+const fileSessionWorkspace=files.includes("workspaceId=clean(session.user.workspaceId")||files.includes("workspaceId=clean(sessionUser.workspaceId")||files.includes("workspaceId=clean((session.user as any).workspaceId");
 check("File API derives explicit workspace boundary from authenticated session",files.includes("async function sessionScope()")&&files.includes("const session=await auth()")&&fileSessionWorkspace&&files.includes("if(!workspaceId||!userId)return null")&&!files.includes('const WORKSPACE="default"'));
-check("Every file role scope is constrained by file workspace",files.includes("workspace=eq(fileDocuments.workspaceId,workspaceId)")&&files.includes("return and(workspace"));
-check("Accountant file categories cannot bypass workspace",files.includes('if(role==="ACCOUNTANT")return and(workspace,or(own,inArray(fileDocuments.category'));
+const fileWorkspaceFence=files.includes("workspace=eq(fileDocuments.workspaceId,workspaceId)")&&files.includes("return and(workspace,or(...conditions))");
+check("Every file role scope is constrained by file workspace",fileWorkspaceFence);
+const accountantCategoryScope=files.includes('if(roles.includes("ACCOUNTANT"))conditions.push(inArray(fileDocuments.category,["CONTRACT","INVOICE","FINANCE","SHEET"]));');
+check("Accountant file categories cannot bypass workspace",fileWorkspaceFence&&accountantCategoryScope);
 check("Client assignment lookup is workspace scoped",files.includes("eq(clients.workspaceId,workspaceId)"));
 check("Creator task joins enforce task and client workspace",files.includes("t.workspace_id=${workspaceId} and c.workspace_id=${workspaceId}"));
 check("File mutation lookup is workspace scoped",files.includes("eq(fileDocuments.workspaceId,workspaceId))).limit(1)"));

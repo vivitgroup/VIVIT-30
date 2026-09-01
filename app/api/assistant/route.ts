@@ -13,6 +13,7 @@ import {analyzeVivitoImage,groundedVivitoResearch,type VivitoGroundedResearch} f
 import {buildVivitoArtifactPlannerSystem,likelyVivitoArtifactIntent,likelyVivitoResearchIntent,likelyVivitoVisionIntent,parseVivitoArtifactProposal,requestedArtifactKind} from "@/lib/vivito/artifact-router";
 import {buildCompetitivePlannerSystem,likelyCompetitiveChatIntent,parseCompetitiveChatPlan} from "@/lib/vivito/competitive-chat";
 import {buildDailyCompetitiveReport,platformFromUrl} from "@/lib/vivito/competitive-intelligence";
+import {effectiveRoles} from "@/lib/session-access";
 
 type UnknownRecord=Record<string,unknown>;
 type ClientRow={id:string;company_name:string;industry:string|null};
@@ -44,10 +45,10 @@ const asRecord=(value:unknown):UnknownRecord=>value&&typeof value==="object"&&!A
 const errorText=(error:unknown,fallback="VIVITO request failed safely.")=>error instanceof Error?error.message:String(error||fallback);
 
 async function clientScope(role:string,userId:string,workspaceId:string):Promise<ClientRow[]>{
- if(["SUPER_ADMIN","ACCOUNTANT"].includes(role))return Array.from(await db.execute<ClientRow>(sql`select id,company_name,industry from clients where workspace_id=${workspaceId} and is_active=true order by company_name`));
- if(role==="ACCOUNT_MANAGER")return Array.from(await db.execute<ClientRow>(sql`select id,company_name,industry from clients where workspace_id=${workspaceId} and is_active=true and account_manager_id=${userId} order by company_name`));
- if(role==="MEDIA_BUYER")return Array.from(await db.execute<ClientRow>(sql`select id,company_name,industry from clients where workspace_id=${workspaceId} and is_active=true and media_buyer_id=${userId} order by company_name`));
- if(role==="CLIENT")return Array.from(await db.execute<ClientRow>(sql`select id,company_name,industry from clients where workspace_id=${workspaceId} and is_active=true and user_id=${userId} limit 1`));
+ if(["SUPER_ADMIN","ACCOUNTANT"].includes(role))return Array.from(await db.execute<ClientRow>(sql`select id,company_name,industry from clients where workspace_id=${workspaceId} and is_active=true and archived_at is null and deleted_at is null order by company_name`));
+ if(role==="ACCOUNT_MANAGER")return Array.from(await db.execute<ClientRow>(sql`select id,company_name,industry from clients where workspace_id=${workspaceId} and is_active=true and archived_at is null and deleted_at is null and account_manager_id=${userId} order by company_name`));
+ if(role==="MEDIA_BUYER")return Array.from(await db.execute<ClientRow>(sql`select id,company_name,industry from clients where workspace_id=${workspaceId} and is_active=true and archived_at is null and deleted_at is null and media_buyer_id=${userId} order by company_name`));
+ if(role==="CLIENT")return Array.from(await db.execute<ClientRow>(sql`select id,company_name,industry from clients where workspace_id=${workspaceId} and is_active=true and archived_at is null and deleted_at is null and user_id=${userId} limit 1`));
  return[];
 }
 
@@ -74,7 +75,7 @@ async function mediaContext(role:string,ids:string[],workspaceId:string):Promise
  coalesce(sum(case when p.date>=date_trunc('month',now())-interval '1 month' and p.date<date_trunc('month',now())-interval '1 month'+(now()-date_trunc('month',now())) then p.revenue else 0 end),0) previous_revenue
  from ad_campaigns ac join clients c on c.id=ac.client_id
  left join ad_performance_daily p on p.campaign_id=ac.id and p.date>=date_trunc('month',now())-interval '1 month' and p.breakdown_type='TOTAL' and p.ad_set_id is null and p.ad_id is null
- where ac.workspace_id=${workspaceId} and c.workspace_id=${workspaceId} and ac.client_id in (${idsSql(ids)}) and ac.archived_at is null
+ where ac.workspace_id=${workspaceId} and c.workspace_id=${workspaceId} and ac.client_id in (${idsSql(ids)}) and ac.archived_at is null and ac.deleted_at is null
  group by c.company_name,c.industry,ac.id,ac.name,ac.objective,ac.status,ac.reported_result_label,ac.reported_result_type order by spend desc limit 100`));
  return result.map(x=>{const spend=n(x.spend),impressions=n(x.impressions),reach=n(x.reach),clicks=n(x.clicks),results=n(x.results),purchases=n(x.purchases),atc=n(x.atc),revenue=n(x.revenue),previousSpend=n(x.previous_spend),previousResults=n(x.previous_results),previousPurchases=n(x.previous_purchases),previousRevenue=n(x.previous_revenue),resultDefinition=String(x.reported_result_label||x.reported_result_type||x.objective||"Results");return{...x,spend,impressions,reach,clicks,results,purchases,atc,revenue,previousSpend,previousResults,previousPurchases,previousRevenue,resultDefinition,ctr:impressions?(clicks/impressions)*100:0,cpc:clicks?spend/clicks:0,cpm:impressions?(spend/impressions)*1000:0,costPerResult:results?spend/results:0,frequency:reach?impressions/reach:0,roas:spend?revenue/spend:0,previousCostPerResult:previousResults?previousSpend/previousResults:0,previousRoas:previousSpend?previousRevenue/previousSpend:0}});
 }
@@ -102,10 +103,11 @@ async function readUploadedImageForVivito(userId:string,attachment:Attachment,wo
 export async function POST(req:NextRequest){
  const session=await auth();if(!session?.user)return NextResponse.json({error:"Unauthorized"},{status:401});
  const rawBody:unknown=await req.json().catch(()=>({})),body=asRecord(rawBody),question=String(body.question||"").trim().slice(0,1600);if(!question)return NextResponse.json({error:"Ask a question first."},{status:400});
- const role=String(session.user.role||""),userId=String(session.user.id||""),workspaceId=String(session.user.workspaceId||"");if(!workspaceId)return NextResponse.json({error:"Workspace unavailable"},{status:403});
+ const roles=effectiveRoles(session.user).map(String),role=String(session.user.role||""),userId=String(session.user.id||""),workspaceId=String(session.user.workspaceId||"");if(!workspaceId)return NextResponse.json({error:"Workspace unavailable"},{status:403});const contextRole=(allowed:string[])=>allowed.find(r=>roles.includes(r))||"";
  const attachments:Attachment[]=Array.isArray(body.attachments)?body.attachments.slice(0,5).flatMap(value=>{const x=asRecord(value),fileId=String(x.fileId||"").slice(0,100);return fileId?[{fileId,name:String(x.name||"").slice(0,255),mimeType:String(x.mimeType||"").slice(0,120)}]:[]}):[];
- const clients=await clientScope(role,userId,workspaceId),ids=clients.map(c=>String(c.id));
- const [tasks,campaigns,tracking,clientHealth,sales,finance,memories]=await Promise.all([taskContext(role,userId,ids,workspaceId),mediaContext(role,ids,workspaceId),trackingContext(role,ids,workspaceId),clientHealthContext(role,ids,workspaceId),salesContext(role,userId,workspaceId),financeContext(role,ids,workspaceId),loadVivitoMemories(userId,role,ids,workspaceId)]);
+ const scoped=await Promise.all(roles.map(r=>clientScope(r,userId,workspaceId))),clients=Array.from(new Map(scoped.flat().map(c=>[String(c.id),c])).values()),ids=clients.map(c=>String(c.id));
+ const taskRole=contextRole(["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CLIENT","CREATOR"]),mediaRole=contextRole(["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CLIENT"]),trackingRole=contextRole(["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"]),salesRole=contextRole(["SUPER_ADMIN","SALES"]),financeRole=contextRole(["SUPER_ADMIN","ACCOUNTANT"]);
+ const [tasks,campaigns,tracking,clientHealth,sales,finance,memories]=await Promise.all([taskContext(taskRole,userId,ids,workspaceId),mediaContext(mediaRole,ids,workspaceId),trackingContext(trackingRole,ids,workspaceId),clientHealthContext(trackingRole,ids,workspaceId),salesContext(salesRole,userId,workspaceId),financeContext(financeRole,ids,workspaceId),loadVivitoMemories(userId,role,ids,workspaceId)]);
 
  if(likelyCompetitiveChatIntent(question)){
   try{

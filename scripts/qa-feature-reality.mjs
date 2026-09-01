@@ -5,7 +5,8 @@ check("Client Portal contains no demo gallery",!portal.includes("PortalDemoGalle
 check("Client Portal contains no demo schedules",!portal.includes("Demo schedule")&&!portal.includes("Campaign Launch Reel"));
 check("Calendar contains no demo client component",!calendar.includes("ClientCalendarDemo"));
 check("Analytics clients are active workspace scoped",analytics.includes("eq(clients.workspaceId,workspaceId)")&&analytics.includes("eq(clients.isActive,true)"));
-check("Analytics media is workspace scoped",analytics.includes("eq(mediaMetrics.workspaceId,workspaceId)"));
+const analyticsCanonicalMedia=analytics.includes("from ad_performance_daily p join ad_campaigns a on a.id=p.campaign_id")&&analytics.includes("where a.workspace_id=${workspaceId}")&&analytics.includes("a.archived_at is null")&&analytics.includes("a.deleted_at is null")&&analytics.includes("p.breakdown_type='TOTAL'")&&analytics.includes("p.ad_set_id is null")&&analytics.includes("p.ad_id is null");
+check("Analytics media is workspace scoped",analyticsCanonicalMedia);
 check("Analytics finance is workspace scoped",analytics.includes("eq(financeRecords.workspaceId,workspaceId)"));
 check("Analytics tasks exclude archived records",analytics.includes("workspace_id=${workspaceId} and archived_at is null"));
 check("Analytics sales excludes archived records",analytics.includes("sales_leads where workspace_id=${workspaceId} and archived_at is null"));

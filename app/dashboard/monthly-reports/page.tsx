@@ -15,7 +15,7 @@ export default async function MonthlyReportsPage() {
   const workspaceId=String(sessionUser.workspaceId||"");
   if(!workspaceId) redirect("/login?reason=workspace_missing");
 
-  const userId=String(sessionUser.id||"");
+  const userId=String(sessionUser.id||""),workspaceId=String(sessionUser.workspaceId||"");if(!workspaceId)redirect("/login");
   const allClients = await db.select({ id:clients.id, companyName:clients.companyName, isActive:clients.isActive })
     .from(clients).where(role === Role.ACCOUNT_MANAGER
       ? and(eq(clients.workspaceId,workspaceId),eq(clients.isActive, true), eq(clients.accountManagerId, userId))
@@ -28,13 +28,13 @@ export default async function MonthlyReportsPage() {
   async function sendAllReports() {
     "use server";
     const {auth:getAuth}=await import("@/lib/auth");
-    const {db,clients,contacts,financeRecords,mediaMetrics,auditLogs}=await import("@/lib/db");
-    const {eq,and,gte,sum,sql}=await import("drizzle-orm");
+    const {db,clients,contacts,financeRecords,sql}=await import("@/lib/db");
+    const {eq,and}=await import("drizzle-orm");
     const MONTHS=["","January","February","March","April","May","June","July","August","September","October","November","December"];
     const current=await getAuth();
     const currentUser=current?.user as unknown as SessionUser|undefined;
     const currentRole=currentUser?.role as Role|undefined;
-    if(!current?.user||![Role.SUPER_ADMIN,Role.ACCOUNT_MANAGER].includes(currentRole!))throw new Error("Unauthorized");
+    if(!current?.user||![Role.SUPER_ADMIN,Role.ACCOUNT_MANAGER].includes(currentRole!))throw new Error("Unauthorized");const currentWorkspaceId=String(currentUser?.workspaceId||"");if(!currentWorkspaceId)throw new Error("Workspace unavailable");
     const now2=new Date();
     const pMonth=now2.getMonth()===0?12:now2.getMonth();
     const pYear=now2.getMonth()===0?now2.getFullYear()-1:now2.getFullYear();
@@ -48,7 +48,7 @@ export default async function MonthlyReportsPage() {
       if(!contact?.email) continue;
       const monthStart2=new Date(pYear,pMonth-1,1);
       const [inv]=await db.select().from(financeRecords).where(and(eq(financeRecords.workspaceId,currentWorkspaceId),eq(financeRecords.clientId,c.id),eq(financeRecords.month,pMonth),eq(financeRecords.year,pYear)));
-      const [mAgg]=await db.select({spend:sum(mediaMetrics.adSpend),leads:sum(mediaMetrics.leads),rev:sum(mediaMetrics.revenue)}).from(mediaMetrics).where(and(eq(mediaMetrics.workspaceId,currentWorkspaceId),eq(mediaMetrics.clientId,c.id),gte(mediaMetrics.date,monthStart2)));
+      const [mAgg]=await db.execute<{spend:number|string|null;leads:number|string|null;rev:number|string|null}>(sql`select coalesce(sum(p.spend),0) spend,coalesce(sum(p.results),0) leads,coalesce(sum(p.revenue),0) rev from ad_performance_daily p join ad_campaigns a on a.id=p.campaign_id where a.workspace_id=${currentWorkspaceId} and a.client_id=${c.id} and a.archived_at is null and a.deleted_at is null and p.date>=${monthStart2} and p.date<${new Date(pYear,pMonth,1)} and p.breakdown_type='TOTAL' and p.ad_set_id is null and p.ad_id is null`).then(r=>Array.from(r));
       const spend=Number(mAgg?.spend??0);const leads=Number(mAgg?.leads??0);const rev=Number(mAgg?.rev??0);
       if(process.env.RESEND_API_KEY){
         const deliveryEntityId=`${c.id}:${pYear}-${String(pMonth).padStart(2,"0")}`,deliveryKey=`monthly-report/${currentWorkspaceId}/${deliveryEntityId}`;

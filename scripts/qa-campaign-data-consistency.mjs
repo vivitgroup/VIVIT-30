@@ -1,0 +1,15 @@
+import fs from "node:fs";
+const read=p=>fs.readFileSync(p,"utf8"),checks=[],check=(n,o)=>checks.push({n,o:Boolean(o)});
+const client=read("app/dashboard/clients/[id]/page.tsx"),portal=read("app/dashboard/portal/page.tsx"),dash=read("app/dashboard/page.tsx"),media=read("app/api/media-control-v2/route.ts"),analytics=read("app/dashboard/analytics/page.tsx"),monthly=read("app/api/monthly-summary/[clientId]/route.ts"),pdf=read("app/api/pdf-report/[clientId]/route.ts"),monthlyPage=read("app/dashboard/monthly-reports/page.tsx"),v1=read("app/api/v1/metrics/route.ts"),health=read("app/api/performance-score/route.ts"),assistant=read("app/api/assistant/route.ts");
+check("Client selectable ranges",client.includes('name="from"')&&portal.includes('name="from"'));
+check("Client campaign lifecycle",client.includes("a.deleted_at is null")&&portal.includes("c.deleted_at is null"));
+check("Main dashboard lifecycle safe",dash.includes("activeTask")&&dash.includes("activeLead")&&dash.includes("archived_at is null and deleted_at is null"));
+check("Analytics canonical",!analytics.includes("mediaMetrics")&&analytics.includes("ad_performance_daily")&&analytics.includes("breakdown_type='TOTAL'"));
+check("Monthly canonical",!monthly.includes("mediaMetrics")&&monthly.includes("ad_performance_daily"));
+check("PDF canonical",!pdf.includes("mediaMetrics")&&pdf.includes("ad_performance_daily"));
+check("Bulk report scoped",!monthlyPage.includes("mediaMetrics")&&monthlyPage.includes("currentWorkspaceId")&&monthlyPage.includes("clients.workspaceId"));
+check("API weighted ROAS",!v1.includes("mediaMetrics")&&v1.includes("revenue/adSpend")&&v1.includes("ad_performance_daily"));
+check("Health no fake ROAS",!health.includes("mediaMetrics")&&!health.includes("avgRoas??2.5")&&health.includes("ad_performance_daily"));
+check("Vivito lifecycle",assistant.includes("ac.archived_at is null and ac.deleted_at is null"));
+check("Media lifecycle",media.includes("archived_at is null and deleted_at is null"));
+const failed=checks.filter(item=>!item.o);for(const item of checks)console.log((item.o?"PASS":"FAIL")+"  "+item.n);console.log("\n"+(checks.length-failed.length)+"/"+checks.length+" campaign data consistency checks passed.");if(failed.length)process.exit(1);

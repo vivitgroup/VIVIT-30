@@ -8,6 +8,7 @@ check("Reference image is private-storage backed",create.includes("vivit-files")
 check("Reference upload validates image and size",create.includes('image.type.startsWith("image/")')&&create.includes("25*1024*1024"));
 check("Task detail exposes dedicated Reference button",detailGuard.includes("Reference ↗")&&detailGuard.includes("reference_url")&&detailGuard.includes("reference_file_id"));
 check("Private task reference files use signed URLs",detailGuard.includes("/storage/v1/object/sign/vivit-files/")&&detailGuard.includes("expiresIn:1800"));
+check("Task detail reference guard honors effective roles",detailGuard.includes("effectiveRoles(session.user)")&&detailGuard.includes("roles.includes(Role.CREATOR)")&&detailGuard.includes("roles.includes(Role.MEDIA_BUYER)"));
 check("Task detail excludes archived and deleted tasks",detailGuard.includes("t.archived_at is null")&&detailGuard.includes("t.deleted_at is null"));
 check("Task detail scopes Account Manager",detailGuard.includes("task.account_manager_id===userId"));
 check("Task detail scopes Media Buyer",detailGuard.includes("task.media_buyer_id===userId"));

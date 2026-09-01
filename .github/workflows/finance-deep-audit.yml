@@ -1,0 +1,61 @@
+name: Finance Deep Audit
+
+on:
+  push:
+    branches:
+      - audit/finance-deep-2026-09-01
+  pull_request:
+    branches:
+      - audit/integrations-2026-09-01
+
+permissions:
+  contents: read
+
+jobs:
+  finance-deep-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      # Isolated CI-only placeholder. Static QA/build must never point at Preview/Production data.
+      DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/vivit_ci
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Finance lifecycle contract
+        run: npm run qa:finance-reports
+
+      - name: Recurring invoice contract
+        run: npm run qa:finance-recurring
+
+      - name: Data integrity regression
+        run: npm run qa:data-integrity
+
+      - name: Database security regression
+        run: npm run qa:database-security
+
+      - name: Finance RBAC regression
+        run: npm run qa:rbac-security
+
+      - name: Payroll regression
+        run: npm run qa:hr-payroll
+
+      - name: ESLint zero warnings
+        run: npm run lint -- --max-warnings=0
+
+      - name: TypeScript
+        run: npm run type-check
+
+      - name: Production build
+        run: npm run build

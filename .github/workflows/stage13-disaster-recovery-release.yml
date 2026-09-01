@@ -70,8 +70,9 @@ jobs:
         run: |
           pg_dump "$DATABASE_URL" --format=custom --file=/tmp/vivit-stage13.dump
           test -s /tmp/vivit-stage13.dump
-          createdb postgresql://vivito:vivito@127.0.0.1:5432/vivito_stage13_restore
-          pg_restore --no-owner --no-privileges --dbname=postgresql://vivito:vivito@127.0.0.1:5432/vivito_stage13_restore /tmp/vivit-stage13.dump
+          psql postgresql://vivito:vivito@127.0.0.1:5432/postgres -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS vivito_stage13_restore;"
+          psql postgresql://vivito:vivito@127.0.0.1:5432/postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE vivito_stage13_restore;"
+          pg_restore --exit-on-error --no-owner --no-privileges --dbname=postgresql://vivito:vivito@127.0.0.1:5432/vivito_stage13_restore /tmp/vivit-stage13.dump
           psql postgresql://vivito:vivito@127.0.0.1:5432/vivito_stage13_restore -v ON_ERROR_STOP=1 -c "select 1;"
           TABLE_COUNT="$(psql postgresql://vivito:vivito@127.0.0.1:5432/vivito_stage13_restore -Atc "select count(*) from information_schema.tables where table_schema='public';")"
           echo "restored_public_table_count=$TABLE_COUNT"

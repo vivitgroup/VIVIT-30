@@ -13,48 +13,58 @@ jobs:
         with:
           ref: feat/vivito-internal-100
           fetch-depth: 0
-      - name: Apply tenant and legacy media safety fixes
+      - name: Apply effective multi-role KPI access
         shell: bash
         run: |
           python - <<'PY'
           from pathlib import Path
-          def replace(path,a,b,minimum=1):
-              p=Path(path); s=p.read_text(); n=s.count(a)
-              if n<minimum: raise SystemExit(f"{path}: missing pattern: {a[:100]}")
+          def patch(path,a,b):
+              p=Path(path); s=p.read_text()
+              if a not in s: raise SystemExit(f"{path}: missing {a[:120]}")
               p.write_text(s.replace(a,b))
 
-          # Client detail and server action must be fenced to the authenticated workspace.
-          p=Path('app/dashboard/clients/[id]/page.tsx'); s=p.read_text()
-          replace('app/dashboard/clients/[id]/page.tsx',
-            'const role=String(s.user.role||""),uid=String(s.user.id||"");if(!["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"].includes(role))throw new Error("Forbidden");const rows=Array.from(await db.execute<ClientAccessRow>(sql`select id,account_manager_id,media_buyer_id from clients where id=${clientId} and is_active=true limit 1`))',
-            'const role=String(s.user.role||""),uid=String(s.user.id||""),workspaceId=String(s.user.workspaceId||"");if(!workspaceId||!["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"].includes(role))throw new Error("Forbidden");const rows=Array.from(await db.execute<ClientAccessRow>(sql`select id,account_manager_id,media_buyer_id from clients where id=${clientId} and workspace_id=${workspaceId} and is_active=true and archived_at is null and deleted_at is null limit 1`))')
-          replace('app/dashboard/clients/[id]/page.tsx',
-            'const role=String(s.user.role||""),uid=String(s.user.id||""),{id}=await params,q=await searchParams',
-            'const role=String(s.user.role||""),uid=String(s.user.id||""),workspaceId=String(s.user.workspaceId||"");if(!workspaceId)redirect("/login");const {id}=await params,q=await searchParams')
-          replace('app/dashboard/clients/[id]/page.tsx',
-            'where c.id=${id} and c.is_active=true limit 1',
-            'where c.id=${id} and c.workspace_id=${workspaceId} and c.is_active=true and c.archived_at is null and c.deleted_at is null limit 1')
+          # Client workspace honors secondary roles while retaining workspace/ownership fences.
+          p='app/dashboard/clients/[id]/page.tsx'
+          patch(p,'import {db,sql} from "@/lib/db";','import {db,sql} from "@/lib/db";\nimport {effectiveRoles} from "@/lib/session-access";')
+          patch(p,
+            'const role=String(s.user.role||""),uid=String(s.user.id||""),workspaceId=String(s.user.workspaceId||"");if(!workspaceId||!["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"].includes(role))throw new Error("Forbidden");',
+            'const roles=effectiveRoles(s.user),role=String(s.user.role||""),uid=String(s.user.id||""),workspaceId=String(s.user.workspaceId||"");if(!workspaceId||!roles.some(r=>["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"].includes(String(r))))throw new Error("Forbidden");')
+          patch(p,
+            'if(role==="ACCOUNT_MANAGER"&&c.account_manager_id!==uid||role==="MEDIA_BUYER"&&c.media_buyer_id!==uid)throw new Error("Client access denied");',
+            'if(!roles.includes("SUPER_ADMIN")&&!((roles.includes("ACCOUNT_MANAGER")&&c.account_manager_id===uid)||(roles.includes("MEDIA_BUYER")&&c.media_buyer_id===uid)))throw new Error("Client access denied");')
+          patch(p,
+            'const role=String(s.user.role||""),uid=String(s.user.id||""),workspaceId=String(s.user.workspaceId||"");if(!workspaceId)redirect("/login");',
+            'const roles=effectiveRoles(s.user),role=String(s.user.role||""),uid=String(s.user.id||""),workspaceId=String(s.user.workspaceId||"");if(!workspaceId)redirect("/login");')
+          patch(p,
+            'if(!["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","ACCOUNTANT"].includes(role))redirect("/dashboard");',
+            'if(!roles.some(r=>["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","ACCOUNTANT"].includes(String(r))))redirect("/dashboard");')
+          patch(p,
+            'if(role==="ACCOUNT_MANAGER"&&client.account_manager_id!==uid||role==="MEDIA_BUYER"&&client.media_buyer_id!==uid)redirect("/dashboard/universe");const canOperate=["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"].includes(role),canFinance=["SUPER_ADMIN","ACCOUNTANT"].includes(role);',
+            'if(!roles.includes("SUPER_ADMIN")&&!((roles.includes("ACCOUNT_MANAGER")&&client.account_manager_id===uid)||(roles.includes("MEDIA_BUYER")&&client.media_buyer_id===uid)||(roles.includes("ACCOUNTANT"))))redirect("/dashboard/universe");const canOperate=roles.some(r=>["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"].includes(String(r))),canFinance=roles.some(r=>["SUPER_ADMIN","ACCOUNTANT"].includes(String(r)));')
 
-          # Legacy media endpoint remains backward compatible but must return only canonical active campaign totals.
-          p=Path('app/api/media-control/route.ts'); s=p.read_text()
-          s=s.replace('auditLogs} from "@/lib/db"','auditLogs,sql} from "@/lib/db"')
-          s=s.replace('const campaignRows=await db.select().from(adCampaigns).where(inArray(adCampaigns.clientId,ctx.clientIds)).orderBy(desc(adCampaigns.updatedAt));',
-            'const campaignRows=await db.select().from(adCampaigns).where(and(inArray(adCampaigns.clientId,ctx.clientIds),eq(adCampaigns.workspaceId,ctx.workspaceId),sql`${adCampaigns.id} in (select id from ad_campaigns where workspace_id=${ctx.workspaceId} and archived_at is null and deleted_at is null)`)).orderBy(desc(adCampaigns.updatedAt));')
-          s=s.replace('db.select().from(adPerformanceDaily).where(and(inArray(adPerformanceDaily.campaignId,ids),gte(adPerformanceDaily.date,new Date(Date.now()-31*86400000))))',
-            'db.select().from(adPerformanceDaily).where(and(inArray(adPerformanceDaily.campaignId,ids),gte(adPerformanceDaily.date,new Date(Date.now()-31*86400000)),eq(adPerformanceDaily.breakdownType,"TOTAL"),isNull(adPerformanceDaily.adSetId),isNull(adPerformanceDaily.adId)))')
-          s=s.replace('.values({clientId:body.clientId,platform:parsed.platform,externalId:parsed.externalId,', '.values({workspaceId:ctx.workspaceId,clientId:body.clientId,platform:parsed.platform,externalId:parsed.externalId,')
-          s=s.replace('.values({clientId:body.clientId,name:String(body.name||""),periodStart,periodEnd,totalBudget:budget,', '.values({workspaceId:ctx.workspaceId,clientId:body.clientId,name:String(body.name||""),periodStart,periodEnd,totalBudget:budget,')
-          s=s.replace('.values({clientId:body.clientId,platform,adAccountId:String(body.adAccountId||""),', '.values({workspaceId:ctx.workspaceId,clientId:body.clientId,platform,adAccountId:String(body.adAccountId||""),')
-          p.write_text(s)
+          # Media V2 uses role union and union ownership for AM/MB secondary roles.
+          p='app/api/media-control-v2/route.ts'
+          patch(p,'import {connectionAccessToken} from "@/lib/ad-oauth";','import {connectionAccessToken} from "@/lib/ad-oauth";\nimport {effectiveRoles} from "@/lib/session-access";')
+          patch(p,'import {and,desc,eq,inArray,gte,lte,isNull} from "drizzle-orm";','import {and,desc,eq,inArray,gte,lte,isNull,or} from "drizzle-orm";')
+          old='async function ctx(){const s=await auth();if(!s?.user||!ROLES.includes(String(s.user.role)))return null;const role=String(s.user.role),userId=String(s.user.id),workspaceId=String(s.user.workspaceId||"");if(!workspaceId)return null;const ownerScope=role==="MEDIA_BUYER"?eq(clients.mediaBuyerId,userId):role==="ACCOUNT_MANAGER"?eq(clients.accountManagerId,userId):sql`true`;const owned=await db.select({id:clients.id,name:clients.companyName}).from(clients).where(and(eq(clients.workspaceId,workspaceId),eq(clients.isActive,true),ownerScope));return {role,userId,workspaceId,clients:owned,ids:owned.map(x=>x.id)}}'
+          new='async function ctx(){const s=await auth();if(!s?.user)return null;const roles=effectiveRoles(s.user),allowed=roles.filter(r=>ROLES.includes(String(r)));if(!allowed.length)return null;const role=roles.includes("SUPER_ADMIN")?"SUPER_ADMIN":roles.includes("MEDIA_BUYER")?"MEDIA_BUYER":"ACCOUNT_MANAGER",userId=String(s.user.id),workspaceId=String(s.user.workspaceId||"");if(!workspaceId)return null;const ownerScope=roles.includes("SUPER_ADMIN")?sql`true`:roles.includes("MEDIA_BUYER")&&roles.includes("ACCOUNT_MANAGER")?or(eq(clients.mediaBuyerId,userId),eq(clients.accountManagerId,userId)):roles.includes("MEDIA_BUYER")?eq(clients.mediaBuyerId,userId):eq(clients.accountManagerId,userId);const owned=await db.select({id:clients.id,name:clients.companyName}).from(clients).where(and(eq(clients.workspaceId,workspaceId),eq(clients.isActive,true),ownerScope));return {role,userId,workspaceId,clients:owned,ids:owned.map(x=>x.id)}}'
+          patch(p,old,new)
 
-          # Guard contract.
-          Path('scripts/qa-kpi-tenant-safety.mjs').write_text('''import fs from "node:fs";\nconst read=p=>fs.readFileSync(p,"utf8"),client=read("app/dashboard/clients/[id]/page.tsx"),legacy=read("app/api/media-control/route.ts"),checks=[\n["Client detail workspace fenced",client.includes("c.workspace_id=${workspaceId}")&&client.includes("c.deleted_at is null")],\n["Client activity workspace fenced",client.includes("workspace_id=${workspaceId} and is_active=true and archived_at is null and deleted_at is null")],\n["Legacy media campaign lifecycle fenced",legacy.includes("workspace_id=${ctx.workspaceId} and archived_at is null and deleted_at is null")],\n["Legacy media returns TOTAL root rows",legacy.includes('eq(adPerformanceDaily.breakdownType,"TOTAL")')&&legacy.includes("isNull(adPerformanceDaily.adSetId)")&&legacy.includes("isNull(adPerformanceDaily.adId)")],\n["Legacy media writes explicit workspace",legacy.includes("workspaceId:ctx.workspaceId,clientId:body.clientId")],\n];let bad=0;for(const [n,ok] of checks){console.log((ok?"PASS":"FAIL")+"  "+n);if(!ok)bad++}if(bad)process.exit(1);\n''')
+          # Legacy media context gets the same effective-role model.
+          p='app/api/media-control/route.ts'
+          patch(p,'import {and,desc,eq,inArray,gte,isNull} from "drizzle-orm";','import {and,desc,eq,inArray,gte,isNull,or} from "drizzle-orm";')
+          patch(p,'import {connectionAccessToken,oauthConfigured} from "@/lib/ad-oauth";','import {connectionAccessToken,oauthConfigured} from "@/lib/ad-oauth";\nimport {effectiveRoles} from "@/lib/session-access";')
+          old='async function context(){const session=await auth();if(!session?.user)return null;const role=String(session.user.role||"");if(!isAllowedRole(role))return null;const userId=String(session.user.id||""),workspaceId=String(session.user.workspaceId||"");if(!workspaceId)return null;const owned=await db.select({id:clients.id,name:clients.companyName,budget:clients.mediaBudget}).from(clients).where(and(eq(clients.workspaceId,workspaceId),eq(clients.isActive,true),role==="MEDIA_BUYER"?eq(clients.mediaBuyerId,userId):role==="ACCOUNT_MANAGER"?eq(clients.accountManagerId,userId):eq(clients.workspaceId,workspaceId)));return {session,role,userId,workspaceId,clients:owned,clientIds:owned.map(x=>x.id)};}'
+          new='async function context(){const session=await auth();if(!session?.user)return null;const roles=effectiveRoles(session.user),role=roles.includes("SUPER_ADMIN")?"SUPER_ADMIN":roles.includes("MEDIA_BUYER")?"MEDIA_BUYER":roles.includes("ACCOUNT_MANAGER")?"ACCOUNT_MANAGER":"";if(!isAllowedRole(role))return null;const userId=String(session.user.id||""),workspaceId=String(session.user.workspaceId||"");if(!workspaceId)return null;const ownerScope=roles.includes("SUPER_ADMIN")?eq(clients.workspaceId,workspaceId):roles.includes("MEDIA_BUYER")&&roles.includes("ACCOUNT_MANAGER")?or(eq(clients.mediaBuyerId,userId),eq(clients.accountManagerId,userId)):roles.includes("MEDIA_BUYER")?eq(clients.mediaBuyerId,userId):eq(clients.accountManagerId,userId);const owned=await db.select({id:clients.id,name:clients.companyName,budget:clients.mediaBudget}).from(clients).where(and(eq(clients.workspaceId,workspaceId),eq(clients.isActive,true),ownerScope));return {session,role,userId,workspaceId,clients:owned,clientIds:owned.map(x=>x.id)};}'
+          patch(p,old,new)
+
+          Path('scripts/qa-kpi-effective-roles.mjs').write_text('''import fs from "node:fs";\nconst read=p=>fs.readFileSync(p,"utf8"),client=read("app/dashboard/clients/[id]/page.tsx"),v2=read("app/api/media-control-v2/route.ts"),legacy=read("app/api/media-control/route.ts"),checks=[\n["Client workspace effective roles",client.includes("effectiveRoles(s.user)")&&client.includes('roles.includes("ACCOUNT_MANAGER")')],\n["Client workspace effective finance",client.includes("canFinance=roles.some")],\n["Media V2 effective roles",v2.includes("effectiveRoles(s.user)")&&v2.includes("or(eq(clients.mediaBuyerId,userId),eq(clients.accountManagerId,userId))")],\n["Legacy media effective roles",legacy.includes("effectiveRoles(session.user)")&&legacy.includes("ownerScope")],\n];let bad=0;for(const [n,ok] of checks){console.log((ok?"PASS":"FAIL")+"  "+n);if(!ok)bad++}if(bad)process.exit(1);\n''')
           PY
-          node scripts/qa-kpi-tenant-safety.mjs
+          node scripts/qa-kpi-effective-roles.mjs
       - name: Commit fixes
         run: |
           git config user.name vivitgroup
           git config user.email groupvivit@gmail.com
-          git add app scripts/qa-kpi-tenant-safety.mjs
-          git commit -m "fix(data): fence client KPIs and legacy media by workspace"
+          git add app scripts/qa-kpi-effective-roles.mjs
+          git commit -m "fix(auth): honor effective roles across client KPI surfaces"
           git push origin HEAD:feat/vivito-internal-100

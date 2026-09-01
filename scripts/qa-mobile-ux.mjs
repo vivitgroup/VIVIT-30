@@ -13,5 +13,5 @@ check("Sticky form actions stay above mobile navigation safe area",mobileCss.inc
 check("Content reserves bottom space for fixed mobile navigation",mobileCss.includes("96px + env(safe-area-inset-bottom)"));
 check("Client forms collapse to one column on mobile",clientForm.includes(".form-grid,.form-grid.three{grid-template-columns:1fr"));
 check("Mobile navigation uses longest-prefix active matching",nav.includes("sort((a,b)=>b.href.length-a.href.length)"));
-for(const role of ["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CREATOR","ACCOUNTANT","SALES","CLIENT"]){const m=nav.match(new RegExp(`${role}:\\[(.*?)\\],`));const count=m?(m[1].match(/href:/g)||[]).length:0;check(`${role} mobile nav is present and fits five actions`,count>0&&count<=5)}
+for(const role of ["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CREATOR","ACCOUNTANT","SALES","CLIENT"]){const m=nav.match(new RegExp(`${role}:\\[(.*?)\\](?:,|})`));const count=m?(m[1].match(/href:/g)||[]).length:0;check(`${role} mobile nav is present and fits five actions`,count>0&&count<=5)}
 const failed=checks.filter(c=>!c.ok);for(const c of checks)console.log(`${c.ok?"PASS":"FAIL"}  ${c.name}`);console.log(`\n${checks.length-failed.length}/${checks.length} mobile UX checks passed.`);if(failed.length)process.exit(1);

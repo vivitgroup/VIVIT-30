@@ -24,6 +24,8 @@ export default async function DashboardPage() {
   const yrStart  = new Date(year, 0, 1);
   const today    = new Date(now); today.setHours(0,0,0,0);
   const period   = `${year}-${String(month).padStart(2,"0")}`;
+  const activeTask=sql`${creativeTasks.id} in (select id from creative_tasks where workspace_id=${workspaceId} and archived_at is null and deleted_at is null)`;
+  const activeLead=sql`${salesLeads.id} in (select id from sales_leads where workspace_id=${workspaceId} and archived_at is null and deleted_at is null)`;
 
   const dashboardResults = await Promise.allSettled([
     db.select({ id:clients.id, companyName:clients.companyName, healthScore:clients.healthScore,
@@ -38,15 +40,15 @@ export default async function DashboardPage() {
       .from(financeRecords).where(and(eq(financeRecords.workspaceId,workspaceId),gte(financeRecords.createdAt,yrStart))),
     db.select({spend:sum(adPerformanceDaily.spend),leads:sum(adPerformanceDaily.results),revenue:sum(adPerformanceDaily.revenue)})
       .from(adPerformanceDaily).innerJoin(adCampaigns,eq(adPerformanceDaily.campaignId,adCampaigns.id)).innerJoin(clients,eq(adCampaigns.clientId,clients.id)).where(and(eq(clients.workspaceId,workspaceId),eq(clients.isActive,true),gte(adPerformanceDaily.date,moStart),eq(adPerformanceDaily.breakdownType,"TOTAL"),isNull(adPerformanceDaily.adSetId),isNull(adPerformanceDaily.adId),sql`${adCampaigns.id} in (select id from ad_campaigns where archived_at is null and deleted_at is null)`)),
-    db.select({cnt:count()}).from(creativeTasks).where(and(eq(creativeTasks.workspaceId,workspaceId),notInArray(creativeTasks.status,["COMPLETED","REJECTED"]))),
-    db.select({cnt:count()}).from(creativeTasks).where(and(eq(creativeTasks.workspaceId,workspaceId),eq(creativeTasks.status,"REVIEW"))),
-    db.select({cnt:count()}).from(creativeTasks).where(and(eq(creativeTasks.workspaceId,workspaceId),lt(creativeTasks.deadline,today),notInArray(creativeTasks.status,["COMPLETED","REJECTED","APPROVED"]))),
-    db.select({cnt:count()}).from(salesLeads).where(and(eq(salesLeads.workspaceId,workspaceId),eq(salesLeads.stage,"WON"))),
-    db.select({cnt:count()}).from(salesLeads).where(and(eq(salesLeads.workspaceId,workspaceId),lte(salesLeads.updatedAt,new Date(today.getTime()-5*86400000)),notInArray(salesLeads.stage,["WON","LOST"]))),
+    db.select({cnt:count()}).from(creativeTasks).where(and(eq(creativeTasks.workspaceId,workspaceId),notInArray(creativeTasks.status,["COMPLETED","REJECTED"]),activeTask)),
+    db.select({cnt:count()}).from(creativeTasks).where(and(eq(creativeTasks.workspaceId,workspaceId),eq(creativeTasks.status,"REVIEW"),activeTask)),
+    db.select({cnt:count()}).from(creativeTasks).where(and(eq(creativeTasks.workspaceId,workspaceId),lt(creativeTasks.deadline,today),notInArray(creativeTasks.status,["COMPLETED","REJECTED","APPROVED"]),activeTask)),
+    db.select({cnt:count()}).from(salesLeads).where(and(eq(salesLeads.workspaceId,workspaceId),eq(salesLeads.stage,"WON"),activeLead)),
+    db.select({cnt:count()}).from(salesLeads).where(and(eq(salesLeads.workspaceId,workspaceId),lte(salesLeads.updatedAt,new Date(today.getTime()-5*86400000)),notInArray(salesLeads.stage,["WON","LOST"]),activeLead)),
     db.select({total:sum(companyExpenses.amount)}).from(companyExpenses).where(and(eq(companyExpenses.workspaceId,workspaceId),gte(companyExpenses.date,moStart))),
     db.select({id:notifications.id,title:notifications.title,message:notifications.message,priority:notifications.priority,createdAt:notifications.createdAt,isRead:notifications.isRead,link:notifications.link}).from(notifications).where(eq(notifications.userId,userId)).orderBy(desc(notifications.createdAt)).limit(5),
     db.select().from(agencyHealthScores).where(eq(agencyHealthScores.workspaceId,workspaceId)).orderBy(desc(agencyHealthScores.calculatedAt)).limit(1),
-    db.select({id:creativeTasks.id,title:creativeTasks.title,status:creativeTasks.status,priority:creativeTasks.priority,deadline:creativeTasks.deadline,assignedToId:creativeTasks.assignedToId,clientId:creativeTasks.clientId}).from(creativeTasks).where(and(eq(creativeTasks.workspaceId,workspaceId),notInArray(creativeTasks.status,["COMPLETED","REJECTED"]))).orderBy(desc(creativeTasks.createdAt)).limit(6),
+    db.select({id:creativeTasks.id,title:creativeTasks.title,status:creativeTasks.status,priority:creativeTasks.priority,deadline:creativeTasks.deadline,assignedToId:creativeTasks.assignedToId,clientId:creativeTasks.clientId}).from(creativeTasks).where(and(eq(creativeTasks.workspaceId,workspaceId),notInArray(creativeTasks.status,["COMPLETED","REJECTED"]),activeTask)).orderBy(desc(creativeTasks.createdAt)).limit(6),
     db.select().from(payrollLocks).where(and(eq(payrollLocks.workspaceId,workspaceId),eq(payrollLocks.period,period))).limit(1),
   ] as const);
   const [

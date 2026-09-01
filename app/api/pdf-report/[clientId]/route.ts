@@ -1,8 +1,8 @@
 export const dynamic="force-dynamic";
 import {NextRequest,NextResponse} from "next/server";
 import {auth} from "@/lib/auth";
-import {db,clients,financeRecords,mediaMetrics,contacts,workspaces} from "@/lib/db";
-import {eq,and,gte,lte,sum} from "drizzle-orm";
+import {db,clients,financeRecords,contacts,workspaces,sql} from "@/lib/db";
+import {eq,and} from "drizzle-orm";
 import {canAccessClient} from "@/lib/client-access";
 
 const MONTHS=["","January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -17,7 +17,7 @@ export async function GET(req:NextRequest,context:{params:Promise<{clientId:stri
   db.select().from(financeRecords).where(and(eq(financeRecords.workspaceId,workspaceId),eq(financeRecords.clientId,clientId),eq(financeRecords.month,month),eq(financeRecords.year,year))).limit(1),
   db.select().from(contacts).where(and(eq(contacts.clientId,clientId),eq(contacts.isPrimary,true))).limit(1),
   db.select({currency:workspaces.currency}).from(workspaces).where(eq(workspaces.id,workspaceId)).limit(1),
-  db.select({spend:sum(mediaMetrics.adSpend),leads:sum(mediaMetrics.leads),revenue:sum(mediaMetrics.revenue)}).from(mediaMetrics).where(and(eq(mediaMetrics.workspaceId,workspaceId),eq(mediaMetrics.clientId,clientId),gte(mediaMetrics.date,monthStart),lte(mediaMetrics.date,monthEnd)))
+  db.execute<{spend:number|string|null;leads:number|string|null;revenue:number|string|null}>(sql`select coalesce(sum(p.spend),0) spend,coalesce(sum(p.results),0) leads,coalesce(sum(p.revenue),0) revenue from ad_performance_daily p join ad_campaigns a on a.id=p.campaign_id where a.workspace_id=${workspaceId} and a.client_id=${clientId} and a.archived_at is null and a.deleted_at is null and p.date>=${monthStart} and p.date<=${monthEnd} and p.breakdown_type='TOTAL' and p.ad_set_id is null and p.ad_id is null`).then(r=>Array.from(r))
  ]);
  if(!client)return new NextResponse("Client not found or archived",{status:404});
  const currency=workspace?.currency||client.currency||"EGP",money=(n:unknown)=>new Intl.NumberFormat("en-EG",{style:"currency",currency,maximumFractionDigits:2}).format(Number(n||0)),spend=Number(mAgg?.spend||0),leads=Number(mAgg?.leads||0),revenue=Number(mAgg?.revenue||0),roas=spend?revenue/spend:0,cpl=leads?spend/leads:0,company=esc(client.companyName),industry=esc(client.industry||"Digital Marketing"),contact=primaryContact?`${esc(primaryContact.name)}${primaryContact.email?` · ${esc(primaryContact.email)}`:""}`:"",status=esc(invoice?.invoiceStatus||"—");

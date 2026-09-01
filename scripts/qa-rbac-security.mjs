@@ -49,7 +49,7 @@ check("Assistant client scope is active and workspace scoped",assistant.includes
 check("Assistant Creator scope requires assignment unarchived task and active client",assistant.includes("t.assigned_to_id=${userId}")&&assistant.includes("t.archived_at is null")&&assistant.includes("c.is_active=true"));
 check("Assistant active task source is workspace scoped",assistant.includes("t.workspace_id=${workspaceId}")&&assistant.includes("c.workspace_id=${workspaceId}")&&assistant.includes("c.is_active=true"));
 check("Notification poll requires authentication",poll.includes('error:"Unauthorized"')&&poll.includes("status:401"));
-check("Notification poll preserves user ownership",poll.includes("eq(notifications.userId,String(session.user.id))"));
+check("Notification poll preserves user ownership",/eq\(notifications\.userId,\s*String\(session(?:User)?\.id\)\)/.test(poll)||(/const\s+userId\s*=\s*String\(sessionUser\.id\)/.test(poll)&&/eq\(notifications\.userId,\s*userId\)/.test(poll)));
 check("Notification poll validates cursor and bounds lookback/results",poll.includes("Number.isNaN(parsed.getTime())")&&poll.includes("24*60*60*1000")&&poll.includes(".limit(100)"));
 check("Onboarding reads and writes through central write ownership",(onboarding.match(/canAccessClient\(session,clientId,\{write:true\}\)/g)||[]).length>=2);
 check("Public v1 APIs authenticate keys from headers only through central guard",publicApiAuth.includes('req.headers.get("x-api-key")')&&publicApiAuth.includes('req.headers.get("authorization")')&&!publicApiAuth.includes('searchParams.get("api_key")')&&[v1c,v1t,v1m].every(s=>s.includes("authenticatePublicRead(req)")));

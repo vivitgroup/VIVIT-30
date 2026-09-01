@@ -36,7 +36,21 @@ jobs:
         run: |
           set -euo pipefail
           FILE="vivit-prod-prelive-${GITHUB_RUN_ID}.dump"
-          pg_dump --format=custom --no-owner --no-acl --file="$FILE" "$PROD_DATABASE_URL"
+          NORMALIZED_DATABASE_URL="$(python3 - <<'PY'
+          import os
+          from urllib.parse import urlsplit, urlunsplit, quote
+          raw=os.environ['PROD_DATABASE_URL']
+          u=urlsplit(raw)
+          password=u.password or ''
+          host=u.hostname or ''
+          port=f':{u.port}' if u.port else ''
+          # Supabase shared pooler requires postgres.<project_ref> as username.
+          user='postgres.fmrehvrzeebeliaxahvf' if 'pooler.supabase.com' in host else (u.username or 'postgres')
+          netloc=f'{quote(user, safe=".")}:{quote(password, safe="")}@{host}{port}'
+          print(urlunsplit((u.scheme,netloc,u.path,u.query,u.fragment)))
+          PY
+          )"
+          pg_dump --format=custom --no-owner --no-acl --file="$FILE" "$NORMALIZED_DATABASE_URL"
           test -s "$FILE"
           pg_restore --list "$FILE" > restore-list.txt
           test -s restore-list.txt
@@ -54,5 +68,3 @@ jobs:
           if-no-files-found: error
           retention-days: 14
           compression-level: 0
-
-# second push intentionally triggers the one-time backup workflow

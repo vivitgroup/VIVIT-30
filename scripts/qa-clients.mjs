@@ -9,9 +9,11 @@ check("Client detail keeps centralized active-record guard",guard.includes("isAc
 check("New client form requires report frequency",form.includes('name="reportFrequency"')&&form.includes("EVERY_3_DAYS")&&form.includes("WEEKLY"));
 check("New client form starts with one competitor",form.includes("[emptyCompetitor()]")&&form.includes("Competitors *"));
 check("New client form caps competitors at five",form.includes("current.length>=5")&&form.includes("competitors.length>=5"));
-check("Competitor form captures Facebook Instagram TikTok",form.includes("FACEBOOK")&&form.includes("INSTAGRAM")&&form.includes("TIKTOK"));
+check("Competitor form requires Facebook Instagram TikTok",form.includes("FACEBOOK *")&&form.includes("INSTAGRAM *")&&form.includes("TIKTOK *")&&form.match(/required type="url"/g)?.length>=3);
 check("Client API rejects fewer than 1 or more than 5 competitors",api.includes("value.length<1||value.length>5"));
+check("Client API requires all three competitor social links",api.includes("!item.facebook||!item.instagram||!item.tiktok")&&api.includes("Facebook, Instagram and TikTok links"));
 check("Client API validates social profile URLs",api.includes("validUrl")&&api.includes("facebook")&&api.includes("instagram")&&api.includes("tiktok"));
+check("Client create authorization honors effective roles",api.includes("hasEffectiveRole(session.user")&&api.includes('["SUPER_ADMIN","ACCOUNT_MANAGER","ACCOUNTANT"]'));
 check("Client API validates report cadence allowlist",api.includes('["DAILY","EVERY_3_DAYS","WEEKLY"]'));
 check("Client and competitor setup share one transaction",api.includes("db.transaction")&&api.includes("competitor_watchlists")&&api.includes("competitor_social_profiles"));
 check("Client create rejects duplicate company names",api.includes("already exists")&&api.includes("status:409"));

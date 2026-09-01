@@ -137,6 +137,8 @@ async function login(who){
  return jar;
 }
 const redirected=r=>[301,302,303,307,308].includes(r.status);
+const guardedRedirect=(response,location,body,target)=>(redirected(response)&&location.includes(target))||(response.status===200&&body.includes("NEXT_REDIRECT")&&body.includes(target));
+const guardedNotFound=(response,body)=>response.status===404||(response.status===200&&body.includes("NEXT_HTTP_ERROR_FALLBACK;404"));
 
 try{
  await prep();
@@ -165,10 +167,10 @@ try{
  check("Client can open owned creative detail",ownTask.status===200&&ownHtml.includes("ALPHA_VISIBLE_CREATIVE"),`status=${ownTask.status}`);
  check("Client detail shows public comment",ownHtml.includes("ALPHA_PUBLIC_COMMENT"));
  check("Client detail hides internal comment",!ownHtml.includes("ALPHA_INTERNAL_SECRET"));
- const foreignTask=await request(`/dashboard/creative/${betaTask}`,{jar:alpha}),foreignLoc=String(foreignTask.headers.get("location")||"");
- check("Cross-client creative detail redirects to portal",redirected(foreignTask)&&foreignLoc.includes("/dashboard/portal"),`status=${foreignTask.status} location=${foreignLoc}`);
- const deletedTask=await request(`/dashboard/creative/${alphaDeletedTask}`,{jar:alpha});
- check("Soft-deleted owned creative is not available",deletedTask.status===404,`status=${deletedTask.status}`);
+ const foreignTask=await request(`/dashboard/creative/${betaTask}`,{jar:alpha}),foreignLoc=String(foreignTask.headers.get("location")||""),foreignHtml=await foreignTask.text();
+ check("Cross-client creative detail redirects to portal without leakage",guardedRedirect(foreignTask,foreignLoc,foreignHtml,"/dashboard/portal")&&!foreignHtml.includes("BETA_PRIVATE_CREATIVE")&&!foreignHtml.includes("beta brief"),`status=${foreignTask.status} location=${foreignLoc}`);
+ const deletedTask=await request(`/dashboard/creative/${alphaDeletedTask}`,{jar:alpha}),deletedHtml=await deletedTask.text();
+ check("Soft-deleted owned creative is not available without leakage",guardedNotFound(deletedTask,deletedHtml)&&!deletedHtml.includes("ALPHA_DELETED_SECRET")&&!deletedHtml.includes("deleted brief"),`status=${deletedTask.status}`);
  const patchForeign=await request("/api/files",{jar:alpha,method:"PATCH",headers:{"content-type":"application/json",origin:base},body:JSON.stringify({id:betaFile,op:"edit",name:"stolen.pdf",category:"CONTENT_PLAN",clientId:betaClient})});
  check("Client cannot mutate another client's file",patchForeign.status===403,`status=${patchForeign.status}`);
 }catch(error){

@@ -40,3 +40,5 @@ jobs:
 
       - name: Full release build
         run: npm run build
+
+# Triggered after workflow registration; target SHA is intentionally immutable.

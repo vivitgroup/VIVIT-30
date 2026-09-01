@@ -119,3 +119,11 @@ CREATE TABLE IF NOT EXISTS vivito_report_runs (
   UNIQUE(workspace_id,client_id,report_type,period_end)
 );
 CREATE INDEX IF NOT EXISTS vivito_report_runs_client_idx ON vivito_report_runs(workspace_id,client_id,generated_at DESC);
+
+-- All new access/audit/reporting tables fail closed for direct PostgREST access.
+-- Server-side service-role/direct DB paths remain the controlled application boundary.
+ALTER TABLE user_role_assignments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_permission_grants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE lifecycle_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE competitor_report_approvals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE vivito_report_runs ENABLE ROW LEVEL SECURITY;

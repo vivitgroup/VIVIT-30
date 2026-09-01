@@ -48,6 +48,7 @@ async function prep(){
  await sql.unsafe(`alter table file_documents add column if not exists archived_at timestamp; alter table file_documents add column if not exists archived_by text;`);
  await sql.unsafe(`alter table ad_campaigns add column if not exists archived_at timestamp; alter table ad_campaigns add column if not exists reported_result_label text; alter table ad_campaigns add column if not exists reported_result_type text;`);
  await cleanup();
+ await sql`insert into users(id,workspace_id,name,email,password,role,is_active,approval_status) values(${alphaUser},${workspace},'Alpha Client',${users.alpha.email},${users.alpha.password},'CLIENT',true,'APPROVED'),(${betaUser},${workspace},'Beta Client',${users.beta.email},${users.beta.password},'CLIENT',true,'APPROVED'),(${creatorUser},${workspace},'Portal Creator',${users.creator.email},${users.creator.password},'CREATOR',true,'APPROVED')`;
  await sql`insert into clients(id,workspace_id,company_name,user_id,is_active,currency) values(${alphaClient},${workspace},'Client Alpha',${alphaUser},true,'EGP'),(${betaClient},${workspace},'Client Beta',${betaUser},true,'EGP')`;
  const deadline=new Date(Date.now()+3*86400000);
  await sql`insert into creative_tasks(id,workspace_id,client_id,title,brief,deadline,status,type,file_url,created_by_id,assigned_to_id) values(${alphaTask},${workspace},${alphaClient},'ALPHA_VISIBLE_CREATIVE','alpha brief',${deadline},'APPROVED','GRAPHIC','https://example.invalid/alpha.png',${creatorUser},${creatorUser}),(${alphaDeletedTask},${workspace},${alphaClient},'ALPHA_DELETED_SECRET','deleted brief',${deadline},'APPROVED','GRAPHIC','https://example.invalid/deleted.png',${creatorUser},${creatorUser}),(${betaTask},${workspace},${betaClient},'BETA_PRIVATE_CREATIVE','beta brief',${deadline},'APPROVED','GRAPHIC','https://example.invalid/beta.png',${creatorUser},${creatorUser})`;
@@ -61,6 +62,7 @@ async function prep(){
 async function cleanup(){
  for(const table of ["task_comments","calendar_events","finance_records","file_documents","creative_tasks","clients"]){try{await sql.unsafe(`delete from ${table} where ${table==="task_comments"?`task_id in ('${alphaTask}','${alphaDeletedTask}','${betaTask}')`:table==="clients"?`id in ('${alphaClient}','${betaClient}')`:table==="creative_tasks"?`id in ('${alphaTask}','${alphaDeletedTask}','${betaTask}')`:table==="file_documents"?`id in ('${alphaFile}','${betaFile}')`:table==="calendar_events"?`workspace_id='${workspace}'`:table==="finance_records"?`workspace_id='${workspace}'`:"1=0"}`);}catch{}}
  try{await sql`delete from notifications where user_id in (${alphaUser},${betaUser})`;}catch{}
+ try{await sql`delete from users where id in (${alphaUser},${betaUser},${creatorUser})`;}catch{}
 }
 
 const server=http.createServer((req,res)=>{

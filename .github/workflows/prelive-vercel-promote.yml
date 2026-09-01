@@ -1,0 +1,36 @@
+name: Prelive Vercel Promote
+
+on:
+  push:
+    branches:
+      - ops/prelive-backup-2026-09-02
+    paths:
+      - .github/workflows/prelive-vercel-promote.yml
+
+permissions:
+  contents: read
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    steps:
+      - name: Require Vercel production token
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "VERCEL_TOKEN is not configured in the protected production environment."
+            exit 1
+          fi
+
+      - name: Promote exact certified deployment
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          npx --yes vercel@latest promote https://vivit-ktepkc4yo-vivit-s-projects.vercel.app \
+            --token="$VERCEL_TOKEN" \
+            --scope=vivit-s-projects \
+            --yes

@@ -2,9 +2,10 @@ export const dynamic="force-dynamic";
 import {NextRequest,NextResponse} from "next/server";
 import {auth} from "@/lib/auth";
 import {db,clients,adCampaigns,adPlatformConnections,adPerformanceDaily,adSets,ads,auditLogs,sql} from "@/lib/db";
-import {and,desc,eq,inArray,gte,lte,isNull} from "drizzle-orm";
+import {and,desc,eq,inArray,gte,lte,isNull,or} from "drizzle-orm";
 import {syncCampaign,type UnifiedDay} from "@/lib/ad-platforms";
 import {connectionAccessToken} from "@/lib/ad-oauth";
+import {effectiveRoles} from "@/lib/session-access";
 
 type JsonRecord=Record<string,unknown>;
 type Aggregate={spend:number;impressions:number;reach:number;clicks:number;results:number;purchases:number;addToCart:number;revenue:number};
@@ -19,7 +20,7 @@ type DependencyRow={adsets:number;ads:number};
 const ROLES=["SUPER_ADMIN","MEDIA_BUYER","ACCOUNT_MANAGER"],n=(v:unknown)=>Number(v||0),iso=(d:Date)=>d.toISOString().slice(0,10),DATE=/^\d{4}-\d{2}-\d{2}$/;
 const asRecord=(value:unknown):JsonRecord=>value&&typeof value==="object"&&!Array.isArray(value)?Object.fromEntries(Object.entries(value)):{};
 const asArray=(value:unknown):unknown[]=>Array.isArray(value)?value:[];
-async function ctx(){const s=await auth();if(!s?.user||!ROLES.includes(String(s.user.role)))return null;const role=String(s.user.role),userId=String(s.user.id),workspaceId=String(s.user.workspaceId||"");if(!workspaceId)return null;const ownerScope=role==="MEDIA_BUYER"?eq(clients.mediaBuyerId,userId):role==="ACCOUNT_MANAGER"?eq(clients.accountManagerId,userId):sql`true`;const owned=await db.select({id:clients.id,name:clients.companyName}).from(clients).where(and(eq(clients.workspaceId,workspaceId),eq(clients.isActive,true),ownerScope));return {role,userId,workspaceId,clients:owned,ids:owned.map(x=>x.id)}}
+async function ctx(){const s=await auth();if(!s?.user)return null;const roles=effectiveRoles(s.user),allowed=roles.filter(r=>ROLES.includes(String(r)));if(!allowed.length)return null;const role=roles.includes("SUPER_ADMIN")?"SUPER_ADMIN":roles.includes("MEDIA_BUYER")?"MEDIA_BUYER":"ACCOUNT_MANAGER",userId=String(s.user.id),workspaceId=String(s.user.workspaceId||"");if(!workspaceId)return null;const ownerScope=roles.includes("SUPER_ADMIN")?sql`true`:roles.includes("MEDIA_BUYER")&&roles.includes("ACCOUNT_MANAGER")?or(eq(clients.mediaBuyerId,userId),eq(clients.accountManagerId,userId)):roles.includes("MEDIA_BUYER")?eq(clients.mediaBuyerId,userId):eq(clients.accountManagerId,userId);const owned=await db.select({id:clients.id,name:clients.companyName}).from(clients).where(and(eq(clients.workspaceId,workspaceId),eq(clients.isActive,true),ownerScope));return {role,userId,workspaceId,clients:owned,ids:owned.map(x=>x.id)}}
 function validDate(v:string){if(!DATE.test(v))return false;const d=new Date(v+"T00:00:00Z");return Number.isFinite(d.getTime())&&d.toISOString().slice(0,10)===v}
 function range(req:NextRequest){const q=req.nextUrl.searchParams,start=q.get("from")||iso(new Date(Date.now()-30*86400000)),end=q.get("to")||iso(new Date());if(!validDate(start)||!validDate(end))return null;const a=new Date(start+"T00:00:00Z").getTime(),b=new Date(end+"T00:00:00Z").getTime();if(a>b||(b-a)/86400000>366)return null;return {start,end}}
 function metrics(rows:MetricInput[]):MetricBundle{const x=rows.reduce<Aggregate>((a,p)=>({spend:a.spend+n(p.spend),impressions:a.impressions+n(p.impressions),reach:a.reach+n(p.reach),clicks:a.clicks+n(p.clicks),results:a.results+n(p.results),purchases:a.purchases+n(p.purchases),addToCart:a.addToCart+n(p.addToCart),revenue:a.revenue+n(p.revenue)}),{spend:0,impressions:0,reach:0,clicks:0,results:0,purchases:0,addToCart:0,revenue:0});return {...x,ctr:x.impressions?x.clicks/x.impressions*100:0,cpc:x.clicks?x.spend/x.clicks:0,cpm:x.impressions?x.spend/x.impressions*1000:0,costPerResult:x.results?x.spend/x.results:0,roas:x.spend?x.revenue/x.spend:0,frequency:x.reach?x.impressions/x.reach:0}}

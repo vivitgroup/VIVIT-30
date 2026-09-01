@@ -13,41 +13,43 @@ jobs:
         with:
           ref: feat/vivito-internal-100
           fetch-depth: 0
-      - name: Apply Vivito role-union context
+      - name: Harden lifecycle context
         shell: bash
         run: |
           python - <<'PY'
           from pathlib import Path
           p=Path('app/api/assistant/route.ts'); s=p.read_text()
-          def one(a,b):
-              global s
-              if a not in s: raise SystemExit('missing pattern: '+a[:140])
-              s=s.replace(a,b,1)
-
-          one('import {buildDailyCompetitiveReport,platformFromUrl} from "@/lib/vivito/competitive-intelligence";', 'import {buildDailyCompetitiveReport,platformFromUrl} from "@/lib/vivito/competitive-intelligence";\nimport {effectiveRoles} from "@/lib/session-access";')
-
-          # Every client scope is active + lifecycle-safe.
-          s=s.replace('where workspace_id=${workspaceId} and is_active=true order by company_name', 'where workspace_id=${workspaceId} and is_active=true and archived_at is null and deleted_at is null order by company_name')
-          s=s.replace('where workspace_id=${workspaceId} and is_active=true and account_manager_id=${userId} order by company_name', 'where workspace_id=${workspaceId} and is_active=true and archived_at is null and deleted_at is null and account_manager_id=${userId} order by company_name')
-          s=s.replace('where workspace_id=${workspaceId} and is_active=true and media_buyer_id=${userId} order by company_name', 'where workspace_id=${workspaceId} and is_active=true and archived_at is null and deleted_at is null and media_buyer_id=${userId} order by company_name')
-          s=s.replace('where workspace_id=${workspaceId} and is_active=true and user_id=${userId} limit 1', 'where workspace_id=${workspaceId} and is_active=true and archived_at is null and deleted_at is null and user_id=${userId} limit 1')
-
-          old='const role=String(session.user.role||""),userId=String(session.user.id||""),workspaceId=String(session.user.workspaceId||"");if(!workspaceId)return NextResponse.json({error:"Workspace unavailable"},{status:403});'
-          new='const roles=effectiveRoles(session.user).map(String),role=String(session.user.role||""),userId=String(session.user.id||""),workspaceId=String(session.user.workspaceId||"");if(!workspaceId)return NextResponse.json({error:"Workspace unavailable"},{status:403});const contextRole=(allowed:string[])=>allowed.find(r=>roles.includes(r))||"";'
-          one(old,new)
-
-          old='const clients=await clientScope(role,userId,workspaceId),ids=clients.map(c=>String(c.id));\n const [tasks,campaigns,tracking,clientHealth,sales,finance,memories]=await Promise.all([taskContext(role,userId,ids,workspaceId),mediaContext(role,ids,workspaceId),trackingContext(role,ids,workspaceId),clientHealthContext(role,ids,workspaceId),salesContext(role,userId,workspaceId),financeContext(role,ids,workspaceId),loadVivitoMemories(userId,role,ids,workspaceId)]);'
-          new='const scoped=await Promise.all(roles.map(r=>clientScope(r,userId,workspaceId))),clients=Array.from(new Map(scoped.flat().map(c=>[String(c.id),c])).values()),ids=clients.map(c=>String(c.id));\n const taskRole=contextRole(["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CLIENT","CREATOR"]),mediaRole=contextRole(["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CLIENT"]),trackingRole=contextRole(["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"]),salesRole=contextRole(["SUPER_ADMIN","SALES"]),financeRole=contextRole(["SUPER_ADMIN","ACCOUNTANT"]);\n const [tasks,campaigns,tracking,clientHealth,sales,finance,memories]=await Promise.all([taskContext(taskRole,userId,ids,workspaceId),mediaContext(mediaRole,ids,workspaceId),trackingContext(trackingRole,ids,workspaceId),clientHealthContext(trackingRole,ids,workspaceId),salesContext(salesRole,userId,workspaceId),financeContext(financeRole,ids,workspaceId),loadVivitoMemories(userId,role,ids,workspaceId)]);'
-          one(old,new)
+          patches=[
+            ("c.workspace_id=${workspaceId} and c.is_active=true and t.assigned_to_id", "c.workspace_id=${workspaceId} and c.is_active=true and c.archived_at is null and c.deleted_at is null and t.assigned_to_id"),
+            ("c.workspace_id=${workspaceId} and c.is_active=true and t.client_id in", "c.workspace_id=${workspaceId} and c.is_active=true and c.archived_at is null and c.deleted_at is null and t.client_id in"),
+            ("where ac.workspace_id=${workspaceId} and c.workspace_id=${workspaceId} and ac.client_id in", "where ac.workspace_id=${workspaceId} and c.workspace_id=${workspaceId} and c.is_active=true and c.archived_at is null and c.deleted_at is null and ac.client_id in"),
+            ("where c.workspace_id=${workspaceId} and c.is_active=true and t.client_id in", "where c.workspace_id=${workspaceId} and c.is_active=true and c.archived_at is null and c.deleted_at is null and t.client_id in"),
+            ("where workspace_id=${workspaceId} and is_active=true and id in", "where workspace_id=${workspaceId} and is_active=true and archived_at is null and deleted_at is null and id in"),
+            ("where l.workspace_id=${workspaceId} and l.archived_at is null ${ownerFilter}", "where l.workspace_id=${workspaceId} and l.archived_at is null and l.deleted_at is null ${ownerFilter}"),
+            ("where c.workspace_id=${workspaceId} and c.is_active=true and p.client_id in", "where c.workspace_id=${workspaceId} and c.is_active=true and c.archived_at is null and c.deleted_at is null and p.client_id in"),
+          ]
+          changed=0
+          for a,b in patches:
+            if a in s:
+              s=s.replace(a,b)
+              changed+=1
+          if changed < 7:
+            raise SystemExit(f'expected 7 lifecycle patches, applied {changed}')
           p.write_text(s)
-
-          Path('scripts/qa-vivito-role-context.mjs').write_text('''import fs from "node:fs";const s=fs.readFileSync("app/api/assistant/route.ts","utf8"),checks=[\n["Vivito reads effective roles",s.includes("effectiveRoles(session.user).map(String)")],\n["Vivito unions client scopes",s.includes("Promise.all(roles.map(r=>clientScope")&&s.includes("new Map(scoped.flat()")],\n["Vivito routes media by effective role",s.includes("mediaRole=contextRole")&&s.includes("mediaContext(mediaRole")],\n["Vivito routes finance by effective role",s.includes("financeRole=contextRole")&&s.includes("financeContext(financeRole")],\n["Vivito routes sales by effective role",s.includes("salesRole=contextRole")&&s.includes("salesContext(salesRole")],\n["Vivito excludes deleted clients",s.includes("archived_at is null and deleted_at is null and account_manager_id")&&s.includes("archived_at is null and deleted_at is null and media_buyer_id")],\n];let bad=0;for(const [n,ok] of checks){console.log((ok?"PASS":"FAIL")+"  "+n);if(!ok)bad++}if(bad)process.exit(1);''')
+          Path('scripts/qa-vivito-lifecycle-context.mjs').write_text('''import fs from "node:fs";const s=fs.readFileSync("app/api/assistant/route.ts","utf8"),checks=[
+["Task context excludes deleted clients",s.includes("c.archived_at is null and c.deleted_at is null and t.assigned_to_id")&&s.includes("c.archived_at is null and c.deleted_at is null and t.client_id in"))],
+["Media context excludes deleted clients",s.includes("c.is_active=true and c.archived_at is null and c.deleted_at is null and ac.client_id in"))],
+["Tracking context excludes deleted clients",s.includes("c.archived_at is null and c.deleted_at is null and t.client_id in"))],
+["Client health excludes deleted clients",s.includes("is_active=true and archived_at is null and deleted_at is null and id in"))],
+["Sales context excludes deleted leads",s.includes("l.archived_at is null and l.deleted_at is null"))],
+["Finance context excludes deleted clients",s.includes("c.archived_at is null and c.deleted_at is null and p.client_id in"))],
+];let bad=0;for(const [n,ok] of checks){console.log((ok?"PASS":"FAIL")+"  "+n);if(!ok)bad++}if(bad)process.exit(1);'''.replaceAll('))],',')],').replaceAll('))],',')],'))
           PY
-          node scripts/qa-vivito-role-context.mjs
+          node scripts/qa-vivito-lifecycle-context.mjs
       - name: Commit fix
         run: |
           git config user.name vivitgroup
           git config user.email groupvivit@gmail.com
-          git add app/api/assistant/route.ts scripts/qa-vivito-role-context.mjs
-          git commit -m "fix(vivito): build context from effective role union"
+          git add app/api/assistant/route.ts scripts/qa-vivito-lifecycle-context.mjs
+          git commit -m "fix(vivito): exclude deleted lifecycle data from context"
           git push origin HEAD:feat/vivito-internal-100

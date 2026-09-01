@@ -32,7 +32,8 @@ for(const route of ["/dashboard/revenue-attribution","/dashboard/nps","/dashboar
 pass("Next 16 proxy convention is used",fs.existsSync(path.join(root,"proxy.ts"))&&!fs.existsSync(path.join(root,"middleware.ts")));
 const sidebarCalendarRoles=routeRoles(sidebar,"/dashboard/calendar","sidebar"),proxyCalendarRoles=routeRoles(proxy,"/dashboard/calendar","proxy");
 pass("Calendar navigation and proxy agree semantically",sidebarCalendarRoles.length>0&&sameRoles(sidebarCalendarRoles,proxyCalendarRoles)&&proxyCalendarRoles.includes("CLIENT")&&proxyCalendarRoles.includes("SALES"),`sidebar=${sidebarCalendarRoles.join(",")} proxy=${proxyCalendarRoles.join(",")}`);
-pass("VIVITO navigation and proxy agree",sidebar.includes('label:"VIVITO"')&&sidebar.includes('href:"/dashboard/ai-studio"')&&proxy.includes('"/dashboard/ai-studio"')&&proxy.includes('"CREATOR","SALES","ACCOUNTANT","CLIENT"'));
+const sidebarVivitoRoles=routeRoles(sidebar,"/dashboard/ai-studio","sidebar"),proxyVivitoRoles=routeRoles(proxy,"/dashboard/ai-studio","proxy");
+pass("VIVITO navigation and proxy agree semantically",sidebarVivitoRoles.length===7&&sameRoles(sidebarVivitoRoles,proxyVivitoRoles)&&proxyVivitoRoles.includes("CLIENT"),`sidebar=${sidebarVivitoRoles.join(",")} proxy=${proxyVivitoRoles.join(",")}`);
 const sidebarArchiveRoles=routeRoles(sidebar,"/dashboard/archive","sidebar"),proxyArchiveRoles=routeRoles(proxy,"/dashboard/archive","proxy");
 pass("Archive navigation and proxy agree semantically",sidebarArchiveRoles.length>0&&sameRoles(sidebarArchiveRoles,proxyArchiveRoles)&&!proxyArchiveRoles.includes("CLIENT"),`sidebar=${sidebarArchiveRoles.join(",")} proxy=${proxyArchiveRoles.join(",")}`);
 pass("Mobile CLIENT calendar is not dead navigation",mobile.includes('href:"/dashboard/calendar"')&&proxy.includes('"/dashboard/calendar"'));

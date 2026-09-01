@@ -63,8 +63,8 @@ export async function POST(req:NextRequest){
   const isEffectiveAccountManager=hasEffectiveRole(session.user,["ACCOUNT_MANAGER"]);
   const accountManagerId=canSetupMarketing?(isEffectiveAccountManager&&!hasEffectiveRole(session.user,["SUPER_ADMIN"])?userId:str(b.accountManagerId,80)||null):null;
   const mediaBuyerId=canSetupMarketing?(str(b.mediaBuyerId,80)||null):null;
-  if(accountManagerId){const [manager]=await db.select({id:users.id}).from(users).where(and(eq(users.id,accountManagerId),eq(users.workspaceId,workspaceId),eq(users.role,"ACCOUNT_MANAGER"),eq(users.isActive,true))).limit(1);if(!manager)return NextResponse.json({error:"Choose a valid active account manager."},{status:400});}
-  if(mediaBuyerId){const [buyer]=await db.select({id:users.id}).from(users).where(and(eq(users.id,mediaBuyerId),eq(users.workspaceId,workspaceId),eq(users.role,"MEDIA_BUYER"),eq(users.isActive,true))).limit(1);if(!buyer)return NextResponse.json({error:"Choose a valid active media buyer."},{status:400});}
+  if(accountManagerId){const rows=Array.from(await db.execute(sql`select u.id from users u where u.id=${accountManagerId} and u.workspace_id=${workspaceId} and u.is_active=true and (u.role='ACCOUNT_MANAGER' or exists(select 1 from user_role_assignments ura where ura.user_id=u.id and ura.workspace_id=u.workspace_id and ura.role='ACCOUNT_MANAGER')) limit 1`));if(!rows[0])return NextResponse.json({error:"Choose a valid active account manager."},{status:400});}
+  if(mediaBuyerId){const rows=Array.from(await db.execute(sql`select u.id from users u where u.id=${mediaBuyerId} and u.workspace_id=${workspaceId} and u.is_active=true and (u.role='MEDIA_BUYER' or exists(select 1 from user_role_assignments ura where ura.user_id=u.id and ura.workspace_id=u.workspace_id and ura.role='MEDIA_BUYER')) limit 1`));if(!rows[0])return NextResponse.json({error:"Choose a valid active media buyer."},{status:400});}
   const contractStart=date(b.contractStart),contractEnd=date(b.contractEnd);
   if(contractStart&&contractEnd&&contractEnd<contractStart)return NextResponse.json({error:"Contract end date must be on or after the start date."},{status:400});
   try{

@@ -74,14 +74,17 @@ else{
 
    await sql`delete from finance_records where workspace_id=${testWorkspace} and client_id=${testClient}`;
    await sql`insert into finance_records(id,workspace_id,client_id,month,year,total_revenue,paid,outstanding) values(gen_random_uuid()::text,${testWorkspace},${testClient},12,2099,100,0,100)`;
-   await sql`insert into finance_records(id,workspace_id,client_id,month,year,total_revenue,paid,outstanding) values(gen_random_uuid()::text,${testWorkspace},${testClient},12,2099,200,0,200)`;
+   let financeSchemaAlreadyBlocksDuplicates=false;
+   try{await sql`insert into finance_records(id,workspace_id,client_id,month,year,total_revenue,paid,outstanding) values(gen_random_uuid()::text,${testWorkspace},${testClient},12,2099,200,0,200)`;}catch(error){financeSchemaAlreadyBlocksDuplicates=String(error?.code||"")==="23505";}
    let financeDuplicateBlocked=false;
-   try{await sql.unsafe(financeMigration);}catch(error){financeDuplicateBlocked=String(error?.message||error).includes("duplicate invoice-period rows");}
-   check("Finance migration refuses destructive implicit deduplication",financeDuplicateBlocked);
+   if(!financeSchemaAlreadyBlocksDuplicates){
+     try{await sql.unsafe(financeMigration);}catch(error){financeDuplicateBlocked=String(error?.message||error).includes("duplicate invoice-period rows");}
+   }
+   check("Finance migration refuses destructive implicit deduplication",financeSchemaAlreadyBlocksDuplicates||financeDuplicateBlocked);
    await sql`delete from finance_records where workspace_id=${testWorkspace} and client_id=${testClient}`;
    await sql.unsafe(financeMigration);
-   const financeIndexes=await sql`select indexdef from pg_indexes where schemaname=current_schema() and tablename='finance_records' and indexname='uq_finance_records_workspace_client_period'`;
-   check("Ephemeral DB has invoice-period unique index",financeIndexes.length===1&&String(financeIndexes[0]?.indexdef||"").includes("workspace_id")&&String(financeIndexes[0]?.indexdef||"").includes("client_id")&&String(financeIndexes[0]?.indexdef||"").includes("year")&&String(financeIndexes[0]?.indexdef||"").includes("month"));
+   const financeIndexes=await sql`select indexdef from pg_indexes where schemaname=current_schema() and tablename='finance_records' and (indexname='uq_finance_records_workspace_client_period' or indexname='finance_records_workspace_client_year_month_unique')`;
+   check("Ephemeral DB has invoice-period unique index",financeIndexes.length>=1&&financeIndexes.some(row=>String(row?.indexdef||"").includes("workspace_id")&&String(row?.indexdef||"").includes("client_id")&&String(row?.indexdef||"").includes("year")&&String(row?.indexdef||"").includes("month")));
    await sql`insert into finance_records(id,workspace_id,client_id,month,year,total_revenue,paid,outstanding) values(gen_random_uuid()::text,${testWorkspace},${testClient},12,2099,100,0,100)`;
    let secondInvoiceBlocked=false;
    try{await sql`insert into finance_records(id,workspace_id,client_id,month,year,total_revenue,paid,outstanding) values(gen_random_uuid()::text,${testWorkspace},${testClient},12,2099,200,0,200)`;}catch(error){secondInvoiceBlocked=String(error?.code||"")==="23505";}

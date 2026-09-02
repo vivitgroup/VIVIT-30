@@ -29,5 +29,7 @@ jobs:
         run: node scripts/qa-vgroup-role-contracts.mjs
       - name: Portal isolation and sensitive actions
         run: node scripts/qa-vgroup-portal-isolation.mjs
+      - name: Release readiness and rollback prerequisites
+        run: node scripts/qa-vgroup-release-readiness.mjs
       - name: TypeScript contract check
         run: npm run type-check

@@ -1,4 +1,5 @@
 import type {ReactNode} from "react";
+import {VivitoLauncher} from "@/components/vgroup/vivito-launcher";
 
 export default function HospitalityLayout({children}:{children:ReactNode}){
   return <div className="vgroup-hospitality-brand">
@@ -11,6 +12,6 @@ export default function HospitalityLayout({children}:{children:ReactNode}){
       .vgroup-hospitality-brand main button:not([data-danger="true"]){background:#D6AD5B!important;color:#0C1B2A!important;font-weight:900}
       .vgroup-hospitality-brand ::selection{background:#D6AD5B;color:#0C1B2A}
     `}</style>
-    {children}
+    {children}<VivitoLauncher workspace="hospitality"/>
   </div>;
 }

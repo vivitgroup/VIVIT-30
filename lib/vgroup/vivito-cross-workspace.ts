@@ -36,4 +36,4 @@ export function redactVivito(value:unknown):unknown{
   if(value&&typeof value==="object")return Object.fromEntries(Object.entries(value as Record<string,unknown>).map(([k,v])=>[k,secretKey.test(k)?"[REDACTED]":redactVivito(v)]));
   return value;
 }
-export function vivitoPublicCapabilities(){return VIVITO_CAPABILITIES.map(({endpoint,staticPayload,...item})=>({...item,integrationRequired:item.workspace==="marketing"&&!item.enabled}))}
+export function vivitoPublicCapabilities(){return VIVITO_CAPABILITIES.map(cap=>({key:cap.key,workspace:cap.workspace,label:cap.label,risk:cap.risk,approvalRequired:cap.approvalRequired,enabled:cap.enabled,method:cap.method,permission:cap.permission,integrationRequired:cap.workspace==="marketing"&&!cap.enabled}))}

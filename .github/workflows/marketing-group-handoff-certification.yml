@@ -1,0 +1,63 @@
+name: Marketing Group Handoff Certification
+
+on:
+  push:
+    branches: [integration/marketing-group-handoff]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  certify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: vivito
+          POSTGRES_PASSWORD: vivito
+          POSTGRES_DB: vivito_internal
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U vivito -d vivito_internal"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://vivito:vivito@127.0.0.1:5432/vivito_internal
+      DRIZZLE_DATABASE_URL: postgresql://vivito:vivito@127.0.0.1:5432/vivito_internal
+      DATABASE_SSL_DISABLED: "1"
+      AUTH_SECRET: ci-only-auth-secret-32-characters-minimum
+      NEXTAUTH_URL: http://127.0.0.1:3000
+      SUPABASE_URL: https://example.supabase.co
+      SUPABASE_SERVICE_KEY: ci-only-service-key
+      VGROUP_MARKETING_HANDOFF_RECEIVER_ENABLED: "false"
+      VGROUP_MARKETING_HANDOFF_SECRET: ci-only-dedicated-handoff-secret-32chars
+      VGROUP_GROUP_ORIGIN: https://group.example.com
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 22, cache: npm}
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Production dependency security gate
+        run: npm audit --omit=dev --audit-level=high
+      - name: Build ephemeral Marketing schema
+        run: npx drizzle-kit push --force
+      - name: Apply handoff nonce migration
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/20260902_marketing_group_handoff_nonce.sql
+      - name: Verify nonce persistence boundary
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          do $$ begin
+            if to_regclass('public.group_handoff_nonces') is null then raise exception 'missing group_handoff_nonces'; end if;
+            if not exists(select 1 from pg_class where oid='public.group_handoff_nonces'::regclass and relrowsecurity) then raise exception 'nonce table RLS disabled'; end if;
+            if not exists(select 1 from pg_constraint where conrelid='public.group_handoff_nonces'::regclass and contype='p') then raise exception 'nonce table primary key missing'; end if;
+          end $$;
+          SQL
+      - name: Handoff security contract regression
+        run: node scripts/qa-marketing-group-handoff.mjs
+      - name: TypeScript contract check
+        run: npm run type-check
+      - name: Production compilation gate
+        run: npx next build

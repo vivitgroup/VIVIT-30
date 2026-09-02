@@ -33,6 +33,7 @@ jobs:
       EXACT_MAIN_SHA: 999a1c6e772e9fcae2699825dcd9632e43255b1e
       VERCEL_ORG_ID: team_7bnFfb65k7YtwywgLu2vtN1R
       VERCEL_PROJECT_ID: prj_Tgvk58HLEYlXHepCoUfNEUKfMqig
+      SUPABASE_PROJECT_REF: fmrehvrzeebeliaxahvf
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/vivit_ci
       DRIZZLE_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/vivit_ci
       DATABASE_SSL_DISABLED: "1"
@@ -50,6 +51,41 @@ jobs:
           set -euo pipefail
           test -n "$PROD_DATABASE_URL"
           test -n "$VERCEL_TOKEN"
+
+      - name: Validate production DB URL structure
+        env:
+          PROD_DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os, sys
+          from urllib.parse import urlsplit
+          raw = os.environ['PROD_DATABASE_URL'].strip()
+          p = urlsplit(raw)
+          problems = []
+          if p.scheme not in ('postgres', 'postgresql'):
+              problems.append('scheme')
+          if not p.hostname:
+              problems.append('host')
+          if not p.username:
+              problems.append('username')
+          if p.password is None or p.password == '':
+              problems.append('password')
+          if not (p.path or '').lstrip('/'):
+              problems.append('database')
+          expected = f"postgres.{os.environ['SUPABASE_PROJECT_REF']}"
+          canonical_user = (p.username == expected)
+          pooler_host = bool(p.hostname and p.hostname.endswith('pooler.supabase.com'))
+          print('DB_URL_STRUCTURE=' + ('valid' if not problems else 'invalid'))
+          print('DB_POOLER_HOST=' + ('yes' if pooler_host else 'no'))
+          print('DB_CANONICAL_POOLER_USER=' + ('yes' if canonical_user else 'no'))
+          if problems:
+              print('DB_URL_MISSING_OR_INVALID_FIELDS=' + ','.join(problems))
+              sys.exit(2)
+          if pooler_host and not canonical_user:
+              print('DB_URL_MISSING_OR_INVALID_FIELDS=canonical_pooler_username')
+              sys.exit(3)
+          PY
 
       - name: Validate rotated production database credential
         env:

@@ -1,4 +1,5 @@
 "use client";
+import Image from "next/image";
 import {useMemo,useState} from "react";
 
 type Owner={id:string;full_name:string};
@@ -57,7 +58,7 @@ export function PropertyManager({owners,initialProperties}:Props){
         <input name="bedrooms" type="number" min="0" defaultValue="1" placeholder="Bedrooms" style={field}/><input name="bathrooms" type="number" min="0" step="0.5" defaultValue="1" placeholder="Bathrooms" style={field}/><input name="maxGuests" type="number" min="1" defaultValue="2" placeholder="Max guests" style={field}/>
       </div>
       <label style={{border:"1px dashed #7d6841",borderRadius:18,padding:18,cursor:"pointer",background:"rgba(0,0,0,.18)"}}><strong>Cover + Gallery</strong><div style={{fontSize:13,color:"#b7aa91",marginTop:5}}>JPG / PNG / WEBP, up to 20MB each. First image becomes the cover.</div><input hidden type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={event=>setFiles(Array.from(event.target.files??[]))}/></label>
-      {previews.length>0&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(110px,1fr))",gap:10}}>{previews.map(({file,url},index)=><div key={`${file.name}-${index}`} style={{position:"relative"}}><img src={url} alt="Property preview" style={{width:"100%",height:90,objectFit:"cover",borderRadius:14}}/>{index===0&&<span style={{position:"absolute",left:7,top:7,fontSize:10,fontWeight:900,background:"#d9be7d",color:"#17130c",padding:"4px 7px",borderRadius:999}}>COVER</span>}</div>)}</div>}
+      {previews.length>0&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(110px,1fr))",gap:10}}>{previews.map(({file,url},index)=><div key={`${file.name}-${index}`} style={{position:"relative",height:90}}><Image unoptimized fill src={url} alt="Property preview" sizes="110px" style={{objectFit:"cover",borderRadius:14}}/>{index===0&&<span style={{position:"absolute",left:7,top:7,fontSize:10,fontWeight:900,background:"#d9be7d",color:"#17130c",padding:"4px 7px",borderRadius:999}}>COVER</span>}</div>)}</div>}
       <button disabled={busy} style={button}>{busy?"Saving…":"Save property"}</button>
     </form>
     {message&&<div style={{padding:"12px 16px",borderRadius:14,background:"rgba(205,178,119,.1)",border:"1px solid #4a3d25"}}>{message}</div>}

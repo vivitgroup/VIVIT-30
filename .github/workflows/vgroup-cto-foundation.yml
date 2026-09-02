@@ -1,0 +1,29 @@
+name: Vivit Group CTO Foundation
+
+on:
+  push:
+    branches:
+      - feat/vivit-group-erp-7d
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  foundation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Vivit Group isolation regression
+        run: node scripts/qa-vgroup-isolation.mjs
+      - name: TypeScript contract check
+        run: npm run type-check

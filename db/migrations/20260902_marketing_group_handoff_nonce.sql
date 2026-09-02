@@ -12,4 +12,12 @@ create index if not exists idx_group_handoff_nonces_expires_at
 
 alter table group_handoff_nonces enable row level security;
 
-revoke all on table group_handoff_nonces from anon, authenticated;
+do $$
+begin
+  if exists(select 1 from pg_roles where rolname='anon') then
+    execute 'revoke all on table group_handoff_nonces from anon';
+  end if;
+  if exists(select 1 from pg_roles where rolname='authenticated') then
+    execute 'revoke all on table group_handoff_nonces from authenticated';
+  end if;
+end $$;

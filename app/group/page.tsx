@@ -1,4 +1,5 @@
 import Link from "next/link";
+import {redirect} from "next/navigation";
 import {getVGroupBusinessUnits} from "@/lib/vgroup/db";
 import {canAccessBusinessUnit} from "@/lib/vgroup/contracts";
 import {requireVGroupSession} from "@/lib/vgroup/session";
@@ -26,6 +27,8 @@ export default async function GroupHome(){
   const liveCodes=new Set((await getVGroupBusinessUnits()).map(unit=>unit.code));
   const isBoard=session.memberships.some(item=>item.role==="GROUP_SUPER_ADMIN");
   const accessible=unitCards.filter(unit=>unit.code==="group"?isBoard:unit.disabled||canAccessBusinessUnit(session,unit.code));
+  const enabled=accessible.filter(unit=>!unit.disabled);
+  if(!isBoard&&enabled.length===1)redirect(enabled[0].href);
 
   return <main style={{minHeight:"100vh",background:"radial-gradient(circle at 12% 8%,rgba(46,168,255,.13),transparent 30%),radial-gradient(circle at 90% 12%,rgba(201,154,67,.12),transparent 28%),#070a0f",color:"#f8fafc",padding:"34px 22px",fontFamily:"Inter,system-ui,sans-serif"}}>
     <section style={{maxWidth:1480,margin:"0 auto"}}>

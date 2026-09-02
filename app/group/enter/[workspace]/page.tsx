@@ -1,5 +1,6 @@
 import {redirect} from "next/navigation";
 import {canAccessBusinessUnit} from "@/lib/vgroup/contracts";
+import {getMarketingIntegrationState} from "@/lib/vgroup/marketing-integration";
 import {requireVGroupSession} from "@/lib/vgroup/session";
 
 type Workspace="group"|"marketing"|"tech"|"hospitality";
@@ -20,7 +21,10 @@ export default async function WorkspaceEntry({params}:{params:Promise<{workspace
   }
 
   if(workspace==="marketing"){
-    redirect('/group/access?workspace=marketing&reason=unavailable');
+    const state=getMarketingIntegrationState();
+    if(!state.enabled||!state.certified)redirect('/group/access?workspace=marketing&reason=unavailable');
+    if(canAccessBusinessUnit(session,"marketing"))redirect('/group/marketing');
+    redirect('/group/access?workspace=marketing&reason=permission');
   }
 
   if(canAccessBusinessUnit(session,workspace))redirect(`/group/${workspace}`);

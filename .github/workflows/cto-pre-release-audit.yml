@@ -3,6 +3,7 @@ name: CTO Pre-Release Audit
 on:
   push:
     branches:
+      - main
       - feat/vivito-internal-100
   workflow_dispatch:
 
@@ -14,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Checkout
+      - name: Checkout exact commit
         uses: actions/checkout@v4
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -22,3 +23,5 @@ jobs:
           node-version: 22
       - name: CTO runtime static audit
         run: node scripts/qa-cto-release-audit.mjs
+      - name: Mobile UX static audit
+        run: node scripts/qa-mobile-ux.mjs

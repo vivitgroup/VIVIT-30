@@ -1,0 +1,52 @@
+name: Live E2E OAuth Hardening
+
+on:
+  push:
+    branches:
+      - fix/live-e2e-17-20260902
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, '[oauth-auto]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/live-e2e-17-20260902
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Harden OAuth config and start route
+        shell: python
+        run: |
+          from pathlib import Path
+          def rep(path, old, new, expected=1):
+              p=Path(path); text=p.read_text(); count=text.count(old)
+              assert count==expected, f"{path}: expected {expected}, found {count}"
+              p.write_text(text.replace(old,new))
+
+          oauth="lib/ad-oauth.ts"
+          rep(oauth,
+              '''function encryptionSecret(){const secret=String(process.env.OAUTH_ENCRYPTION_KEY||"").trim();if(!secret)throw new Error("OAuth encryption secret is not configured");if(secret.length<32)throw new Error("OAuth encryption secret is too short");return secret;}''',
+              '''function encryptionSecret(){const secret=String(process.env.OAUTH_ENCRYPTION_KEY||process.env.OAUTH_ENCRYPTION_SECRET||"").trim();if(!secret)throw new Error("OAuth encryption secret is not configured");if(secret.length<32)throw new Error("OAuth encryption secret is too short");return secret;}''')
+
+          start="app/api/ad-oauth/[platform]/start/route.ts"
+          old=''' const state=signState({platform,clientId,adAccountId,accountName,userId});\n const response=NextResponse.redirect(authorizationUrl(platform,state));'''
+          new=''' let state:string,authorizeUrl:string;\n try{state=signState({platform,clientId,adAccountId,accountName,userId});authorizeUrl=authorizationUrl(platform,state)}catch(error){console.error("OAuth start configuration error",error instanceof Error?error.message:"unknown");return NextResponse.redirect(new URL(`/dashboard/media/sync?oauth=missing&platform=${platform}`,req.url))}\n const response=NextResponse.redirect(authorizeUrl);'''
+          rep(start,old,new)
+      - name: TypeScript
+        run: npx tsc --noEmit
+      - name: Commit OAuth hardening
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add lib/ad-oauth.ts 'app/api/ad-oauth/[platform]/start/route.ts'
+          git diff --cached --quiet && exit 0
+          git commit -m "[oauth-auto] harden media account OAuth configuration"
+          git push origin HEAD:fix/live-e2e-17-20260902

@@ -20,6 +20,13 @@ export async function requireApiPermission(unit:BusinessUnitCode,permission:Perm
   return session;
 }
 
+export async function requireApiGroupSuperAdmin():Promise<VGroupSession>{
+  const session=await getVGroupSession();
+  if(!session)throw new VGroupApiError(401,"Unauthorized","UNAUTHORIZED");
+  if(!session.memberships.some(item=>item.role==="GROUP_SUPER_ADMIN"))throw new VGroupApiError(403,"Forbidden","GROUP_ADMIN_FORBIDDEN");
+  return session;
+}
+
 export function apiErrorResponse(error:unknown){
   const requestId=randomUUID();
   if(error instanceof VGroupApiError)return NextResponse.json({error:{code:error.code,message:error.message,requestId}},{status:error.status,headers:{"Cache-Control":"no-store","X-Request-Id":requestId}});

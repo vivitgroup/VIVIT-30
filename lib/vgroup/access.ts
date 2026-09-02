@@ -14,6 +14,12 @@ export async function requireBusinessPermission(businessUnit:BusinessUnitCode,pe
   return session;
 }
 
+export async function requireGroupSuperAdmin():Promise<VGroupSession>{
+  const session=await requireVGroupSession();
+  if(!session.memberships.some(item=>item.role==="GROUP_SUPER_ADMIN"))redirect("/group");
+  return session;
+}
+
 export function membershipsFor(session:VGroupSession,businessUnit:BusinessUnitCode){
   return session.memberships.filter(item=>item.businessUnit===businessUnit||item.role==="GROUP_SUPER_ADMIN");
 }

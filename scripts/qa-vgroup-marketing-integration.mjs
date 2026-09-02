@@ -14,7 +14,7 @@ const entry=read('app/group/enter/[workspace]/page.tsx');
 const form=read('components/vgroup/marketing-handoff-form.tsx');
 const marketingAuth=read('lib/auth.ts');
 const source='9817ec42750b17104c5292eb2ec4d02358b53290';
-for(const phrase of [source,'single-use nonce','one production','fails closed','one shot']){
+for(const phrase of [source,'single-use nonce','one production','fail-closed','one shot']){
   if(!contract.toLowerCase().includes(phrase.toLowerCase()))throw new Error(`Unified Marketing contract missing: ${phrase}`);
 }
 if(!groupEnv.includes('VGROUP_MARKETING_INTEGRATION_ENABLED="false"'))throw new Error('Group Marketing integration must default disabled');

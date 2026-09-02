@@ -38,7 +38,7 @@ for(const file of files){
   if(/process\.env\.[A-Z0-9_]+/.test(text) && !file.startsWith('lib/vgroup/') && !authRoute.test(file) && !cronRoute.test(file)) warnings.push(`${file}: direct env access outside approved boundary`);
   if(file.startsWith('app/api/vgroup/') && /route\.(ts|js)$/.test(file)){
     const exportedMutator=/export\s+async\s+function\s+(POST|PUT|PATCH|DELETE)\b/.test(text);
-    const appGuard=/require(?:BusinessPermission|GroupSuperAdmin|BusinessUnitAccess|VGroupSession|ApiPermission)\s*\(/.test(text);
+    const appGuard=/(?:require(?:BusinessPermission|GroupSuperAdmin|BusinessUnitAccess|VGroupSession|ApiPermission|ApiGroupSuperAdmin)|apiPermissionOrResponse|apiSuperAdminOrResponse)\s*\(/.test(text);
     const authGuard=authRoute.test(file) && /(VGROUP_(?:ACCESS|REFRESH)_COOKIE|auth\/v1\/token)/.test(text);
     const cronGuard=cronRoute.test(file) && /timingSafeEqual/.test(text) && /VGROUP_CRON_SECRET/.test(text);
     if(exportedMutator && !(appGuard||authGuard||cronGuard)) failures.push(`${file}: mutating API route missing explicit access guard`);

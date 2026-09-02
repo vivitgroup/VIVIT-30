@@ -1,0 +1,130 @@
+name: Prelive DB Validate Sync Deploy
+
+on:
+  push:
+    branches:
+      - ops/prelive-backup-2026-09-02
+    paths:
+      - .github/workflows/prelive-db-validate-sync-deploy.yml
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    environment: production
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: vivit_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d vivit_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      EXACT_MAIN_SHA: 999a1c6e772e9fcae2699825dcd9632e43255b1e
+      VERCEL_ORG_ID: team_7bnFfb65k7YtwywgLu2vtN1R
+      VERCEL_PROJECT_ID: prj_Tgvk58HLEYlXHepCoUfNEUKfMqig
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/vivit_ci
+      DRIZZLE_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/vivit_ci
+      DATABASE_SSL_DISABLED: "1"
+      NEXTAUTH_SECRET: ci-only-nextauth-secret-not-production
+      AUTH_SECRET: ci-only-auth-secret-not-production
+      CRON_SECRET: ci-only-cron-secret-not-production
+      NEXTAUTH_URL: https://vivit-erp-theta.vercel.app
+      AUTH_URL: https://vivit-erp-theta.vercel.app
+    steps:
+      - name: Require protected credentials
+        env:
+          PROD_DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$PROD_DATABASE_URL"
+          test -n "$VERCEL_TOKEN"
+
+      - name: Validate rotated production database credential
+        env:
+          PROD_DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          result="$(psql "$PROD_DATABASE_URL" -v ON_ERROR_STOP=1 -Atqc 'select 1')"
+          test "$result" = "1"
+
+      - name: Validate Vercel production token
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          npx --yes vercel@latest whoami --token="$VERCEL_TOKEN" >/dev/null
+
+      - name: Link Vercel project without pulled env file
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          npx --yes vercel@latest link --yes --project vivit-erp --token="$VERCEL_TOKEN" --scope=vivit-s-projects >/dev/null
+
+      - name: Sync production database URL to Vercel
+        env:
+          PROD_DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$PROD_DATABASE_URL" | npx --yes vercel@latest env add DATABASE_URL production --force --sensitive --token="$VERCEL_TOKEN" --scope=vivit-s-projects >/dev/null
+          printf '%s' "$PROD_DATABASE_URL" | npx --yes vercel@latest env add DRIZZLE_DATABASE_URL production --force --sensitive --token="$VERCEL_TOKEN" --scope=vivit-s-projects >/dev/null
+
+      - name: Verify production environment variable names
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          npx --yes vercel@latest env ls production --token="$VERCEL_TOKEN" --scope=vivit-s-projects > env-names.txt
+          grep -q 'DATABASE_URL' env-names.txt
+          grep -q 'DRIZZLE_DATABASE_URL' env-names.txt
+
+      - name: Checkout exact certified main SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.EXACT_MAIN_SHA }}
+          fetch-depth: 1
+
+      - name: Verify exact head
+        run: test "$(git rev-parse HEAD)" = "$EXACT_MAIN_SHA"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Initialize isolated database schema
+        run: npx drizzle-kit push --force
+
+      - name: Build exact main prebuilt artifact
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          npx --yes vercel@latest link --yes --project vivit-erp --token="$VERCEL_TOKEN" --scope=vivit-s-projects >/dev/null
+          rm -f .vercel/.env.production.local .vercel/.env.preview.local .vercel/.env.development.local
+          npx --yes vercel@latest build --prod --token="$VERCEL_TOKEN" --scope=vivit-s-projects
+
+      - name: Deploy exact prebuilt artifact to production
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          npx --yes vercel@latest deploy --prebuilt --prod --token="$VERCEL_TOKEN" --scope=vivit-s-projects --yes | tee vercel-production-url.txt
+          test -s vercel-production-url.txt

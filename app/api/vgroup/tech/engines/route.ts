@@ -1,5 +1,5 @@
 import {NextRequest,NextResponse} from "next/server";
-import {requireBusinessPermission} from "@/lib/vgroup/access";
+import {apiPermissionOrResponse} from "@/lib/vgroup/api-access";
 import {getVGroupSql} from "@/lib/vgroup/db";
 
 const reply=(data:unknown,status=200)=>NextResponse.json(data,{status,headers:{"Cache-Control":"no-store"}});
@@ -8,7 +8,7 @@ const text=(v:unknown)=>typeof v==="string"?v.trim():"";
 const number=(v:unknown)=>Number(v);
 
 export async function POST(request:NextRequest){
- const session=await requireBusinessPermission("tech","projects:update");
+ const session=await apiPermissionOrResponse("tech","projects:update"); if(session instanceof NextResponse)return session;
  const sql=getVGroupSql();
  let body:Record<string,unknown>;try{body=await request.json()}catch{return error("INVALID_JSON","Invalid JSON body")}
  const action=text(body.action);

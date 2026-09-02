@@ -39,5 +39,7 @@ jobs:
         run: node scripts/qa-vgroup-responsive-shell.mjs
       - name: Release readiness and rollback prerequisites
         run: node scripts/qa-vgroup-release-readiness.mjs
+      - name: Pre-integration CTO acceptance contract
+        run: node scripts/qa-vgroup-preintegration.mjs
       - name: TypeScript contract check
         run: npm run type-check

@@ -2,11 +2,12 @@ import {NextResponse} from "next/server";
 import {requireGroupSuperAdmin} from "@/lib/vgroup/access";
 import {setEmployeeStatus} from "@/lib/vgroup/admin";
 
+const noStore={"Cache-Control":"private, no-store"};
 export async function POST(request:Request,{params}:{params:Promise<{id:string}>}){
   const session=await requireGroupSuperAdmin();
   const {id}=await params;
   const body=await request.json() as {status?:"active"|"suspended"|"archived"};
-  if(!body.status||!["active","suspended","archived"].includes(body.status))return NextResponse.json({error:"invalid_employee_status"},{status:400});
-  try{return NextResponse.json({employee:await setEmployeeStatus(id,body.status,session.userId)});}
-  catch(error){return NextResponse.json({error:error instanceof Error?error.message:"employee_status_change_failed"},{status:409});}
+  if(!body.status||!["active","suspended","archived"].includes(body.status))return NextResponse.json({error:"invalid_employee_status"},{status:400,headers:noStore});
+  try{return NextResponse.json({employee:await setEmployeeStatus(id,body.status,session.userId)},{headers:noStore});}
+  catch(error){return NextResponse.json({error:error instanceof Error?error.message:"employee_status_change_failed"},{status:409,headers:noStore});}
 }

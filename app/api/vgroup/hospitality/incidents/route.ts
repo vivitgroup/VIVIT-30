@@ -1,8 +1,10 @@
 import {NextResponse} from "next/server";
-import {requireBusinessPermission} from "@/lib/vgroup/access";
+import {apiErrorResponse,requireApiPermission} from "@/lib/vgroup/api-access";
 import {listHospitalityIncidents} from "@/lib/vgroup/operational-controls";
 
 export async function GET(){
-  await requireBusinessPermission("hospitality","maintenance:view");
-  return NextResponse.json({incidents:await listHospitalityIncidents(100)});
+  try{
+    await requireApiPermission("hospitality","maintenance:view");
+    return NextResponse.json({incidents:await listHospitalityIncidents(100)},{headers:{"Cache-Control":"private, no-store"}});
+  }catch(error){return apiErrorResponse(error)}
 }

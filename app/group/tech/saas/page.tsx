@@ -1,0 +1,3 @@
+import {WorkspacePage} from "@/components/vgroup/workspace-page";
+import {requireBusinessUnitAccess} from "@/lib/vgroup/access";
+export default async function Page(){await requireBusinessUnitAccess("tech");return <WorkspacePage tone="tech" eyebrow="TECH SAAS" title="Subscriptions" description="Multi-tenant SaaS operations for plans, monthly/yearly subscriptions, recurring billing and service-level visibility." sections={[{title:"Plans",body:"Starter, Growth and Enterprise commercial definitions"},{title:"Subscriptions",body:"Trialing, active, past due and cancelled lifecycle"},{title:"Recurring Billing",body:"Idempotent scheduled invoice generation"},{title:"SLA",body:"Rules, incidents, first-response and resolution tracking"}]}/>}

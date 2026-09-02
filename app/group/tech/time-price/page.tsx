@@ -1,0 +1,3 @@
+import {WorkspacePage} from "@/components/vgroup/workspace-page";
+import {requireBusinessUnitAccess} from "@/lib/vgroup/access";
+export default async function Page(){await requireBusinessUnitAccess("tech");return <WorkspacePage tone="tech" eyebrow="TECH DELIVERY ENGINE" title="Time ↔ Price" description="Quote and compression controls that keep delivery dates, remaining phases and commercial value synchronized." sections={[{title:"Quote Options",body:"Duration/price alternatives for client selection"},{title:"Compression",body:"Mid-project acceleration with controlled price impact"},{title:"Target Date",body:"Recalculate project end date from approved duration changes"},{title:"Replanning",body:"Redistribute remaining phases while preserving completed work"}]}/>}

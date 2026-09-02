@@ -1,0 +1,3 @@
+import {WorkspacePage} from "@/components/vgroup/workspace-page";
+import {requireVGroupSession} from "@/lib/vgroup/session";
+export default async function Page(){await requireVGroupSession();return <WorkspacePage tone="group" eyebrow="VIVIT GROUP" title="Group Finance" description="Cross-business financial visibility with business-unit filtering, net profitability and intercompany controls." sections={[{title:"All Units",body:"Revenue, expenses/costs and net profit across Group"},{title:"Business Unit Filter",body:"Marketing / Hospitality / Tech views from one contract"},{title:"Intercompany",body:"Controlled transactions between business units"},{title:"Reconciliation",body:"Operational reconciliation runs and exception-ready controls"}]}/>}

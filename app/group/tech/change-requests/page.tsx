@@ -1,0 +1,3 @@
+import {WorkspacePage} from "@/components/vgroup/workspace-page";
+import {requireBusinessUnitAccess} from "@/lib/vgroup/access";
+export default async function Page(){await requireBusinessUnitAccess("tech");return <WorkspacePage tone="tech" eyebrow="TECH COMMERCIAL" title="Change Requests" description="Controlled change lifecycle with pricing, schedule impact, client decision and atomic implementation updates." sections={[{title:"Submitted",body:"Client request and PM review queue"},{title:"Pricing",body:"Proposed price, extra days and impact assessment"},{title:"Approval",body:"Approve/reject lifecycle with auditability"},{title:"Implementation",body:"Atomic creation of checklist/installment and project commercial/timeline updates"}]}/>}

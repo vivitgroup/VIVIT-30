@@ -1,0 +1,3 @@
+import {WorkspacePage} from "@/components/vgroup/workspace-page";
+import {requireBusinessUnitAccess} from "@/lib/vgroup/access";
+export default async function Page(){await requireBusinessUnitAccess("tech");return <WorkspacePage tone="tech" eyebrow="TECH COMMERCIAL" title="Billing & Collections" description="Commercial controls for total project value, installments, payment capture, overdue monitoring and budget snapshots." sections={[{title:"Installments",body:"Schedule, paid/remaining balance and next due payment"},{title:"Collections",body:"Payment registration with overpayment prevention"},{title:"Overdue",body:"Past-due visibility and escalation-ready status"},{title:"Budget",body:"Commercial snapshots for original, approved-change and current project value"}]}/>}

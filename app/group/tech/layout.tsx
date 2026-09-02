@@ -1,4 +1,5 @@
 import type {ReactNode} from "react";
+import {VivitoLauncher} from "@/components/vgroup/vivito-launcher";
 
 export default function TechLayout({children}:{children:ReactNode}){
   return <div className="vgroup-tech-brand">
@@ -11,6 +12,6 @@ export default function TechLayout({children}:{children:ReactNode}){
       .vgroup-tech-brand main button:not([data-danger="true"]){background:#42ADF5!important;color:#06101A!important;font-weight:900}
       .vgroup-tech-brand ::selection{background:#42ADF5;color:#06101A}
     `}</style>
-    {children}
+    {children}<VivitoLauncher workspace="tech"/>
   </div>;
 }

@@ -5,19 +5,24 @@ type Strategy="balanced"|"reasoning"|"fast"|"cost"|"resilient";
 type RouteHealth={successes:number;failures:number;cooldownUntil:number;lastLatencyMs?:number;lastModelId?:string};
 type ModelSpec={model:string;quality:number;cost:number;latency:number;tasks:VivitoMeshTask[];providerOrder?:string[]};
 type GatewayRoute={id:string;model:string;strategy:Strategy;quality:number;cost:number;latency:number;tasks:VivitoMeshTask[];providerOrder?:string[];score?:number};
+type CatalogCache={expiresAt:number;verifiedFree:Set<string>};
 
 type GenerateOptions={task?:VivitoMeshTask;maxTokens?:number;timeoutMs?:number};
 const AI_GATEWAY_URL="https://ai-gateway.vercel.sh/v1/chat/completions";
+const AI_GATEWAY_MODELS_URL="https://ai-gateway.vercel.sh/v1/models";
 const ROUTE_COOLDOWN_MS=60_000;
 const QUOTA_COOLDOWN_MS=15*60_000;
+const CATALOG_CACHE_MS=15*60_000;
 const routeHealth=new Map<string,RouteHealth>();
+let catalogCache:CatalogCache|null=null;
 const asRecord=(value:unknown):JsonRecord=>value&&typeof value==="object"&&!Array.isArray(value)?value as JsonRecord:{};
 const asArray=(value:unknown):unknown[]=>Array.isArray(value)?value:[];
 const clamp=(value:number,min:number,max:number)=>Math.max(min,Math.min(max,value));
 
 const MODELS:ModelSpec[]=[
-  {model:"inclusionai/ling-3.0-flash-fin",quality:84,cost:0,latency:8,tasks:["general","reasoning","research","finance","creative","coding","arabic"]},
   {model:"inclusionai/ling-3.0-flash-fin-free",quality:84,cost:0,latency:8,tasks:["general","reasoning","research","finance","creative","coding","arabic"]},
+  {model:"inclusionai/ling-3.0-flash-fin",quality:84,cost:0,latency:8,tasks:["general","reasoning","research","finance","creative","coding","arabic"]},
+  {model:"poolside/laguna-s-2.1-free",quality:86,cost:0,latency:24,tasks:["general","reasoning","research","coding"]},
   {model:"google/gemini-3.6-flash",quality:91,cost:34,latency:18,tasks:["general","research","creative","coding","arabic"],providerOrder:["vertex","google"]},
   {model:"amazon/nova-2-lite",quality:80,cost:18,latency:20,tasks:["general","creative","research"]},
   {model:"mistral/mistral-medium-3.5",quality:88,cost:39,latency:28,tasks:["general","reasoning","creative","arabic"]},
@@ -28,13 +33,15 @@ const MODELS:ModelSpec[]=[
   {model:"alibaba/qwen3-max-thinking",quality:92,cost:33,latency:38,tasks:["reasoning","research","finance","coding","arabic"]},
 ];
 
-// Production defaults to models that the live Vercel catalog marks Free for
-// both input and output. Keep the wider route registry for explicitly funded
-// deployments, but never send a paid model from the no-billing path.
-const FREE_GATEWAY_MODELS=[
-  "inclusionai/ling-3.0-flash-fin",
+// These are candidates only. At runtime, AI Gateway's live catalog is checked
+// and zero-price input + output is required before a non-"-free" model can run.
+const FREE_GATEWAY_MODEL_CANDIDATES=[
   "inclusionai/ling-3.0-flash-fin-free",
+  "inclusionai/ling-3.0-flash-fin",
+  "poolside/laguna-s-2.1-free",
 ] as const;
+const EXPLICIT_FREE_MODEL_FALLBACK=FREE_GATEWAY_MODEL_CANDIDATES.filter(model=>model.endsWith("-free"));
+const FREE_GATEWAY_MODEL_SET=new Set<string>(FREE_GATEWAY_MODEL_CANDIDATES);
 
 const STRATEGIES:Strategy[]=["balanced","reasoning","fast","cost","resilient"];
 export const VIVITO_GATEWAY_ROUTES:GatewayRoute[]=MODELS.flatMap(spec=>STRATEGIES.map(strategy=>({
@@ -81,26 +88,53 @@ export function gatewayModelOrder(task:VivitoMeshTask="general",limit=10){
 function bestRouteForModel(model:string,task:VivitoMeshTask){return rankGatewayRoutes(task).find(route=>route.model===model)}
 function gatewayTimeout(options:GenerateOptions){const requested=Number(options.timeoutMs??process.env.VIVITO_PROVIDER_TIMEOUT_MS??25000);return clamp(Number.isFinite(requested)?Math.round(requested):25000,3000,45000)}
 function safeMessage(value:unknown){return String(value||"").replace(/[\r\n\t]+/g," ").slice(0,180)}
+function zeroPrice(value:unknown){return String(value??"").trim()==="0"}
 function markFailure(routeId:string,status:number,message:string){const h=healthFor(routeId),text=message.toLowerCase();const quota=status===429&&/quota|billing|daily|limit/.test(text);const retryable=status===429||status>=500||/timeout|overload|unavailable|temporar/.test(text);routeHealth.set(routeId,{successes:h.successes,failures:h.failures+1,cooldownUntil:Date.now()+(quota?QUOTA_COOLDOWN_MS:retryable?ROUTE_COOLDOWN_MS:0),lastLatencyMs:h.lastLatencyMs,lastModelId:h.lastModelId})}
 function markSuccess(routeId:string,latencyMs:number,modelId:string){const h=healthFor(routeId);routeHealth.set(routeId,{successes:h.successes+1,failures:Math.max(0,h.failures-1),cooldownUntil:0,lastLatencyMs:latencyMs,lastModelId:modelId})}
 
+async function verifiedFreeGatewayModels(){
+  const now=Date.now();if(catalogCache&&catalogCache.expiresAt>now)return catalogCache.verifiedFree;
+  try{
+    const response=await fetch(AI_GATEWAY_MODELS_URL,{signal:AbortSignal.timeout(3500),headers:{Accept:"application/json"}});if(!response.ok)throw new Error(`catalog-${response.status}`);
+    const root=asRecord(await response.json()),verifiedFree=new Set<string>();
+    for(const item of asArray(root.data).map(asRecord)){
+      const id=String(item.id||"");if(!FREE_GATEWAY_MODEL_SET.has(id))continue;
+      const pricing=asRecord(item.pricing);if(zeroPrice(pricing.input)&&zeroPrice(pricing.output))verifiedFree.add(id);
+    }
+    if(!verifiedFree.size)throw new Error("catalog-no-verified-free-models");
+    catalogCache={expiresAt:now+CATALOG_CACHE_MS,verifiedFree};return verifiedFree;
+  }catch{
+    // Fail closed on cost: only slugs explicitly designated "-free" remain eligible.
+    const verifiedFree=new Set<string>(EXPLICIT_FREE_MODEL_FALLBACK);catalogCache={expiresAt:now+60_000,verifiedFree};return verifiedFree;
+  }
+}
+
+async function freeGatewayModelOrder(task:VivitoMeshTask){
+  const eligible=await verifiedFreeGatewayModels(),ranked=rankGatewayRoutes(task),seen=new Set<string>(),active:string[]=[],cooling:string[]=[];
+  for(const route of ranked){if(!eligible.has(route.model)||seen.has(route.model))continue;seen.add(route.model);(route.health.cooldownRemainingMs>0?cooling:active).push(route.model)}
+  for(const model of FREE_GATEWAY_MODEL_CANDIDATES){if(eligible.has(model)&&!seen.has(model)){seen.add(model);active.push(model)}}
+  return [...active,...cooling];
+}
+
 export async function generateViaGatewayIntelligentMesh(prompt:string,system:string,token:string,options:GenerateOptions={}){
   if(!token)throw new Error("gateway-not-configured");
-  const task=options.task||"general",models=Array.from({length:10},(_,index)=>FREE_GATEWAY_MODELS[index%FREE_GATEWAY_MODELS.length]),primary=models[0];if(!primary)throw new Error("gateway-route-pool-empty");
-  const route=bestRouteForModel(primary,task);const started=Date.now();
-  const gatewayOptions:JsonRecord={models};if(route?.providerOrder?.length)gatewayOptions.order=route.providerOrder;
-  const body:JsonRecord={model:primary,models,messages:[{role:"system",content:system},{role:"user",content:prompt}],stream:false,max_tokens:options.maxTokens||3200,providerOptions:{gateway:gatewayOptions}};
-  const response=await fetch(AI_GATEWAY_URL,{method:"POST",signal:AbortSignal.timeout(gatewayTimeout(options)),headers:{"Authorization":`Bearer ${token}`,"Content-Type":"application/json","ai-reporting-tags":"product:vivito,mode:erp-assistant,resilience:intelligent-50-route"},body:JSON.stringify(body)});
+  const task=options.task||"general",models=await freeGatewayModelOrder(task),primary=models[0];if(!primary)throw new Error("gateway-free-route-pool-empty");
+  const fallbackModels=models.slice(1),route=bestRouteForModel(primary,task),started=Date.now();
+  const gatewayOptions:JsonRecord={};if(fallbackModels.length)gatewayOptions.models=fallbackModels;if(route?.providerOrder?.length)gatewayOptions.order=route.providerOrder;
+  const body:JsonRecord={model:primary,messages:[{role:"system",content:system},{role:"user",content:prompt}],stream:false,max_tokens:options.maxTokens||3200,providerOptions:{gateway:gatewayOptions}};
+  if(fallbackModels.length)body.models=fallbackModels;
+  const response=await fetch(AI_GATEWAY_URL,{method:"POST",signal:AbortSignal.timeout(gatewayTimeout(options)),headers:{"Authorization":`Bearer ${token}`,"Content-Type":"application/json","ai-reporting-tags":"product:vivito,mode:erp-assistant,resilience:verified-free-model-pool"},body:JSON.stringify(body)});
   const data=asRecord(await response.json().catch(()=>({}))),apiError=asRecord(data.error);
   if(!response.ok){const message=safeMessage(apiError.message||`gateway-${response.status}`);if(route)markFailure(route.id,response.status,message);const error=new Error(message) as Error&{status?:number};error.status=response.status;throw error}
   const choice=asRecord(asArray(data.choices)[0]),message=asRecord(choice.message),raw=message.content;
   const text=(typeof raw==="string"?raw:asArray(raw).map(asRecord).map(part=>String(part.text||"")).join("\n")).trim();if(!text){if(route)markFailure(route.id,0,"empty-response");throw new Error("gateway-empty-response")}
-  const modelId=String(data.model||primary),actualRoute=bestRouteForModel(modelId,task)||route;if(actualRoute)markSuccess(actualRoute.id,Date.now()-started,modelId);
+  const modelId=String(data.model||primary);if(!models.includes(modelId))throw new Error("gateway-returned-model-outside-free-pool");
+  const actualRoute=bestRouteForModel(modelId,task)||route;if(actualRoute)markSuccess(actualRoute.id,Date.now()-started,modelId);
   return{text,modelId,routeId:actualRoute?.id||`${modelId}:gateway`,modelsAttempted:models.length,routeCount:VIVITO_GATEWAY_ROUTES.length};
 }
 
 export function gatewayMeshSummary(task:VivitoMeshTask="general"){
-  const ranked=rankGatewayRoutes(task);return{routes:VIVITO_GATEWAY_ROUTES.length,models:MODELS.length,strategies:STRATEGIES.length,topRoutes:ranked.slice(0,10).map(r=>({id:r.id,score:r.score,health:r.health})),health:Object.fromEntries([...routeHealth.entries()].map(([id,state])=>[id,{...state,cooldownRemainingMs:Math.max(0,state.cooldownUntil-Date.now())}]))};
+  const ranked=rankGatewayRoutes(task);return{routes:VIVITO_GATEWAY_ROUTES.length,models:MODELS.length,freeCandidates:[...FREE_GATEWAY_MODEL_CANDIDATES],strategies:STRATEGIES.length,topRoutes:ranked.slice(0,10).map(r=>({id:r.id,score:r.score,health:r.health})),health:Object.fromEntries([...routeHealth.entries()].map(([id,state])=>[id,{...state,cooldownRemainingMs:Math.max(0,state.cooldownUntil-Date.now())}]))};
 }
 
-export function resetGatewayMeshHealth(){routeHealth.clear()}
+export function resetGatewayMeshHealth(){routeHealth.clear();catalogCache=null}

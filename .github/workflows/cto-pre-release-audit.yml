@@ -23,5 +23,7 @@ jobs:
           node-version: 22
       - name: CTO runtime static audit
         run: node scripts/qa-cto-release-audit.mjs
+      - name: VIVITO free model and fallback audit
+        run: node scripts/qa-vivito-free-fallback.mjs
       - name: Mobile UX static audit
         run: node scripts/qa-mobile-ux.mjs

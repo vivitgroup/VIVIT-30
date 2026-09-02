@@ -1,6 +1,6 @@
-production trigger 2026-09-02T09:40:00Z
-Live E2E remediation candidate before trigger: df97fa5c1b0be7b27a21b879849c9b31ae7a9f8c
-Scope: DB pool exhaustion, client onboarding, RBAC launcher/page/API alignment, session transition, new-client context guards, WhatsApp response hardening
+production trigger 2026-09-02T15:10:30Z
+Exact-head candidate: 9067ac18a2ab841543e9fad795a0bdb1b3152c35
+Scope: final bilingual runtime restoration, current main QA convergence, production verification
 Previous production rollback remains retained
-Require build QA + exact-head production verification before acceptance
+Require full build QA + exact-head production verification before acceptance
 force production redeploy

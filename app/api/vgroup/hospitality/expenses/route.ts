@@ -18,17 +18,27 @@ async function signedUrl(objectPath:string){
   return value?`${config.supabaseUrl}/storage/v1${value}`:null;
 }
 
-export async function GET(){
+export async function GET(request:Request){
   try{
     await requireApiPermission("hospitality","finance:view");
+    const propertyId=new URL(request.url).searchParams.get("propertyId")?.trim()||null;
+    if(propertyId&&!uuid.test(propertyId))return NextResponse.json({error:{code:"INVALID_PROPERTY",message:"Invalid property context"}},{status:400,headers:{"Cache-Control":"no-store"}});
     const sql=getVGroupSql();
+    if(propertyId){
+      const [property]=await sql`select id::text from hospitality.properties where id=${propertyId}::uuid and archived_at is null limit 1`;
+      if(!property)return NextResponse.json({error:{code:"PROPERTY_NOT_FOUND",message:"Property not found"}},{status:404,headers:{"Cache-Control":"no-store"}});
+    }
     const [expenses,properties,categories,vendors]=await Promise.all([
-      sql`select i.id::text,i.property_id::text,p.name property_name,i.vendor_id::text,v.name vendor_name,i.expense_category_id::text,c.name category_name,i.invoice_number,i.invoice_type,i.currency,i.subtotal,i.tax,i.total,i.issued_at,i.due_at,i.status,i.notes,i.created_at,(select count(*)::int from hospitality.invoice_receipts r where r.invoice_id=i.id and r.archived_at is null) receipt_count from hospitality.invoices i join hospitality.properties p on p.id=i.property_id left join hospitality.vendors v on v.id=i.vendor_id left join hospitality.expense_categories c on c.id=i.expense_category_id where i.archived_at is null order by i.issued_at desc,i.created_at desc limit 250`,
-      sql`select id::text,name from hospitality.properties where archived_at is null order by name`,
+      propertyId
+        ?sql`select i.id::text,i.property_id::text,p.name property_name,i.vendor_id::text,v.name vendor_name,i.expense_category_id::text,c.name category_name,i.invoice_number,i.invoice_type,i.currency,i.subtotal,i.tax,i.total,i.issued_at,i.due_at,i.status,i.notes,i.created_at,(select count(*)::int from hospitality.invoice_receipts r where r.invoice_id=i.id and r.archived_at is null) receipt_count from hospitality.invoices i join hospitality.properties p on p.id=i.property_id left join hospitality.vendors v on v.id=i.vendor_id left join hospitality.expense_categories c on c.id=i.expense_category_id where i.archived_at is null and i.property_id=${propertyId}::uuid order by i.issued_at desc,i.created_at desc limit 250`
+        :sql`select i.id::text,i.property_id::text,p.name property_name,i.vendor_id::text,v.name vendor_name,i.expense_category_id::text,c.name category_name,i.invoice_number,i.invoice_type,i.currency,i.subtotal,i.tax,i.total,i.issued_at,i.due_at,i.status,i.notes,i.created_at,(select count(*)::int from hospitality.invoice_receipts r where r.invoice_id=i.id and r.archived_at is null) receipt_count from hospitality.invoices i join hospitality.properties p on p.id=i.property_id left join hospitality.vendors v on v.id=i.vendor_id left join hospitality.expense_categories c on c.id=i.expense_category_id where i.archived_at is null order by i.issued_at desc,i.created_at desc limit 250`,
+      propertyId
+        ?sql`select id::text,name from hospitality.properties where id=${propertyId}::uuid and archived_at is null order by name`
+        :sql`select id::text,name from hospitality.properties where archived_at is null order by name`,
       sql`select id::text,name from hospitality.expense_categories where active order by name`,
       sql`select id::text,name from hospitality.vendors where archived_at is null order by name`,
     ]);
-    return NextResponse.json({expenses:Array.from(expenses),properties:Array.from(properties),categories:Array.from(categories),vendors:Array.from(vendors)},{headers:{"Cache-Control":"private, no-store"}});
+    return NextResponse.json({expenses:Array.from(expenses),properties:Array.from(properties),categories:Array.from(categories),vendors:Array.from(vendors),propertyContext:propertyId},{headers:{"Cache-Control":"private, no-store"}});
   }catch(error){return apiErrorResponse(error)}
 }
 

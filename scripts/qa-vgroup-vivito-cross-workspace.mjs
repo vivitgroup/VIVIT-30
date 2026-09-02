@@ -11,7 +11,7 @@ const tech=read("app/group/tech/layout.tsx");
 const marketing=read("app/group/marketing/page.tsx");
 const groupLayout=read("app/group/command-center/layout.tsx");
 const checks=[
- ["Four workspace registry",["group","marketing","hospitality","tech"].every(x=>registry.includes(`workspace:\"${x}\"`))],
+ ["Four workspace registry",["group","marketing","hospitality","tech"].every(x=>registry.includes(`workspace:"${x}"`))],
  ["Marketing execution fail closed",registry.includes('key:"marketing.task_execute"')&&registry.includes('enabled:false')&&tasks.includes('INTEGRATION_REQUIRED')],
  ["No arbitrary target URL",registry.includes('endpoint:string|null')&&executor.includes('new URL(cap.endpoint,request.url)')&&executor.includes('CROSS_ORIGIN_TARGET_BLOCKED')],
  ["Target routes remain permission authority",registry.includes('permission:"reservations:create"')&&registry.includes('permission:"projects:update"')&&tasks.includes('canUseVivitoCapability')],

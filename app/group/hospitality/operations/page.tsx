@@ -1,4 +1,5 @@
 import Link from "next/link";
+import {notFound} from "next/navigation";
 import {WorkspacePage} from "@/components/vgroup/workspace-page";
 import {PostActionButton} from "@/components/vgroup/post-action-button";
 import {requireBusinessUnitAccess} from "@/lib/vgroup/access";
@@ -10,9 +11,17 @@ type PropertyRow={id:string;name:string};type ReservationRow={id:string;property
 type WorkOrderRow={id:string;title:string;priority:string;status:string;estimated_cost:number|null;property_name:string};type PurchaseOrderRow={id:string;po_number:string;status:string;currency:string;total:number;property_name:string|null;vendor_name:string|null};
 export const dynamic="force-dynamic";const uuid=/^[0-9a-f-]{36}$/i;
 export default async function Page({searchParams}:{searchParams:Promise<{propertyId?:string}>}){
- await requireBusinessUnitAccess("hospitality");const {propertyId:rawPropertyId}=await searchParams;const propertyId=rawPropertyId&&uuid.test(rawPropertyId)?rawPropertyId:"";const sql=getVGroupSql();
+ await requireBusinessUnitAccess("hospitality");
+ const {propertyId:rawPropertyId}=await searchParams;
+ if(rawPropertyId&&!uuid.test(rawPropertyId))notFound();
+ const propertyId=rawPropertyId||"";
+ const sql=getVGroupSql();
  const [bu]=await sql<{id:string}[]>`select id::text from vgroup.business_units where code='hospitality' and status='active' limit 1`;const buId=bu?.id;
- let activeProperty:PropertyRow|undefined;if(propertyId){[activeProperty]=await sql<PropertyRow[]>`select id::text,name from hospitality.properties where id=${propertyId}::uuid and archived_at is null and status='active' limit 1`}
+ let activeProperty:PropertyRow|undefined;
+ if(propertyId){
+  [activeProperty]=await sql<PropertyRow[]>`select id::text,name from hospitality.properties where id=${propertyId}::uuid and archived_at is null limit 1`;
+  if(!activeProperty)notFound();
+ }
  const effectivePropertyId=activeProperty?.id||"";
  const workOrders=effectivePropertyId?await sql<WorkOrderRow[]>`select w.id::text,w.title,w.priority,w.status,w.estimated_cost,p.name property_name from hospitality.work_orders w join hospitality.properties p on p.id=w.property_id where w.archived_at is null and w.property_id=${effectivePropertyId}::uuid order by w.created_at desc limit 40`:await sql<WorkOrderRow[]>`select w.id::text,w.title,w.priority,w.status,w.estimated_cost,p.name property_name from hospitality.work_orders w join hospitality.properties p on p.id=w.property_id where w.archived_at is null order by w.created_at desc limit 40`;
  const purchaseOrders=effectivePropertyId?await sql<PurchaseOrderRow[]>`select po.id::text,po.po_number,po.status,po.currency,po.total,p.name property_name,v.name vendor_name from hospitality.purchase_orders po left join hospitality.properties p on p.id=po.property_id left join hospitality.vendors v on v.id=po.vendor_id where po.property_id=${effectivePropertyId}::uuid order by po.created_at desc limit 40`:await sql<PurchaseOrderRow[]>`select po.id::text,po.po_number,po.status,po.currency,po.total,p.name property_name,v.name vendor_name from hospitality.purchase_orders po left join hospitality.properties p on p.id=po.property_id left join hospitality.vendors v on v.id=po.vendor_id order by po.created_at desc limit 40`;

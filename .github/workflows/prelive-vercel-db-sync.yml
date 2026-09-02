@@ -29,14 +29,14 @@ jobs:
           test -n "$PROD_DATABASE_URL"
           test -n "$VERCEL_TOKEN"
 
-      - name: Normalize Supabase Session Pooler URL
+      - name: Parse protected database credential
         env:
           PROD_DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
         run: |
           set -euo pipefail
-          NORMALIZED_DATABASE_URL="$(python3 - <<'PY'
+          python3 - <<'PY' >> "$GITHUB_ENV"
           import os
-          from urllib.parse import urlsplit, urlunsplit, quote, unquote
+          from urllib.parse import urlsplit, quote, unquote, urlunsplit
           raw = os.environ['PROD_DATABASE_URL'].strip()
           ref = os.environ['SUPABASE_PROJECT_REF']
           p = urlsplit(raw)
@@ -44,24 +44,29 @@ jobs:
               raise SystemExit('invalid database URL scheme')
           if not p.hostname or p.password is None:
               raise SystemExit('database URL missing host/password')
-          username = f'postgres.{ref}' if 'pooler.supabase.com' in p.hostname else (p.username or 'postgres')
-          userinfo = quote(username, safe='') + ':' + quote(unquote(p.password), safe='')
           host = p.hostname
-          if ':' in host and not host.startswith('['):
-              host = f'[{host}]'
-          netloc = userinfo + '@' + host
-          if p.port:
-              netloc += ':' + str(p.port)
-          print(urlunsplit((p.scheme, netloc, p.path or '/postgres', p.query, p.fragment)))
+          port = p.port or 5432
+          dbname = unquote((p.path or '/postgres').lstrip('/')) or 'postgres'
+          password = unquote(p.password)
+          username = f'postgres.{ref}' if 'pooler.supabase.com' in host else (p.username or 'postgres')
+          userinfo = quote(username, safe='') + ':' + quote(password, safe='')
+          urlhost = f'[{host}]' if ':' in host and not host.startswith('[') else host
+          normalized = urlunsplit((p.scheme, f'{userinfo}@{urlhost}:{port}', f'/{quote(dbname, safe="")}', '', ''))
+          print(f'PGHOST={host}')
+          print(f'PGPORT={port}')
+          print(f'PGUSER={username}')
+          print(f'PGDATABASE={dbname}')
+          print(f'PGPASSWORD={password}')
+          print(f'NORMALIZED_DATABASE_URL={normalized}')
           PY
-          )"
-          echo "::add-mask::$NORMALIZED_DATABASE_URL"
-          echo "NORMALIZED_DATABASE_URL=$NORMALIZED_DATABASE_URL" >> "$GITHUB_ENV"
+          echo "::add-mask::$PGPASSWORD" || true
+          echo "::add-mask::$NORMALIZED_DATABASE_URL" || true
 
-      - name: Validate production database credential
+      - name: Validate canonical production database credential
         run: |
           set -euo pipefail
-          result="$(psql "$NORMALIZED_DATABASE_URL" -v ON_ERROR_STOP=1 -Atqc 'select 1')"
+          test "$PGUSER" = "postgres.$SUPABASE_PROJECT_REF"
+          result="$(psql -v ON_ERROR_STOP=1 -Atqc 'select 1')"
           test "$result" = "1"
 
       - name: Validate Vercel token and link project

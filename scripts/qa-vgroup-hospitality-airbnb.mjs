@@ -7,6 +7,9 @@ const finance=read("app/api/vgroup/hospitality/airbnb-finance/route.ts");
 const blocks=read("db/migrations/20260902_hospitality_airbnb_calendar_blocks.sql");
 const financial=read("db/migrations/20260902_hospitality_airbnb_financial_pending.sql");
 
+const successResponse=/NextResponse\.json\(\{ok:true,listing:channel\.external_listing_id,events:events\.length\}/.test(sync);
+const errorResponse=/NextResponse\.json\(\{error:message\}/.test(sync);
+
 const checks=[
   ["HTTPS Airbnb host allowlist",helper.includes('url.protocol!=="https:"')&&helper.includes('url.hostname!==AIRBNB_ICAL_HOST')&&helper.includes('AIRBNB_ICAL_HOST="www.airbnb.com"')],
   ["Airbnb calendar path restricted",helper.includes('/calendar/ical/')&&helper.includes('.endsWith(".ics")')],
@@ -22,7 +25,7 @@ const checks=[
   ["DTEND exclusive boundary preserved",helper.includes("endsOn>startsOn")&&blocks.includes("ends_on date not null")],
   ["Calendar event idempotency",blocks.includes("unique (channel_connection_id, external_uid)")&&sync.includes("on conflict(channel_connection_id,external_uid) do update")],
   ["Disappeared future events reconciled",sync.includes("last_seen_at<${syncStarted}::timestamptz")&&sync.includes("archived_at=now()")],
-  ["iCal secret not returned",!sync.includes("token_ref,")&&!sync.includes("channel.token_ref,")],
+  ["iCal secret not returned",successResponse&&errorResponse&&!/NextResponse\.json\([^\n]*token_ref/.test(sync)],
   ["Calendar table client access revoked",blocks.includes("revoke all on hospitality.calendar_blocks from anon, authenticated")],
   ["Financial completion remains manual",financial.includes("finance_status text not null default 'pending'")&&finance.includes("finance_status='complete'")],
   ["No auto-financial fabrication from iCal",!sync.includes("gross_amount")&&!sync.includes("net_payout")],

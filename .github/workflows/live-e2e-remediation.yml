@@ -1,0 +1,73 @@
+name: Live E2E Remediation Patch
+
+on:
+  push:
+    branches:
+      - fix/live-e2e-17-20260902
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, '[remediation-auto]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/live-e2e-17-20260902
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Patch canonical client review contract
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              count = text.count(old)
+              assert count == 1, f"{path}: expected exactly one match, found {count}"
+              p.write_text(text.replace(old, new, 1))
+
+          client = "app/dashboard/clients/[id]/page.tsx"
+          replace_once(client,
+              "type TaskRow={id:string;title:string;type:string;status:string;priority:string;deadline:Dateish;file_url:string|null;revision_count:number|null};",
+              "type TaskRow={id:string;title:string;type:string;status:string;priority:string;deadline:Dateish;file_url:string|null;approved_by_client:boolean;revision_count:number|null};")
+          replace_once(client,
+              "select id,title,type,status,priority,deadline,file_url,revision_count from creative_tasks",
+              "select id,title,type,status,priority,deadline,file_url,approved_by_client,revision_count from creative_tasks")
+          replace_once(client,
+              "review=tasks.filter(x=>[\"REVIEW\",\"REVISION\"].includes(x.status)).length",
+              "review=tasks.filter(x=>Boolean(x.file_url)&&[\"APPROVED\",\"COMPLETED\"].includes(x.status)&&!x.approved_by_client).length")
+          replace_once(client,
+              "<small>In review</small><b>{review}</b>",
+              "<small>Waiting for client review</small><b>{review}</b>")
+
+          assistant = "app/api/assistant/route.ts"
+          replace_once(assistant,
+              "type TaskRow={id:string;title:string;status:string;priority:string;deadline:string|Date;client_id:string;type:string;revision_count:number|string|null;company_name:string};",
+              "type TaskRow={id:string;title:string;status:string;priority:string;deadline:string|Date;client_id:string;type:string;revision_count:number|string|null;file_url:string|null;approved_by_client:boolean;company_name:string};")
+          replace_once(assistant,
+              "select t.id,t.title,t.status,t.priority,t.deadline,t.client_id,t.type,t.revision_count,c.company_name",
+              "select t.id,t.title,t.status,t.priority,t.deadline,t.client_id,t.type,t.revision_count,t.file_url,t.approved_by_client,c.company_name")
+          replace_once(assistant,
+              "select t.id,t.title,t.status,t.priority,t.deadline,t.client_id,t.type,t.revision_count,c.company_name",
+              "select t.id,t.title,t.status,t.priority,t.deadline,t.client_id,t.type,t.revision_count,t.file_url,t.approved_by_client,c.company_name")
+          anchor = " const [tasks,campaigns,tracking,clientHealth,sales,finance,memories]=await Promise.all([taskContext(role,userId,ids,workspaceId),mediaContext(role,ids,workspaceId),trackingContext(role,ids,workspaceId),clientHealthContext(role,ids,workspaceId),salesContext(role,userId,workspaceId),financeContext(role,ids,workspaceId),loadVivitoMemories(userId,role,ids,workspaceId)]);"
+          addition = anchor + '''\n\n if(role===\"CLIENT\"&&/(waiting.*review|review.*waiting|waiting.*approval|approval|approve|مراجعة|موافقة)/i.test(question)){\n  const queue=tasks.filter(t=>Boolean(t.file_url)&&[\"APPROVED\",\"COMPLETED\"].includes(String(t.status))&&!t.approved_by_client);\n  const arabic=isArabic(question);\n  const answer=queue.length?`${arabic?\"بانتظار مراجعتك\":\"Waiting for your review\"} (${queue.length}):\\n${queue.slice(0,12).map(t=>`- ${t.title} · ${t.company_name}`).join(\"\\n\")}`:(arabic?\"لا يوجد أي تصميم بانتظار موافقتك حاليًا.\":\"Nothing is waiting for your approval right now.\");\n  return NextResponse.json({answer,sources:[\"Creative Tasks\"],mode:\"client-review\",intelligence:\"VIVITO\"},{headers:{\"Cache-Control\":\"private, no-store\"}});\n }'''
+          replace_once(assistant, anchor, addition)
+      - name: TypeScript
+        run: npx tsc --noEmit
+      - name: Commit patched files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add 'app/dashboard/clients/[id]/page.tsx' app/api/assistant/route.ts
+          git diff --cached --quiet && exit 0
+          git commit -m "[remediation-auto] fix canonical client review contract"
+          git push origin HEAD:fix/live-e2e-17-20260902

@@ -1,5 +1,6 @@
 "use client";
-import {FormEvent,useEffect,useMemo,useState} from "react";
+import {FormEvent,useCallback,useEffect,useMemo,useState} from "react";
+import {useRouter} from "next/navigation";
 
 type Statement={id:string;owner_name:string;period_start:string;period_end:string;currency:string;gross_revenue:number;net_payable:number;status:string};
 type FinanceData={statements:Statement[];payouts:unknown[];refunds:unknown[];deposits:unknown[]};
@@ -15,6 +16,7 @@ const button:React.CSSProperties={border:0,borderRadius:12,padding:"11px 15px",f
 function errorText(value:unknown){if(typeof value==="string")return value;if(value&&typeof value==="object"&&"message" in value)return String((value as {message?:unknown}).message??"Request failed");return "Request failed"}
 
 export function HospitalityFinancePanel(){
+  const router=useRouter();
   const[finance,setFinance]=useState<FinanceData|null>(null);
   const[expenseData,setExpenseData]=useState<ExpenseData|null>(null);
   const[error,setError]=useState("");
@@ -26,10 +28,10 @@ export function HospitalityFinancePanel(){
   const[reportFrom,setReportFrom]=useState(monthStart);
   const[reportTo,setReportTo]=useState(today);
 
-  const loadFinance=()=>fetch("/api/vgroup/hospitality/finance",{cache:"no-store"}).then(async r=>{const body=await r.json();if(!r.ok)throw new Error(errorText(body.error));return body as FinanceData}).then(setFinance);
-  const loadExpenses=()=>fetch("/api/vgroup/hospitality/expenses",{cache:"no-store"}).then(async r=>{const body=await r.json();if(!r.ok)throw new Error(errorText(body.error));return body as ExpenseData}).then(data=>{setExpenseData(data);setReportProperty(current=>current||data.properties[0]?.id||"")});
-  const load=()=>Promise.all([loadFinance(),loadExpenses()]).catch((e:unknown)=>setError(e instanceof Error?e.message:"load_failed"));
-  useEffect(()=>{void load()},[]);
+  const loadFinance=useCallback(()=>fetch("/api/vgroup/hospitality/finance",{cache:"no-store"}).then(async r=>{const body=await r.json();if(!r.ok)throw new Error(errorText(body.error));return body as FinanceData}).then(setFinance),[]);
+  const loadExpenses=useCallback(()=>fetch("/api/vgroup/hospitality/expenses",{cache:"no-store"}).then(async r=>{const body=await r.json();if(!r.ok)throw new Error(errorText(body.error));return body as ExpenseData}).then(data=>{setExpenseData(data);setReportProperty(current=>current||data.properties[0]?.id||"")}),[]);
+  const load=useCallback(()=>Promise.all([loadFinance(),loadExpenses()]).catch((e:unknown)=>setError(e instanceof Error?e.message:"load_failed")),[loadFinance,loadExpenses]);
+  useEffect(()=>{void load()},[load]);
 
   const propertyTotals=useMemo(()=>{
     const map=new Map<string,{name:string,total:number;currency:string}>();
@@ -50,7 +52,7 @@ export function HospitalityFinancePanel(){
   function exportReport(format:"xls"|"pdf"){
     if(!reportProperty){setError("Select a property before exporting");return}
     const qs=new URLSearchParams({propertyId:reportProperty,from:reportFrom,to:reportTo,format});
-    window.location.href=`/api/vgroup/hospitality/expenses/report?${qs.toString()}`;
+    router.push(`/api/vgroup/hospitality/expenses/report?${qs.toString()}`);
   }
 
   if(!finance||!expenseData)return <p>{error||"Loading finance…"}</p>;

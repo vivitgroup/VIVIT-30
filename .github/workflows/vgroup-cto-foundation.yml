@@ -44,6 +44,8 @@ jobs:
         run: node scripts/qa-vgroup-tech-operating-system.mjs
       - name: Operating expansion regression
         run: node scripts/qa-vgroup-operating-expansion.mjs
+      - name: Board control center regression
+        run: node scripts/qa-vgroup-board-control-center.mjs
       - name: Deep Vivit Group source audit
         run: node scripts/qa-vgroup-deep-code-audit.mjs
       - name: Scoped Vivit Group ESLint

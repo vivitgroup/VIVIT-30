@@ -46,6 +46,8 @@ jobs:
         run: node scripts/qa-vgroup-preintegration-brutal.mjs
       - name: Hospitality property expense regression
         run: node scripts/qa-vgroup-hospitality-expenses.mjs
+      - name: Hospitality Airbnb integration regression
+        run: node scripts/qa-vgroup-hospitality-airbnb.mjs
       - name: Tech operating system regression
         run: node scripts/qa-vgroup-tech-operating-system.mjs
       - name: Operating expansion regression

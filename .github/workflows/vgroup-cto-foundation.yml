@@ -37,6 +37,8 @@ jobs:
         run: node scripts/qa-vgroup-api-contracts.mjs
       - name: Responsive shell regression
         run: node scripts/qa-vgroup-responsive-shell.mjs
+      - name: Business logic hardening regression
+        run: node scripts/qa-vgroup-business-hardening.mjs
       - name: Release readiness and rollback prerequisites
         run: node scripts/qa-vgroup-release-readiness.mjs
       - name: Pre-integration CTO acceptance contract

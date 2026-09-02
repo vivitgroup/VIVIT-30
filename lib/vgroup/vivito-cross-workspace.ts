@@ -18,7 +18,7 @@ export const VIVITO_CAPABILITIES:readonly VivitoCapability[]=[
   {key:"tech.issue_create",workspace:"tech",label:"Create issue",risk:"write",approvalRequired:false,enabled:true,endpoint:"/api/vgroup/tech/operations",method:"POST",permission:"projects:update",staticPayload:{operation:"issue"}},
   {key:"tech.deliverable_create",workspace:"tech",label:"Create deliverable",risk:"write",approvalRequired:false,enabled:true,endpoint:"/api/vgroup/tech/operations",method:"POST",permission:"projects:update",staticPayload:{operation:"deliverable"}},
   {key:"tech.release_plan",workspace:"tech",label:"Plan release",risk:"sensitive",approvalRequired:true,enabled:true,endpoint:"/api/vgroup/tech/operations",method:"POST",permission:"projects:update",staticPayload:{operation:"release"}},
-  {key:"marketing.task_execute",workspace:"marketing",label:"Execute Marketing task",risk:"sensitive",approvalRequired:true,enabled:marketingEnabled,endpoint:marketingEnabled?"/api/vgroup/vivito/marketing":null,method:"POST"},
+  {key:"marketing.task_execute",workspace:"marketing",label:"Execute Marketing task",risk:"sensitive",approvalRequired:true,enabled:marketingEnabled,endpoint:marketingEnabled?"/api/integrations/vgroup-vivito-marketing":null,method:"POST"},
 ] as const;
 
 export function findVivitoCapability(key:string){return VIVITO_CAPABILITIES.find(item=>item.key===key)}

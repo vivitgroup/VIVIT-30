@@ -7,6 +7,7 @@ export const ROLE_SCOPE = {
   MEDIA_BUYER:{clients:"assigned-read",tasks:"none",media:"assigned-clients",finance:"none",delete:"none"},
   CREATOR:{clients:"task-context",tasks:"assigned",media:"none",finance:"none",delete:"none"},
   ACCOUNTANT:{clients:"commercial-create-read",tasks:"none",media:"none",finance:"drafts-and-collection",delete:"none"},
+  HR:{clients:"none",tasks:"none",media:"none",finance:"payroll-only",team:"manage",delete:"owned-hr-drafts"},
   SALES:{clients:"prospects",tasks:"none",media:"none",finance:"none",delete:"archive-leads"},
   CLIENT:{clients:"own-portal",tasks:"review-only",media:"own-summary",finance:"own-invoices",delete:"none"},
 } as const satisfies Record<Role,Record<string,string>>;

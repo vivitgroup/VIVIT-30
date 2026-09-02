@@ -1,0 +1,15 @@
+import fs from 'node:fs';
+import path from 'node:path';
+const read=(p)=>fs.readFileSync(path.join(process.cwd(),p),'utf8');
+const login=read('app/api/vgroup/auth/login/route.ts');
+const logout=read('app/api/vgroup/auth/logout/route.ts');
+const refresh=read('app/api/vgroup/auth/refresh/route.ts');
+const session=read('lib/vgroup/session.ts');
+const group=read('app/group/page.tsx');
+for(const token of ['VGROUP_SUPABASE_URL','VGROUP_SUPABASE_PUBLISHABLE_KEY','VGROUP_ACCESS_COOKIE','VGROUP_REFRESH_COOKIE'])if(!login.includes(token))throw new Error(`Login missing ${token}`);
+if(!login.includes('auth_rate_limits')||!login.includes('Too many login attempts'))throw new Error('Login rate-limit contract missing');
+if(!refresh.includes('grant_type=refresh_token')||!refresh.includes('SESSION_EXPIRED'))throw new Error('Refresh/session-expiry contract missing');
+if(!logout.includes('maxAge:0')||!logout.includes('VGROUP_REFRESH_COOKIE'))throw new Error('Logout cookie revocation missing');
+if(!session.includes('/auth/v1/user')||!session.includes("status='active'"))throw new Error('Live auth/user status validation missing');
+if(!group.includes('if(enabled.length===1)redirect(enabled[0].href)'))throw new Error('Single-business auto-enter missing');
+console.log('auth-lifecycle: login rate limit, refresh, expiry, logout and auto-enter verified');

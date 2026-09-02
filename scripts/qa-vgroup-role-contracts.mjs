@@ -19,10 +19,11 @@ const protectedRoutes=[
  'app/api/vgroup/tech/projects/route.ts',
  'app/api/vgroup/admin/employees/route.ts',
 ];
-const acceptedGuards=['requireApiPermission','requireBusinessPermission','requireGroupSuperAdmin'];
+const acceptedGuards=['requireApiPermission','apiPermissionOrResponse','requireApiGroupSuperAdmin','apiGroupSuperAdminOrResponse'];
 for(const route of protectedRoutes){
   const body=read(route);
   const guarded=acceptedGuards.some(guard=>body.includes(guard));
-  if(!guarded)throw new Error(`Route missing server permission guard: ${route}`);
+  if(!guarded)throw new Error(`Route missing server API permission guard: ${route}`);
+  if(body.includes('from "@/lib/vgroup/access"')||body.includes("from '@/lib/vgroup/access'"))throw new Error(`Protected API route uses page redirect guard: ${route}`);
 }
-console.log(`role-contracts: ${requiredRoles.length} roles, protected routes and BU isolation verified`);
+console.log(`role-contracts: ${requiredRoles.length} roles, protected API routes and BU isolation verified`);

@@ -2,7 +2,7 @@ name: VIVITO Internal 100
 
 on:
   push:
-    branches: [feat/vivito-internal-100]
+    branches: [feat/vivito-internal-100, integration/marketing-group-handoff]
   workflow_dispatch:
 permissions:
   contents: read

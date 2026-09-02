@@ -4,7 +4,7 @@ import {getHospitalityDashboard} from "@/lib/vgroup/dashboard";
 
 const modules=[
   ["Owner Portal","Owner performance, statements, maintenance and payouts","/group/hospitality/owner-portal"],
-  ["Properties","Units, assets, contracts and channel mappings","/group/hospitality/owner-portal"],
+  ["Properties","Units, optional ownership, photos, assets and channel mappings","/group/hospitality/properties"],
   ["Reservations","Booking calendar and sync-ready reservation flow","/group/hospitality/reservations"],
   ["Finance","Revenue, fees, expenses, invoices and owner net","/group/hospitality/finance"],
   ["Maintenance","Work orders, vendors, POs and before/after evidence","/group/hospitality/operations"],

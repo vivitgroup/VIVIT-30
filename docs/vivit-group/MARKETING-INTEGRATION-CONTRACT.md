@@ -35,6 +35,7 @@ The final integration must not copy Marketing production data into the Group dat
 9. The bridge secret is dedicated to this integration and must not equal Group or Marketing auth secrets.
 10. Failure in the bridge fails closed and returns the user to the Group selector; it must not fall back to password bypass, shared cookies, or shared database credentials.
 11. No Marketing database migration, storage mutation, OAuth callback mutation, production branch merge, hosting action, or deployment action is authorized by this document.
+12. Actual production mutation requires explicit production cutover approval after the exact candidate SHA is certified.
 
 ## Identity mapping
 

@@ -33,6 +33,9 @@ jobs:
 
           dash="app/dashboard/page.tsx"
           rep(dash,
+              '''import { db, clients, financeRecords, creativeTasks, salesLeads,\n  mediaMetrics, companyExpenses, notifications,\n  agencyHealthScores, payrollLocks } from "@/lib/db";''',
+              '''import { db, clients, financeRecords, creativeTasks, salesLeads,\n  mediaMetrics, companyExpenses, notifications,\n  agencyHealthScores, payrollLocks, sql } from "@/lib/db";''')
+          rep(dash,
               '''db.select({ spend:sum(mediaMetrics.adSpend), leads:sum(mediaMetrics.leads), revenue:sum(mediaMetrics.revenue) })\n      .from(mediaMetrics).where(and(eq(mediaMetrics.workspaceId,workspaceId),gte(mediaMetrics.date,moStart))),''',
               '''db.execute<{spend:number|string|null;leads:number|string|null;revenue:number|string|null}>(sql`select coalesce(sum(p.spend),0) spend,coalesce(sum(p.results),0) leads,coalesce(sum(p.revenue),0) revenue from ad_performance_daily p join ad_campaigns a on a.id=p.campaign_id where a.workspace_id=${workspaceId} and a.archived_at is null and p.date>=date_trunc('month',now()) and p.breakdown_type='TOTAL' and p.ad_set_id is null and p.ad_id is null`),''')
           rep(dash,

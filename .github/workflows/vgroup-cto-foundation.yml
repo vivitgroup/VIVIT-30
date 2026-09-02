@@ -72,3 +72,30 @@ jobs:
           SUPABASE_SERVICE_KEY: marketing-ci-service-key-not-a-secret
           AUTH_SECRET: marketing-ci-auth-secret-not-a-secret-32chars
         run: npx next build
+      - name: Start built candidate for runtime smoke
+        env:
+          VGROUP_DATABASE_URL: postgresql://vgroup_ci:vgroup_ci@127.0.0.1:5432/vgroup_ci
+          VGROUP_SUPABASE_URL: https://vgroup-ci.invalid
+          VGROUP_SUPABASE_SERVICE_KEY: vgroup-ci-service-key-not-a-secret
+          VGROUP_AUTH_SECRET: vgroup-ci-auth-secret-not-a-secret-32chars
+          VGROUP_ENVIRONMENT: ci
+          VGROUP_MARKETING_INTEGRATION_ENABLED: "false"
+          VGROUP_MARKETING_CANDIDATE_SHA: b66542a3cfee8d5d54299450e8bc6a79b2a51062
+          DATABASE_URL: postgresql://marketing_ci:marketing_ci@127.0.0.1:5432/marketing_ci
+          SUPABASE_URL: https://marketing-ci.invalid
+          SUPABASE_SERVICE_KEY: marketing-ci-service-key-not-a-secret
+          AUTH_SECRET: marketing-ci-auth-secret-not-a-secret-32chars
+        run: |
+          (npx next start -p 3000 > /tmp/vgroup-next.log 2>&1 & echo $! > /tmp/vgroup-next.pid)
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:3000/group/login >/dev/null 2>&1; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/vgroup-next.log
+          exit 1
+      - name: Built Vivit Group runtime smoke
+        run: node scripts/qa-vgroup-runtime-smoke.mjs
+      - name: Stop built candidate
+        if: always()
+        run: |
+          if [ -f /tmp/vgroup-next.pid ]; then kill "$(cat /tmp/vgroup-next.pid)" || true; fi

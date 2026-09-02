@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feat/vivit-group-erp-7d
+      - integration/vgroup-marketing-dry-run
   workflow_dispatch:
 
 permissions:

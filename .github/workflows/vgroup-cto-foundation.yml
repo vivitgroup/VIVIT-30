@@ -95,6 +95,13 @@ jobs:
           exit 1
       - name: Built Vivit Group runtime smoke
         run: node scripts/qa-vgroup-runtime-smoke.mjs
+      - name: Upload Vivit Group runtime smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vgroup-runtime-smoke-evidence
+          path: /tmp/vgroup-runtime-smoke.json
+          if-no-files-found: error
       - name: Stop built candidate
         if: always()
         run: |

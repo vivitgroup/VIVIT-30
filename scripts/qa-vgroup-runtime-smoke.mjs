@@ -9,6 +9,10 @@ try{
   const loginText=await login.text();
   check('Group login renders from built artifact',login.status===200&&/VIVIT|Group|login|sign in/i.test(loginText),`status=${login.status}`);
 
+  const loginApi=await req('/api/vgroup/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+  const loginApiJson=await loginApi.json().catch(()=>({}));
+  check('Group login API reaches isolated auth handler instead of Marketing auth gate',loginApi.status===400&&/email|password/i.test(String(loginApiJson.error||'')),`status=${loginApi.status} body=${JSON.stringify(loginApiJson)}`);
+
   const health=await req('/api/vgroup/health');
   const healthJson=await health.json().catch(()=>({}));
   check('Group health fails closed against CI placeholder database',health.status===503&&healthJson.isolated===true,`status=${health.status} body=${JSON.stringify(healthJson)}`);
@@ -29,11 +33,10 @@ try{
   }
 
   const marketing=await req('/group/marketing');
-  const marketingText=await marketing.text();
-  check('Marketing dry-run page never exposes an anonymous authenticated cutover',marketing.status!==200||/login|disabled|not authorized|integration|ready/i.test(marketingText),`status=${marketing.status}`);
+  check('Anonymous Marketing integration page uses Group login boundary',marketing.status===307&&String(marketing.headers.get('location')||'').includes('/group/login'),`status=${marketing.status} location=${marketing.headers.get('location')}`);
 
   const selector=await req('/group');
-  check('Anonymous Group selector does not return an authenticated business selector',selector.status!==200||String(selector.headers.get('location')||'').includes('/group/login'),`status=${selector.status} location=${selector.headers.get('location')}`);
+  check('Anonymous Group selector uses Group login boundary',selector.status===307&&String(selector.headers.get('location')||'').includes('/group/login'),`status=${selector.status} location=${selector.headers.get('location')}`);
 }catch(error){check('Vivit Group runtime smoke runner completed',false,String(error));}
 const failed=checks.filter(c=>!c.ok);
 const evidence={base,total:checks.length,passed:checks.length-failed.length,failed:failed.length,checks};

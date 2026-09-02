@@ -8,7 +8,7 @@ const checks=[
   ['consolidated finance snapshot is rendered',/board_finance_snapshot/.test(page)&&/Month revenue/.test(page)&&/YTD net/.test(page)],
   ['per-unit board drilldown exists',/Business-unit performance/.test(page)&&/marketing/.test(page)&&/hospitality/.test(page)&&/tech/.test(page)],
   ['board governance UI exists',/BOARD DECISIONS/.test(page)&&/BOARD ACTION TRACKER/.test(page)&&/BoardControls/.test(page)],
-  ['board API is super-admin gated',/requireGroupSuperAdmin\(\)/.test(api)],
+  ['board API is super-admin gated',/requireApiGroupSuperAdmin\(\)/.test(api)],
   ['board API is non-cacheable',/Cache-Control/.test(api)&&/no-store/.test(api)],
   ['decision lifecycle actions exist',/decision_create/.test(api)&&/decision_status/.test(api)],
   ['action-item lifecycle exists',/action_create/.test(api)&&/action_status/.test(api)],

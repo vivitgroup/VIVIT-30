@@ -16,8 +16,8 @@ const asArray=(value:unknown):unknown[]=>Array.isArray(value)?value:[];
 const clamp=(value:number,min:number,max:number)=>Math.max(min,Math.min(max,value));
 
 const MODELS:ModelSpec[]=[
-  {model:"openai/gpt-5.6-sol",quality:99,cost:78,latency:52,tasks:["general","reasoning","research","finance","coding","arabic"],providerOrder:["azure","openai"]},
-  {model:"anthropic/claude-opus-4.7",quality:98,cost:86,latency:62,tasks:["reasoning","research","creative","finance","coding","arabic"],providerOrder:["vertex","anthropic"]},
+  {model:"inclusionai/ling-3.0-flash-fin",quality:84,cost:0,latency:8,tasks:["general","reasoning","research","finance","creative","coding","arabic"]},
+  {model:"inclusionai/ling-3.0-flash-fin-free",quality:84,cost:0,latency:8,tasks:["general","reasoning","research","finance","creative","coding","arabic"]},
   {model:"google/gemini-3.6-flash",quality:91,cost:34,latency:18,tasks:["general","research","creative","coding","arabic"],providerOrder:["vertex","google"]},
   {model:"amazon/nova-2-lite",quality:80,cost:18,latency:20,tasks:["general","creative","research"]},
   {model:"mistral/mistral-medium-3.5",quality:88,cost:39,latency:28,tasks:["general","reasoning","creative","arabic"]},
@@ -27,6 +27,14 @@ const MODELS:ModelSpec[]=[
   {model:"zai/glm-5.2",quality:90,cost:28,latency:34,tasks:["general","reasoning","research","coding","arabic"]},
   {model:"alibaba/qwen3-max-thinking",quality:92,cost:33,latency:38,tasks:["reasoning","research","finance","coding","arabic"]},
 ];
+
+// Production defaults to models that the live Vercel catalog marks Free for
+// both input and output. Keep the wider route registry for explicitly funded
+// deployments, but never send a paid model from the no-billing path.
+const FREE_GATEWAY_MODELS=[
+  "inclusionai/ling-3.0-flash-fin",
+  "inclusionai/ling-3.0-flash-fin-free",
+] as const;
 
 const STRATEGIES:Strategy[]=["balanced","reasoning","fast","cost","resilient"];
 export const VIVITO_GATEWAY_ROUTES:GatewayRoute[]=MODELS.flatMap(spec=>STRATEGIES.map(strategy=>({
@@ -78,7 +86,7 @@ function markSuccess(routeId:string,latencyMs:number,modelId:string){const h=hea
 
 export async function generateViaGatewayIntelligentMesh(prompt:string,system:string,token:string,options:GenerateOptions={}){
   if(!token)throw new Error("gateway-not-configured");
-  const task=options.task||"general",models=gatewayModelOrder(task,10),primary=models[0];if(!primary)throw new Error("gateway-route-pool-empty");
+  const task=options.task||"general",models=Array.from({length:10},(_,index)=>FREE_GATEWAY_MODELS[index%FREE_GATEWAY_MODELS.length]),primary=models[0];if(!primary)throw new Error("gateway-route-pool-empty");
   const route=bestRouteForModel(primary,task);const started=Date.now();
   const gatewayOptions:JsonRecord={models};if(route?.providerOrder?.length)gatewayOptions.order=route.providerOrder;
   const body:JsonRecord={model:primary,models,messages:[{role:"system",content:system},{role:"user",content:prompt}],stream:false,max_tokens:options.maxTokens||3200,providerOptions:{gateway:gatewayOptions}};

@@ -1,24 +1,24 @@
 "use client";
-import {useEffect} from "react";
+import {useEffect,useState} from "react";
 
-/**
- * Dashboard UI language contract.
- * The ERP shell is intentionally English-only. VIVITO still understands and
- * answers Arabic/Franco inside its own conversation surface; user/VIVITO
- * content is never rewritten by this runtime.
- *
- * Legacy audit vocabulary retained until the action QA is renamed:
- * [data-user-content] [data-vivito-message] aria-label attributeFilter
- * "Pipeline Board" "Daily Budget" "Ledger Revenue" "Payroll" "Workspace Settings"
- */
+type Lang="en"|"ar";
+const AR:Record<string,string>={
+  "Dashboard":"لوحة التحكم","Today":"اليوم","Clients":"العملاء","Active Clients":"العملاء النشطون","Sales CRM":"إدارة المبيعات","WhatsApp":"واتساب","Media Buying":"إدارة الإعلانات","Creative Tasks":"المهام الإبداعية","Tasks Inbox":"صندوق المهام","Finance":"المالية","Analytics":"التحليلات","HR & Team":"الفريق والموارد البشرية","AI Studio":"استوديو الذكاء الاصطناعي","Settings":"الإعدادات","Reports":"التقارير","Notifications":"الإشعارات","Files & Documents":"الملفات والمستندات","Calendar":"التقويم","Contracts":"العقود","Archive":"الأرشيف","Search...":"بحث...","Sign Out":"تسجيل الخروج","Export CSV":"تصدير CSV","Appearance":"المظهر","Theme":"المظهر","Light":"فاتح","Dark":"داكن","Task Reminders":"تذكيرات المهام","Session":"الجلسة",
+  "Active leads":"العملاء المحتملون النشطون","Weighted pipeline":"قيمة المبيعات المتوقعة","Total won":"إجمالي الصفقات الناجحة","Win rate":"نسبة النجاح","Pipeline Board":"مسار المبيعات","New":"جديد","Contacted":"تم التواصل","Qualified":"مؤهل","Proposal":"عرض سعر","Negotiation":"تفاوض","Won":"تم الفوز","Lost":"مفقود","Active":"نشط","No leads":"لا توجد فرص","+ New Lead":"+ عميل محتمل جديد","Add New Lead":"إضافة عميل محتمل","Company Name *":"اسم الشركة *","Contact Person *":"جهة الاتصال *","Lead Source":"مصدر العميل","Add to Pipeline":"إضافة لمسار المبيعات","All Leads":"كل العملاء المحتملين","Company":"الشركة","Contact":"جهة الاتصال","Value":"القيمة","Stage":"المرحلة","Source":"المصدر","Updated":"آخر تحديث","No contact":"لا توجد جهة اتصال","Phone not added":"لم يتم إضافة الهاتف","Phone":"الهاتف","Notes":"ملاحظات","Save Contact & Notes":"حفظ الهاتف والملاحظات","Archive Lead":"أرشفة الفرصة","Converted to client":"تم التحويل إلى عميل",
+  "Active Tasks":"المهام النشطة","Overdue":"متأخر","Awaiting Review":"بانتظار المراجعة","Needs Revision":"يحتاج تعديل","Priority":"الأولوية","Deadline":"الموعد النهائي","Status":"الحالة","Create":"إنشاء","Save":"حفظ","Save changes":"حفظ التغييرات","Update":"تحديث","Delete":"حذف","Edit":"تعديل","Open":"فتح","View":"عرض","Download":"تنزيل","Upload":"رفع","Close":"إغلاق","Back":"رجوع","Next":"التالي","Name":"الاسم","Email":"البريد الإلكتروني","Industry":"المجال","Category":"التصنيف","Amount":"المبلغ","Date":"التاريخ","Description":"الوصف","Actions":"الإجراءات","No data yet":"لا توجد بيانات بعد","No results":"لا توجد نتائج","Loading...":"جارٍ التحميل...","Try again":"حاول مرة أخرى",
+  "Content Calendar":"تقويم المحتوى","Add Post":"إضافة منشور","All Platforms":"كل المنصات","All Clients":"كل العملاء","Scheduled":"مجدول","Posted":"تم النشر","Mark Posted":"تم النشر","Connected":"متصل","Not Connected":"غير متصل","Connect":"ربط","Authorize":"تفويض","Campaign sync":"مزامنة الحملات","New Client":"عميل جديد","Create client":"إنشاء عميل","Client Portal":"بوابة العميل","Client Lifetime Value":"القيمة الدائمة للعميل","Revenue Forecast":"توقع الإيرادات","KPIs & BI":"مؤشرات الأداء","Outstanding":"المستحق","Collected":"المُحصّل","Invoice History":"سجل الفواتير","Generate Invoice":"إنشاء فاتورة","Expense Quick-Log":"تسجيل مصروف سريع","Waiting for your review":"بانتظار مراجعتك","Upcoming deliverables":"التسليمات القادمة","Unread updates":"تحديثات غير مقروءة","Live media campaigns":"الحملات الإعلانية المباشرة","Creative review":"مراجعة التصميمات"
+};
+const originals=new WeakMap<Text,string>(),placeholderOriginals=new WeakMap<Element,string>();
+const excluded=(el:Element|null)=>!el||Boolean(el.closest(".va-panel,.search-overlay,[data-no-translate],script,style,code,pre,.vivit-lang-switch"));
+function dynamicTranslate(source:string){return source.replace(/(\d+) active leads\b/gi,"$1 عميل محتمل نشط").replace(/(\d+) active tasks\b/gi,"$1 مهمة نشطة").replace(/(\d+) overdue tasks\b/gi,"$1 مهمة متأخرة").replace(/(\d+) stale leads\b/gi,"$1 فرصة تحتاج متابعة").replace(/\bNo leads\b/g,"لا توجد فرص")}
+function translate(root:ParentNode,lang:Lang){
+ const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);let node:Node|null;
+ while((node=walker.nextNode())){const text=node as Text,parent=text.parentElement;if(excluded(parent))continue;if(!originals.has(text))originals.set(text,text.data);const source=originals.get(text)??text.data;if(lang==="en"){if(text.data!==source)text.data=source;continue}const trimmed=source.trim(),translated=AR[trimmed],next=translated?source.replace(trimmed,translated):dynamicTranslate(source);if(text.data!==next)text.data=next}
+ root.querySelectorAll?.("input[placeholder],textarea[placeholder]").forEach(el=>{if(excluded(el))return;const source=placeholderOriginals.get(el)||el.getAttribute("placeholder")||"";if(!placeholderOriginals.has(el))placeholderOriginals.set(el,source);el.setAttribute("placeholder",lang==="ar"?(AR[source]||source):source)})
+}
 export function DashboardLanguage(){
-  useEffect(()=>{
-    const root=document.querySelector<HTMLElement>(".app-main-shell");
-    try{localStorage.setItem("vivit-lang","en")}catch{}
-    document.documentElement.lang="en";
-    document.documentElement.dir="ltr";
-    document.documentElement.dataset.vivitLang="en";
-    if(root){root.dir="ltr";root.dataset.uiLanguage="en"}
-  },[]);
-  return null;
+ const [lang,setLang]=useState<Lang>("en");
+ useEffect(()=>{const root=document.querySelector<HTMLElement>(".app-main-shell");if(!root)return;let current:Lang=localStorage.getItem("vivit-lang")==="ar"?"ar":"en",raf=0;setLang(current);const apply=()=>{document.documentElement.lang=current;document.documentElement.dir=current==="ar"?"rtl":"ltr";document.documentElement.dataset.vivitLang=current;root.dir=current==="ar"?"rtl":"ltr";root.dataset.uiLanguage=current;translate(root,current)};const schedule=()=>{cancelAnimationFrame(raf);raf=requestAnimationFrame(apply)};const onLanguage=(event:Event)=>{const next=(event as CustomEvent<string>).detail;current=next==="ar"?"ar":"en";setLang(current);localStorage.setItem("vivit-lang",current);schedule()};const observer=new MutationObserver(()=>schedule());observer.observe(root,{subtree:true,childList:true});window.addEventListener("vivit-language",onLanguage);schedule();return()=>{cancelAnimationFrame(raf);observer.disconnect();window.removeEventListener("vivit-language",onLanguage)}},[]);
+ const change=(next:Lang)=>window.dispatchEvent(new CustomEvent("vivit-language",{detail:next}));
+ return <div className="vivit-lang-switch" data-no-translate style={{position:"fixed",right:16,bottom:74,zIndex:80,display:"flex",gap:4,padding:4,borderRadius:12,border:"1px solid var(--card-border)",background:"var(--card-bg)",boxShadow:"var(--shadow-md)"}} aria-label="Language switch"><button type="button" className={`btn btn-sm ${lang==="en"?"btn-primary":"btn-ghost"}`} onClick={()=>change("en")} aria-pressed={lang==="en"}>EN</button><button type="button" className={`btn btn-sm ${lang==="ar"?"btn-primary":"btn-ghost"}`} onClick={()=>change("ar")} aria-pressed={lang==="ar"}>عربي</button></div>
 }

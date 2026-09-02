@@ -148,13 +148,20 @@ jobs:
       - name: Initialize isolated database schema
         run: npx drizzle-kit push --force
 
+      - name: Pull Vercel project settings only
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          npx --yes vercel@latest pull --yes --environment=production --token="$VERCEL_TOKEN" --scope=vivit-s-projects >/dev/null
+          test -f .vercel/project.json
+          rm -f .vercel/.env.production.local .vercel/.env.preview.local .vercel/.env.development.local .env.local
+
       - name: Build exact main prebuilt artifact
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
           set -euo pipefail
-          npx --yes vercel@latest link --yes --project vivit-erp --token="$VERCEL_TOKEN" --scope=vivit-s-projects >/dev/null
-          rm -f .vercel/.env.production.local .vercel/.env.preview.local .vercel/.env.development.local
           npx --yes vercel@latest build --prod --token="$VERCEL_TOKEN" --scope=vivit-s-projects
 
       - name: Deploy exact prebuilt artifact to production

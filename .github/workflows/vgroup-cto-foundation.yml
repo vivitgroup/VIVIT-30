@@ -17,6 +17,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -61,11 +63,13 @@ jobs:
       - name: Deep Vivit Group source audit
         run: node scripts/qa-vgroup-deep-code-audit.mjs
       - name: Scoped Vivit Group ESLint
-        run: npx eslint proxy.ts app/group app/api/vgroup lib/vgroup components/vgroup --max-warnings=0
+        run: npx eslint proxy.ts app/group app/api/vgroup lib/vgroup components/vgroup lib/group-handoff.ts app/api/integrations/vgroup-handoff --max-warnings=0
       - name: Accounting integration contract regression
         run: node scripts/qa-vgroup-accounting-integration-contract.mjs
       - name: Marketing integration readiness regression
         run: node scripts/qa-vgroup-marketing-integration.mjs
+      - name: Unified brutal production certification
+        run: node scripts/qa-vgroup-unified-production-brutal.mjs
       - name: Release readiness and rollback prerequisites
         run: node scripts/qa-vgroup-release-readiness.mjs
       - name: Pre-integration CTO acceptance contract
@@ -81,10 +85,13 @@ jobs:
           VGROUP_SUPABASE_SERVICE_KEY: vgroup-ci-service-key-not-a-secret
           VGROUP_AUTH_SECRET: vgroup-ci-auth-secret-not-a-secret-32chars
           VGROUP_ENVIRONMENT: ci
+          VGROUP_MARKETING_INTEGRATION_ENABLED: "false"
+          VGROUP_MARKETING_CANDIDATE_SHA: 9817ec42750b17104c5292eb2ec4d02358b53290
           DATABASE_URL: postgresql://marketing_ci:marketing_ci@127.0.0.1:5432/marketing_ci
           SUPABASE_URL: https://marketing-ci.invalid
           SUPABASE_SERVICE_KEY: marketing-ci-service-key-not-a-secret
           AUTH_SECRET: marketing-ci-auth-secret-not-a-secret-32chars
+          VGROUP_MARKETING_HANDOFF_RECEIVER_ENABLED: "false"
         run: npx next build
       - name: Start built candidate for runtime smoke
         env:
@@ -94,11 +101,12 @@ jobs:
           VGROUP_AUTH_SECRET: vgroup-ci-auth-secret-not-a-secret-32chars
           VGROUP_ENVIRONMENT: ci
           VGROUP_MARKETING_INTEGRATION_ENABLED: "false"
-          VGROUP_MARKETING_CANDIDATE_SHA: b66542a3cfee8d5d54299450e8bc6a79b2a51062
+          VGROUP_MARKETING_CANDIDATE_SHA: 9817ec42750b17104c5292eb2ec4d02358b53290
           DATABASE_URL: postgresql://marketing_ci:marketing_ci@127.0.0.1:5432/marketing_ci
           SUPABASE_URL: https://marketing-ci.invalid
           SUPABASE_SERVICE_KEY: marketing-ci-service-key-not-a-secret
           AUTH_SECRET: marketing-ci-auth-secret-not-a-secret-32chars
+          VGROUP_MARKETING_HANDOFF_RECEIVER_ENABLED: "false"
         run: |
           (npx next start -p 3000 > /tmp/vgroup-next.log 2>&1 & echo $! > /tmp/vgroup-next.pid)
           for i in {1..30}; do

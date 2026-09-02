@@ -1,6 +1,7 @@
 // Matches prisma schema - use this when @prisma/client isn't generated yet
 export enum Role {
   SUPER_ADMIN = "SUPER_ADMIN",
+  HR = "HR",
   ACCOUNTANT = "ACCOUNTANT",
   ACCOUNT_MANAGER = "ACCOUNT_MANAGER",
   MEDIA_BUYER = "MEDIA_BUYER",

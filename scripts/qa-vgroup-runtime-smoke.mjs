@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 const base=(process.env.BASE_URL||'http://127.0.0.1:3000').replace(/\/$/,'');
 const checks=[];
 const check=(name,ok,detail='')=>checks.push({name,ok:Boolean(ok),detail});
@@ -35,6 +36,8 @@ try{
   check('Anonymous Group selector does not return an authenticated business selector',selector.status!==200||String(selector.headers.get('location')||'').includes('/group/login'),`status=${selector.status} location=${selector.headers.get('location')}`);
 }catch(error){check('Vivit Group runtime smoke runner completed',false,String(error));}
 const failed=checks.filter(c=>!c.ok);
+const evidence={base,total:checks.length,passed:checks.length-failed.length,failed:failed.length,checks};
+fs.writeFileSync('/tmp/vgroup-runtime-smoke.json',JSON.stringify(evidence,null,2));
 for(const c of checks)console.log(`${c.ok?'PASS':'FAIL'}  ${c.name}${c.detail?` — ${c.detail}`:''}`);
 console.log(`\n${checks.length-failed.length}/${checks.length} Vivit Group runtime smoke checks passed.`);
 if(failed.length)process.exit(1);

@@ -1,0 +1,28 @@
+name: Live E2E Remediation Certification
+
+on:
+  push:
+    branches:
+      - fix/live-e2e-17-20260902
+
+permissions:
+  contents: read
+
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install exact lockfile
+        run: npm ci
+      - name: Dependency high-critical gate
+        run: npm audit --audit-level=high
+      - name: TypeScript exact-head gate
+        run: npx tsc --noEmit
+      - name: Next production compile
+        run: npx next build

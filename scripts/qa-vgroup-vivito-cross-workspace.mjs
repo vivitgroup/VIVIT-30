@@ -4,7 +4,7 @@ const registry=read("lib/vgroup/vivito-cross-workspace.ts");
 const executor=read("lib/vgroup/vivito-execution.ts");
 const tasks=read("app/api/vgroup/vivito/tasks/route.ts");
 const decision=read("app/api/vgroup/vivito/tasks/[id]/decision/route.ts");
-const marketingBridge=read("app/api/vgroup/vivito/marketing/route.ts");
+const marketingBridge=read("app/api/integrations/vgroup-vivito-marketing/route.ts");
 const marketingIdentity=read("lib/group-handoff.ts");
 const marketingIntegration=read("lib/vgroup/marketing-integration.ts");
 const panel=read("components/vgroup/vivito-control-panel.tsx");
@@ -16,8 +16,9 @@ const marketing=read("app/group/marketing/page.tsx");
 const groupLayout=read("app/group/command-center/layout.tsx");
 const checks=[
  ["Four workspace registry",["group","marketing","hospitality","tech"].every(x=>registry.includes(`workspace:"${x}"`))],
- ["Marketing execution defaults fail closed",registry.includes('marketingEnabled=process.env.VGROUP_MARKETING_INTEGRATION_ENABLED==="true"')&&registry.includes('endpoint:marketingEnabled?"/api/vgroup/vivito/marketing":null')&&tasks.includes('INTEGRATION_REQUIRED')],
- ["Marketing source drift guard",marketingIntegration.includes('VGROUP_MARKETING_PINNED_SHA')===false&&marketingIntegration.includes('VGROUP_PINNED_MARKETING_SHA')&&marketingIntegration.includes('9817ec42750b17104c5292eb2ec4d02358b53290')&&marketingIntegration.includes('re-certification required')],
+ ["Marketing execution defaults fail closed",registry.includes('marketingEnabled=process.env.VGROUP_MARKETING_INTEGRATION_ENABLED==="true"')&&registry.includes('endpoint:marketingEnabled?"/api/integrations/vgroup-vivito-marketing":null')&&tasks.includes('INTEGRATION_REQUIRED')],
+ ["Marketing adapter stays outside VGroup API namespace",fs.existsSync("app/api/integrations/vgroup-vivito-marketing/route.ts")&&!fs.existsSync("app/api/vgroup/vivito/marketing/route.ts")],
+ ["Marketing source drift guard",marketingIntegration.includes('VGROUP_PINNED_MARKETING_SHA')&&marketingIntegration.includes('9817ec42750b17104c5292eb2ec4d02358b53290')&&marketingIntegration.includes('re-certification required')],
  ["Marketing bridge revalidates Group and Marketing identity",marketingBridge.includes('canAccessBusinessUnit(session,"marketing")')&&marketingBridge.includes('authorizeGroupHandoff')&&marketingIdentity.includes('approval_status!=="APPROVED"')&&marketingIdentity.includes('verifyWorkspace')],
  ["Marketing handoff is short-lived and single-use",marketingIntegration.includes('exp:now+45')&&marketingIdentity.includes('c.exp-c.iat>60')&&marketingIdentity.includes('handoff_replay_detected')],
  ["Marketing bridge task receipt is idempotent",marketingBridge.includes('vivito:vgroup:${taskId}')&&marketingBridge.includes('on conflict (id) do nothing')&&marketingBridge.includes('MARKETING_TASK_ALREADY_CLAIMED')],

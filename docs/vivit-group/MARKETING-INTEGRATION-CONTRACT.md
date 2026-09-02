@@ -1,89 +1,107 @@
-# Vivit Marketing Integration Contract
+# Vivit Marketing + Vivit Group Unified Integration Contract
 
-Status: RECEIVER CERTIFIED / PRODUCTION CUTOVER DISABLED
+Status: UNIFIED CANDIDATE ASSEMBLED / PRODUCTION CUTOVER DISABLED
 
-This contract prepares the isolated Vivit Group ERP to adopt the existing Vivit Marketing ERP as the `marketing` business unit without mutating Marketing production before the final approved cutover.
+This contract governs the one-production integration of Vivit Group, Vivit Marketing, Vivit Technology and Vivit Hospitality in a single application deployment while preserving strict datastore, credential and authorization boundaries.
 
-## Pinned candidates
+## Pinned source and candidate
 
-- Group integration branch: `integration/vgroup-marketing-dry-run`
-- Marketing base candidate branch: `feat/vivito-internal-100`
-- Marketing base SHA: `b66542a3cfee8d5d54299450e8bc6a79b2a51062`
-- Marketing receiving-bridge branch: `integration/marketing-group-handoff`
-- Fully certified Marketing receiving-bridge SHA: `3fc3f24b991fbc1f9b9802d7196d37910393226c`
+- Unified integration branch: `integration/vgroup-marketing-dry-run`
+- Latest certified Marketing/Vivito source branch at integration time: `main`
+- Marketing/Vivito source SHA: `9817ec42750b17104c5292eb2ec4d02358b53290`
+- Final production candidate: the exact HEAD of the unified integration branch after all integration fixes and audit gates complete.
 
-The receiving bridge is derived from the pinned Marketing base candidate. It passed the dedicated Group-handoff certification and the full VIVITO Internal 100 certification on the same exact SHA. If this receiving-bridge SHA changes, this contract must be re-certified before cutover.
+The Marketing source SHA is a drift guard. If `main` moves after the source SHA above, the unified candidate must be compared and re-certified before production.
 
-## Existing Marketing auth contract
+## One-production architecture
 
-Marketing uses Auth.js / NextAuth JWT sessions with live revalidation against the Marketing database. The session contract carries user identity plus role(s), permissions, `workspaceId`, and `authValid`. Marketing credentials and database remain independent from Vivit Group credentials before cutover.
+The final application is deployed once from one exact unified commit. The same deployment exposes the Group selector, Group Board Control Center, Marketing ERP, Technology, Hospitality and Vivito.
 
-The certified receiving bridge adds a dedicated Auth.js `group-handoff` provider. The provider does not replace password authentication and does not trust Group-supplied Marketing role/workspace claims. It resolves the Marketing user by normalized email, validates the user and workspace against Marketing, then the existing JWT callback continues live revalidation.
+One production does **not** mean one database or one auth secret. The following remain isolated:
 
-## Final architecture
+- Vivit Group database and Group service credentials.
+- Marketing database and Marketing service credentials.
+- Group auth secret and Marketing/Auth.js secret.
+- Group storage and Marketing storage.
+- OAuth/provider credentials.
 
-The Group shell remains the entry point. `marketing` is exposed as one authorized business unit beside `hospitality` and `tech`.
+No runtime may silently fall back from Group credentials to Marketing credentials or vice versa.
 
-The integration does not copy Marketing production data into the Group database merely to make navigation work. Marketing remains its own bounded datastore initially. The Group layer supplies identity/business-unit authorization and a short-lived server-side handoff; Marketing continues to enforce its own live role/workspace checks until a later separately-certified identity consolidation is approved.
+## Group → Marketing identity bridge
 
-## Certified handoff properties
+The Group shell remains the universal entry point. Marketing entry requires active Group `marketing` business-unit membership and a certified integration flag.
 
-- HMAC-SHA256 assertion with a dedicated secret.
-- Assertion lifetime <=60 seconds; Group currently emits 45-second assertions.
-- Unique nonce for every assertion.
-- Marketing persists only a SHA-256 nonce hash for replay protection.
-- Nonce store has a primary key and RLS; replay insert is rejected.
-- Assertion is accepted by POST body only; GET consumption is rejected.
-- Exact Group browser origin allowlist on the Marketing receiver.
-- Normalized-email user lookup.
+The handoff uses:
+
+- HMAC-SHA256 with a dedicated secret.
+- Assertion lifetime of 45 seconds and hard maximum of 60 seconds.
+- Unique nonce per assertion.
+- SHA-256 nonce hash persisted in the Marketing database.
+- Single-use nonce enforcement by primary-key conflict.
+- POST-only browser receiver; GET consumption is rejected.
+- Exact production origin allowlist.
+- Normalized-email Marketing user lookup.
 - Marketing user must be active and `APPROVED`.
-- Marketing role must be a valid Marketing role.
 - Marketing workspace must exist and be active.
+- Marketing role is resolved from Marketing itself; Group never supplies trusted Marketing role/workspace claims.
 - No automatic Marketing account creation.
-- Receiver and Group integration flags are disabled by default.
 - Failure is fail-closed.
 
-## Mandatory production cutover gates
+## Vivito cross-workspace execution
 
-1. The Marketing receiving-bridge SHA still equals `3fc3f24b991fbc1f9b9802d7196d37910393226c`, or a new compatibility certification is produced.
-2. Group exact-head CTO workflow is green while pinned to that receiving-bridge SHA.
-3. Group Supabase security advisor is clean.
-4. Group/Marketing database, service-key, auth-secret and storage credentials remain different.
-5. Marketing user lookup remains deterministic by normalized email; no automatic account creation is allowed during first cutover.
-6. Group user must have active `marketing` business-unit access before handoff.
-7. Marketing user must independently be active and `APPROVED`, with a valid workspace and role, before a Marketing session is issued.
-8. Handoff assertion lifetime remains at most 60 seconds, has a unique nonce, is single-use, and is never accepted from a query-string replay.
-9. The bridge secret is dedicated to this integration and must not equal Group or Marketing auth secrets.
-10. Failure in the bridge fails closed; it must not fall back to password bypass, shared cookies, or shared database credentials.
-11. Production must receive the handoff nonce migration before the receiver flag is enabled.
-12. The Marketing receiver endpoint and Group origin must use the exact production origins selected for cutover.
-13. No Marketing storage mutation, OAuth callback mutation, production branch merge, hosting action, or deployment action is authorized by this document.
-14. Actual production mutation requires explicit production cutover approval after the exact candidate SHAs are rechecked.
+Vivito is visible in Group, Marketing, Technology and Hospitality. Its execution layer is allowlisted and audited.
 
-## Identity mapping
+For Marketing execution from Group:
 
-Group source claims:
+1. Group session must have active Marketing business-unit access.
+2. Group creates a short-lived signed assertion from the authenticated Group identity.
+3. The Marketing verifier validates signature, expiry, identity, Marketing user status, workspace, role and consumes a single-use nonce.
+4. The requested action must exist in the Marketing `VIVITO_ACTION_CATALOG`.
+5. Marketing approval-policy / role checks remain authoritative.
+6. The outer Group Vivito task remains approval-gated for sensitive actions.
+7. `X-Vivito-Task-Id` is used to claim a Marketing audit receipt so the same bridged task cannot execute twice.
+8. Results returned to Group are stored only through the Group Vivito redacted task ledger.
 
-- `sub`: Group user UUID
-- `email`: normalized email
-- `name`: display name
-- `business_unit`: `marketing`
-- `iat`, `exp`
-- `nonce`
+Arbitrary URLs, SQL, provider names or unregistered action names are never accepted from the user as execution targets.
 
-Marketing destination identity is resolved by normalized email. Marketing remains authoritative for its own `role`, `roles`, `permissions`, `workspaceId`, `is_active`, and `approval_status` at session issuance time.
+## Default-disabled cutover controls
 
-The handoff never trusts Group-supplied Marketing role or workspace claims.
+These flags must remain disabled during certification:
+
+- `VGROUP_MARKETING_INTEGRATION_ENABLED=false`
+- `VGROUP_MARKETING_HANDOFF_RECEIVER_ENABLED=false`
+
+They may be enabled only after the exact unified candidate has passed every production gate below.
+
+## Mandatory pre-production gates
+
+1. Marketing source SHA still equals `9817ec42750b17104c5292eb2ec4d02358b53290`, or a fresh source-drift review is completed.
+2. Exact unified HEAD passes the full Vivit Group CTO workflow.
+3. Exact unified HEAD passes the dedicated unified brutal production audit.
+4. Marketing/Vivito certification relevant to the merged source remains green or is re-run on the unified candidate where applicable.
+5. TypeScript, scoped ESLint and production compilation are green on the exact same HEAD.
+6. Built-artifact runtime smoke is green on the exact same HEAD.
+7. Group Supabase security advisor is clean.
+8. Marketing Supabase security advisor is clean after the nonce migration is applied.
+9. Group/Marketing database URLs, service keys, auth secrets and storage credentials remain distinct.
+10. `group_handoff_nonces` migration is applied to Marketing before the receiver flag is enabled.
+11. The handoff secret is dedicated, >=32 bytes and differs from both auth secrets.
+12. `VGROUP_GROUP_ORIGIN`, `VGROUP_MARKETING_HANDOFF_URL` and the final deployment origin match exactly.
+13. Rollback commit and database rollback boundaries are documented before cutover.
+14. No unresolved high/critical dependency vulnerability, security-advisor error, failed QA gate, schema drift or runtime smoke failure remains.
+15. Production deployment is one shot from the certified unified HEAD only; no older Group or Marketing SHA may be deployed afterward.
 
 ## Rollback boundary
 
-Before final cutover the Marketing card stays disabled. During cutover, enablement is controlled by `VGROUP_MARKETING_INTEGRATION_ENABLED=true` only after the receiving Marketing bridge is deployed and `VGROUP_MARKETING_HANDOFF_RECEIVER_ENABLED=true` is explicitly enabled on Marketing. Rollback is immediate disablement of both flags plus restoration of the previous certified Group and Marketing SHAs. Marketing business data is not rolled back because the bridge does not migrate Marketing business data.
+Fast rollback is disabling both integration flags. Application rollback restores the immediately previous certified application commit. Group and Marketing business data are not bulk-copied during integration, so rollback does not require destructive cross-database reversal.
 
-## Explicitly outside this cutover
+The nonce table is additive and safe to leave in place during rollback.
 
-- Merging Marketing and Group databases.
-- Replacing Marketing authorization with Group roles.
-- Moving Marketing storage.
-- Reconfiguring Marketing OAuth integrations.
-- Any Vercel action.
-- Production deployment/hosting decisions unless separately authorized.
+## Explicitly not part of this integration
+
+- Physically merging the Group and Marketing databases.
+- Sharing auth/session secrets between systems.
+- Moving Marketing storage into Group storage.
+- Reconfiguring external OAuth provider ownership unless separately certified.
+- Bypassing Marketing permissions because the caller came from Group.
+- Any Vercel deployment or Vercel-specific release path.

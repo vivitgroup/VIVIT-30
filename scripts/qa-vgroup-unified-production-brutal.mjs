@@ -22,6 +22,7 @@ const vivitoTasks=read("app/api/vgroup/vivito/tasks/route.ts");
 const vivitoDecision=read("app/api/vgroup/vivito/tasks/[id]/decision/route.ts");
 const vivitoPanel=read("components/vgroup/vivito-control-panel.tsx");
 const nonceMigration=read("db/migrations/20260902_marketing_group_handoff_nonce.sql");
+const nonceDenyMigration=read("db/migrations/20260902_marketing_group_handoff_nonce_deny_policies.sql");
 const workflow=read(".github/workflows/vgroup-cto-foundation.yml");
 
 let sourceAncestor=false;
@@ -38,6 +39,7 @@ check("Handoff signature uses timing-safe HMAC verification",verifier.includes('
 check("Marketing identity is revalidated live",verifier.includes('approval_status!=="APPROVED"')&&verifier.includes("verifyWorkspace")&&verifier.includes("isRole(user.role)"));
 check("Handoff replay is single-use",verifier.includes("createHash(\"sha256\")")&&verifier.includes("handoff_replay_detected")&&nonceMigration.includes("nonce_hash text primary key"));
 check("Nonce table denies direct client access",nonceMigration.includes("enable row level security")&&nonceMigration.includes("revoke all on table group_handoff_nonces from anon")&&nonceMigration.includes("revoke all on table group_handoff_nonces from authenticated"));
+check("Nonce deny policies are canonicalized",nonceDenyMigration.includes("group_handoff_nonces_anon_deny")&&nonceDenyMigration.includes("group_handoff_nonces_authenticated_deny")&&nonceDenyMigration.includes("using (false) with check (false)"));
 check("Cross-boundary adapter is outside VGroup API namespace",fs.existsSync(path.join(root,"app/api/integrations/vgroup-vivito-marketing/route.ts"))&&!fs.existsSync(path.join(root,"app/api/vgroup/vivito/marketing/route.ts")));
 check("Vivito Marketing bridge requires Group Marketing membership",bridge.includes('canAccessBusinessUnit(session,"marketing")'));
 check("Vivito Marketing bridge reuses signed identity boundary",bridge.includes("createMarketingHandoffAssertion")&&bridge.includes("authorizeGroupHandoff"));
@@ -59,4 +61,4 @@ const tsNoCheck=sourceFiles.filter(f=>fs.readFileSync(f,"utf8").includes("@ts-no
 check("No TypeScript nocheck shields in unified critical runtime",tsNoCheck.length===0);
 
 if(failures.length){console.error(`Unified production brutal audit FAILED: ${failures.length} control(s)`);process.exit(1)}
-console.log(`Unified production brutal audit PASSED: 25/25 controls across ${sourceFiles.length} critical runtime files`);
+console.log(`Unified production brutal audit PASSED: 26/26 controls across ${sourceFiles.length} critical runtime files`);

@@ -1,0 +1,63 @@
+name: Prelive Vercel DB Credential Sync
+
+on:
+  push:
+    branches:
+      - ops/prelive-backup-2026-09-02
+    paths:
+      - .github/workflows/prelive-vercel-db-sync.yml
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    env:
+      VERCEL_ORG_ID: team_7bnFfb65k7YtwywgLu2vtN1R
+      VERCEL_PROJECT_ID: prj_Tgvk58HLEYlXHepCoUfNEUKfMqig
+    steps:
+      - name: Require protected credentials
+        env:
+          PROD_DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$PROD_DATABASE_URL"
+          test -n "$VERCEL_TOKEN"
+
+      - name: Validate production database credential
+        env:
+          PROD_DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          result="$(psql "$PROD_DATABASE_URL" -v ON_ERROR_STOP=1 -Atqc 'select 1')"
+          test "$result" = "1"
+
+      - name: Validate Vercel token and link project
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          npx --yes vercel@latest whoami --token="$VERCEL_TOKEN" >/dev/null
+          npx --yes vercel@latest pull --yes --environment=production --token="$VERCEL_TOKEN" --scope=vivit-s-projects >/dev/null
+
+      - name: Sync DATABASE_URL to Vercel production
+        env:
+          PROD_DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$PROD_DATABASE_URL" | npx --yes vercel@latest env add DATABASE_URL production --force --sensitive --token="$VERCEL_TOKEN" --scope=vivit-s-projects
+          printf '%s' "$PROD_DATABASE_URL" | npx --yes vercel@latest env add DRIZZLE_DATABASE_URL production --force --sensitive --token="$VERCEL_TOKEN" --scope=vivit-s-projects
+
+      - name: Verify production env names are present
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          npx --yes vercel@latest env ls production --token="$VERCEL_TOKEN" --scope=vivit-s-projects | tee env-names.txt
+          grep -q 'DATABASE_URL' env-names.txt
+          grep -q 'DRIZZLE_DATABASE_URL' env-names.txt

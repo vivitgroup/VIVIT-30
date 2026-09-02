@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {requireVGroupSession} from "@/lib/vgroup/session";
 
+// Production release trigger: no runtime behavior change.
 type UnitCard = {
   code: "group" | "marketing" | "hospitality" | "tech";
   title: string;

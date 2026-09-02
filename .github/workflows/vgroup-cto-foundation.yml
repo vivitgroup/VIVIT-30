@@ -50,6 +50,8 @@ jobs:
         run: node scripts/qa-vgroup-hospitality-airbnb.mjs
       - name: Hospitality strict property context regression
         run: node scripts/qa-vgroup-hospitality-property-context.mjs
+      - name: Vivito cross-workspace execution regression
+        run: node scripts/qa-vgroup-vivito-cross-workspace.mjs
       - name: Tech operating system regression
         run: node scripts/qa-vgroup-tech-operating-system.mjs
       - name: Operating expansion regression

@@ -1,7 +1,8 @@
 import {createHmac,randomUUID} from "node:crypto";
 import type {VGroupSession} from "@/lib/vgroup/session";
 
-export const VGROUP_PINNED_MARKETING_SHA="b66542a3cfee8d5d54299450e8bc6a79b2a51062";
+export const VGROUP_MARKETING_BASE_SHA="b66542a3cfee8d5d54299450e8bc6a79b2a51062";
+export const VGROUP_PINNED_MARKETING_SHA="3fc3f24b991fbc1f9b9802d7196d37910393226c";
 
 export type MarketingIntegrationState={
   enabled:boolean;

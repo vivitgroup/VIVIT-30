@@ -1,0 +1,36 @@
+import Link from "next/link";
+import {notFound} from "next/navigation";
+import {requireBusinessUnitAccess} from "@/lib/vgroup/access";
+import {getVGroupSql} from "@/lib/vgroup/db";
+
+export const dynamic="force-dynamic";
+const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const money=(value:number)=>new Intl.NumberFormat("en-EG",{style:"currency",currency:"EGP",maximumFractionDigits:0}).format(value||0);
+
+export default async function PropertyDashboard({params}:{params:Promise<{id:string}>}){
+  await requireBusinessUnitAccess("hospitality");
+  const {id}=await params;if(!uuid.test(id))notFound();
+  const sql=getVGroupSql();
+  const [property]=await sql<{id:string;name:string;property_type:string;city:string|null;country:string;bedrooms:number;bathrooms:number;max_guests:number;status:string;owner_name:string|null}[]>`select p.id::text,p.name,p.property_type,p.city,p.country,p.bedrooms,p.bathrooms,p.max_guests,p.status,o.full_name owner_name from hospitality.properties p left join hospitality.owners o on o.id=p.owner_id where p.id=${id}::uuid and p.archived_at is null limit 1`;
+  if(!property)notFound();
+  const [stats]=await sql<{reservations:number;upcoming:number;open_work_orders:number;open_invoices:number;gross_revenue:number;owner_net:number;expenses:number}[]>`select
+    (select count(*)::int from hospitality.reservations where property_id=${id}::uuid and archived_at is null) reservations,
+    (select count(*)::int from hospitality.reservations where property_id=${id}::uuid and archived_at is null and check_in>=current_date and status not in ('cancelled','no_show')) upcoming,
+    (select count(*)::int from hospitality.work_orders where property_id=${id}::uuid and archived_at is null and status not in ('completed','cancelled')) open_work_orders,
+    (select count(*)::int from hospitality.invoices where property_id=${id}::uuid and archived_at is null and status not in ('paid','void','rejected')) open_invoices,
+    (select coalesce(sum(gross_amount),0)::numeric from hospitality.reservations where property_id=${id}::uuid and archived_at is null and status not in ('cancelled','no_show')) gross_revenue,
+    (select coalesce(sum(net_owner_amount),0)::numeric from hospitality.reservations where property_id=${id}::uuid and archived_at is null and status not in ('cancelled','no_show')) owner_net,
+    (select coalesce(sum(total),0)::numeric from hospitality.invoices where property_id=${id}::uuid and archived_at is null and status not in ('void','rejected')) expenses`;
+  const reservations=await sql<{guest_name:string;check_in:string;check_out:string;status:string;gross_amount:number}[]>`select guest_name,check_in::text,check_out::text,status,gross_amount from hospitality.reservations where property_id=${id}::uuid and archived_at is null order by check_in desc limit 6`;
+  const expenses=await sql<{invoice_number:string;issued_at:string;status:string;total:number;vendor_name:string|null}[]>`select i.invoice_number,i.issued_at::text,i.status,i.total,v.name vendor_name from hospitality.invoices i left join hospitality.vendors v on v.id=i.vendor_id where i.property_id=${id}::uuid and i.archived_at is null order by i.issued_at desc,i.created_at desc limit 6`;
+  const cards=[["Reservations",stats.reservations],["Upcoming",stats.upcoming],["Open maintenance",stats.open_work_orders],["Open expenses",stats.open_invoices],["Gross revenue",money(Number(stats.gross_revenue))],["Property expenses",money(Number(stats.expenses))],["Owner net",money(Number(stats.owner_net))]];
+  const modules=[["Reservations","/group/hospitality/reservations"],["Expenses & Finance","/group/hospitality/finance"],["Maintenance","/group/hospitality/operations"],["Property setup","/group/hospitality/properties"],["Owner portal","/group/hospitality/owner-portal"]];
+  return <main style={{minHeight:"100vh",padding:"32px 22px",fontFamily:"Inter,system-ui,sans-serif"}}><section style={{maxWidth:1240,margin:"0 auto"}}>
+    <div style={{display:"flex",justifyContent:"space-between",gap:14,flexWrap:"wrap"}}><Link href="/group/hospitality" style={{fontWeight:900,textDecoration:"none"}}>← All properties</Link><span style={{border:"1px solid rgba(214,173,91,.32)",borderRadius:999,padding:"7px 11px",fontSize:11,fontWeight:900,color:"#D6AD5B"}}>PROPERTY CONTEXT ACTIVE</span></div>
+    <div style={{margin:"34px 0 24px"}}><div style={{fontSize:12,letterSpacing:".18em",fontWeight:900,color:"#D6AD5B"}}>VIVIT HOSPITALITY · PROPERTY DASHBOARD</div><h1 style={{fontSize:"clamp(36px,6vw,68px)",letterSpacing:"-.055em",margin:"8px 0"}}>{property.name}</h1><p style={{color:"#C7B894",lineHeight:1.7,margin:0}}>{property.property_type} · {property.city??"Location pending"}, {property.country} · {property.bedrooms} BR · {property.bathrooms} baths · up to {property.max_guests} guests · {property.owner_name?`Owner: ${property.owner_name}`:"Owner unassigned"}</p></div>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:12,marginBottom:22}}>{cards.map(([label,value])=><article key={String(label)} style={{padding:18,borderRadius:18,border:"1px solid rgba(214,173,91,.28)"}}><div style={{fontSize:11,color:"#C7B894",fontWeight:900,textTransform:"uppercase",letterSpacing:".07em"}}>{label}</div><strong style={{display:"block",fontSize:24,marginTop:8}}>{value}</strong></article>)}</div>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(210px,1fr))",gap:12,marginBottom:26}}>{modules.map(([name,href])=><Link key={name} href={`${href}?propertyId=${id}`} style={{textDecoration:"none",color:"inherit"}}><article style={{padding:18,borderRadius:18,border:"1px solid rgba(214,173,91,.24)",minHeight:84}}><strong>{name}</strong><div style={{fontSize:12,color:"#C7B894",marginTop:7}}>Open for {property.name} →</div></article></Link>)}</div>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(320px,1fr))",gap:18}}><article style={{padding:22,borderRadius:24,border:"1px solid rgba(214,173,91,.25)"}}><h2 style={{marginTop:0}}>Recent reservations</h2>{reservations.length===0?<p style={{color:"#C7B894"}}>No reservations yet.</p>:reservations.map((row,index)=><div key={`${row.guest_name}-${row.check_in}-${index}`} style={{display:"flex",justifyContent:"space-between",gap:12,padding:"11px 0",borderBottom:"1px solid rgba(214,173,91,.12)"}}><div><strong>{row.guest_name}</strong><div style={{fontSize:12,color:"#C7B894",marginTop:4}}>{row.check_in} → {row.check_out} · {row.status}</div></div><strong>{money(Number(row.gross_amount))}</strong></div>)}</article>
+    <article style={{padding:22,borderRadius:24,border:"1px solid rgba(214,173,91,.25)"}}><h2 style={{marginTop:0}}>Recent expenses</h2>{expenses.length===0?<p style={{color:"#C7B894"}}>No property expenses yet.</p>:expenses.map((row,index)=><div key={`${row.invoice_number}-${index}`} style={{display:"flex",justifyContent:"space-between",gap:12,padding:"11px 0",borderBottom:"1px solid rgba(214,173,91,.12)"}}><div><strong>{row.invoice_number}</strong><div style={{fontSize:12,color:"#C7B894",marginTop:4}}>{row.vendor_name??"No vendor"} · {row.issued_at} · {row.status}</div></div><strong>{money(Number(row.total))}</strong></div>)}</article></div>
+  </section></main>;
+}

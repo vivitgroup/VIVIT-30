@@ -24,7 +24,7 @@ const checks=[
  ["Portfolio statements/payouts hidden in property finance",financeApi.includes('statements:[],payouts:[]')&&financePanel.includes('!propertyId&&<section><h2>Owner statements')],
  ["Owner Portal client carries property context",ownerPanel.includes('/api/vgroup/hospitality/owner-portal${query}')],
  ["Owner Portal API rejects inaccessible property",ownerApi.includes('property_not_accessible')&&ownerApi.includes('allProperties.some(p=>p.id===propertyId)')],
- ["Owner Portal property data is scoped",ownerApi.includes('properties.filter(p=>p.id===propertyId)')&&ownerApi.includes('r.property_id=any(${propertyIds}::uuid[])')],
+ ["Owner Portal property data is scoped",ownerApi.includes('allProperties.filter(p=>p.id===propertyId)')&&ownerApi.includes('r.property_id=any(${propertyIds}::uuid[])')],
  ["Owner-wide statements hidden in property portal",ownerApi.includes('const statements:StatementRow[]=propertyId?[]')&&ownerPanel.includes('!propertyId&&<div')],
  ["Operations work orders are property-scoped",operations.includes('w.property_id=${effectivePropertyId}::uuid')],
  ["Operations purchase orders are property-scoped",operations.includes('po.property_id=${effectivePropertyId}::uuid')],

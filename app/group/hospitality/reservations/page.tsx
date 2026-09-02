@@ -1,4 +1,5 @@
 import Link from "next/link";
+import {notFound} from "next/navigation";
 import {WorkspacePage} from "@/components/vgroup/workspace-page";
 import {JsonMutationForm} from "@/components/vgroup/json-mutation-form";
 import {requireBusinessUnitAccess} from "@/lib/vgroup/access";
@@ -10,11 +11,11 @@ type ReservationRow={id:string;property_name:string;guest_name:string;check_in:s
 export default async function Page({searchParams}:{searchParams:Promise<{propertyId?:string}>}){
  await requireBusinessUnitAccess("hospitality");
  const {propertyId:rawPropertyId}=await searchParams;
- const propertyId=rawPropertyId&&uuid.test(rawPropertyId)?rawPropertyId:null;
+ if(rawPropertyId&&!uuid.test(rawPropertyId))notFound();
+ const propertyId=rawPropertyId||null;
  const sql=getVGroupSql();
  let propertyName:string|null=null;
- if(rawPropertyId&&!propertyId)throw new Error("Invalid property context");
- if(propertyId){const [property]=await sql<{name:string}[]>`select name from hospitality.properties where id=${propertyId}::uuid and archived_at is null limit 1`;if(!property)throw new Error("Property not found");propertyName=property.name}
+ if(propertyId){const [property]=await sql<{name:string}[]>`select name from hospitality.properties where id=${propertyId}::uuid and archived_at is null limit 1`;if(!property)notFound();propertyName=property.name}
  const rows=propertyId
   ?await sql<ReservationRow[]>`select r.id::text,p.name property_name,r.guest_name,r.check_in,r.check_out,r.status,r.net_owner_amount from hospitality.reservations r join hospitality.properties p on p.id=r.property_id where r.archived_at is null and r.property_id=${propertyId}::uuid order by r.check_in desc limit 40`
   :await sql<ReservationRow[]>`select r.id::text,p.name property_name,r.guest_name,r.check_in,r.check_out,r.status,r.net_owner_amount from hospitality.reservations r join hospitality.properties p on p.id=r.property_id where r.archived_at is null order by r.check_in desc limit 40`;

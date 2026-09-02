@@ -25,5 +25,7 @@ jobs:
         run: npm ci
       - name: Vivit Group isolation regression
         run: node scripts/qa-vgroup-isolation.mjs
+      - name: Role and permission contract regression
+        run: node scripts/qa-vgroup-role-contracts.mjs
       - name: TypeScript contract check
         run: npm run type-check

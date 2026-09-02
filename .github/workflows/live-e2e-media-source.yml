@@ -1,0 +1,52 @@
+name: Live E2E Media Source Patch
+
+on:
+  push:
+    branches:
+      - fix/live-e2e-17-20260902
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, '[media-source-auto]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/live-e2e-17-20260902
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Remove reported metrics overrides
+        shell: python
+        run: |
+          from pathlib import Path
+          def rep(path, old, new, expected=1):
+              p=Path(path); text=p.read_text(); count=text.count(old)
+              assert count==expected, f"{path}: expected {expected}, found {count}"
+              p.write_text(text.replace(old,new))
+
+          client="app/dashboard/clients/[id]/page.tsx"
+          old='''const metric=(x:CampaignRow):CampaignMetric=>{let r:Record<string,unknown>={};try{const parsed:unknown=typeof x.reported_metrics==="string"?JSON.parse(x.reported_metrics):{};r=asRecord(parsed)}catch{}const monthKey=new Date().toISOString().slice(0,7),sameMonth=String(x.reported_period_start||"").slice(0,7)===monthKey&&String(x.reported_period_end||"").slice(0,7)===monthKey;return sameMonth&&Object.keys(r).length?{spend:numeric(r.spend),results:numeric(r.results),atc:numeric(r.addToCart),purchases:numeric(r.purchases),impressions:numeric(r.impressions),clicks:numeric(r.clicks),revenue:numeric(r.revenue)}:{spend:n(x.spend),results:n(x.results),atc:n(x.atc),purchases:n(x.purchases),impressions:n(x.impressions),clicks:n(x.clicks),revenue:n(x.revenue)}};'''
+          new='''const metric=(x:CampaignRow):CampaignMetric=>({spend:n(x.spend),results:n(x.results),atc:n(x.atc),purchases:n(x.purchases),impressions:n(x.impressions),clicks:n(x.clicks),revenue:n(x.revenue)});'''
+          rep(client,old,new)
+
+          api="app/api/media-control-v2/route.ts"
+          old2='''m:MetricBundle|JsonRecord=reported&&same?{...reported,resultLabel:rr?.reported_result_label,periodStart:r.start,periodEnd:r.end}:metrics(campaignPerf),'''
+          new2='''m:MetricBundle|JsonRecord={...metrics(campaignPerf),resultLabel:rr?.reported_result_label,periodStart:r.start,periodEnd:r.end},'''
+          rep(api,old2,new2)
+      - name: TypeScript
+        run: npx tsc --noEmit
+      - name: Commit media source patches
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add 'app/dashboard/clients/[id]/page.tsx' app/api/media-control-v2/route.ts
+          git diff --cached --quiet && exit 0
+          git commit -m "[media-source-auto] unify media performance source"
+          git push origin HEAD:fix/live-e2e-17-20260902

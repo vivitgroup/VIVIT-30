@@ -20,5 +20,7 @@ export async function POST(request:NextRequest){
     await sql`insert into vgroup.approval_requests(business_unit_id,entity_type,entity_id,action,requested_by,status,metadata) values(${businessUnitId}::uuid,'workspace_access',${session.userId}::uuid,${`request_${workspace}_access`},${session.userId}::uuid,'pending',${JSON.stringify({workspace})}::jsonb)`;
   }
   const url=new URL(`/group/access?workspace=${encodeURIComponent(workspace)}&reason=permission&requested=1`,request.url);
-  return NextResponse.redirect(url,303);
+  const response=NextResponse.redirect(url,303);
+  response.headers.set("Cache-Control","no-store");
+  return response;
 }

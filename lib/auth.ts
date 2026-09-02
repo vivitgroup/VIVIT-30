@@ -8,6 +8,7 @@
 // - Session invalidated on password change, deactivation or approval revocation
 // - Secure, HttpOnly, SameSite=Lax cookies
 // - Live role and workspace are revalidated by auth.config.ts
+// - Vivit Group handoff uses a dedicated <=60s signed assertion and single-use nonce
 //
 // Feature 7: Dependency Security
 // Run regularly: npm audit --audit-level=high
@@ -18,6 +19,7 @@ import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import authConfig from "@/auth.config";
 import {Role} from "@/lib/types";
+import {authorizeGroupHandoff} from "@/lib/group-handoff";
 
 type AuthUserRow={id:string;name:string;email:string;password:string;role:string;workspace_id:string;is_active:boolean;approval_status:string};
 const isRole=(value:string):value is Role=>Object.values(Role).some(role=>role===value);
@@ -47,6 +49,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return { id: user.id, email: user.email, name: user.name, role: user.role, workspaceId:user.workspace_id };
         } catch (error) {
           console.error("AUTH ERROR:", error instanceof Error?error.name:"auth_failure");
+          return null;
+        }
+      },
+    }),
+    Credentials({
+      id:"group-handoff",
+      name:"Vivit Group Handoff",
+      credentials:{assertion:{label:"Assertion",type:"text"}},
+      async authorize(credentials){
+        try{
+          if(typeof credentials?.assertion!=="string"||!credentials.assertion)return null;
+          return await authorizeGroupHandoff(credentials.assertion);
+        }catch(error){
+          console.error("GROUP HANDOFF AUTH ERROR:",error instanceof Error?error.message:"handoff_failure");
           return null;
         }
       },

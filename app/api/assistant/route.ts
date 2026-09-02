@@ -16,7 +16,7 @@ import {buildDailyCompetitiveReport,platformFromUrl} from "@/lib/vivito/competit
 
 type UnknownRecord=Record<string,unknown>;
 type ClientRow={id:string;company_name:string;industry:string|null};
-type TaskRow={id:string;title:string;status:string;priority:string;deadline:string|Date;client_id:string;type:string;revision_count:number|string|null;company_name:string};
+type TaskRow={id:string;title:string;status:string;priority:string;deadline:string|Date;client_id:string;type:string;revision_count:number|string|null;file_url:string|null;approved_by_client:boolean;company_name:string};
 type MediaRawRow={company_name:string;industry:string|null;campaign_id:string;campaign:string;objective:string|null;status:string;reported_result_label:string|null;reported_result_type:string|null;spend:number|string|null;results:number|string|null;atc:number|string|null;purchases:number|string|null;revenue:number|string|null;impressions:number|string|null;reach:number|string|null;clicks:number|string|null;previous_spend:number|string|null;previous_results:number|string|null;previous_purchases:number|string|null;previous_revenue:number|string|null};
 type MediaRow=MediaRawRow&{spend:number;impressions:number;reach:number;clicks:number;results:number;purchases:number;atc:number;revenue:number;previousSpend:number;previousResults:number;previousPurchases:number;previousRevenue:number;resultDefinition:string;ctr:number;cpc:number;cpm:number;costPerResult:number;frequency:number;roas:number;previousCostPerResult:number;previousRoas:number};
 type TrackingRow={client_id:string;company_name:string;platform:string;pixel_status:string|null;capi_status:string|null;utm_status:string|null;landing_page_status:string|null;issues:unknown;checked_at:string|Date|null};
@@ -52,8 +52,8 @@ async function clientScope(role:string,userId:string,workspaceId:string):Promise
 }
 
 async function taskContext(role:string,userId:string,ids:string[],workspaceId:string):Promise<TaskRow[]>{
- if(role==="CREATOR")return Array.from(await db.execute<TaskRow>(sql`select t.id,t.title,t.status,t.priority,t.deadline,t.client_id,t.type,t.revision_count,c.company_name from creative_tasks t join clients c on c.id=t.client_id where t.workspace_id=${workspaceId} and t.archived_at is null and t.deleted_at is null and c.workspace_id=${workspaceId} and c.is_active=true and t.assigned_to_id=${userId} and t.status not in ('COMPLETED','REJECTED') order by t.deadline asc limit 120`));
- if(ids.length&&["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CLIENT"].includes(role))return Array.from(await db.execute<TaskRow>(sql`select t.id,t.title,t.status,t.priority,t.deadline,t.client_id,t.type,t.revision_count,c.company_name from creative_tasks t join clients c on c.id=t.client_id where t.workspace_id=${workspaceId} and t.archived_at is null and t.deleted_at is null and c.workspace_id=${workspaceId} and c.is_active=true and t.client_id in (${idsSql(ids)}) and t.status not in ('COMPLETED','REJECTED') order by t.deadline asc limit 120`));
+ if(role==="CREATOR")return Array.from(await db.execute<TaskRow>(sql`select t.id,t.title,t.status,t.priority,t.deadline,t.client_id,t.type,t.revision_count,t.file_url,t.approved_by_client,c.company_name from creative_tasks t join clients c on c.id=t.client_id where t.workspace_id=${workspaceId} and t.archived_at is null and t.deleted_at is null and c.workspace_id=${workspaceId} and c.is_active=true and t.assigned_to_id=${userId} and t.status not in ('COMPLETED','REJECTED') order by t.deadline asc limit 120`));
+ if(ids.length&&["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CLIENT"].includes(role))return Array.from(await db.execute<TaskRow>(sql`select t.id,t.title,t.status,t.priority,t.deadline,t.client_id,t.type,t.revision_count,t.file_url,t.approved_by_client,c.company_name from creative_tasks t join clients c on c.id=t.client_id where t.workspace_id=${workspaceId} and t.archived_at is null and t.deleted_at is null and c.workspace_id=${workspaceId} and c.is_active=true and t.client_id in (${idsSql(ids)}) and t.status not in ('COMPLETED','REJECTED') order by t.deadline asc limit 120`));
  return[];
 }
 
@@ -107,6 +107,13 @@ export async function POST(req:NextRequest){
  const clients=await clientScope(role,userId,workspaceId),ids=clients.map(c=>String(c.id));
  const [tasks,campaigns,tracking,clientHealth,sales,finance,memories]=await Promise.all([taskContext(role,userId,ids,workspaceId),mediaContext(role,ids,workspaceId),trackingContext(role,ids,workspaceId),clientHealthContext(role,ids,workspaceId),salesContext(role,userId,workspaceId),financeContext(role,ids,workspaceId),loadVivitoMemories(userId,role,ids,workspaceId)]);
 
+ if(role==="CLIENT"&&/(waiting.*review|review.*waiting|waiting.*approval|approval|approve|مراجعة|موافقة)/i.test(question)){
+  const queue=tasks.filter(t=>Boolean(t.file_url)&&["APPROVED","COMPLETED"].includes(String(t.status))&&!t.approved_by_client);
+  const arabic=isArabic(question);
+  const answer=queue.length?`${arabic?"بانتظار مراجعتك":"Waiting for your review"} (${queue.length}):\n${queue.slice(0,12).map(t=>`- ${t.title} · ${t.company_name}`).join("\n")}`:(arabic?"لا يوجد أي تصميم بانتظار موافقتك حاليًا.":"Nothing is waiting for your approval right now.");
+  return NextResponse.json({answer,sources:["Creative Tasks"],mode:"client-review",intelligence:"VIVITO"},{headers:{"Cache-Control":"private, no-store"}});
+ }
+
  if(likelyCompetitiveChatIntent(question)){
   try{
    const planned=await generateVivito(question+"\n\nAUTHORIZED CLIENTS: "+JSON.stringify(clients.map(c=>c.company_name)),buildCompetitivePlannerSystem(),{temperature:0,maxTokens:1400});
@@ -146,7 +153,7 @@ export async function POST(req:NextRequest){
     const saved=await saveVivitoMemory({kind:memoryPlan.kind,scopeType:memoryPlan.scopeType,scopeId,text:memoryPlan.text},userId,role,workspaceId);return NextResponse.json({answer:arabic?`اتحفظت في ذاكرة VIVITO: ${saved.text}`:`Saved to VIVITO memory: ${saved.text}`,mode:"memory-saved",intelligence:"VIVITO",memory:{id:saved.id,kind:saved.kind,scopeType:saved.scopeType}},{headers:{"Cache-Control":"private, no-store"}})
    }
    if(memoryPlan?.op==="forget"){const result=await forgetVivitoMemory(memoryPlan.query,userId,role,ids,workspaceId);return NextResponse.json({answer:arabic?`تم حذف ${result.forgotten} عنصر من ذاكرة VIVITO.`:`Removed ${result.forgotten} VIVITO memory item(s).`,mode:"memory-forgotten",intelligence:"VIVITO"},{headers:{"Cache-Control":"private, no-store"}})}
-  }catch(error){return NextResponse.json({answer:errorText(error,"VIVITO could not update memory safely."),mode:"memory-rejected",intelligence:"VIVITO"},{headers:{"Cache-Control":"private, no-store"}})}
+  }catch{return NextResponse.json({answer:isArabic(question)?"تعذر تحديث ذاكرة VIVITO عبر نماذج الـAI المتاحة حاليًا. لم يتم حفظ أو حذف أي شيء.":"VIVITO memory could not be updated through the currently available AI models. Nothing was saved or deleted.",mode:"memory-rejected",intelligence:"VIVITO"},{headers:{"Cache-Control":"private, no-store"}})}
  }
 
  if(likelyVivitoActionIntent(question,attachments.length)){
@@ -169,8 +176,8 @@ export async function POST(req:NextRequest){
   try{const criticPrompt=buildVivitoCriticPrompt(question,role,draft.text,contextJson),critic=await generateVivito(criticPrompt,"You are the independent VIVITO critic. Return only the corrected final answer. Never reveal hidden reasoning or review steps.",{temperature:0.05,maxTokens:3200,preferred:[draft.provider]});answer=critic.text;criticApplied=true;criticProvider=critic.provider}catch{}
   const sources=["VIVITO Academy","Validated Source Notes"];if(memories.length)sources.push("VIVITO Operational Memory");if(tasks.length)sources.push("Creative Tasks");if(campaigns.length)sources.push("Media Campaigns");if(tracking.length)sources.push("Tracking Health");if(clientHealth.length)sources.push("Client Health");if(sales.length)sources.push("Sales Pipeline");if(canSeeFinance&&finance.billing.length)sources.push("Client Billing");if(canSeeFinance&&finance.expenses.length)sources.push("Company Expenses");
   return NextResponse.json({answer,sources,mode:"advisor",intelligence:"VIVITO",intelligenceMeta:{modules:detectVivitoModules(question).map(m=>m.id),provider:draft.provider,providerAttempts:draft.attempted,criticApplied,criticProvider,liveContext:true,memoryCount:memories.length}},{headers:{"Cache-Control":"private, no-store"}})
- }catch{
-  const base=taskAnswer(question,tasks),media=context.media?`\n\nLive media snapshot: ${Math.round(n(context.media.spend)).toLocaleString("en-EG")} EGP spend MTD · ${n(context.media.results)} reported results · ${n(context.media.purchases)} purchases.`:"",salesText=context.sales?`\n\nSales snapshot: ${n(context.sales.leadCount)} active leads · ${n(context.sales.overdueFollowUps)} overdue follow-ups.`:"",financeText=canSeeFinance&&context.finance?`\n\nFinance snapshot: ${Math.round(n(context.finance.amountOutstanding)).toLocaleString("en-EG")} EGP outstanding.`:"";
-  return NextResponse.json({answer:`${base}${media}${salesText}${financeText}`,sources:["ERP Live Context"],mode:"erp-fallback",intelligence:"VIVITO",intelligenceMeta:{liveContext:true,provider:"unavailable",criticApplied:false,memoryCount:memories.length}},{status:200,headers:{"Cache-Control":"private, no-store"}})
+ }catch(error){
+  console.error("VIVITO advisor generation failed",{error:errorText(error,"advisor-generation-failed")});
+  return NextResponse.json({answer:isArabic(question)?"تعذر على VIVITO إكمال الرد على طلبك الحالي عبر نماذج الـAI المتاحة. لم أستبدل سؤالك برد جاهز أو بملخص ERP غير مرتبط. أعد المحاولة مرة أخرى.":"VIVITO could not complete this request through the currently available AI models. Your question was not replaced with a canned response or an unrelated ERP summary. Please retry.",sources:[],mode:"provider-unavailable",intelligence:"VIVITO",intelligenceMeta:{liveContext:true,provider:"unavailable",criticApplied:false,memoryCount:memories.length,retryable:true}},{status:200,headers:{"Cache-Control":"private, no-store"}})
  }
 }

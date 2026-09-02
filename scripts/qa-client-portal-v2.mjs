@@ -2,6 +2,9 @@ import fs from"node:fs";import path from"node:path";const r=f=>fs.readFileSync(p
 t("CLIENT-only route",p.includes('role!=="CLIENT"'));
 t("Active client isolation",/clients where workspace_id=\$\{workspaceId\}[\s\S]*user_id=\$\{userId\}[\s\S]*is_active=true/.test(p));
 t("Campaigns client scoped",/from ad_campaigns c[\s\S]*where c\.workspace_id=\$\{workspaceId\}[\s\S]*c\.client_id=\$\{client\.id\}[\s\S]*c\.archived_at is null/.test(p));
+t("Campaign query keeps campaigns with zero current-month metrics",p.includes("from ad_campaigns c left join ad_performance_daily p")&&p.includes("coalesce(sum(p.spend),0) spend"));
+t("Campaign cards render from campaign records, not metric-row existence",p.includes('campaigns.length?<div className="campaign-grid">{campaigns.map')&&p.includes("No synced campaign delivery for this month yet."));
+t("Campaign card exposes live name and status",p.includes("<h3>{c.name}</h3>")&&p.includes("<small>{c.status}</small>"));
 t("Campaign totals exclude hierarchy",p.includes("p.ad_set_id is null and p.ad_id is null"));
 t("ATC campaigns use add-to-cart as primary",p.includes('kind==="ATC"?atc'));
 t("Sales campaigns use purchases as primary",p.includes('kind==="SALES"?purchases'));

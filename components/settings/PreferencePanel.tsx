@@ -2,12 +2,14 @@
 import Image from "next/image";
 import {useEffect,useState} from "react";
 
+type Lang="en"|"ar";
 export function PreferencePanel(){
-  const [theme,setTheme]=useState("light"),[reminder,setReminder]=useState("60"),[desktop,setDesktop]=useState(true),[avatar,setAvatar]=useState<string|null>(null),[avatarBusy,setAvatarBusy]=useState(false),[avatarError,setAvatarError]=useState("");
+  const [theme,setTheme]=useState("light"),[language,setLanguage]=useState<Lang>("en"),[reminder,setReminder]=useState("60"),[desktop,setDesktop]=useState(true),[avatar,setAvatar]=useState<string|null>(null),[avatarBusy,setAvatarBusy]=useState(false),[avatarError,setAvatarError]=useState("");
 
   useEffect(()=>{
     const timer=setTimeout(()=>{
       setTheme(localStorage.getItem("vivit-theme")||"light");
+      setLanguage(localStorage.getItem("vivit-lang")==="ar"?"ar":"en");
       setReminder(localStorage.getItem("vivit-task-reminder-minutes")||"60");
       setDesktop(localStorage.getItem("vivit-reminder-enabled")!=="false");
     },0);
@@ -19,6 +21,11 @@ export function PreferencePanel(){
     setTheme(v);
     localStorage.setItem("vivit-theme",v);
     document.documentElement.classList.toggle("dark",v==="dark");
+  };
+  const applyLanguage=(v:Lang)=>{
+    setLanguage(v);
+    localStorage.setItem("vivit-lang",v);
+    window.dispatchEvent(new CustomEvent("vivit-language",{detail:v}));
   };
   const uploadAvatar=async(file:File|null)=>{
     if(!file)return;setAvatarError("");
@@ -42,7 +49,9 @@ export function PreferencePanel(){
     </div></section>
     <section className="card"><div className="card-body">
       <h2 className="card-title">Appearance</h2>
-      <p className="page-subtitle">The ERP interface uses English consistently across desktop and mobile.</p>
+      <p className="page-subtitle">Choose English or Arabic for the ERP interface on this device.</p>
+      <label className="form-label" style={{marginTop:12}}>Language</label>
+      <select className="form-select" value={language} onChange={e=>applyLanguage(e.target.value==="ar"?"ar":"en")}><option value="en">English</option><option value="ar">العربية</option></select>
       <label className="form-label" style={{marginTop:12}}>Theme</label>
       <select className="form-select" value={theme} onChange={e=>applyTheme(e.target.value)}><option value="light">Light</option><option value="dark">Dark</option></select>
     </div></section>

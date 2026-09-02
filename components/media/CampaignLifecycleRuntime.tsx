@@ -4,7 +4,7 @@ import {usePathname} from "next/navigation";
 type Campaign={id:string;name:string;status:string;archived_at?:string|null;archived_by_name?:string|null};
 export function CampaignLifecycleRuntime({role}:{role:string}){
  const path=usePathname(),m=path.match(/^\/dashboard\/clients\/([^/]+)$/),clientId=m?.[1]||"",[open,setOpen]=useState(false),[items,setItems]=useState<Campaign[]>([]),[busy,setBusy]=useState(""),[error,setError]=useState("");
- const enabled=Boolean(clientId&&["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"].includes(role));
+ const enabled=Boolean(clientId&&clientId!=="new"&&["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"].includes(role));
  const load=useCallback(async()=>{if(!enabled)return;const r=await fetch(`/api/campaign-lifecycle?clientId=${encodeURIComponent(clientId)}`,{cache:"no-store"}),d=await r.json().catch(()=>({}));if(r.ok)setItems(Array.isArray(d.campaigns)?d.campaigns:[]);else setError(d.error||"Could not load campaigns")},[clientId,enabled]);
  if(!enabled)return null;
  async function toggle(){const next=!open;setOpen(next);if(next)await load()}

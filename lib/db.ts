@@ -10,8 +10,10 @@ declare global {
 }
 
 // ── Connection Pool ────────────────────────────────────────────
-// prepare:false required for Supabase Transaction Pooler (port 6543)
-// Keep the per-function pool small in serverless environments.
+// prepare:false is required for Supabase Transaction Pooler (port 6543).
+// Vercel functions must not use Supabase Session mode (port 5432): each
+// function instance can otherwise pin multiple sessions and exhaust the
+// project's small session pool under normal dashboard fan-out.
 function createClient() {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) throw new Error("DATABASE_URL is required");
@@ -26,7 +28,13 @@ function createClient() {
   const username = decodeURIComponent(parsed.username);
   const password = decodeURIComponent(parsed.password);
   const host = parsed.hostname;
-  const port = parsed.port ? Number(parsed.port) : 5432;
+  const configuredPort = parsed.port ? Number(parsed.port) : 5432;
+  // Supabase's pooler uses 5432 for session mode and 6543 for transaction
+  // mode. Automatically move only known Supabase pooler hosts to transaction
+  // mode; direct database hosts and non-Supabase Postgres URLs are untouched.
+  const port = host.endsWith(".pooler.supabase.com") && configuredPort === 5432
+    ? 6543
+    : configuredPort;
   const database = decodeURIComponent(parsed.pathname.replace(/^\//, "") || "postgres");
   if (!host || !username || !password) {
     throw new Error("DATABASE_URL is missing host, username, or password");
@@ -38,19 +46,23 @@ function createClient() {
     : { rejectUnauthorized: false };
   return postgres(runtimeUrl, {
     ssl,
-    max:             3,
-    idle_timeout:    20,
+    // Keep one connection per warm function instance. Transaction pooling
+    // releases the backend connection after each transaction/query and avoids
+    // EMAXCONNSESSION under concurrent dashboard/API traffic.
+    max:             1,
+    idle_timeout:    10,
     connect_timeout: 10,
-    max_lifetime:    60,
+    max_lifetime:    300,
     connection:      { application_name: "vivit-erp", statement_timeout: 8000 },
     prepare:         false,
     onnotice:        () => {},
   });
 }
 
-const _pgClient = process.env.NODE_ENV === "production"
-  ? createClient()
-  : (globalThis._pgClient ??= createClient());
+// Reuse a single postgres.js client for the lifetime of the warm runtime in
+// every environment. This also protects against duplicate module evaluation
+// during development/hot reload and production bundling.
+const _pgClient = globalThis._pgClient ??= createClient();
 
 export const db = drizzle(_pgClient, { schema });
 

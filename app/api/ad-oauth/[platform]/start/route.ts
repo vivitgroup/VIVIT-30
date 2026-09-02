@@ -21,8 +21,9 @@ export async function GET(req:NextRequest,{params}:{params:Promise<{platform:str
  const roleScope=role==="MEDIA_BUYER"?eq(clients.mediaBuyerId,userId):role==="ACCOUNT_MANAGER"?eq(clients.accountManagerId,userId):eq(clients.workspaceId,workspaceId);
  const access=and(eq(clients.id,clientId),eq(clients.workspaceId,workspaceId),eq(clients.isActive,true),roleScope);
  if(!(await db.select({id:clients.id}).from(clients).where(access).limit(1))[0])return NextResponse.redirect(new URL("/dashboard/media/sync?oauth=forbidden",req.url));
- const state=signState({platform,clientId,adAccountId,accountName,userId});
- const response=NextResponse.redirect(authorizationUrl(platform,state));
+ let state:string,authorizeUrl:string;
+ try{state=signState({platform,clientId,adAccountId,accountName,userId});authorizeUrl=authorizationUrl(platform,state)}catch(error){console.error("OAuth start configuration error",error instanceof Error?error.message:"unknown");return NextResponse.redirect(new URL(`/dashboard/media/sync?oauth=missing&platform=${platform}`,req.url))}
+ const response=NextResponse.redirect(authorizeUrl);
  response.cookies.set(stateCookieName(platform),stateDigest(state),{httpOnly:true,secure:process.env.NODE_ENV==="production",sameSite:"lax",maxAge:10*60,path:`/api/ad-oauth/${platform.toLowerCase()}/callback`});
  return response;
 }

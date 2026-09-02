@@ -6,14 +6,7 @@
   "outputDirectory": ".next",
   "regions": ["fra1"],
   "git": {
-    "deploymentEnabled": {
-      "fix/v5-client-media-fahd": false,
-      "fix/vivito-artifacts-v2": false,
-      "fix/vivito-competitive-intel": false,
-      "fix/vivito-certification-100": false,
-      "fix/vivito-certification-final": false,
-      "qa/100-percent-release": false
-    }
+    "deploymentEnabled": true
   },
   "crons": [
     {"path": "/api/cron?type=morning", "schedule": "0 8 * * *"},

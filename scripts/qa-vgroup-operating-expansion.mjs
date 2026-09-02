@@ -17,8 +17,8 @@ for(const security of ['enable row level security','revoke all','service_role','
 if(!migration.includes('credentials_reference'))throw new Error('Handover contract must store credential references, never raw secrets');
 for(const op of ['housekeeping','pricing_rule','guest','move_reservation','channel_reconcile'])if(!hospitalityApi.includes(`case "${op}"`))throw new Error(`Hospitality API operation missing: ${op}`);
 for(const marker of ['properties:update','business_unit_id=${buId}','RESERVATION_OVERLAP'])if(!hospitalityApi.includes(marker))throw new Error(`Hospitality API isolation/control missing: ${marker}`);
-for(const marker of ['Multi-property calendar','Housekeeping','Guest CRM & Inbox','Revenue Management','Preventive Maintenance','Procurement','Channel Reconciliation','Lost & Found'])if(!hospitalityPage.includes(marker))throw new Error(`Hospitality cockpit missing: ${marker}`);
-for(const marker of ['draggable','onDrop','move_reservation'])if(!calendar.includes(marker))throw new Error(`Multi-property drag/drop missing: ${marker}`);
+for(const marker of ['Housekeeping','Guest CRM & Inbox','Revenue Management','Preventive Maintenance','Procurement','Channel Reconciliation','Lost & Found','HospitalityCalendar'])if(!hospitalityPage.includes(marker))throw new Error(`Hospitality cockpit missing: ${marker}`);
+for(const marker of ['Multi-property calendar','draggable','onDrop','move_reservation'])if(!calendar.includes(marker))throw new Error(`Multi-property drag/drop missing: ${marker}`);
 for(const op of ['lead','opportunity','proposal','support_ticket','trial_extension','handover_item'])if(!techApi.includes(`case "${op}"`))throw new Error(`Tech sales/delivery operation missing: ${op}`);
 for(const marker of ['projects:update','business_unit_id=${buId}','archived_at is null'])if(!techApi.includes(marker))throw new Error(`Tech API isolation/control missing: ${marker}`);
 for(const marker of ['Sales → Delivery','30/60/90-day','Support & Retainers','Trials & Growth','Knowledge Loop'])if(!techPage.includes(marker))throw new Error(`Tech cockpit missing: ${marker}`);

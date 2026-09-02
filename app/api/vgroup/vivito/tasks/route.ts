@@ -11,8 +11,14 @@ const keyPattern=/^[A-Za-z0-9._:-]{8,128}$/;
 export async function GET(){
   const session=await requireVGroupSession();
   const sql=getVGroupSql();
-  const tasks=await sql`select id::text,workspace_code,capability_key,status,risk_level,idempotency_key,error_code,approved_at,started_at,completed_at,created_at from vgroup.vivito_tasks where actor_user_id=${session.userId}::uuid order by created_at desc limit 100`;
-  return NextResponse.json({capabilities:vivitoPublicCapabilities().filter(c=>c.workspace==='marketing'||canUseVivitoCapability(session,findVivitoCapability(c.key)!)),tasks:Array.from(tasks)},{headers:NO_STORE});
+  const canApprove=session.memberships.some(m=>m.role==="GROUP_SUPER_ADMIN");
+  const tasks=canApprove
+    ?await sql`select id::text,actor_user_id::text,workspace_code,capability_key,status,risk_level,idempotency_key,error_code,approved_at,started_at,completed_at,created_at from vgroup.vivito_tasks order by created_at desc limit 100`
+    :await sql`select id::text,actor_user_id::text,workspace_code,capability_key,status,risk_level,idempotency_key,error_code,approved_at,started_at,completed_at,created_at from vgroup.vivito_tasks where actor_user_id=${session.userId}::uuid order by created_at desc limit 100`;
+  const events=canApprove
+    ?await sql`select e.id::text,e.task_id::text,e.actor_user_id::text,e.event_type,e.metadata_redacted,e.created_at from vgroup.vivito_task_events e join (select id from vgroup.vivito_tasks order by created_at desc limit 100) t on t.id=e.task_id order by e.created_at desc limit 500`
+    :await sql`select e.id::text,e.task_id::text,e.actor_user_id::text,e.event_type,e.metadata_redacted,e.created_at from vgroup.vivito_task_events e join vgroup.vivito_tasks t on t.id=e.task_id where t.actor_user_id=${session.userId}::uuid order by e.created_at desc limit 500`;
+  return NextResponse.json({canApprove,capabilities:vivitoPublicCapabilities().filter(c=>c.workspace==='marketing'||canUseVivitoCapability(session,findVivitoCapability(c.key)!)),tasks:Array.from(tasks),events:Array.from(events)},{headers:NO_STORE});
 }
 
 export async function POST(request:Request){

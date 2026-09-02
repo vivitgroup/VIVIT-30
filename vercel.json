@@ -6,7 +6,7 @@
   "outputDirectory": ".next",
   "regions": ["fra1"],
   "git": {
-    "deploymentEnabled": false
+    "deploymentEnabled": true
   },
   "crons": [
     {"path": "/api/cron?type=morning", "schedule": "0 8 * * *"},

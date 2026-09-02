@@ -1,15 +1,17 @@
 "use client";
 
 import {FormEvent,useState} from "react";
+import {useRouter} from "next/navigation";
 
 export default function GroupLogin(){
+  const router=useRouter();
   const [loading,setLoading]=useState(false);
   const [error,setError]=useState("");
   async function submit(event:FormEvent<HTMLFormElement>){
     event.preventDefault();setLoading(true);setError("");
     const data=new FormData(event.currentTarget);
     const response=await fetch('/api/vgroup/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:data.get('email'),password:data.get('password')})});
-    if(response.ok){window.location.href='/group';return}
+    if(response.ok){router.push('/group');router.refresh();return}
     const payload=await response.json().catch(()=>({error:'Unable to sign in'}));
     setError(String(payload.error||'Unable to sign in'));setLoading(false);
   }

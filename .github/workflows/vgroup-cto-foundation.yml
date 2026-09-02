@@ -23,6 +23,8 @@ jobs:
           cache: npm
       - name: Install
         run: npm ci
+      - name: Dependency security gate
+        run: npm audit --audit-level=high
       - name: Vivit Group isolation regression
         run: node scripts/qa-vgroup-isolation.mjs
       - name: Role and permission contract regression

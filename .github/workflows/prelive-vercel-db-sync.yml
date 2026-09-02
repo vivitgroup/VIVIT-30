@@ -59,8 +59,6 @@ jobs:
           print(f'PGPASSWORD={password}')
           print(f'NORMALIZED_DATABASE_URL={normalized}')
           PY
-          echo "::add-mask::$PGPASSWORD" || true
-          echo "::add-mask::$NORMALIZED_DATABASE_URL" || true
 
       - name: Validate canonical production database credential
         run: |

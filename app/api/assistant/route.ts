@@ -16,7 +16,7 @@ import {buildDailyCompetitiveReport,platformFromUrl} from "@/lib/vivito/competit
 
 type UnknownRecord=Record<string,unknown>;
 type ClientRow={id:string;company_name:string;industry:string|null};
-type TaskRow={id:string;title:string;status:string;priority:string;deadline:string|Date;client_id:string;type:string;revision_count:number|string|null;company_name:string};
+type TaskRow={id:string;title:string;status:string;priority:string;deadline:string|Date;client_id:string;type:string;revision_count:number|string|null;file_url:string|null;approved_by_client:boolean;company_name:string};
 type MediaRawRow={company_name:string;industry:string|null;campaign_id:string;campaign:string;objective:string|null;status:string;reported_result_label:string|null;reported_result_type:string|null;spend:number|string|null;results:number|string|null;atc:number|string|null;purchases:number|string|null;revenue:number|string|null;impressions:number|string|null;reach:number|string|null;clicks:number|string|null;previous_spend:number|string|null;previous_results:number|string|null;previous_purchases:number|string|null;previous_revenue:number|string|null};
 type MediaRow=MediaRawRow&{spend:number;impressions:number;reach:number;clicks:number;results:number;purchases:number;atc:number;revenue:number;previousSpend:number;previousResults:number;previousPurchases:number;previousRevenue:number;resultDefinition:string;ctr:number;cpc:number;cpm:number;costPerResult:number;frequency:number;roas:number;previousCostPerResult:number;previousRoas:number};
 type TrackingRow={client_id:string;company_name:string;platform:string;pixel_status:string|null;capi_status:string|null;utm_status:string|null;landing_page_status:string|null;issues:unknown;checked_at:string|Date|null};
@@ -52,8 +52,8 @@ async function clientScope(role:string,userId:string,workspaceId:string):Promise
 }
 
 async function taskContext(role:string,userId:string,ids:string[],workspaceId:string):Promise<TaskRow[]>{
- if(role==="CREATOR")return Array.from(await db.execute<TaskRow>(sql`select t.id,t.title,t.status,t.priority,t.deadline,t.client_id,t.type,t.revision_count,c.company_name from creative_tasks t join clients c on c.id=t.client_id where t.workspace_id=${workspaceId} and t.archived_at is null and t.deleted_at is null and c.workspace_id=${workspaceId} and c.is_active=true and t.assigned_to_id=${userId} and t.status not in ('COMPLETED','REJECTED') order by t.deadline asc limit 120`));
- if(ids.length&&["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CLIENT"].includes(role))return Array.from(await db.execute<TaskRow>(sql`select t.id,t.title,t.status,t.priority,t.deadline,t.client_id,t.type,t.revision_count,c.company_name from creative_tasks t join clients c on c.id=t.client_id where t.workspace_id=${workspaceId} and t.archived_at is null and t.deleted_at is null and c.workspace_id=${workspaceId} and c.is_active=true and t.client_id in (${idsSql(ids)}) and t.status not in ('COMPLETED','REJECTED') order by t.deadline asc limit 120`));
+ if(role==="CREATOR")return Array.from(await db.execute<TaskRow>(sql`select t.id,t.title,t.status,t.priority,t.deadline,t.client_id,t.type,t.revision_count,t.file_url,t.approved_by_client,c.company_name from creative_tasks t join clients c on c.id=t.client_id where t.workspace_id=${workspaceId} and t.archived_at is null and t.deleted_at is null and c.workspace_id=${workspaceId} and c.is_active=true and t.assigned_to_id=${userId} and t.status not in ('COMPLETED','REJECTED') order by t.deadline asc limit 120`));
+ if(ids.length&&["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CLIENT"].includes(role))return Array.from(await db.execute<TaskRow>(sql`select t.id,t.title,t.status,t.priority,t.deadline,t.client_id,t.type,t.revision_count,t.file_url,t.approved_by_client,c.company_name from creative_tasks t join clients c on c.id=t.client_id where t.workspace_id=${workspaceId} and t.archived_at is null and t.deleted_at is null and c.workspace_id=${workspaceId} and c.is_active=true and t.client_id in (${idsSql(ids)}) and t.status not in ('COMPLETED','REJECTED') order by t.deadline asc limit 120`));
  return[];
 }
 
@@ -106,6 +106,13 @@ export async function POST(req:NextRequest){
  const attachments:Attachment[]=Array.isArray(body.attachments)?body.attachments.slice(0,5).flatMap(value=>{const x=asRecord(value),fileId=String(x.fileId||"").slice(0,100);return fileId?[{fileId,name:String(x.name||"").slice(0,255),mimeType:String(x.mimeType||"").slice(0,120)}]:[]}):[];
  const clients=await clientScope(role,userId,workspaceId),ids=clients.map(c=>String(c.id));
  const [tasks,campaigns,tracking,clientHealth,sales,finance,memories]=await Promise.all([taskContext(role,userId,ids,workspaceId),mediaContext(role,ids,workspaceId),trackingContext(role,ids,workspaceId),clientHealthContext(role,ids,workspaceId),salesContext(role,userId,workspaceId),financeContext(role,ids,workspaceId),loadVivitoMemories(userId,role,ids,workspaceId)]);
+
+ if(role==="CLIENT"&&/(waiting.*review|review.*waiting|waiting.*approval|approval|approve|مراجعة|موافقة)/i.test(question)){
+  const queue=tasks.filter(t=>Boolean(t.file_url)&&["APPROVED","COMPLETED"].includes(String(t.status))&&!t.approved_by_client);
+  const arabic=isArabic(question);
+  const answer=queue.length?`${arabic?"بانتظار مراجعتك":"Waiting for your review"} (${queue.length}):\n${queue.slice(0,12).map(t=>`- ${t.title} · ${t.company_name}`).join("\n")}`:(arabic?"لا يوجد أي تصميم بانتظار موافقتك حاليًا.":"Nothing is waiting for your approval right now.");
+  return NextResponse.json({answer,sources:["Creative Tasks"],mode:"client-review",intelligence:"VIVITO"},{headers:{"Cache-Control":"private, no-store"}});
+ }
 
  if(likelyCompetitiveChatIntent(question)){
   try{

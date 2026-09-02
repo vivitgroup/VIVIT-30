@@ -16,7 +16,7 @@ const groupAuth=read("lib/vgroup/session.ts");
 const marketingAuth=read("lib/auth.ts");
 const receiver=read("app/api/integrations/vgroup-handoff/route.ts");
 const verifier=read("lib/group-handoff.ts");
-const bridge=read("app/api/vgroup/vivito/marketing/route.ts");
+const bridge=read("app/api/integrations/vgroup-vivito-marketing/route.ts");
 const vivitoRegistry=read("lib/vgroup/vivito-cross-workspace.ts");
 const vivitoTasks=read("app/api/vgroup/vivito/tasks/route.ts");
 const vivitoDecision=read("app/api/vgroup/vivito/tasks/[id]/decision/route.ts");
@@ -38,6 +38,7 @@ check("Handoff signature uses timing-safe HMAC verification",verifier.includes('
 check("Marketing identity is revalidated live",verifier.includes('approval_status!=="APPROVED"')&&verifier.includes("verifyWorkspace")&&verifier.includes("isRole(user.role)"));
 check("Handoff replay is single-use",verifier.includes("createHash(\"sha256\")")&&verifier.includes("handoff_replay_detected")&&nonceMigration.includes("nonce_hash text primary key"));
 check("Nonce table denies direct client access",nonceMigration.includes("enable row level security")&&nonceMigration.includes("revoke all on table group_handoff_nonces from anon")&&nonceMigration.includes("revoke all on table group_handoff_nonces from authenticated"));
+check("Cross-boundary adapter is outside VGroup API namespace",fs.existsSync(path.join(root,"app/api/integrations/vgroup-vivito-marketing/route.ts"))&&!fs.existsSync(path.join(root,"app/api/vgroup/vivito/marketing/route.ts")));
 check("Vivito Marketing bridge requires Group Marketing membership",bridge.includes('canAccessBusinessUnit(session,"marketing")'));
 check("Vivito Marketing bridge reuses signed identity boundary",bridge.includes("createMarketingHandoffAssertion")&&bridge.includes("authorizeGroupHandoff"));
 check("Vivito Marketing action names are allowlisted",bridge.includes("VIVITO_ACTION_CATALOG")&&bridge.includes("isVivitoActionOp"));
@@ -45,11 +46,11 @@ check("Marketing role approval policy stays authoritative",bridge.includes("buil
 check("Cross-database Marketing task execution is idempotent",bridge.includes('vivito:vgroup:${taskId}')&&bridge.includes("on conflict (id) do nothing")&&bridge.includes("MARKETING_TASK_ALREADY_CLAIMED"));
 check("Vivito outer sensitive actions require Group Super Admin approval",vivitoRegistry.includes("approvalRequired:true")&&vivitoDecision.includes("requireApiGroupSuperAdmin")&&vivitoTasks.includes("waiting_approval"));
 check("Vivito approval/history UI is present",vivitoPanel.includes("Approve")&&vivitoPanel.includes("Reject")&&vivitoPanel.includes("View history")&&vivitoPanel.includes("eventMap"));
-check("Marketing execution endpoint is never user-controlled",vivitoRegistry.includes('endpoint:marketingEnabled?"/api/vgroup/vivito/marketing":null')&&!bridge.includes("new URL("));
+check("Marketing execution endpoint is fixed and never user-controlled",vivitoRegistry.includes('endpoint:marketingEnabled?"/api/integrations/vgroup-vivito-marketing":null')&&!bridge.includes("new URL("));
 check("Unified CTO workflow has no Vercel deployment action",!workflow.toLowerCase().includes("vercel deploy")&&!workflow.toLowerCase().includes("amondnet/vercel")&&!workflow.toLowerCase().includes("vercel-action"));
 check("Exact build and built-runtime smoke remain mandatory",workflow.includes("npm run type-check")&&workflow.includes("npx next build")&&workflow.includes("qa-vgroup-runtime-smoke.mjs"));
 
-const scanRoots=["app/group","app/api/vgroup","lib/vgroup","components/vgroup","lib/group-handoff.ts","app/api/integrations/vgroup-handoff","app/api/assistant","lib/vivito"];
+const scanRoots=["app/group","app/api/vgroup","lib/vgroup","components/vgroup","lib/group-handoff.ts","app/api/integrations/vgroup-handoff","app/api/integrations/vgroup-vivito-marketing","app/api/assistant","lib/vivito"];
 function walk(target){const full=path.join(root,target);if(!fs.existsSync(full))return[];const stat=fs.statSync(full);if(stat.isFile())return[full];return fs.readdirSync(full,{withFileTypes:true}).flatMap(e=>walk(path.join(target,e.name)))}
 const sourceFiles=scanRoots.flatMap(walk).filter(f=>/\.(ts|tsx|js|mjs)$/.test(f));
 const conflicted=sourceFiles.filter(f=>{const s=fs.readFileSync(f,"utf8");return s.includes("<<<<<<<")||s.includes(">>>>>>>")});
@@ -58,4 +59,4 @@ const tsNoCheck=sourceFiles.filter(f=>fs.readFileSync(f,"utf8").includes("@ts-no
 check("No TypeScript nocheck shields in unified critical runtime",tsNoCheck.length===0);
 
 if(failures.length){console.error(`Unified production brutal audit FAILED: ${failures.length} control(s)`);process.exit(1)}
-console.log(`Unified production brutal audit PASSED: 24/24 controls across ${sourceFiles.length} critical runtime files`);
+console.log(`Unified production brutal audit PASSED: 25/25 controls across ${sourceFiles.length} critical runtime files`);

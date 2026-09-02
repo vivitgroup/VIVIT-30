@@ -4,6 +4,7 @@ import {getTechDashboard} from "@/lib/vgroup/dashboard";
 
 const modules=[
   ["Projects","Phases, scope, checklist, milestones, risks and progress","/group/tech/projects"],
+  ["Operations Cockpit","Capacity, timesheets, UAT, issues, releases, retainers, quotes, collections and renewals","/group/tech/operations"],
   ["Client Portal","Timeline, updates, files, scope and payments","/group/tech/client-portal"],
   ["Billing","Installments, paid/remaining and overdue controls","/group/tech/billing"],
   ["Change Requests","Submit → price → approve/reject → implement","/group/tech/change-requests"],

@@ -1,6 +1,6 @@
-production trigger 2026-09-02T15:13:30Z
-Exact-head candidate: 9067ac18a2ab841543e9fad795a0bdb1b3152c35
-Scope: final bilingual runtime restoration, current main QA convergence, production verification
+production trigger 2026-09-02T20:00:00Z
+Exact-head candidate: 5286956f7f0f816a42adf358d6c0b88f1b8815f5
+Scope: certified unified production build with finalized Group/Hospitality account provisioning
 Previous production rollback remains retained
 Require full build QA + exact-head production verification before acceptance
-force production redeploy 2
+force production redeploy 3

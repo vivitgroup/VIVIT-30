@@ -4,6 +4,7 @@ import {canAccessBusinessUnit,hasPermission} from "@/lib/vgroup/contracts";
 
 export type VivitoWorkspace="group"|"marketing"|"hospitality"|"tech";
 export type VivitoRisk="read"|"write"|"sensitive";
+export type VivitoJsonValue=null|boolean|number|string|VivitoJsonValue[]|{[key:string]:VivitoJsonValue};
 export type VivitoCapability={
   key:string;workspace:VivitoWorkspace;label:string;risk:VivitoRisk;approvalRequired:boolean;enabled:boolean;
   endpoint:string|null;method:"POST"|"GET";permission?:PermissionKey;staticPayload?:Record<string,unknown>;
@@ -31,9 +32,13 @@ export function canUseVivitoCapability(session:VGroupSession,cap:VivitoCapabilit
   return cap.permission?hasPermission(session,unit,cap.permission):true;
 }
 const secretKey=/(token|secret|password|authorization|cookie|token_ref|ical|api[_-]?key)/i;
-export function redactVivito(value:unknown):unknown{
+export function redactVivito(value:unknown):VivitoJsonValue{
+  if(value===null||value===undefined)return null;
+  if(typeof value==="string"||typeof value==="boolean")return value;
+  if(typeof value==="number")return Number.isFinite(value)?value:null;
+  if(typeof value==="bigint")return value.toString();
   if(Array.isArray(value))return value.map(redactVivito);
-  if(value&&typeof value==="object")return Object.fromEntries(Object.entries(value as Record<string,unknown>).map(([k,v])=>[k,secretKey.test(k)?"[REDACTED]":redactVivito(v)]));
-  return value;
+  if(typeof value==="object")return Object.fromEntries(Object.entries(value as Record<string,unknown>).map(([k,v])=>[k,secretKey.test(k)?"[REDACTED]":redactVivito(v)]));
+  return String(value);
 }
 export function vivitoPublicCapabilities(){return VIVITO_CAPABILITIES.map(cap=>({key:cap.key,workspace:cap.workspace,label:cap.label,risk:cap.risk,approvalRequired:cap.approvalRequired,enabled:cap.enabled,method:cap.method,permission:cap.permission,integrationRequired:cap.workspace==="marketing"&&!cap.enabled}))}

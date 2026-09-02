@@ -52,7 +52,11 @@ export default auth((req)=>{
     const bearer=req.headers.get("authorization")?.replace(/^Bearer\s+/i,""),secret=req.headers.get("x-cron-secret")??bearer,expected=process.env.CRON_SECRET;
     if(!expected||secret!==expected)return secHeaders(NextResponse.json({error:"Unauthorized"},{status:401}));
   }
-  const publicExact=["/","/login","/signup","/forgot-password","/reset-password","/robots.txt","/sitemap.xml"],publicPrefixes=["/api/auth","/api/health","/api/signup","/api/password","/approve/","/api/v1/"];
+  // Vivit Group has an intentionally isolated auth/session runtime. Its login,
+  // refresh/logout endpoints and health probe must reach their own handlers
+  // without being intercepted by the legacy Marketing NextAuth session gate.
+  // Mutating Group auth requests still pass the same-origin CSRF check above.
+  const publicExact=["/","/login","/signup","/forgot-password","/reset-password","/group/login","/api/vgroup/health","/robots.txt","/sitemap.xml"],publicPrefixes=["/api/auth","/api/health","/api/signup","/api/password","/api/vgroup/auth/","/approve/","/api/v1/"];
   if(publicExact.includes(pathname)||publicPrefixes.some(p=>pathname.startsWith(p))){
     const res=NextResponse.next();secHeaders(res);if(pathname.startsWith("/api/v1"))corsHeaders(res,origin);return res;
   }

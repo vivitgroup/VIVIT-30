@@ -26,7 +26,8 @@ $("Critic preserves detected style",intel.includes("buildVivitoRedTeamCriticProm
 $("Franco response style is explicitly supported",lang.includes("Reply in natural Egyptian Franco/Arabizi"));
 $("Gen Z response style avoids forced slang",lang.includes("without sounding forced"));
 $("Mixed style mirrors Arabic English naturally",lang.includes("same natural Arabic-English mix"));
-$("Provider outage has deterministic local resilience",providers.includes("generateLocalVivito")&&providers.includes("generateLocalAdvisorV2")&&providers.includes('provider:"local"')&&providers.includes("localFallback"));
+$("Provider outage keeps deterministic resilience only for governed action planning",providers.includes("generateLocalActionPlanV2")&&providers.includes("localActionFallback")&&providers.includes('if(!/VIVITO Action Planner/i.test(system))return null')&&providers.includes('provider:"local"'));
+$("General advisor outage fails transparently instead of using canned local advisor answers",providers.includes("transparentAdvisorFailure")&&providers.includes("never falls back to deterministic canned advisors")&&!providers.includes('import {generateLocalAdvisorV2'));
 $("Local resilience can plan real core task actions",local.includes('return "create_task"')&&local.includes('required=["clientName","title","brief","deadline"]'));
 $("Advisor V2 reads live ERP context",advisor.includes("ERP LIVE CONTEXT")&&advisor.includes("contextFromPrompt"));
 $("Advisor V2 can answer client-specific summaries",advisor.includes("clientSummary")&&advisor.includes("finance not available for your role")&&advisor.includes("sales lead(s) linked by name"));

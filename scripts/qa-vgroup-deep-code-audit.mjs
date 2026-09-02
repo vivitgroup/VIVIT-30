@@ -60,11 +60,10 @@ for(const file of sqlFiles.filter(f=>/vgroup|hospitality|tech|20260902/.test(f))
   if(/security definer/.test(text) && !/set search_path/.test(text)) failures.push(`${file}: SECURITY DEFINER without fixed search_path marker`);
 }
 
-if(failures.length){
+if(failures.length||warnings.length){
   console.error('VGROUP DEEP CODE AUDIT FAIL');
   for(const f of failures) console.error(`FAIL ${f}`);
-  if(warnings.length) for(const w of warnings.slice(0,160)) console.error(`WARN ${w}`);
+  for(const w of warnings.slice(0,160)) console.error(`WARN ${w}`);
   process.exit(1);
 }
-console.log(`vgroup-deep-code-audit: PASS — ${files.length} runtime/source files scanned, ${sqlFiles.length} migrations inventoried, ${warnings.length} review warnings`);
-for(const w of warnings.slice(0,160)) console.log(`WARN ${w}`);
+console.log(`vgroup-deep-code-audit: PASS — ${files.length} runtime/source files scanned, ${sqlFiles.length} migrations inventoried, 0 review warnings`);

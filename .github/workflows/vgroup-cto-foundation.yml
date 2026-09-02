@@ -36,6 +36,8 @@ jobs:
         run: node scripts/qa-vgroup-auth-lifecycle.mjs
       - name: API error contract regression
         run: node scripts/qa-vgroup-api-contracts.mjs
+      - name: Forensic API boundary audit
+        run: node scripts/qa-vgroup-forensic-api-audit.mjs
       - name: Responsive shell regression
         run: node scripts/qa-vgroup-responsive-shell.mjs
       - name: Business logic hardening regression

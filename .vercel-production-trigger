@@ -1,7 +1,6 @@
-production trigger 2026-09-01T23:06:30Z
-Certified release content: 875d81c988ffd975dda9d61d41ccd1adb88963cd
-Merged main before trigger: 25b934afbe06c4b4c93e885cf24e1925f4401482
-Stages 1-14 certified; pre-live database hardening and encrypted off-site backup completed
-Finance production precision aligned to NUMERIC fixed precision
-Rollback production deployment retained
+production trigger 2026-09-02T09:40:00Z
+Live E2E remediation candidate before trigger: df97fa5c1b0be7b27a21b879849c9b31ae7a9f8c
+Scope: DB pool exhaustion, client onboarding, RBAC launcher/page/API alignment, session transition, new-client context guards, WhatsApp response hardening
+Previous production rollback remains retained
+Require build QA + exact-head production verification before acceptance
 force production redeploy

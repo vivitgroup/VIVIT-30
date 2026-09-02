@@ -33,3 +33,15 @@ export function apiErrorResponse(error:unknown){
   console.error("VGROUP_API_ERROR",requestId,error instanceof Error?error.message:"unknown_error");
   return NextResponse.json({error:{code:"INTERNAL_ERROR",message:"Internal server error",requestId}},{status:500,headers:{"Cache-Control":"no-store","X-Request-Id":requestId}});
 }
+
+export async function apiPermissionOrResponse(unit:BusinessUnitCode,permission:PermissionKey):Promise<VGroupSession|NextResponse>{
+  try{return await requireApiPermission(unit,permission)}catch(error){return apiErrorResponse(error)}
+}
+
+export async function apiBusinessUnitOrResponse(unit:BusinessUnitCode):Promise<VGroupSession|NextResponse>{
+  try{return await requireApiBusinessUnit(unit)}catch(error){return apiErrorResponse(error)}
+}
+
+export async function apiGroupSuperAdminOrResponse():Promise<VGroupSession|NextResponse>{
+  try{return await requireApiGroupSuperAdmin()}catch(error){return apiErrorResponse(error)}
+}

@@ -12,7 +12,7 @@ permissions:
 jobs:
   foundation:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -59,3 +59,15 @@ jobs:
         run: node scripts/qa-vgroup-handover.mjs
       - name: TypeScript contract check
         run: npm run type-check
+      - name: Production compilation gate
+        env:
+          VGROUP_DATABASE_URL: postgresql://vgroup_ci:vgroup_ci@127.0.0.1:5432/vgroup_ci
+          VGROUP_SUPABASE_URL: https://vgroup-ci.invalid
+          VGROUP_SUPABASE_SERVICE_KEY: vgroup-ci-service-key-not-a-secret
+          VGROUP_AUTH_SECRET: vgroup-ci-auth-secret-not-a-secret-32chars
+          VGROUP_ENVIRONMENT: ci
+          DATABASE_URL: postgresql://marketing_ci:marketing_ci@127.0.0.1:5432/marketing_ci
+          SUPABASE_URL: https://marketing-ci.invalid
+          SUPABASE_SERVICE_KEY: marketing-ci-service-key-not-a-secret
+          AUTH_SECRET: marketing-ci-auth-secret-not-a-secret-32chars
+        run: npx next build

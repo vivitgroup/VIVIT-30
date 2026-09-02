@@ -19,5 +19,10 @@ const protectedRoutes=[
  'app/api/vgroup/tech/projects/route.ts',
  'app/api/vgroup/admin/employees/route.ts',
 ];
-for(const route of protectedRoutes){const body=read(route);const guarded=body.includes('requireApiPermission')||body.includes('requireBusinessPermission');if(!guarded)throw new Error(`Route missing server permission guard: ${route}`)}
+const acceptedGuards=['requireApiPermission','requireBusinessPermission','requireGroupSuperAdmin'];
+for(const route of protectedRoutes){
+  const body=read(route);
+  const guarded=acceptedGuards.some(guard=>body.includes(guard));
+  if(!guarded)throw new Error(`Route missing server permission guard: ${route}`);
+}
 console.log(`role-contracts: ${requiredRoles.length} roles, protected routes and BU isolation verified`);

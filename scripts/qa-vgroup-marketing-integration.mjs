@@ -7,6 +7,9 @@ const env=read('.env.vgroup.example');
 const state=read('lib/vgroup/marketing-integration.ts');
 const selector=read('app/group/page.tsx');
 const gate=read('app/group/marketing/page.tsx');
+const marketingTypes=read('lib/types.ts');
+const marketingAuth=read('auth.config.ts');
+const nextAuthTypes=read('types/next-auth.d.ts');
 const pinned='b66542a3cfee8d5d54299450e8bc6a79b2a51062';
 for(const phrase of [pinned,'single-use','fails closed','explicit production cutover approval']){
   if(!contract.toLowerCase().includes(phrase.toLowerCase()))throw new Error(`Marketing integration contract missing: ${phrase}`);
@@ -17,4 +20,11 @@ if(!state.includes(`VGROUP_PINNED_MARKETING_SHA="${pinned}"`))throw new Error('R
 if(!state.includes('if(enabled&&!certified)'))throw new Error('Marketing runtime does not fail closed on candidate drift');
 if(!selector.includes('disabled:true'))throw new Error('Marketing selector card must remain disabled before cutover');
 if(!gate.includes('does not mutate Marketing data, storage, OAuth, hosting, or deployment'))throw new Error('Readiness gate lacks production-mutation boundary');
-console.log('marketing-integration: pinned candidate, disabled default, drift guard and no-production-mutation boundary verified');
+if(!marketingTypes.includes('HR = "HR"'))throw new Error('Inherited Marketing role contract is missing HR');
+for(const phrase of ['token.roles','token.permissions','user_role_assignments','user_permission_grants']){
+  if(!marketingAuth.includes(phrase))throw new Error(`Inherited Marketing auth compatibility missing: ${phrase}`);
+}
+for(const phrase of ['roles?: Role[]','permissions?: Permission[]']){
+  if(!nextAuthTypes.includes(phrase))throw new Error(`Inherited Marketing session typing missing: ${phrase}`);
+}
+console.log('marketing-integration: candidate pin, disabled default, auth/session compatibility, drift guard and no-production-mutation boundary verified');

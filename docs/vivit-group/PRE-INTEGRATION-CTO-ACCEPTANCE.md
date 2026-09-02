@@ -13,11 +13,12 @@ A candidate is acceptable only when every automated gate is green on the exact b
 - Audit/archive/restore contracts exist for sensitive shared operations.
 - Release and rollback boundaries are documented.
 - Vercel is excluded from the delivery scope and is not required for CTO certification.
+- Isolated backup/restore drill evidence is recorded in `docs/vivit-group/BACKUP-RESTORE-DRILL-2026-09-02.md` and is PASS.
 
-## Remaining manual gates before Marketing integration
-1. Validate an isolated backup/restore drill and record evidence.
-2. Freeze final candidate SHA and obtain CTO acceptance against that exact SHA.
-3. Execute Marketing integration only as a separately approved controlled change.
+## Gate status
+1. Isolated backup/restore drill — DONE / PASS.
+2. Freeze final candidate SHA and obtain CTO acceptance against that exact SHA — PENDING exact-head green run.
+3. Marketing integration — intentionally separate and requires its own explicit controlled-change approval.
 
 ## Prohibited before final integration approval
 - Marketing production database migration or write.

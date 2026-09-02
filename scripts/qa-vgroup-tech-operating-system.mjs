@@ -1,0 +1,16 @@
+import fs from 'node:fs';
+import path from 'node:path';
+const root=process.cwd();
+const read=p=>fs.readFileSync(path.join(root,p),'utf8');
+const migration=read('db/migrations/20260902_tech_business_operating_system_v2.sql');
+const api=read('app/api/vgroup/tech/operations/route.ts');
+const cockpit=read('app/group/tech/operations/page.tsx');
+const techHome=read('app/group/tech/page.tsx');
+const requiredTables=['resource_capacity','timesheets','support_contracts','recurring_services','deliverables','uat_cycles','issues','environments','release_records','project_asset_registry','change_request_approval_rules','revenue_recognition','credit_notes','collection_cases','client_credit_profiles','saas_addons','subscription_addons','subscription_adjustments','trial_events','customer_success_health','renewal_pipeline','external_resources','external_resource_assignments','service_catalog','project_templates','quotations','quotation_items','proposal_approvals','client_feedback','project_postmortems'];
+for(const table of requiredTables)if(!migration.includes(`tech.${table}`))throw new Error(`Tech operating system missing table: ${table}`);
+for(const phrase of ['RESOURCE_OVERALLOCATED','subscription_proration','project_budget_actual','project_profitability_forecast','capacity_utilization','portfolio_summary','renewal_forecast'])if(!migration.includes(phrase))throw new Error(`Tech operating system missing engine: ${phrase}`);
+for(const operation of ['timesheet','capacity','deliverable','uat','issue','release','support_contract','quotation','feedback'])if(!api.includes(`case "${operation}"`))throw new Error(`Tech operations API missing: ${operation}`);
+for(const phrase of ['projects:view','projects:update','Cache-Control','RESOURCE_OVERALLOCATED'])if(!api.includes(phrase))throw new Error(`Tech operations API control missing: ${phrase}`);
+for(const phrase of ['Operations Cockpit','Capacity & Timesheets','Deliverables & UAT','Issues & Releases','Support & Retainers','SaaS Expansion','Renewals','Knowledge Loop'])if(!cockpit.includes(phrase))throw new Error(`Tech cockpit missing: ${phrase}`);
+if(!techHome.includes('/group/tech/operations'))throw new Error('Tech home does not expose operations cockpit');
+console.log(`tech-operating-system: ${requiredTables.length} domain tables, business engines, secure API and cockpit contracts verified`);

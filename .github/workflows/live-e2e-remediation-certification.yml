@@ -12,6 +12,14 @@ jobs:
   certify:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      # Build-only placeholder. postgres.js is lazy; this prevents import-time
+      # configuration failure during Next route discovery without contacting production.
+      DATABASE_URL: postgresql://ci_user:ci_password@127.0.0.1:5432/ci_db
+      NEXTAUTH_URL: http://localhost:3000
+      AUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: ci-build-only-secret-not-for-runtime
+      AUTH_SECRET: ci-build-only-secret-not-for-runtime
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

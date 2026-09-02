@@ -19,6 +19,7 @@ export default async function MarketingIntegrationPage(){
         <article style={{padding:22,borderRadius:20,border:"1px solid #4b272c",background:"rgba(231,90,99,.08)"}}><div style={{fontSize:11,color:"#ba858b",fontWeight:900,letterSpacing:".1em"}}>CERTIFICATION</div><strong style={{display:"block",fontSize:24,marginTop:8}}>{state.certified?"MATCH":"REVIEW"}</strong></article>
       </div>
       {handoff?<MarketingHandoffForm endpoint={handoff.endpoint} assertion={handoff.assertion}/>:<div style={{marginTop:20,padding:22,borderRadius:20,border:"1px solid #403036",background:"rgba(255,255,255,.035)",color:"#c7b4b7",lineHeight:1.7}}>Marketing handoff remains fail-closed until the receiving bridge, dedicated secret, endpoint and explicit cutover flag are certified.</div>}
+      <div style={{marginTop:14,fontSize:12,color:"#927a7e",lineHeight:1.6}}>This integration does not mutate Marketing data, storage, OAuth, hosting, or deployment. Production mutation remains a separate explicitly approved cutover action.</div>
     </section>
   </main>;
 }

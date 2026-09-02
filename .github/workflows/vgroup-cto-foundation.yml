@@ -39,6 +39,8 @@ jobs:
         run: node scripts/qa-vgroup-responsive-shell.mjs
       - name: Business logic hardening regression
         run: node scripts/qa-vgroup-business-hardening.mjs
+      - name: Tech operating system regression
+        run: node scripts/qa-vgroup-tech-operating-system.mjs
       - name: Marketing integration readiness regression
         run: node scripts/qa-vgroup-marketing-integration.mjs
       - name: Release readiness and rollback prerequisites

@@ -3,7 +3,9 @@ name: Build Diagnostic
 on:
   push:
     branches:
+      - main
       - audit/finance-deep-2026-09-01
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -11,6 +13,7 @@ permissions:
 jobs:
   build-diagnostic:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     env:
       # Build-only placeholder. Next.js imports API route modules while collecting
       # route metadata, and lib/db.ts validates that DATABASE_URL exists at import

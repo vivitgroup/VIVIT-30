@@ -41,5 +41,7 @@ jobs:
         run: node scripts/qa-vgroup-release-readiness.mjs
       - name: Pre-integration CTO acceptance contract
         run: node scripts/qa-vgroup-preintegration.mjs
+      - name: Handover completeness gate
+        run: node scripts/qa-vgroup-handover.mjs
       - name: TypeScript contract check
         run: npm run type-check

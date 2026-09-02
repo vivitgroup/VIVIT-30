@@ -3,6 +3,7 @@ import TechOpsConsole from "./TechOpsConsole";
 import {requireBusinessPermission} from "@/lib/vgroup/access";
 import {getVGroupSql} from "@/lib/vgroup/db";
 
+type Commercial={leads:number;opportunities:number;weighted_pipeline:number;proposals:number;tickets:number;trial_extensions:number;upsells:number};
 export const dynamic="force-dynamic";
 const money=(value:number)=>new Intl.NumberFormat("en-EG",{style:"currency",currency:"EGP",maximumFractionDigits:0}).format(value||0);
 
@@ -27,14 +28,14 @@ export default async function TechOperations(){
     (select count(*)::int from tech.subscription_adjustments where invoiced_at is null) adjustments,
     (select count(*)::int from tech.subscriptions where status='trialing') trials,
     (select count(*)::int from tech.customer_success_health where churn_risk in ('high','elevated')) at_risk`;
-  const [commercial]=bu?.id?await sql<any[]>`select
+  const commercial:Commercial=bu?.id?(await sql<Commercial[]>`select
     (select count(*)::int from tech.sales_leads where business_unit_id=${bu.id}::uuid and status in ('new','qualified')) leads,
     (select count(*)::int from tech.sales_opportunities where business_unit_id=${bu.id}::uuid and stage not in ('won','lost')) opportunities,
     (select coalesce(sum(expected_value*probability/100),0)::numeric from tech.sales_opportunities where business_unit_id=${bu.id}::uuid and stage not in ('won','lost')) weighted_pipeline,
     (select count(*)::int from tech.proposals where business_unit_id=${bu.id}::uuid and status in ('draft','internal_review','approved_internal','sent')) proposals,
     (select count(*)::int from tech.support_tickets where business_unit_id=${bu.id}::uuid and status not in ('resolved','closed')) tickets,
     (select count(*)::int from tech.trial_extension_requests where business_unit_id=${bu.id}::uuid and status='pending') trial_extensions,
-    (select count(*)::int from tech.upsell_opportunities where business_unit_id=${bu.id}::uuid and stage not in ('won','lost')) upsells`:{leads:0,opportunities:0,weighted_pipeline:0,proposals:0,tickets:0,trial_extensions:0,upsells:0};
+    (select count(*)::int from tech.upsell_opportunities where business_unit_id=${bu.id}::uuid and stage not in ('won','lost')) upsells`)[0]:{leads:0,opportunities:0,weighted_pipeline:0,proposals:0,tickets:0,trial_extensions:0,upsells:0};
   const cards=[
     ["Sales → Delivery",`${commercial.leads} leads · ${commercial.opportunities} opportunities`,`Weighted pipeline ${money(Number(commercial.weighted_pipeline||0))}. Proposal, quotation, contract and project conversion controls.`],
     ["Capacity & Timesheets",`${ops.capacity_hotspots} hotspots · ${ops.timesheets_pending} approvals`,`Resource allocation, actual effort, 30/60/90-day utilization and labor cost.`],

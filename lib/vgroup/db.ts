@@ -9,7 +9,6 @@ export type VGroupBusinessUnitRow = {
 };
 
 declare global {
-  // eslint-disable-next-line no-var
   var _vgroupPgClient: ReturnType<typeof postgres> | undefined;
 }
 

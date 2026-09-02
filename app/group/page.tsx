@@ -36,7 +36,7 @@ export default async function GroupHome(){
         <div><div style={{fontSize:12,letterSpacing:".18em",textTransform:"uppercase",color:"#94a3b8",fontWeight:800}}>Vivit Group ERP</div><h1 style={{fontSize:"clamp(38px,5vw,68px)",letterSpacing:"-.055em",lineHeight:1,margin:"10px 0 12px"}}>Choose your workspace.</h1><p style={{color:"#a8b2c1",maxWidth:720,lineHeight:1.7}}>Welcome, <b style={{color:'#fff'}}>{session.fullName}</b>. Only workspaces allowed by your live role and permissions are available.</p></div>
         <form action="/api/vgroup/auth/logout" method="post"><button style={{padding:"12px 16px",border:"1px solid #243041",borderRadius:999,background:"rgba(15,23,42,.72)",fontSize:12,fontWeight:800,color:"#9fb0c6",cursor:'pointer'}}>SIGN OUT</button></form>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gap:14}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:14}}>
         {accessible.map(unit=>{
           const live=unit.code==="group"||liveCodes.has(unit.code);
           const content=<div style={{minHeight:420,padding:24,borderRadius:30,border:`1px solid ${unit.accent}55`,background:`linear-gradient(155deg,${unit.accent}20,rgba(255,255,255,.035) 48%,rgba(255,255,255,.015))`,boxShadow:`0 35px 80px rgba(0,0,0,.35), inset 0 1px 0 ${unit.accent}44`,display:"flex",flexDirection:"column",justifyContent:"space-between",position:"relative",overflow:"hidden",transform:"perspective(1000px) rotateX(1.5deg)",transformOrigin:"center bottom"}}>
@@ -47,7 +47,6 @@ export default async function GroupHome(){
           return unit.disabled?<div key={unit.code} style={{opacity:.7}}>{content}</div>:<Link key={unit.code} href={unit.href} style={{textDecoration:"none",color:"inherit"}}>{content}</Link>
         })}
       </div>
-      <style>{`@media (max-width:1100px){main section>div:nth-of-type(2){grid-template-columns:repeat(2,minmax(0,1fr))!important}}@media (max-width:640px){main section>div:nth-of-type(2){grid-template-columns:1fr!important}}`}</style>
     </section>
   </main>
 }

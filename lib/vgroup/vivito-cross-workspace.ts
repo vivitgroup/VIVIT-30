@@ -5,10 +5,8 @@ import {canAccessBusinessUnit,hasPermission} from "@/lib/vgroup/contracts";
 export type VivitoWorkspace="group"|"marketing"|"hospitality"|"tech";
 export type VivitoRisk="read"|"write"|"sensitive";
 export type VivitoJsonValue=null|boolean|number|string|VivitoJsonValue[]|{[key:string]:VivitoJsonValue};
-export type VivitoCapability={
-  key:string;workspace:VivitoWorkspace;label:string;risk:VivitoRisk;approvalRequired:boolean;enabled:boolean;
-  endpoint:string|null;method:"POST"|"GET";permission?:PermissionKey;staticPayload?:Record<string,unknown>;
-};
+export type VivitoCapability={key:string;workspace:VivitoWorkspace;label:string;risk:VivitoRisk;approvalRequired:boolean;enabled:boolean;endpoint:string|null;method:"POST"|"GET";permission?:PermissionKey;staticPayload?:Record<string,unknown>};
+const marketingEnabled=process.env.VGROUP_MARKETING_INTEGRATION_ENABLED==="true";
 
 export const VIVITO_CAPABILITIES:readonly VivitoCapability[]=[
   {key:"group.board_action_create",workspace:"group",label:"Create board action",risk:"sensitive",approvalRequired:true,enabled:true,endpoint:"/api/vgroup/board/operations",method:"POST",staticPayload:{action:"action_create"}},
@@ -20,7 +18,7 @@ export const VIVITO_CAPABILITIES:readonly VivitoCapability[]=[
   {key:"tech.issue_create",workspace:"tech",label:"Create issue",risk:"write",approvalRequired:false,enabled:true,endpoint:"/api/vgroup/tech/operations",method:"POST",permission:"projects:update",staticPayload:{operation:"issue"}},
   {key:"tech.deliverable_create",workspace:"tech",label:"Create deliverable",risk:"write",approvalRequired:false,enabled:true,endpoint:"/api/vgroup/tech/operations",method:"POST",permission:"projects:update",staticPayload:{operation:"deliverable"}},
   {key:"tech.release_plan",workspace:"tech",label:"Plan release",risk:"sensitive",approvalRequired:true,enabled:true,endpoint:"/api/vgroup/tech/operations",method:"POST",permission:"projects:update",staticPayload:{operation:"release"}},
-  {key:"marketing.task_execute",workspace:"marketing",label:"Execute Marketing task",risk:"sensitive",approvalRequired:true,enabled:false,endpoint:null,method:"POST"},
+  {key:"marketing.task_execute",workspace:"marketing",label:"Execute Marketing task",risk:"sensitive",approvalRequired:true,enabled:marketingEnabled,endpoint:marketingEnabled?"/api/vgroup/vivito/marketing":null,method:"POST"},
 ] as const;
 
 export function findVivitoCapability(key:string){return VIVITO_CAPABILITIES.find(item=>item.key===key)}

@@ -31,6 +31,10 @@ jobs:
         run: node scripts/qa-vgroup-role-contracts.mjs
       - name: Portal isolation and sensitive actions
         run: node scripts/qa-vgroup-portal-isolation.mjs
+      - name: Auth lifecycle regression
+        run: node scripts/qa-vgroup-auth-lifecycle.mjs
+      - name: API error contract regression
+        run: node scripts/qa-vgroup-api-contracts.mjs
       - name: Release readiness and rollback prerequisites
         run: node scripts/qa-vgroup-release-readiness.mjs
       - name: TypeScript contract check

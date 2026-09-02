@@ -4,6 +4,7 @@ import {requireBusinessUnitAccess} from "@/lib/vgroup/access";
 import {getVGroupSql} from "@/lib/vgroup/db";
 import HospitalityCalendar from "./HospitalityCalendar";
 
+type Ops={housekeeping_open:number;complaints_open:number;inbox_open:number;maintenance_due:number;rfqs_open:number;reconciliation_open:number;lost_found_open:number;pricing_rules:number};
 export const dynamic="force-dynamic";
 export default async function Page(){
  await requireBusinessUnitAccess("hospitality");
@@ -12,7 +13,7 @@ export default async function Page(){
  const buId=bu?.id;
  const workOrders=await sql`select w.id::text,w.title,w.priority,w.status,w.estimated_cost,p.name property_name from hospitality.work_orders w join hospitality.properties p on p.id=w.property_id where w.archived_at is null order by w.created_at desc limit 40`;
  const purchaseOrders=await sql`select po.id::text,po.po_number,po.status,po.currency,po.total,p.name property_name,v.name vendor_name from hospitality.purchase_orders po left join hospitality.properties p on p.id=po.property_id left join hospitality.vendors v on v.id=po.vendor_id order by po.created_at desc limit 40`;
- const [ops]=buId?await sql<any[]>`select
+ const ops:Ops=buId?(await sql<Ops[]>`select
   (select count(*)::int from hospitality.housekeeping_tasks where business_unit_id=${buId}::uuid and status not in ('passed','cancelled')) housekeeping_open,
   (select count(*)::int from hospitality.guest_complaints where business_unit_id=${buId}::uuid and status not in ('resolved','closed')) complaints_open,
   (select count(*)::int from hospitality.guest_conversations where business_unit_id=${buId}::uuid and status<>'closed') inbox_open,
@@ -20,7 +21,7 @@ export default async function Page(){
   (select count(*)::int from hospitality.procurement_rfqs where business_unit_id=${buId}::uuid and status in ('open','evaluation')) rfqs_open,
   (select count(*)::int from hospitality.channel_reconciliations where business_unit_id=${buId}::uuid and status in ('pending','variance')) reconciliation_open,
   (select count(*)::int from hospitality.lost_found_items where business_unit_id=${buId}::uuid and status not in ('returned','disposed')) lost_found_open,
-  (select count(*)::int from hospitality.pricing_rules where business_unit_id=${buId}::uuid and active) pricing_rules`:{housekeeping_open:0,complaints_open:0,inbox_open:0,maintenance_due:0,rfqs_open:0,reconciliation_open:0,lost_found_open:0,pricing_rules:0};
+  (select count(*)::int from hospitality.pricing_rules where business_unit_id=${buId}::uuid and active) pricing_rules`)[0]:{housekeeping_open:0,complaints_open:0,inbox_open:0,maintenance_due:0,rfqs_open:0,reconciliation_open:0,lost_found_open:0,pricing_rules:0};
  const properties=buId?await sql<any[]>`select id::text,name from hospitality.properties where business_unit_id=${buId}::uuid and archived_at is null and status='active' order by name limit 30`:[];
  const reservations=buId?await sql<any[]>`select r.id::text,r.property_id::text,r.guest_name,r.check_in::text,r.check_out::text,r.status from hospitality.reservations r where r.business_unit_id=${buId}::uuid and r.status in ('pending','confirmed','checked_in') and r.check_out>=current_date order by r.check_in limit 120`:[];
  const cards=[

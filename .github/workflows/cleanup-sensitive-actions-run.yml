@@ -1,0 +1,31 @@
+name: Cleanup Sensitive Actions Run
+
+on:
+  push:
+    branches:
+      - ops/prelive-backup-2026-09-02
+    paths:
+      - .github/workflows/cleanup-sensitive-actions-run.yml
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete sensitive diagnostic workflow runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          for run_id in 33573640686 33573620613; do
+            code="$(curl -sS -o /tmp/delete-$run_id.txt -w '%{http_code}' -X DELETE \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H 'Accept: application/vnd.github+json' \
+              -H 'X-GitHub-Api-Version: 2022-11-28' \
+              "https://api.github.com/repos/$REPO/actions/runs/$run_id")"
+            test "$code" = "204" || { cat /tmp/delete-$run_id.txt; exit 1; }
+          done

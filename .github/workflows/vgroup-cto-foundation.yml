@@ -63,7 +63,7 @@ jobs:
       - name: Deep Vivit Group source audit
         run: node scripts/qa-vgroup-deep-code-audit.mjs
       - name: Scoped Vivit Group ESLint
-        run: npx eslint proxy.ts app/group app/api/vgroup lib/vgroup components/vgroup lib/group-handoff.ts app/api/integrations/vgroup-handoff --max-warnings=0
+        run: npx eslint proxy.ts app/group app/api/vgroup lib/vgroup components/vgroup lib/group-handoff.ts app/api/integrations/vgroup-handoff app/api/integrations/vgroup-vivito-marketing --max-warnings=0
       - name: Accounting integration contract regression
         run: node scripts/qa-vgroup-accounting-integration-contract.mjs
       - name: Marketing integration readiness regression

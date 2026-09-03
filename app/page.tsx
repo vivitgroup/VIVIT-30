@@ -8,7 +8,11 @@ import { MarketingTypewriter } from "@/components/landing/MarketingTypewriter";
 
 export default async function LandingPage(){
   const session=await auth();
-  if(session?.user)redirect(homeFor(session.user.role as Role));
+  if(session?.user){
+    const role=session.user.role as Role;
+    if(role===Role.SUPER_ADMIN)redirect("/group");
+    redirect(homeFor(role));
+  }
 
   const journey=[
     ["01","STRATEGIZE","Plan campaigns, audiences and objectives around clear growth goals."],

@@ -16,6 +16,8 @@ const errorStatus=(error:unknown)=>{if(!error||typeof error!=="object"||!("statu
 const providerError=(message:string,status:number):ProviderHttpError=>{const error=new Error(message) as ProviderHttpError;error.status=status;return error};
 
 const ANTHROPIC_URL="https://api.anthropic.com/v1/messages";
+const OPENROUTER_URL="https://openrouter.ai/api/v1/chat/completions";
+const FREE_OPENROUTER_MODELS=["nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free","poolside/laguna-s-2.1:free"] as const;
 const MIN_TIMEOUT_MS=2000;
 const DEFAULT_TIMEOUT_MS=25000;
 const MAX_TIMEOUT_MS=45000;
@@ -26,10 +28,9 @@ function requestSignal(options:GenerateOptions){return AbortSignal.timeout(bound
 async function safeJson(r:Response):Promise<unknown>{return r.json().catch(()=>({}))}
 function enabled(value:unknown){return /^(1|true|yes|on)$/i.test(String(value||"").trim())}
 
-// Keep both supported Vercel AI Gateway credentials available. A configured API
-// key remains the preferred credential, while the deployment-managed OIDC token
-// is an automatic auth fallback when the key is stale, revoked, or mis-scoped.
-function gatewayTokens(){return [...new Set([process.env.AI_GATEWAY_API_KEY,process.env.VERCEL_OIDC_TOKEN].map(value=>String(value||"").trim()).filter(Boolean))]}
+// Vercel has used both AI_GATEWAY_API_KEY and VERCEL_AI_GATEWAY_API_KEY naming
+// across integrations. Keep OIDC as a final deployment-managed auth fallback.
+function gatewayTokens(){return [...new Set([process.env.AI_GATEWAY_API_KEY,process.env.VERCEL_AI_GATEWAY_API_KEY,process.env.VERCEL_OIDC_TOKEN].map(value=>String(value||"").trim()).filter(Boolean))]}
 function gatewayToken(){return gatewayTokens()[0]||""}
 export function vivitoFreeOnlyMode(){return !enabled(process.env.VIVITO_ALLOW_PAID_PROVIDERS)}
 async function callGateway(prompt:string,system:string,options:GenerateOptions){
@@ -47,6 +48,22 @@ async function callGateway(prompt:string,system:string,options:GenerateOptions){
     }
   }
   throw lastError instanceof Error?lastError:new Error("gateway-auth-failed");
+}
+
+async function callFreeOpenRouter(prompt:string,system:string,options:GenerateOptions){
+  const token=String(process.env.OPENROUTER_API_KEY||"").trim();if(!token)throw new Error("free-openrouter-not-configured");
+  const errors:string[]=[];let lastStatus=0;
+  for(const model of FREE_OPENROUTER_MODELS){
+    try{
+      const r=await fetch(OPENROUTER_URL,{method:"POST",signal:requestSignal(options),headers:{"Content-Type":"application/json",Authorization:`Bearer ${token}`,"HTTP-Referer":"https://vivit-erp-theta.vercel.app","X-Title":"VIVITO"},body:JSON.stringify({model,temperature:options.temperature??0.18,max_tokens:options.maxTokens||3200,messages:[{role:"system",content:system},{role:"user",content:prompt}]})});
+      const d=asRecord(await safeJson(r));lastStatus=r.status;
+      if(!r.ok){const apiError=asRecord(d.error);errors.push(`${model}:${String(apiError.message||`http-${r.status}`).slice(0,160)}`);continue}
+      const first=asRecord(asArray(d.choices)[0]),message=asRecord(first.message),text=String(message.content||"").trim();
+      if(!text){errors.push(`${model}:empty-response`);continue}
+      return{text,modelId:`openrouter:${model}`,errors};
+    }catch(error:unknown){errors.push(`${model}:${error instanceof Error?error.message:String(error)}`)}
+  }
+  throw providerError(`free-openrouter-chain-failed:${errors.join(" | ")}`,lastStatus);
 }
 
 async function callClaude(prompt:string,system:string,options:GenerateOptions){
@@ -68,13 +85,13 @@ async function callGemini(prompt:string,system:string,options:GenerateOptions){
 
 export function configuredVivitoProviders():VivitoProviderName[]{
   const providers:VivitoProviderName[]=[];if(gatewayToken())providers.push("gateway");
-  // Default production policy is zero-cost only. Direct Gemini/Mesh/Claude are
-  // retained solely for deployments that explicitly opt into paid providers.
-  if(!vivitoFreeOnlyMode()){
-    if(process.env.GEMINI_API_KEY)providers.push("gemini");
-    if(vivitoMeshSummary().configured>0)providers.push("mesh");
-    if(process.env.ANTHROPIC_API_KEY)providers.push("claude");
+  if(vivitoFreeOnlyMode()){
+    if(process.env.OPENROUTER_API_KEY)providers.push("mesh");
+    return providers;
   }
+  if(process.env.GEMINI_API_KEY)providers.push("gemini");
+  if(vivitoMeshSummary().configured>0)providers.push("mesh");
+  if(process.env.ANTHROPIC_API_KEY)providers.push("claude");
   return providers;
 }
 function safeError(provider:VivitoProviderName,error:unknown){const failure=classifyVivitoProviderFailure(error,errorStatus(error));return `${provider}:${failure.safeCode}`}
@@ -95,12 +112,12 @@ function transparentAdvisorFailure(prompt:string,attempted:VivitoProviderName[],
 export async function generateVivito(prompt:string,system:string,options:GenerateOptions={}):Promise<VivitoGeneration>{
   const started=Date.now(),configured=configuredVivitoProviders(),attempted:VivitoProviderName[]=[],errors:string[]=[];
   if(!configured.length){
-    errors.push(vivitoFreeOnlyMode()?"external:free-gateway-not-configured":"external:provider-not-configured");
+    errors.push(vivitoFreeOnlyMode()?"external:free-provider-not-configured":"external:provider-not-configured");
     const local=localActionFallback(prompt,system,attempted,errors,started);if(local)return local;
     if(isGeneralAdvisorSystem(system))return transparentAdvisorFailure(prompt,attempted,errors,started);
     throw new Error("provider-not-configured");
   }
-  const defaultOrder:VivitoProviderName[]=vivitoFreeOnlyMode()?["gateway"]:["gateway","gemini","mesh","claude"];
+  const defaultOrder:VivitoProviderName[]=vivitoFreeOnlyMode()?["gateway","mesh"]:["gateway","gemini","mesh","claude"];
   const preferred=(options.preferred||defaultOrder).filter(p=>p!=="local"&&configured.includes(p));const baseOrder=[...preferred,...configured.filter(p=>!preferred.includes(p))];
   const order=[...baseOrder.filter(p=>vivitoProviderCooldownRemaining(p)===0),...baseOrder.filter(p=>vivitoProviderCooldownRemaining(p)>0)];
   for(const provider of order){
@@ -109,14 +126,14 @@ export async function generateVivito(prompt:string,system:string,options:Generat
     attempted.push(provider);
     try{
       if(provider==="gateway"){const result=await callGateway(prompt,system,options),text=repairOrFallbackVivitoActionPlan(prompt,system,result.text);clearVivitoProviderCooldown(provider);return{text,provider,attempted,errors,latencyMs:Date.now()-started,modelId:result.modelId}}
-      if(provider==="mesh"){const result=await generateViaVivitoMesh(prompt,system,options),text=repairOrFallbackVivitoActionPlan(prompt,system,result.text);clearVivitoProviderCooldown(provider);return{text,provider,attempted,errors:[...errors,...result.errors],latencyMs:Date.now()-started,modelId:result.modelId}}
+      if(provider==="mesh"){
+        const result=vivitoFreeOnlyMode()?await callFreeOpenRouter(prompt,system,options):await generateViaVivitoMesh(prompt,system,options);
+        const text=repairOrFallbackVivitoActionPlan(prompt,system,result.text);clearVivitoProviderCooldown(provider);return{text,provider,attempted,errors:[...errors,...result.errors],latencyMs:Date.now()-started,modelId:result.modelId};
+      }
       const generated=provider==="gemini"?await callGemini(prompt,system,options):await callClaude(prompt,system,options),text=repairOrFallbackVivitoActionPlan(prompt,system,generated);clearVivitoProviderCooldown(provider);return{text,provider,attempted,errors,latencyMs:Date.now()-started};
     }catch(error:unknown){const failure=classifyVivitoProviderFailure(error,errorStatus(error));markVivitoProviderCooldown(provider,failure);errors.push(safeError(provider,error))}
   }
   const local=localActionFallback(prompt,system,attempted,errors,started);if(local)return local;
-  // General advisor traffic never falls back to deterministic canned advisors.
-  // A transparent failure keeps the API contract intact and prevents the route's
-  // legacy unrelated task/media snapshot fallback from being used.
   if(isGeneralAdvisorSystem(system))return transparentAdvisorFailure(prompt,attempted,errors,started);
   throw new Error(`all-providers-failed:${errors.join(" | ")}`);
 }

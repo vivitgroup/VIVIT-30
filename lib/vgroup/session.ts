@@ -1,6 +1,7 @@
 import {createHash} from "node:crypto";
 import {cookies} from "next/headers";
 import {redirect} from "next/navigation";
+import {auth} from "@/lib/auth";
 import {getVGroupSql} from "@/lib/vgroup/db";
 import type {BusinessUnitCode, GroupMembershipClaim, GroupRoleCode, GroupSessionClaims, PermissionKey} from "@/lib/vgroup/contracts";
 
@@ -13,7 +14,7 @@ export type VGroupSession = GroupSessionClaims & {
 };
 
 type SupabaseUser={id:string;email?:string};
-
+type GroupUserRow={id:string;email:string;full_name:string;status:string};
 type MembershipRow={business_unit:BusinessUnitCode;role:GroupRoleCode;permissions:string[]|null};
 type OverrideRow={business_unit:BusinessUnitCode;permission:string;effect:"allow"|"deny"};
 
@@ -34,18 +35,36 @@ async function fetchSupabaseUser(accessToken:string):Promise<SupabaseUser|null>{
 }
 
 export async function getVGroupSession():Promise<VGroupSession|null>{
+  const sql=getVGroupSql();
   const jar=await cookies();
   const accessToken=jar.get(ACCESS_COOKIE)?.value;
-  if(!accessToken)return null;
-  const authUser=await fetchSupabaseUser(accessToken);
-  if(!authUser?.id)return null;
+  let user:GroupUserRow|undefined;
+  let bridgedFromMarketing=false;
 
-  const sql=getVGroupSql();
-  const [user]=await sql<{id:string;email:string;full_name:string;status:string}[]>`
-    select id::text,email,full_name,status from vgroup.users
-    where external_auth_id=${authUser.id} and status='active' limit 1
-  `;
-  if(!user)return null;
+  if(accessToken){
+    const authUser=await fetchSupabaseUser(accessToken);
+    if(authUser?.id){
+      [user]=await sql<GroupUserRow[]>`
+        select id::text,email,full_name,status from vgroup.users
+        where external_auth_id=${authUser.id} and status='active' limit 1
+      `;
+    }
+  }
+
+  // Reuse an already-authenticated Marketing SUPER_ADMIN identity only when
+  // the same active identity exists in Group. Group RBAC remains authoritative.
+  if(!user){
+    const marketingSession=await auth();
+    const marketingUser=marketingSession?.user as {email?:string|null;role?:string}|undefined;
+    const email=String(marketingUser?.email||"").trim().toLowerCase();
+    if(marketingUser?.role!=="SUPER_ADMIN"||!email)return null;
+    [user]=await sql<GroupUserRow[]>`
+      select id::text,email,full_name,status from vgroup.users
+      where lower(email)=lower(${email}) and status='active' limit 1
+    `;
+    if(!user)return null;
+    bridgedFromMarketing=true;
+  }
 
   const memberships=await sql<MembershipRow[]>`
     select bu.code as business_unit,
@@ -76,6 +95,8 @@ export async function getVGroupSession():Promise<VGroupSession|null>{
     }
     return {businessUnit:row.business_unit,role:row.role,permissions:Array.from(set)};
   });
+
+  if(bridgedFromMarketing&&!claims.some(claim=>String(claim.role)==="GROUP_SUPER_ADMIN"))return null;
 
   return {userId:user.id,email:user.email,fullName:user.full_name,memberships:claims};
 }

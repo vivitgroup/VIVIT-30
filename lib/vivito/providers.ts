@@ -10,6 +10,7 @@ export type VivitoGeneration={text:string;provider:VivitoProviderName;attempted:
 type GenerateOptions={temperature?:number;maxTokens?:number;preferred?:VivitoProviderName[];timeoutMs?:number;task?:VivitoMeshTask};
 type JsonRecord=Record<string,unknown>;
 type ProviderHttpError=Error&{status?:number};
+type GatewayCredential={token:string;source:"api-key"|"oidc"};
 const asRecord=(value:unknown):JsonRecord=>value&&typeof value==="object"&&!Array.isArray(value)?value as JsonRecord:{};
 const asArray=(value:unknown):unknown[]=>Array.isArray(value)?value:[];
 const errorStatus=(error:unknown)=>{if(!error||typeof error!=="object"||!("status" in error))return undefined;const status=Number((error as {status?:unknown}).status);return Number.isFinite(status)?status:undefined};
@@ -31,20 +32,29 @@ function normalizeGatewayCredential(value:unknown){
   token=token.replace(/^Bearer\s+/i,"").trim();
   return token;
 }
-function gatewayTokens(){return [...new Set([process.env.VERCEL_OIDC_TOKEN,process.env.AI_GATEWAY_API_KEY].map(normalizeGatewayCredential).filter(Boolean))]}
-function gatewayConfigured(){return gatewayTokens().length>0}
+function gatewayCredentials():GatewayCredential[]{
+  const ordered:GatewayCredential[]=[
+    {token:normalizeGatewayCredential(process.env.AI_GATEWAY_API_KEY),source:"api-key"},
+    {token:normalizeGatewayCredential(process.env.VERCEL_OIDC_TOKEN),source:"oidc"},
+  ];
+  const seen=new Set<string>();
+  return ordered.filter(item=>{if(!item.token||seen.has(item.token))return false;seen.add(item.token);return true});
+}
+function gatewayConfigured(){return gatewayCredentials().length>0}
 export function vivitoFreeOnlyMode(){return !enabled(process.env.VIVITO_ALLOW_PAID_PROVIDERS)}
 async function callGateway(prompt:string,system:string,options:GenerateOptions){
-  const tokens=gatewayTokens();if(!tokens.length)throw new Error("gateway-not-configured");
+  const credentials=gatewayCredentials();if(!credentials.length)throw new Error("gateway-not-configured");
   let lastError:unknown;
-  for(let index=0;index<tokens.length;index++){
+  for(let index=0;index<credentials.length;index++){
+    const credential=credentials[index];
     try{
-      const result=await generateViaGatewayIntelligentMesh(prompt,system,tokens[index],options);
-      if(index>0)console.warn("VIVITO gateway auth recovered via fallback credential",{credentialIndex:index});
+      const result=await generateViaGatewayIntelligentMesh(prompt,system,credential.token,options);
+      if(index>0)console.warn("VIVITO gateway auth recovered via fallback credential",{credentialIndex:index,credentialSource:credential.source});
       return{text:result.text,modelId:result.modelId};
     }catch(error:unknown){
-      lastError=error;const status=errorStatus(error),failure=classifyVivitoProviderFailure(error,status);const canRetryAuth=failure.health==="AUTH_FAILURE"&&index<tokens.length-1;
-      if(canRetryAuth){console.warn("VIVITO gateway credential rejected; trying fallback credential",{status,credentialIndex:index});continue}
+      lastError=error;const status=errorStatus(error),failure=classifyVivitoProviderFailure(error,status);const canRetryAuth=failure.health==="AUTH_FAILURE"&&index<credentials.length-1;
+      if(canRetryAuth){console.warn("VIVITO gateway credential rejected; trying fallback credential",{status,credentialIndex:index,credentialSource:credential.source,nextCredentialSource:credentials[index+1]?.source});continue}
+      if(failure.health==="AUTH_FAILURE")console.error("VIVITO gateway authentication exhausted",{status,credentialCount:credentials.length,lastCredentialSource:credential.source,hasApiKey:credentials.some(x=>x.source==="api-key"),hasOidc:credentials.some(x=>x.source==="oidc")});
       throw error;
     }
   }

@@ -26,11 +26,10 @@ function requestSignal(options:GenerateOptions){return AbortSignal.timeout(bound
 async function safeJson(r:Response):Promise<unknown>{return r.json().catch(()=>({}))}
 function enabled(value:unknown){return /^(1|true|yes|on)$/i.test(String(value||"").trim())}
 
-// On Vercel, prefer the platform-issued OIDC identity over any persisted
-// AI_GATEWAY_API_KEY. A stale/revoked static key otherwise takes precedence at
-// AI Gateway and causes provider-auth-failure even when a valid OIDC token is
-// present on the deployment.
-function gatewayToken(){return String(process.env.VERCEL_OIDC_TOKEN||process.env.AI_GATEWAY_API_KEY||"").trim()}
+// Vercel AI Gateway officially prefers a project AI_GATEWAY_API_KEY and uses
+// VERCEL_OIDC_TOKEN as a deployment-managed fallback. Keeping that order also
+// lets key rotation take effect immediately without an OIDC token shadowing it.
+function gatewayToken(){return String(process.env.AI_GATEWAY_API_KEY||process.env.VERCEL_OIDC_TOKEN||"").trim()}
 export function vivitoFreeOnlyMode(){return !enabled(process.env.VIVITO_ALLOW_PAID_PROVIDERS)}
 async function callGateway(prompt:string,system:string,options:GenerateOptions){
   const token=gatewayToken();if(!token)throw new Error("gateway-not-configured");

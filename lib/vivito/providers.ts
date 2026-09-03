@@ -41,7 +41,7 @@ async function callGateway(prompt:string,system:string,options:GenerateOptions){
       if(index>0)console.warn("VIVITO gateway auth recovered via fallback credential",{credentialIndex:index});
       return{text:result.text,modelId:result.modelId};
     }catch(error:unknown){
-      lastError=error;const status=errorStatus(error);const canRetryAuth=(status===401||status===403)&&index<tokens.length-1;
+      lastError=error;const status=errorStatus(error),failure=classifyVivitoProviderFailure(error,status);const canRetryAuth=failure.health==="AUTH_FAILURE"&&index<tokens.length-1;
       if(canRetryAuth){console.warn("VIVITO gateway credential rejected; trying fallback credential",{status,credentialIndex:index});continue}
       throw error;
     }

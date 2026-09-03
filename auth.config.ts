@@ -2,7 +2,7 @@ import type {NextAuthConfig} from "next-auth";
 import {Role} from "@/lib/types";
 import type {Permission} from "@/lib/permissions";
 
-type LiveState={role?:string;workspace_id?:string;is_active?:boolean;approval_status?:string;passwordChangedAt?:string|null;roles?:Role[];permissions?:Permission[]};
+type LiveState={name?:string;role?:string;workspace_id?:string;is_active?:boolean;approval_status?:string;passwordChangedAt?:string|null;roles?:Role[];permissions?:Permission[]};
 type PasswordAudit={created_at?:string|null};
 type RoleAssignment={role?:string|null};
 type PermissionGrant={permission?:string|null};
@@ -15,7 +15,7 @@ async function liveUserState(userId:string):Promise<LiveState|null>{
  const headers={apikey:key,Authorization:`Bearer ${key}`};
  try{
   const [userRes,auditRes]=await Promise.all([
-   fetch(`${url}/rest/v1/users?id=eq.${encodeURIComponent(userId)}&select=role,workspace_id,is_active,approval_status&limit=1`,{headers,cache:"no-store",signal:AbortSignal.timeout(3000)}),
+   fetch(`${url}/rest/v1/users?id=eq.${encodeURIComponent(userId)}&select=role,workspace_id,is_active,approval_status,name&limit=1`,{headers,cache:"no-store",signal:AbortSignal.timeout(3000)}),
    fetch(`${url}/rest/v1/audit_logs?user_id=eq.${encodeURIComponent(userId)}&action=eq.password_changed&select=created_at&order=created_at.desc&limit=1`,{headers,cache:"no-store",signal:AbortSignal.timeout(3000)})
   ]);
   if(!userRes.ok||!auditRes.ok)return null;
@@ -48,6 +48,7 @@ const authConfig={
    if(token.sub){
     const live=await liveUserState(token.sub),issuedAtMs=Number(token.iat||0)*1000,passwordChangedMs=live?.passwordChangedAt?new Date(live.passwordChangedAt).getTime():0;
     token.authValid=Boolean(live?.is_active)&&String(live?.approval_status||"")==="APPROVED"&&(!passwordChangedMs||passwordChangedMs<=issuedAtMs);
+    if(typeof live?.name==="string"&&live.name.trim())token.name=live.name.trim();
     if(isRole(live?.role))token.role=live.role;
     token.roles=live?.roles??(isRole(live?.role)?[live.role]:[]);
     token.permissions=live?.permissions??[];
@@ -59,6 +60,7 @@ const authConfig={
    if(session.user){
     const role=token.role,workspaceId=token.workspaceId;
     session.user.id=token.sub??"";
+    if(typeof token.name==="string"&&token.name.trim())session.user.name=token.name.trim();
     session.user.role=isRole(role)?role:undefined;
     session.user.roles=Array.isArray(token.roles)?token.roles.filter(isRole):[];
     session.user.permissions=Array.isArray(token.permissions)?token.permissions.filter(isPermission):[];

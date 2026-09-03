@@ -42,22 +42,24 @@ export async function getVGroupSession():Promise<VGroupSession|null>{
   let bridgedFromMarketing=false;
 
   if(accessToken){
-    const authUser=await fetchSupabaseUser(accessToken);
-    if(authUser?.id){
-      [user]=await sql<GroupUserRow[]>`
-        select id::text,email,full_name,status from vgroup.users
-        where external_auth_id=${authUser.id} and status='active' limit 1
-      `;
-    }
+    try{
+      const authUser=await fetchSupabaseUser(accessToken);
+      if(authUser?.id){
+        [user]=await sql<GroupUserRow[]>`
+          select id::text,email,full_name,status from vgroup.users
+          where external_auth_id=${authUser.id} and status='active' limit 1
+        `;
+      }
+    }catch{user=undefined}
   }
 
   // Reuse an already-authenticated Marketing SUPER_ADMIN identity only when
   // the same active identity exists in Group. Group RBAC remains authoritative.
   if(!user){
     const marketingSession=await auth();
-    const marketingUser=marketingSession?.user as {email?:string|null;role?:string}|undefined;
+    const marketingUser=marketingSession?.user as {email?:string|null;role?:string;authValid?:boolean}|undefined;
     const email=String(marketingUser?.email||"").trim().toLowerCase();
-    if(marketingUser?.role!=="SUPER_ADMIN"||!email)return null;
+    if(marketingUser?.authValid!==true||marketingUser?.role!=="SUPER_ADMIN"||!email)return null;
     [user]=await sql<GroupUserRow[]>`
       select id::text,email,full_name,status from vgroup.users
       where lower(email)=lower(${email}) and status='active' limit 1

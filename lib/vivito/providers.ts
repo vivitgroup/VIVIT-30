@@ -25,20 +25,17 @@ function boundedTimeout(options:GenerateOptions){const requested=Number(options.
 function requestSignal(options:GenerateOptions){return AbortSignal.timeout(boundedTimeout(options))}
 async function safeJson(r:Response):Promise<unknown>{return r.json().catch(()=>({}))}
 function enabled(value:unknown){return /^(1|true|yes|on)$/i.test(String(value||"").trim())}
-
-// Vercel injects the production OIDC credential into the trusted request context,
-// not necessarily process.env. Read that runtime header first, then fall back to
-// the manually configured key. This keeps production on rotating OIDC whenever
-// the project has Secure Backend Access enabled and avoids stale-key lockout.
-async function runtimeGatewayToken(){
-  if(process.env.VERCEL!=="1")return "";
-  try{const {headers}=await import("next/headers");return String((await headers()).get("x-vercel-oidc-token")||"").trim()}catch{return ""}
+function normalizeGatewayCredential(value:unknown){
+  let token=String(value||"").trim();
+  if((token.startsWith('"')&&token.endsWith('"'))||(token.startsWith("'")&&token.endsWith("'")))token=token.slice(1,-1).trim();
+  token=token.replace(/^Bearer\s+/i,"").trim();
+  return token;
 }
-async function gatewayTokens(){const runtime=await runtimeGatewayToken();return [...new Set([runtime,process.env.AI_GATEWAY_API_KEY,process.env.VERCEL_OIDC_TOKEN].map(value=>String(value||"").trim()).filter(Boolean))]}
-function gatewayConfigured(){return Boolean(process.env.VERCEL||process.env.AI_GATEWAY_API_KEY||process.env.VERCEL_OIDC_TOKEN)}
+function gatewayTokens(){return [...new Set([process.env.VERCEL_OIDC_TOKEN,process.env.AI_GATEWAY_API_KEY].map(normalizeGatewayCredential).filter(Boolean))]}
+function gatewayConfigured(){return gatewayTokens().length>0}
 export function vivitoFreeOnlyMode(){return !enabled(process.env.VIVITO_ALLOW_PAID_PROVIDERS)}
 async function callGateway(prompt:string,system:string,options:GenerateOptions){
-  const tokens=await gatewayTokens();if(!tokens.length)throw new Error("gateway-not-configured");
+  const tokens=gatewayTokens();if(!tokens.length)throw new Error("gateway-not-configured");
   let lastError:unknown;
   for(let index=0;index<tokens.length;index++){
     try{

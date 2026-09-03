@@ -1,7 +1,6 @@
 import {createHash} from "node:crypto";
 import {cookies} from "next/headers";
 import {redirect} from "next/navigation";
-import {auth} from "@/lib/auth";
 import {getVGroupSql} from "@/lib/vgroup/db";
 import type {BusinessUnitCode, GroupMembershipClaim, GroupRoleCode, GroupSessionClaims, PermissionKey} from "@/lib/vgroup/contracts";
 
@@ -14,7 +13,7 @@ export type VGroupSession = GroupSessionClaims & {
 };
 
 type SupabaseUser={id:string;email?:string};
-type GroupUserRow={id:string;email:string;full_name:string;status:string};
+
 type MembershipRow={business_unit:BusinessUnitCode;role:GroupRoleCode;permissions:string[]|null};
 type OverrideRow={business_unit:BusinessUnitCode;permission:string;effect:"allow"|"deny"};
 
@@ -35,39 +34,18 @@ async function fetchSupabaseUser(accessToken:string):Promise<SupabaseUser|null>{
 }
 
 export async function getVGroupSession():Promise<VGroupSession|null>{
-  const sql=getVGroupSql();
   const jar=await cookies();
   const accessToken=jar.get(ACCESS_COOKIE)?.value;
-  let user:GroupUserRow|undefined;
-  let bridgedFromMarketing=false;
+  if(!accessToken)return null;
+  const authUser=await fetchSupabaseUser(accessToken);
+  if(!authUser?.id)return null;
 
-  if(accessToken){
-    const authUser=await fetchSupabaseUser(accessToken);
-    if(authUser?.id){
-      [user]=await sql<GroupUserRow[]>`
-        select id::text,email,full_name,status from vgroup.users
-        where external_auth_id=${authUser.id} and status='active' limit 1
-      `;
-    }
-  }
-
-  // A Marketing SUPER_ADMIN is already a strongly authenticated VIVIT identity.
-  // Bridge that trusted session into Group only when the same active email exists
-  // in the isolated Group database; Group RBAC is still loaded from Group tables.
-  // This prevents an existing Marketing session from being stranded on /apps and
-  // removes the need for a second password prompt just to reach the selector.
-  if(!user){
-    const marketingSession=await auth();
-    const marketingUser=marketingSession?.user as {email?:string|null;role?:string}|undefined;
-    const email=String(marketingUser?.email||"").trim().toLowerCase();
-    if(marketingUser?.role!=="SUPER_ADMIN"||!email)return null;
-    [user]=await sql<GroupUserRow[]>`
-      select id::text,email,full_name,status from vgroup.users
-      where lower(email)=lower(${email}) and status='active' limit 1
-    `;
-    if(!user)return null;
-    bridgedFromMarketing=true;
-  }
+  const sql=getVGroupSql();
+  const [user]=await sql<{id:string;email:string;full_name:string;status:string}[]>`
+    select id::text,email,full_name,status from vgroup.users
+    where external_auth_id=${authUser.id} and status='active' limit 1
+  `;
+  if(!user)return null;
 
   const memberships=await sql<MembershipRow[]>`
     select bu.code as business_unit,
@@ -98,10 +76,6 @@ export async function getVGroupSession():Promise<VGroupSession|null>{
     }
     return {businessUnit:row.business_unit,role:row.role,permissions:Array.from(set)};
   });
-
-  // The cross-auth bridge is intentionally restricted to Group Super Admins.
-  // Other Group identities continue to require their native Group Supabase session.
-  if(bridgedFromMarketing&&!claims.some(claim=>String(claim.role)==="GROUP_SUPER_ADMIN"))return null;
 
   return {userId:user.id,email:user.email,fullName:user.full_name,memberships:claims};
 }

@@ -19,7 +19,7 @@ export default async function WorkspaceEntry({params}:{params:Promise<{workspace
   const session=await requireVGroupSession();
   if(workspace==="group"){
     const board=session.memberships.some(item=>item.role==="GROUP_SUPER_ADMIN");
-    if(board)redirect('/group/command-center');
+    if(board)redirect('/group/overview');
     redirect('/group/access?workspace=group&reason=permission');
   }
 

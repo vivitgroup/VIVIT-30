@@ -17,10 +17,8 @@ export default function LoginPage(){
     setLoading(true);
     setError("");
     try{
-      // Group-capable identities (Group Super Admins and Hospitality owners)
-      // authenticate against the isolated Vivit Group runtime first. A successful
-      // Group login commits the VGroup cookies and must land on the four-workspace
-      // selector instead of the Marketing-only /apps launcher.
+      // Group-native identities authenticate against the isolated Vivit Group
+      // runtime first. Successful Group auth lands on the four-workspace selector.
       const groupResponse=await fetch("/api/vgroup/auth/login",{
         method:"POST",
         headers:{"Content-Type":"application/json"},
@@ -32,8 +30,9 @@ export default function LoginPage(){
         return;
       }
 
-      // Regular Marketing users continue to use the existing NextAuth credential
-      // contract and land on the Marketing application launcher.
+      // Marketing identities use NextAuth. After the cookie is committed, return
+      // through / so the server chooses the correct destination by the live role:
+      // Super Admin -> /group, regular Marketing roles -> their existing home.
       const res=await signIn("credentials",{email,password,redirect:false});
       if(res?.error){
         setError("Email or password is incorrect.");
@@ -45,8 +44,7 @@ export default function LoginPage(){
         setLoading(false);
         return;
       }
-      /* A full navigation is intentional here. Role switching through the client router can reuse prefetched/cached RSC payloads from the previous identity, briefly mixing launcher/sidebar/VIVITO role state. The credentials callback has already committed the new auth cookie when signIn resolves. */
-      window.location.replace("/apps");
+      window.location.replace("/");
     }catch{
       setError("Could not start your session. Please try again.");
       setLoading(false);

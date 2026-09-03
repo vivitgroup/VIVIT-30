@@ -1,5 +1,6 @@
 "use client";
 import Image from "next/image";
+import Link from "next/link";
 import {useMemo,useState} from "react";
 
 type Owner={id:string;full_name:string};
@@ -36,6 +37,20 @@ export function PropertyManager({owners,initialProperties}:Props){
     }catch(error){setMessage(error instanceof Error?error.message:"Property save failed")}finally{setBusy(false)}
   }
 
+  async function uploadExistingImages(property:Property,newFiles:File[]){
+    if(!newFiles.length)return;
+    setBusy(true);setMessage("");
+    try{
+      for(let index=0;index<newFiles.length;index++){
+        const upload=new FormData();upload.set("file",newFiles[index]);upload.set("isCover",property.image_count===0&&index===0?"true":"false");upload.set("sortOrder",String(property.image_count+index));
+        const response=await fetch(`/api/vgroup/hospitality/properties/${property.id}/images`,{method:"POST",body:upload});
+        const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error?.message??data.error??`Image ${index+1} upload failed`);
+      }
+      setProperties(current=>current.map(item=>item.id===property.id?{...item,image_count:item.image_count+newFiles.length}:item));
+      setMessage(`${newFiles.length} image${newFiles.length===1?"":"s"} added to ${property.name}. The same gallery is now available to every Hospitality property surface.`);
+    }catch(error){setMessage(error instanceof Error?error.message:"Gallery upload failed")}finally{setBusy(false)}
+  }
+
   async function changeOwner(propertyId:string,ownerId:string){
     setBusy(true);setMessage("");
     try{
@@ -62,9 +77,10 @@ export function PropertyManager({owners,initialProperties}:Props){
       <button disabled={busy} style={button}>{busy?"Saving…":"Save property"}</button>
     </form>
     {message&&<div style={{padding:"12px 16px",borderRadius:14,background:"rgba(205,178,119,.1)",border:"1px solid #4a3d25"}}>{message}</div>}
-    <section style={{display:"grid",gap:12}}><h2 style={{margin:0}}>Properties</h2>{properties.length===0?<p style={{color:"#b7aa91"}}>No properties yet.</p>:properties.map(property=><article key={property.id} style={{padding:18,border:"1px solid #322b1f",borderRadius:20,background:"rgba(255,255,255,.025)",display:"grid",gridTemplateColumns:"1fr minmax(180px,260px)",gap:16,alignItems:"center"}}><div><strong style={{fontSize:19}}>{property.name}</strong><div style={{color:"#aa9b80",fontSize:13,marginTop:5}}>{property.property_type} · {property.city??"No city"} · {property.bedrooms} BR · {property.image_count} images</div><div style={{fontSize:13,marginTop:7,color:property.owner_name?"#d8c697":"#9f9480"}}>{property.owner_name?`Owner: ${property.owner_name}`:"Owner: unassigned"}</div></div><select disabled={busy} value={property.owner_id??""} onChange={event=>changeOwner(property.id,event.target.value)} style={field}><option value="">No owner</option>{owners.map(owner=><option key={owner.id} value={owner.id}>{owner.full_name}</option>)}</select></article>)}</section>
+    <section style={{display:"grid",gap:12}}><h2 style={{margin:0}}>Properties</h2>{properties.length===0?<p style={{color:"#b7aa91"}}>No properties yet.</p>:properties.map(property=><article key={property.id} style={{padding:18,border:"1px solid #322b1f",borderRadius:20,background:"rgba(255,255,255,.025)",display:"grid",gridTemplateColumns:"minmax(0,1fr) minmax(210px,300px)",gap:16,alignItems:"center"}}><div><strong style={{fontSize:19}}>{property.name}</strong><div style={{color:"#aa9b80",fontSize:13,marginTop:5}}>{property.property_type} · {property.city??"No city"} · {property.bedrooms} BR · {property.image_count} images</div><div style={{fontSize:13,marginTop:7,color:property.owner_name?"#d8c697":"#9f9480"}}>{property.owner_name?`Owner: ${property.owner_name}`:"Owner: unassigned"}</div><div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:12}}><Link href={`/group/hospitality/properties/${property.id}`} style={{...smallButton,textDecoration:"none"}}>Open dashboard</Link><label style={{...smallButton,cursor:busy?"not-allowed":"pointer",opacity:busy?0.6:1}}>Add images<input hidden disabled={busy} type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={event=>{const selected=Array.from(event.target.files??[]);event.currentTarget.value="";void uploadExistingImages(property,selected)}}/></label></div></div><select disabled={busy} value={property.owner_id??""} onChange={event=>changeOwner(property.id,event.target.value)} style={field}><option value="">No owner</option>{owners.map(owner=><option key={owner.id} value={owner.id}>{owner.full_name}</option>)}</select></article>)}</section>
   </div>;
 }
 
 const field:React.CSSProperties={width:"100%",boxSizing:"border-box",padding:"12px 13px",borderRadius:12,border:"1px solid #4a3d25",background:"#13110d",color:"#f8f4ea",outline:"none"};
 const button:React.CSSProperties={border:0,borderRadius:14,padding:"13px 18px",background:"#d9be7d",color:"#17130c",fontWeight:900,cursor:"pointer"};
+const smallButton:React.CSSProperties={display:"inline-block",border:"1px solid #5a4927",borderRadius:11,padding:"8px 10px",color:"#f7e3aa",fontSize:12,fontWeight:900,background:"rgba(214,173,91,.06)"};

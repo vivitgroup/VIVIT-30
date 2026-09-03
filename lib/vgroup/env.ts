@@ -2,8 +2,6 @@ export type VGroupRuntimeConfig = {
   databaseUrl: string;
   supabaseUrl: string;
   publishableKey: string;
-  serviceKey: string;
-  authSecret: string;
   environment: string;
 };
 
@@ -18,8 +16,6 @@ export function getVGroupRuntimeConfig(): VGroupRuntimeConfig {
     databaseUrl: required("VGROUP_DATABASE_URL"),
     supabaseUrl: required("VGROUP_SUPABASE_URL"),
     publishableKey: required("VGROUP_SUPABASE_PUBLISHABLE_KEY"),
-    serviceKey: required("VGROUP_SUPABASE_SERVICE_KEY"),
-    authSecret: required("VGROUP_AUTH_SECRET"),
     environment: process.env.VGROUP_ENVIRONMENT || "development",
   };
 
@@ -27,8 +23,6 @@ export function getVGroupRuntimeConfig(): VGroupRuntimeConfig {
     [config.databaseUrl, process.env.DATABASE_URL || "", "database"],
     [config.supabaseUrl, process.env.SUPABASE_URL || "", "supabase project"],
     [config.publishableKey, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "", "publishable key"],
-    [config.serviceKey, process.env.SUPABASE_SERVICE_KEY || "", "service key"],
-    [config.authSecret, process.env.AUTH_SECRET || "", "auth secret"],
   ];
   for (const [groupValue, marketingValue, label] of forbiddenPairs) {
     if (marketingValue && groupValue === marketingValue) {

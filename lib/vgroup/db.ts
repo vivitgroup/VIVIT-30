@@ -13,9 +13,9 @@ declare global {
 }
 
 function requireVGroupDatabaseUrl(): string {
-  const url = process.env.VGROUP_DATABASE_URL;
+  const url = process.env.VGROUP_DATABASE_URL?.trim();
   if (!url) throw new Error("VGROUP_DATABASE_URL is required for Vivit Group runtime");
-  if (process.env.DATABASE_URL && url === process.env.DATABASE_URL) {
+  if (process.env.DATABASE_URL && url === process.env.DATABASE_URL.trim()) {
     throw new Error("Vivit Group DB isolation violation: VGROUP_DATABASE_URL must not equal DATABASE_URL");
   }
   const parsed = new URL(url);
@@ -27,12 +27,16 @@ function requireVGroupDatabaseUrl(): string {
 
 export function getVGroupSql() {
   if (globalThis._vgroupPgClient) return globalThis._vgroupPgClient;
-  const client = postgres(requireVGroupDatabaseUrl(), {
+
+  // A single cached pool per warm serverless isolate prevents every request from
+  // allocating another Postgres pool. Supabase's pooler remains responsible for
+  // multiplexing connections across isolates.
+  globalThis._vgroupPgClient = postgres(requireVGroupDatabaseUrl(), {
     ssl: { rejectUnauthorized: false },
-    max: 3,
+    max: 2,
     idle_timeout: 20,
     connect_timeout: 10,
-    max_lifetime: 60,
+    max_lifetime: 300,
     prepare: false,
     connection: {
       application_name: "vivit-group-erp",
@@ -40,8 +44,8 @@ export function getVGroupSql() {
     },
     onnotice: () => {},
   });
-  if (process.env.NODE_ENV !== "production") globalThis._vgroupPgClient = client;
-  return client;
+
+  return globalThis._vgroupPgClient;
 }
 
 export async function getVGroupBusinessUnits(): Promise<VGroupBusinessUnitRow[]> {

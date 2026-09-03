@@ -2,10 +2,10 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: { default:"VIVIT ERP", template:"%s | VIVIT ERP" },
-  description:"VIVIT Marketing — Enterprise Agency Management Platform",
-  applicationName:"VIVIT ERP",
-  appleWebApp:{ capable:true, statusBarStyle:"default", title:"VIVIT ERP" },
+  title: { default:"VIVIT Operating System", template:"%s | VIVIT" },
+  description:"VIVIT Operating System — unified access to Vivit Group, Marketing, Technology, and Hospitality.",
+  applicationName:"VIVIT Operating System",
+  appleWebApp:{ capable:true, statusBarStyle:"default", title:"VIVIT" },
 };
 
 export const viewport: Viewport = {

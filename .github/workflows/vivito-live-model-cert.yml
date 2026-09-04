@@ -1,0 +1,29 @@
+name: VIVITO Live Model Certification
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vivito-live-model-cert-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  live-model-cert:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Certify at least 20 real zero-cost model routes
+        run: npx tsx scripts/qa-vivito-live-model-cert.ts

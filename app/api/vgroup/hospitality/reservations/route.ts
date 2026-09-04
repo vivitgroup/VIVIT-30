@@ -30,18 +30,20 @@ export async function POST(request:Request){
     const guestName=String(body.guestName??"").trim();
     const checkIn=String(body.checkIn??"");
     const checkOut=String(body.checkOut??"");
-    const source=String(body.source??"direct");
+    const source=String(body.source??"direct").trim();
     const guests=Number(body.guests??1);
     const grossAmount=Number(body.grossAmount??0);
     const platformFee=Number(body.platformFee??0);
     const companyCommission=Number(body.companyCommission??0);
-    if(!propertyId||!guestName||!/^\d{4}-\d{2}-\d{2}$/.test(checkIn)||!/^\d{4}-\d{2}-\d{2}$/.test(checkOut)||checkOut<=checkIn||!Number.isFinite(guests)||guests<1)
-      return NextResponse.json({error:"Invalid reservation payload"},{status:400});
-    if([grossAmount,platformFee,companyCommission].some(v=>!Number.isFinite(v)||v<0))
-      return NextResponse.json({error:"Invalid financial values"},{status:400});
+    if(!uuid.test(propertyId)||guestName.length<2||guestName.length>200||!/^\d{4}-\d{2}-\d{2}$/.test(checkIn)||!/^\d{4}-\d{2}-\d{2}$/.test(checkOut)||checkOut<=checkIn||!Number.isFinite(guests)||guests<1||!Number.isInteger(guests)||source.length<2||source.length>80)
+      return NextResponse.json({error:"Invalid reservation payload"},{status:400,headers:{"Cache-Control":"no-store"}});
+    if([grossAmount,platformFee,companyCommission].some(v=>!Number.isFinite(v)||v<0)||platformFee+companyCommission>grossAmount)
+      return NextResponse.json({error:"Invalid financial values"},{status:400,headers:{"Cache-Control":"no-store"}});
     const sql=getVGroupSql();
-    const [property]=await sql<{id:string}[]>`select id::text from hospitality.properties where id=${propertyId}::uuid and archived_at is null limit 1`;
-    if(!property)return NextResponse.json({error:"Property unavailable"},{status:404});
+    const [property]=await sql<{id:string;max_guests:number;status:string}[]>`select id::text,max_guests,status from hospitality.properties where id=${propertyId}::uuid and archived_at is null limit 1`;
+    if(!property)return NextResponse.json({error:"Property unavailable"},{status:404,headers:{"Cache-Control":"no-store"}});
+    if(property.status!=="active")return NextResponse.json({error:"Property is not active for reservations"},{status:409,headers:{"Cache-Control":"no-store"}});
+    if(guests>Number(property.max_guests))return NextResponse.json({error:"Guest count exceeds property capacity",maxGuests:Number(property.max_guests)},{status:409,headers:{"Cache-Control":"no-store"}});
     const [blocked]=await sql<{blocked:boolean;source:string|null;summary:string|null}[]>`
       select exists(
         select 1 from hospitality.calendar_blocks b
@@ -50,23 +52,23 @@ export async function POST(request:Request){
       ) blocked,
       (select b.source from hospitality.calendar_blocks b where b.property_id=${propertyId}::uuid and b.archived_at is null and b.starts_on<${checkOut}::date and b.ends_on>${checkIn}::date order by b.starts_on limit 1) source,
       (select b.summary from hospitality.calendar_blocks b where b.property_id=${propertyId}::uuid and b.archived_at is null and b.starts_on<${checkOut}::date and b.ends_on>${checkIn}::date order by b.starts_on limit 1) summary`;
-    if(blocked?.blocked)return NextResponse.json({error:"Property is blocked by synced channel availability for the selected dates",conflict:{source:blocked.source,summary:blocked.summary}},{status:409});
+    if(blocked?.blocked)return NextResponse.json({error:"Property is blocked by synced channel availability for the selected dates",conflict:{source:blocked.source,summary:blocked.summary}},{status:409,headers:{"Cache-Control":"no-store"}});
     const [row]=await sql`
       insert into hospitality.reservations(business_unit_id,property_id,source,guest_name,guest_email,guest_phone,check_in,check_out,guests,currency,gross_amount,platform_fee,company_commission,status)
-      select bu.id,${propertyId}::uuid,${source},${guestName},${body.guestEmail?String(body.guestEmail):null},${body.guestPhone?String(body.guestPhone):null},${checkIn}::date,${checkOut}::date,${guests},${String(body.currency??"EGP")},${grossAmount},${platformFee},${companyCommission},'confirmed'
+      select bu.id,${propertyId}::uuid,${source},${guestName},${body.guestEmail?String(body.guestEmail).trim().slice(0,320):null},${body.guestPhone?String(body.guestPhone).trim().slice(0,80):null},${checkIn}::date,${checkOut}::date,${guests},${String(body.currency??"EGP").trim().toUpperCase().slice(0,3)},${grossAmount},${platformFee},${companyCommission},'confirmed'
       from vgroup.business_units bu
-      join hospitality.properties p on p.id=${propertyId}::uuid and p.business_unit_id=bu.id and p.archived_at is null
+      join hospitality.properties p on p.id=${propertyId}::uuid and p.business_unit_id=bu.id and p.archived_at is null and p.status='active'
       where bu.code='hospitality'
       returning id::text,net_owner_amount
     `;
-    if(!row)return NextResponse.json({error:"Property unavailable"},{status:404});
+    if(!row)return NextResponse.json({error:"Property unavailable"},{status:404,headers:{"Cache-Control":"no-store"}});
     await sql`insert into vgroup.audit_logs(business_unit_id,user_id,action,entity_type,entity_id,new_value)
       select id,${session.userId}::uuid,'reservation.create','reservation',${row.id}::uuid,jsonb_build_object('property_id',${propertyId},'guest_name',${guestName},'check_in',${checkIn},'check_out',${checkOut})
       from vgroup.business_units where code='hospitality'`;
-    return NextResponse.json({reservation:row},{status:201});
+    return NextResponse.json({reservation:row},{status:201,headers:{"Cache-Control":"no-store"}});
   }catch(error){
     const message=error instanceof Error?error.message:"";
-    if(message.includes("reservations_no_active_overlap"))return NextResponse.json({error:"Property is already booked for the selected dates"},{status:409});
+    if(message.includes("reservations_no_active_overlap"))return NextResponse.json({error:"Property is already booked for the selected dates"},{status:409,headers:{"Cache-Control":"no-store"}});
     return apiErrorResponse(error)
   }
 }
@@ -82,6 +84,8 @@ export async function PATCH(request:Request){
     if(!reservation)return NextResponse.json({error:"Reservation not found"},{status:404,headers:{"Cache-Control":"no-store"}});
     if(!transitions[reservation.status]?.includes(nextStatus))return NextResponse.json({error:`Invalid status transition ${reservation.status} → ${nextStatus}`},{status:409,headers:{"Cache-Control":"no-store"}});
     if(nextStatus==="confirmed"||nextStatus==="checked_in"){
+      const [property]=await sql<{status:string}[]>`select status from hospitality.properties where id=${reservation.property_id}::uuid and archived_at is null limit 1`;
+      if(!property||property.status!=="active")return NextResponse.json({error:"Reservation cannot become active because the property is not active"},{status:409,headers:{"Cache-Control":"no-store"}});
       const [block]=await sql<{id:string}[]>`select id::text from hospitality.calendar_blocks where property_id=${reservation.property_id}::uuid and archived_at is null and daterange(starts_on,ends_on,'[)') && daterange(${reservation.check_in}::date,${reservation.check_out}::date,'[)') limit 1`;
       if(block)return NextResponse.json({error:"Reservation cannot become active because synced channel availability blocks these dates"},{status:409,headers:{"Cache-Control":"no-store"}});
     }

@@ -9,6 +9,7 @@ export default async function HospitalityLayout({children}:{children:ReactNode})
   const isOwner=session.memberships.some(item=>item.businessUnit==="hospitality"&&item.role==="OWNER");
   const canProperties=hasPermission(session,"hospitality","properties:view");
   const canReservations=hasPermission(session,"hospitality","reservations:view");
+  const canOwners=hasPermission(session,"hospitality","owners:view");
   const canOperations=hasPermission(session,"hospitality","properties:update");
   const canFinance=hasPermission(session,"hospitality","finance:view");
   return <div className="vgroup-hospitality-brand">
@@ -28,9 +29,10 @@ export default async function HospitalityLayout({children}:{children:ReactNode})
       <Link href={isOwner?"/group/hospitality/owner-portal":"/group/hospitality"}>Hospitality</Link>
       {canReservations?<Link href="/group/hospitality/calendar" data-primary="true">Calendar & Airbnb</Link>:null}
       {canProperties?<Link href="/group/hospitality/properties">Properties</Link>:null}
+      {canOwners?<Link href="/group/hospitality/owners">Owners</Link>:null}
       {canReservations?<Link href="/group/hospitality/reservations">Reservations</Link>:null}
       {canOperations?<Link href="/group/hospitality/operations">Operations</Link>:null}
-      {canFinance?<Link href="/group/hospitality/finance">Finance</Link>:null}
+      {canFinance&&!isOwner?<Link href="/group/hospitality/finance">Finance</Link>:null}
       {isOwner?<Link href="/group/hospitality/owner-portal" data-primary="true">Owner Portal</Link>:null}
     </nav>
     {children}<VivitoLauncher workspace="hospitality"/>

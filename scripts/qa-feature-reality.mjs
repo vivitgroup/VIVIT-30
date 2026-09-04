@@ -1,7 +1,7 @@
 import fs from "node:fs";
 const r=p=>fs.readFileSync(p,"utf8"),checks=[],check=(n,o)=>checks.push({name:n,ok:Boolean(o)});
 const portal=r("app/dashboard/portal/page.tsx"),calendar=r("app/dashboard/calendar/page.tsx"),analytics=r("app/dashboard/analytics/page.tsx"),kpis=r("app/dashboard/kpis/page.tsx"),forecast=r("app/dashboard/forecast/page.tsx"),ltv=r("app/dashboard/ltv/page.tsx"),wa=r("components/whatsapp/WhatsAppWorkspace.tsx");
-const techOps=r("app/api/vgroup/tech/operations/route.ts"),techSales=r("app/api/vgroup/tech/sales-delivery/route.ts");
+const techOps=r("app/api/vgroup/tech/operations/route.ts"),techSales=r("app/api/vgroup/tech/sales-delivery/route.ts"),techPay=r("app/api/vgroup/tech/installments/[id]/pay/route.ts"),techCrPrice=r("app/api/vgroup/tech/change-requests/[id]/price/route.ts"),techCrApprove=r("app/api/vgroup/tech/change-requests/[id]/approve/route.ts"),techCrReject=r("app/api/vgroup/tech/change-requests/[id]/reject/route.ts"),techPortal=r("app/api/vgroup/tech/client-portal/route.ts"),techSaas=r("app/api/vgroup/tech/saas/route.ts");
 check("Client Portal contains no demo gallery",!portal.includes("PortalDemoGallery"));
 check("Client Portal contains no demo schedules",!portal.includes("Demo schedule")&&!portal.includes("Campaign Launch Reel"));
 check("Calendar contains no demo client component",!calendar.includes("ClientCalendarDemo"));
@@ -32,4 +32,10 @@ check("Tech sales opportunities validate optional lead and client scope",techSal
 check("Tech proposals bind opportunity to selected Tech client",techSales.includes('OPPORTUNITY_CLIENT_MISMATCH')&&techSales.includes("sales_opportunities where id=${opportunityId}::uuid and business_unit_id=${buId}::uuid"));
 check("Tech support tickets validate project contract and subscription relationships",techSales.includes('PROJECT_CLIENT_MISMATCH')&&techSales.includes('SUPPORT_CONTRACT_MISMATCH')&&techSales.includes('SUBSCRIPTION_CLIENT_MISMATCH'));
 check("Tech handover items fail closed on Tech project scope",techSales.includes('PROJECT_NOT_FOUND')&&techSales.includes("techProject(sql,buId,projectId)"));
+check("Tech installment payment is scoped through active Tech project",techPay.includes("tech.payment_installments i join tech.projects p")&&techPay.includes("bu.code='tech' and bu.status='active'")&&techPay.includes("p.archived_at is null"));
+check("Tech change request pricing is project and Tech scoped",techCrPrice.includes("tech.change_requests cr join tech.projects p")&&techCrPrice.includes("bu.code='tech' and bu.status='active'")&&techCrPrice.includes("p.archived_at is null"));
+check("Tech change request approval is project and Tech scoped",techCrApprove.includes("tech.change_requests cr join tech.projects p")&&techCrApprove.includes("bu.code='tech' and bu.status='active'")&&techCrApprove.includes("p.archived_at is null"));
+check("Tech change request rejection is project and Tech scoped",techCrReject.includes("tech.change_requests cr join tech.projects p")&&techCrReject.includes("bu.code='tech' and bu.status='active'")&&techCrReject.includes("p.archived_at is null"));
+check("Tech client portal explicitly scopes clients and projects to active Tech BU",techPortal.includes("code='tech' and status='active'")&&techPortal.includes("c.business_unit_id=${bu.id}::uuid")&&techPortal.includes("p.business_unit_id=${bu.id}::uuid")&&techPortal.includes("portal_user_id=${session.userId}::uuid"));
+check("Tech SaaS reads are explicitly Tech BU scoped",techSaas.includes("code='tech' and status='active'")&&techSaas.includes("s.business_unit_id=${bu.id}::uuid")&&techSaas.includes("join tech.subscriptions s on s.id=i.subscription_id")&&techSaas.includes("p.business_unit_id=${bu.id}::uuid"));
 const failed=checks.filter(x=>!x.ok);for(const c of checks)console.log(`${c.ok?"PASS":"FAIL"}  ${c.name}`);console.log(`\n${checks.length-failed.length}/${checks.length} feature reality checks passed.`);if(failed.length)process.exit(1);

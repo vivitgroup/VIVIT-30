@@ -33,7 +33,7 @@ function safeEvidence(value:unknown):ResearchEvidence|null{
  *
  * Agent Reach is intentionally NOT treated as this HTTP gateway: upstream
  * Agent Reach is an installer/availability layer for research tools, not a
- * production /v1/research service contract. A real gateway must be explicitly
+ * production research-service contract. A real gateway must be explicitly
  * configured with an HTTPS endpoint, bearer credential and hostname allowlist.
  * External material is returned only as untrusted evidence and this module
  * exposes no ERP mutation, browser-control, shell or credential primitive.

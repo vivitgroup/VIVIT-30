@@ -19,6 +19,7 @@ begin
   from (values
     ('properties','view'),('properties','create'),('properties','update'),('properties','delete'),
     ('reservations','view'),('reservations','create'),('reservations','update'),('reservations','delete'),
+    ('owners','view'),('owners','create'),('owners','update'),
     ('maintenance','approve'),('purchase_orders','approve')
   ) as required(module,action)
   on conflict(module,action,business_unit_id) do nothing;
@@ -29,6 +30,7 @@ begin
   where p.business_unit_id=v_bu
     and (
       (p.module in ('properties','reservations') and p.action in ('view','create','update','delete'))
+      or (p.module='owners' and p.action in ('view','create','update'))
       or (p.module in ('maintenance','purchase_orders') and p.action='approve')
     )
   on conflict(role_id,permission_id) do nothing;
@@ -40,6 +42,7 @@ begin
     and (
       (p.module='properties' and p.action in ('view','create','update'))
       or (p.module='reservations' and p.action in ('view','create','update'))
+      or (p.module='owners' and p.action='view')
     )
   on conflict(role_id,permission_id) do nothing;
 end

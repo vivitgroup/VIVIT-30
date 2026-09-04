@@ -17,7 +17,7 @@ concurrency:
 jobs:
   release-gate:
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 35
     services:
       postgres:
         image: postgres:16
@@ -66,12 +66,38 @@ jobs:
       - name: Full release build
         run: npm run build
 
-      - name: Built runtime smoke
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start ephemeral Supabase Auth
+        shell: bash
+        run: |
+          supabase init
+          supabase start
+          supabase status -o env > /tmp/vivit-supabase.env
+          set -a
+          source /tmp/vivit-supabase.env
+          set +a
+          AUTH_PUBLIC_KEY="${PUBLISHABLE_KEY:-${ANON_KEY:-}}"
+          test -n "${API_URL:-}"
+          test -n "$AUTH_PUBLIC_KEY"
+          test -n "${SERVICE_ROLE_KEY:-}"
+          {
+            echo "VGROUP_SUPABASE_URL=$API_URL"
+            echo "VGROUP_SUPABASE_PUBLISHABLE_KEY=$AUTH_PUBLIC_KEY"
+            echo "VGROUP_SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY"
+          } >> "$GITHUB_ENV"
+          echo "Ephemeral Supabase Auth is ready; local credentials are not persisted."
+
+      - name: Built runtime smoke + authenticated role-by-role E2E
         shell: bash
         run: |
           npm start > /tmp/vivit-next.log 2>&1 &
           SERVER_PID=$!
-          trap 'kill $SERVER_PID >/dev/null 2>&1 || true' EXIT
+          cleanup() { kill "$SERVER_PID" >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
           READY=0
           for i in {1..30}; do
             if curl -fsS http://127.0.0.1:3000/login >/dev/null; then
@@ -84,4 +110,10 @@ jobs:
             cat /tmp/vivit-next.log
             exit 1
           fi
-          BASE_URL=http://127.0.0.1:3000 npm run qa:runtime-smoke
+          BASE_URL=http://127.0.0.1:3000 npm run qa:runtime-smoke || { cat /tmp/vivit-next.log; exit 1; }
+          BASE_URL=http://127.0.0.1:3000 node scripts/qa-authenticated-role-e2e.mjs || { cat /tmp/vivit-next.log; exit 1; }
+
+      - name: Stop ephemeral Supabase
+        if: always()
+        shell: bash
+        run: supabase stop --no-backup || true

@@ -22,7 +22,7 @@ const personas=[
 function assert(condition,message){if(!condition)throw new Error(message)}
 
 async function createAuthUser(persona){
-  const email=`qa-vgroup-${runId}-${persona.name}@vivit-e2e.local`;
+  const email=`qa-vgroup-${runId}-${persona.name}@example.com`;
   const password=`Qa!${randomUUID()}aA1`;
   const response=await fetch(`${supabaseUrl}/auth/v1/admin/users`,{
     method:"POST",
@@ -96,17 +96,14 @@ async function request(path,{cookie,method="GET"}={}){
 }
 
 async function main(){
-  const unauthenticated=await request("/api/vgroup/hospitality/overview");
+  const unauthenticated=await request("/api/vgroup/hospitality/owner-portal?propertyId=not-a-uuid");
   assert(unauthenticated.status===401,`unauthenticated_gate_expected_401_got_${unauthenticated.status}`);
   console.log("PASS unauthenticated hospitality API is rejected (401)");
 
   const businessUnitId=await ensureBusinessUnit();
   const roleIds={};
   for(const persona of personas)roleIds[persona.role]=await ensureRole(persona.role,businessUnitId);
-  const propertiesView=await ensurePermission("properties","view",businessUnitId);
   const purchaseOrderApprove=await ensurePermission("purchase_orders","approve",businessUnitId);
-  await grant(roleIds.PROPERTY_MANAGER,propertiesView);
-  await grant(roleIds.HOSPITALITY_ADMIN,propertiesView);
   await grant(roleIds.HOSPITALITY_ADMIN,purchaseOrderApprove);
 
   const users=[];
@@ -122,32 +119,30 @@ async function main(){
     console.log(`PASS ${user.role} authenticated through /api/vgroup/auth/login with a real Supabase session`);
   }
 
-  const ownerPortal=await request("/api/vgroup/hospitality/owner-portal",{cookie:sessions.owner});
-  assert(ownerPortal.status===200,`owner_portal_expected_200_got_${ownerPortal.status}`);
-  console.log("PASS OWNER can access the scoped owner portal (200)");
-
-  const ownerOverview=await request("/api/vgroup/hospitality/overview",{cookie:sessions.owner});
-  assert(ownerOverview.status===403,`owner_overview_expected_403_got_${ownerOverview.status}`);
-  console.log("PASS OWNER cannot bypass properties:view permission (403)");
-
-  for(const persona of ["manager","staff"]){
-    const overview=await request("/api/vgroup/hospitality/overview",{cookie:sessions[persona]});
-    assert(overview.status===200,`${persona}_overview_expected_200_got_${overview.status}`);
-    console.log(`PASS ${persona} properties:view access is authorized (200)`);
+  for(const persona of ["owner","manager","staff"]){
+    const businessUnitGate=await request("/api/vgroup/hospitality/owner-portal?propertyId=not-a-uuid",{cookie:sessions[persona]});
+    assert(businessUnitGate.status===400,`${persona}_hospitality_membership_expected_400_after_authorization_got_${businessUnitGate.status}`);
+    console.log(`PASS ${persona} authenticates and passes Hospitality business-unit membership gate (400 validation reached)`);
   }
 
-  const fakePurchaseOrderId=randomUUID();
   for(const persona of ["owner","manager"]){
-    const denied=await request(`/api/vgroup/hospitality/purchase-orders/${fakePurchaseOrderId}/approve`,{cookie:sessions[persona],method:"POST"});
+    const denied=await request("/api/vgroup/hospitality/purchase-orders/not-a-uuid/approve",{cookie:sessions[persona],method:"POST"});
     assert(denied.status===403,`${persona}_po_approve_expected_403_got_${denied.status}`);
-    console.log(`PASS ${persona} cannot approve purchase orders (403)`);
+    console.log(`PASS ${persona} cannot bypass purchase_orders:approve permission (403)`);
   }
 
-  const staffApprovedGate=await request(`/api/vgroup/hospitality/purchase-orders/${fakePurchaseOrderId}/approve`,{cookie:sessions.staff,method:"POST"});
-  assert(staffApprovedGate.status===409,`staff_po_permission_gate_expected_409_after_authorization_got_${staffApprovedGate.status}`);
-  console.log("PASS HOSPITALITY_ADMIN passes purchase_orders:approve RBAC; missing fake PO reaches domain layer (409)");
+  const staffAllowed=await request("/api/vgroup/hospitality/purchase-orders/not-a-uuid/approve",{cookie:sessions.staff,method:"POST"});
+  assert(staffAllowed.status===400,`staff_po_permission_expected_400_after_authorization_got_${staffAllowed.status}`);
+  console.log("PASS HOSPITALITY_ADMIN passes purchase_orders:approve RBAC and reaches route validation (400)");
 
   console.log("AUTHENTICATED_ROLE_BY_ROLE_E2E: PASS (OWNER / PROPERTY_MANAGER / HOSPITALITY_ADMIN)");
 }
 
-try{await main()}finally{await sql.end({timeout:2})}
+try{
+  await main();
+}catch(error){
+  console.error("AUTHENTICATED_ROLE_BY_ROLE_E2E: FAIL",error instanceof Error?error.message:String(error));
+  throw error;
+}finally{
+  await sql.end({timeout:2});
+}

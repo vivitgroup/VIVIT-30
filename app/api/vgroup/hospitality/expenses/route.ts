@@ -2,6 +2,7 @@ import {NextResponse} from "next/server";
 import {getVGroupSql} from "@/lib/vgroup/db";
 import {getVGroupRuntimeConfig} from "@/lib/vgroup/env";
 import {apiErrorResponse,requireApiPermission} from "@/lib/vgroup/api-access";
+import {getHospitalityOwnerScope,ownerCanAccessProperty} from "@/lib/vgroup/hospitality-owner-scope";
 
 const BUCKET="vgroup-hospitality";
 const allowedReceipts=new Set(["image/jpeg","image/png","image/webp","application/pdf"]);
@@ -20,21 +21,28 @@ async function signedUrl(objectPath:string){
 
 export async function GET(request:Request){
   try{
-    await requireApiPermission("hospitality","finance:view");
+    const session=await requireApiPermission("hospitality","finance:view");
+    const ownerScope=await getHospitalityOwnerScope(session);
     const propertyId=new URL(request.url).searchParams.get("propertyId")?.trim()||null;
     if(propertyId&&!uuid.test(propertyId))return NextResponse.json({error:{code:"INVALID_PROPERTY",message:"Invalid property context"}},{status:400,headers:{"Cache-Control":"no-store"}});
+    if(propertyId&&!ownerCanAccessProperty(ownerScope,propertyId))return NextResponse.json({error:{code:"PROPERTY_NOT_FOUND",message:"Property not found"}},{status:404,headers:{"Cache-Control":"no-store"}});
     const sql=getVGroupSql();
     if(propertyId){
       const [property]=await sql`select id::text from hospitality.properties where id=${propertyId}::uuid and archived_at is null limit 1`;
       if(!property)return NextResponse.json({error:{code:"PROPERTY_NOT_FOUND",message:"Property not found"}},{status:404,headers:{"Cache-Control":"no-store"}});
     }
-    const [expenses,properties,categories,vendors]=await Promise.all([
-      propertyId
-        ?sql`select i.id::text,i.property_id::text,p.name property_name,i.vendor_id::text,v.name vendor_name,i.expense_category_id::text,c.name category_name,i.invoice_number,i.invoice_type,i.currency,i.subtotal,i.tax,i.total,i.issued_at,i.due_at,i.status,i.notes,i.created_at,(select count(*)::int from hospitality.invoice_receipts r where r.invoice_id=i.id and r.archived_at is null) receipt_count from hospitality.invoices i join hospitality.properties p on p.id=i.property_id left join hospitality.vendors v on v.id=i.vendor_id left join hospitality.expense_categories c on c.id=i.expense_category_id where i.archived_at is null and i.property_id=${propertyId}::uuid order by i.issued_at desc,i.created_at desc limit 250`
-        :sql`select i.id::text,i.property_id::text,p.name property_name,i.vendor_id::text,v.name vendor_name,i.expense_category_id::text,c.name category_name,i.invoice_number,i.invoice_type,i.currency,i.subtotal,i.tax,i.total,i.issued_at,i.due_at,i.status,i.notes,i.created_at,(select count(*)::int from hospitality.invoice_receipts r where r.invoice_id=i.id and r.archived_at is null) receipt_count from hospitality.invoices i join hospitality.properties p on p.id=i.property_id left join hospitality.vendors v on v.id=i.vendor_id left join hospitality.expense_categories c on c.id=i.expense_category_id where i.archived_at is null order by i.issued_at desc,i.created_at desc limit 250`,
-      propertyId
-        ?sql`select id::text,name from hospitality.properties where id=${propertyId}::uuid and archived_at is null order by name`
-        :sql`select id::text,name from hospitality.properties where archived_at is null order by name`,
+    const ownerPropertyIds=ownerScope.propertyIds;
+    const expenses=propertyId
+      ?await sql`select i.id::text,i.property_id::text,p.name property_name,i.vendor_id::text,v.name vendor_name,i.expense_category_id::text,c.name category_name,i.invoice_number,i.invoice_type,i.currency,i.subtotal,i.tax,i.total,i.issued_at,i.due_at,i.status,i.notes,i.created_at,(select count(*)::int from hospitality.invoice_receipts r where r.invoice_id=i.id and r.archived_at is null) receipt_count from hospitality.invoices i join hospitality.properties p on p.id=i.property_id left join hospitality.vendors v on v.id=i.vendor_id left join hospitality.expense_categories c on c.id=i.expense_category_id where i.archived_at is null and i.property_id=${propertyId}::uuid order by i.issued_at desc,i.created_at desc limit 250`
+      :ownerScope.isOwner
+        ?ownerPropertyIds.length?await sql`select i.id::text,i.property_id::text,p.name property_name,i.vendor_id::text,v.name vendor_name,i.expense_category_id::text,c.name category_name,i.invoice_number,i.invoice_type,i.currency,i.subtotal,i.tax,i.total,i.issued_at,i.due_at,i.status,i.notes,i.created_at,(select count(*)::int from hospitality.invoice_receipts r where r.invoice_id=i.id and r.archived_at is null) receipt_count from hospitality.invoices i join hospitality.properties p on p.id=i.property_id left join hospitality.vendors v on v.id=i.vendor_id left join hospitality.expense_categories c on c.id=i.expense_category_id where i.archived_at is null and i.property_id=any(${ownerPropertyIds}::uuid[]) order by i.issued_at desc,i.created_at desc limit 250`:[]
+        :await sql`select i.id::text,i.property_id::text,p.name property_name,i.vendor_id::text,v.name vendor_name,i.expense_category_id::text,c.name category_name,i.invoice_number,i.invoice_type,i.currency,i.subtotal,i.tax,i.total,i.issued_at,i.due_at,i.status,i.notes,i.created_at,(select count(*)::int from hospitality.invoice_receipts r where r.invoice_id=i.id and r.archived_at is null) receipt_count from hospitality.invoices i join hospitality.properties p on p.id=i.property_id left join hospitality.vendors v on v.id=i.vendor_id left join hospitality.expense_categories c on c.id=i.expense_category_id where i.archived_at is null order by i.issued_at desc,i.created_at desc limit 250`;
+    const properties=propertyId
+      ?await sql`select id::text,name from hospitality.properties where id=${propertyId}::uuid and archived_at is null order by name`
+      :ownerScope.isOwner
+        ?ownerPropertyIds.length?await sql`select id::text,name from hospitality.properties where id=any(${ownerPropertyIds}::uuid[]) and archived_at is null order by name`:[]
+        :await sql`select id::text,name from hospitality.properties where archived_at is null order by name`;
+    const [categories,vendors]=await Promise.all([
       sql`select id::text,name from hospitality.expense_categories where active order by name`,
       sql`select id::text,name from hospitality.vendors where archived_at is null order by name`,
     ]);

@@ -60,8 +60,11 @@ export async function POST(request:NextRequest){
     case "move_reservation":{
      const reservationId=str(body.reservationId),propertyId=str(body.propertyId); if(!reservationId||!propertyId)return bad("INVALID_MOVE","reservationId and propertyId are required");
      const [target]=await sql`select id from hospitality.properties where id=${propertyId}::uuid and business_unit_id=${buId}::uuid and archived_at is null`; if(!target)return bad("PROPERTY_NOT_FOUND","Target property not found",404);
+     const [reservation]=await sql<{check_in:string;check_out:string}[]>`select check_in::text,check_out::text from hospitality.reservations where id=${reservationId}::uuid and business_unit_id=${buId}::uuid and archived_at is null limit 1`; if(!reservation)return bad("RESERVATION_NOT_FOUND","Reservation not found",404);
+     const [airbnbConflict]=await sql<{id:string}[]>`select id::text from hospitality.calendar_blocks where property_id=${propertyId}::uuid and archived_at is null and daterange(starts_on,ends_on,'[)') && daterange(${reservation.check_in}::date,${reservation.check_out}::date,'[)') limit 1`;
+     if(airbnbConflict)return bad("AIRBNB_AVAILABILITY_CONFLICT","Target property is unavailable on Airbnb for the reservation dates",409);
      const [row]=await sql`update hospitality.reservations set property_id=${propertyId}::uuid,updated_at=now() where id=${reservationId}::uuid and business_unit_id=${buId}::uuid returning id::text,property_id::text,check_in,check_out,status`;
-     if(!row)return bad("RESERVATION_NOT_FOUND","Reservation not found",404); return ok(row);
+     return ok(row);
     }
     case "channel_reconcile":{
      const reconciliationId=str(body.reconciliationId); if(!reconciliationId)return bad("INVALID_RECONCILIATION","reconciliationId is required");

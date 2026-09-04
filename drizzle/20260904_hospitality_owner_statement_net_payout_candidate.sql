@@ -3,7 +3,7 @@ begin;
 -- Candidate-only migration. Do not apply to Production before Hospitality release gates pass.
 -- reservation.net_owner_amount is the canonical stay-level owner value:
 --   * direct stays: gross - platform fee - VIVIT commission
---   * Airbnb stays: trusted airbnb_net_payout via trg_set_reservation_net_owner
+--   * Airbnb stays: trusted airbnb_net_payout - VIVIT commission via trg_set_reservation_net_owner
 create or replace function hospitality.generate_owner_statement(
   p_owner_id uuid,
   p_period_start date,

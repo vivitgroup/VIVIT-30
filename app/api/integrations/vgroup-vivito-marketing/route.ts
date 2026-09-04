@@ -43,7 +43,10 @@ export async function POST(request:Request){
       if(!claimed.length){
         const [prior]=Array.from(await db.execute<{action:string;new_values:string|null}>(sql`select action,new_values from audit_logs where id=${receiptId} and workspace_id=${marketingUser.workspaceId} and user_id=${marketingUser.id} limit 1`));
         if(prior?.action==="vivito_group_action_executed")return NextResponse.json({success:true,duplicate:true,result:prior.new_values?JSON.parse(prior.new_values):null},{headers:noStore});
-        return responseError("MARKETING_TASK_ALREADY_CLAIMED","This Marketing task was already claimed and will not execute twice",409);
+        if(prior?.action==="vivito_group_action_failed"){
+          const reclaimed=Array.from(await db.execute<{id:string}>(sql`update audit_logs set action='vivito_group_action_started',new_values=${started},created_at=now() where id=${receiptId} and workspace_id=${marketingUser.workspaceId} and user_id=${marketingUser.id} and action='vivito_group_action_failed' returning id`));
+          if(!reclaimed.length)return responseError("MARKETING_TASK_ALREADY_CLAIMED","This Marketing task was already reclaimed by another execution",409);
+        }else return responseError("MARKETING_TASK_ALREADY_CLAIMED","This Marketing task was already claimed and will not execute twice",409);
       }
     }
     try{

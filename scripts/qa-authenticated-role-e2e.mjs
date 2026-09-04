@@ -2,16 +2,16 @@ import {randomUUID} from "node:crypto";
 import postgres from "postgres";
 
 const baseUrl=process.env.BASE_URL||"http://127.0.0.1:3000";
-const databaseUrl=process.env.DATABASE_URL;
+const groupDatabaseUrl=process.env.VGROUP_DATABASE_URL;
 const supabaseUrl=process.env.VGROUP_SUPABASE_URL;
 const publishableKey=process.env.VGROUP_SUPABASE_PUBLISHABLE_KEY;
 const serviceRoleKey=process.env.VGROUP_SUPABASE_SERVICE_ROLE_KEY;
 
-for(const [name,value] of Object.entries({DATABASE_URL:databaseUrl,VGROUP_SUPABASE_URL:supabaseUrl,VGROUP_SUPABASE_PUBLISHABLE_KEY:publishableKey,VGROUP_SUPABASE_SERVICE_ROLE_KEY:serviceRoleKey})){
+for(const [name,value] of Object.entries({VGROUP_DATABASE_URL:groupDatabaseUrl,VGROUP_SUPABASE_URL:supabaseUrl,VGROUP_SUPABASE_PUBLISHABLE_KEY:publishableKey,VGROUP_SUPABASE_SERVICE_ROLE_KEY:serviceRoleKey})){
   if(!value)throw new Error(`missing_required_env:${name}`);
 }
 
-const sql=postgres(databaseUrl,{ssl:false,max:1,prepare:false});
+const sql=postgres(groupDatabaseUrl,{ssl:false,max:1,prepare:false});
 const runId=String(process.env.GITHUB_RUN_ID||Date.now());
 const personas=[
   {name:"owner",role:"OWNER"},

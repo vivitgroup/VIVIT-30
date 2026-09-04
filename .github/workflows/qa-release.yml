@@ -32,7 +32,9 @@ jobs:
     env:
       DATABASE_URL: postgresql://vivito:vivito@127.0.0.1:5432/vivito_qa_release
       DRIZZLE_DATABASE_URL: postgresql://vivito:vivito@127.0.0.1:5432/vivito_qa_release
+      VGROUP_DATABASE_URL: postgresql://vivito:vivito@127.0.0.1:5432/vivito_vgroup_qa_release
       DATABASE_SSL_DISABLED: "1"
+      VGROUP_DATABASE_SSL_DISABLED: "1"
       AUTH_SECRET: ci-qa-release-secret-not-for-production
       NEXTAUTH_SECRET: ci-qa-release-secret-not-for-production
       NEXTAUTH_URL: http://127.0.0.1:3000
@@ -60,8 +62,12 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
-      - name: Build base ephemeral database
-        run: npx drizzle-kit push --force
+      - name: Build isolated ephemeral databases
+        shell: bash
+        run: |
+          npx drizzle-kit push --force
+          PGPASSWORD=vivito psql -h 127.0.0.1 -U vivito -d postgres -v ON_ERROR_STOP=1 -c "create database vivito_vgroup_qa_release"
+          DRIZZLE_DATABASE_URL="$VGROUP_DATABASE_URL" DATABASE_URL="$VGROUP_DATABASE_URL" npx drizzle-kit push --force
 
       - name: Full release build
         run: npm run build

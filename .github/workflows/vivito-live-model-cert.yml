@@ -36,9 +36,12 @@ jobs:
           grep -F 'OPENROUTER_KEY_COOKIE' app/api/vivito/openrouter/callback/route.ts
           grep -F 'groq-free' app/api/vivito/openrouter/certify/route.ts
           grep -F 'GROQ_API_KEY' lib/vivito/groq-free-mesh-v1.ts
+          grep -F 'canonicalModelIdentity' app/api/vivito/openrouter/certify/route.ts
+          grep -F 'canonicalModelIdentity' scripts/qa-vivito-live-model-cert.ts
+          grep -F 'replace(/:free$/i' app/api/vivito/openrouter/certify/route.ts
       - name: Run full multi-provider live certification when both free-provider credentials exist
         if: ${{ env.OPENROUTER_API_KEY != '' && env.GROQ_API_KEY != '' }}
         run: npx tsx scripts/qa-vivito-live-model-cert.ts
       - name: Declare post-deploy proof source otherwise
         if: ${{ env.OPENROUTER_API_KEY == '' || env.GROQ_API_KEY == '' }}
-        run: echo 'Final >=20 distinct free-model proof is post-deploy through OpenRouter OAuth plus the Groq Free Plan adapter. Both providers must return exact-pinned live responses; no router aliases count as extra models.'
+        run: echo 'Final >=20 proof requires distinct underlying canonical models, not duplicate routes. Post-deploy certification uses OpenRouter OAuth plus Groq Free Plan exact-pinned calls.'

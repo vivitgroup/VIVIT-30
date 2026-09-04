@@ -6,11 +6,21 @@ const ok=(data:unknown,status=200)=>NextResponse.json(data,{status,headers:{"Cac
 const bad=(code:string,message:string,status=400)=>NextResponse.json({error:{code,message}},{status,headers:{"Cache-Control":"no-store"}});
 const str=(v:unknown)=>typeof v==="string"?v.trim():"";
 const num=(v:unknown)=>Number(v);
+const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const date=/^\d{4}-\d{2}-\d{2}$/;
+const taskTypes=new Set(["turnover","stayover","deep_clean","inspection_only","ad_hoc"]);
+const ruleTypes=new Set(["seasonal","weekend","occupancy","minimum_stay","manual_override"]);
+const adjustmentTypes=new Set(["percent","fixed"]);
+const vipLevels=new Set(["standard","vip","vip_plus"]);
 
 async function hospitalityBu(sql:ReturnType<typeof getVGroupSql>){
  const [bu]=await sql<{id:string}[]>`select id::text from vgroup.business_units where code='hospitality' and status='active' limit 1`;
  if(!bu)throw new Error("HOSPITALITY_BUSINESS_UNIT_UNAVAILABLE");
  return bu.id;
+}
+
+async function audit(sql:ReturnType<typeof getVGroupSql>,buId:string,userId:string,action:string,entityType:string,entityId:string,payload:Record<string,unknown>){
+ await sql`insert into vgroup.audit_logs(business_unit_id,user_id,action,entity_type,entity_id,new_value) values(${buId}::uuid,${userId}::uuid,${action},${entityType},${entityId}::uuid,${JSON.stringify(payload)}::jsonb)`;
 }
 
 export async function GET(){
@@ -41,35 +51,52 @@ export async function POST(request:NextRequest){
   try{
    switch(operation){
     case "housekeeping":{
-     const propertyId=str(body.propertyId),start=str(body.scheduledStart),due=str(body.dueAt); if(!propertyId||!start||!due)return bad("INVALID_HOUSEKEEPING","propertyId, scheduledStart and dueAt are required");
+     const propertyId=str(body.propertyId),start=str(body.scheduledStart),due=str(body.dueAt),reservationId=str(body.reservationId),assignedTo=str(body.assignedTo),taskType=str(body.taskType)||"turnover";
+     if(!uuid.test(propertyId)||!start||!due||Number.isNaN(Date.parse(start))||Number.isNaN(Date.parse(due))||Date.parse(due)<Date.parse(start)||!taskTypes.has(taskType)||Boolean(reservationId&&!uuid.test(reservationId))||Boolean(assignedTo&&!uuid.test(assignedTo)))return bad("INVALID_HOUSEKEEPING","Invalid housekeeping payload");
      const [property]=await sql`select id from hospitality.properties where id=${propertyId}::uuid and business_unit_id=${buId}::uuid and archived_at is null`; if(!property)return bad("PROPERTY_NOT_FOUND","Property not found",404);
-     const [row]=await sql`insert into hospitality.housekeeping_tasks(business_unit_id,property_id,reservation_id,task_type,status,assigned_to,scheduled_start,due_at,notes) values(${buId}::uuid,${propertyId}::uuid,${str(body.reservationId)||null}::uuid,${str(body.taskType)||"turnover"},'scheduled',${str(body.assignedTo)||null}::uuid,${start}::timestamptz,${due}::timestamptz,${str(body.notes)||null}) returning id::text,status`;
+     if(reservationId){const [reservation]=await sql`select id from hospitality.reservations where id=${reservationId}::uuid and property_id=${propertyId}::uuid and business_unit_id=${buId}::uuid and archived_at is null`;if(!reservation)return bad("RESERVATION_NOT_FOUND","Reservation does not belong to this property",404)}
+     const [row]=await sql`insert into hospitality.housekeeping_tasks(business_unit_id,property_id,reservation_id,task_type,status,assigned_to,scheduled_start,due_at,notes) values(${buId}::uuid,${propertyId}::uuid,${reservationId||null}::uuid,${taskType},'scheduled',${assignedTo||null}::uuid,${start}::timestamptz,${due}::timestamptz,${str(body.notes).slice(0,1000)||null}) returning id::text,status`;
+     await audit(sql,buId,session.userId,"hospitality.housekeeping.create","housekeeping_task",String(row.id),{propertyId,reservationId:reservationId||null,taskType});
      return ok(row,201);
     }
     case "pricing_rule":{
-     const propertyId=str(body.propertyId),name=str(body.name),ruleType=str(body.ruleType); if(!propertyId||!name||!ruleType)return bad("INVALID_PRICING_RULE","propertyId, name and ruleType are required");
+     const propertyId=str(body.propertyId),name=str(body.name),ruleType=str(body.ruleType),startsOn=str(body.startsOn),endsOn=str(body.endsOn),adjustmentType=str(body.adjustmentType)||"percent";
+     const occupancyMin=body.occupancyMin==null?null:num(body.occupancyMin),occupancyMax=body.occupancyMax==null?null:num(body.occupancyMax),adjustmentValue=num(body.adjustmentValue??0),minimumStay=num(body.minimumStay??1),priority=num(body.priority??100);
+     if(!uuid.test(propertyId)||name.length<2||name.length>200||!ruleTypes.has(ruleType)||!adjustmentTypes.has(adjustmentType)||Boolean(startsOn&&!date.test(startsOn))||Boolean(endsOn&&!date.test(endsOn))||Boolean(startsOn&&endsOn&&endsOn<startsOn)||Boolean(occupancyMin!==null&&(!Number.isFinite(occupancyMin)||occupancyMin<0||occupancyMin>100))||Boolean(occupancyMax!==null&&(!Number.isFinite(occupancyMax)||occupancyMax<0||occupancyMax>100))||Boolean(occupancyMin!==null&&occupancyMax!==null&&occupancyMax<occupancyMin)||!Number.isFinite(adjustmentValue)||!Number.isInteger(minimumStay)||minimumStay<1||!Number.isInteger(priority))return bad("INVALID_PRICING_RULE","Invalid pricing rule payload");
      const [property]=await sql`select id from hospitality.properties where id=${propertyId}::uuid and business_unit_id=${buId}::uuid and archived_at is null`; if(!property)return bad("PROPERTY_NOT_FOUND","Property not found",404);
-     const [row]=await sql`insert into hospitality.pricing_rules(business_unit_id,property_id,name,rule_type,starts_on,ends_on,occupancy_min,occupancy_max,adjustment_type,adjustment_value,minimum_stay,priority,active,created_by) values(${buId}::uuid,${propertyId}::uuid,${name},${ruleType},${str(body.startsOn)||null}::date,${str(body.endsOn)||null}::date,${body.occupancyMin==null?null:num(body.occupancyMin)},${body.occupancyMax==null?null:num(body.occupancyMax)},${str(body.adjustmentType)||"percent"},${num(body.adjustmentValue)||0},${num(body.minimumStay)||1},${num(body.priority)||100},true,${session.userId}::uuid) returning id::text,active`;
+     const [row]=await sql`insert into hospitality.pricing_rules(business_unit_id,property_id,name,rule_type,starts_on,ends_on,occupancy_min,occupancy_max,adjustment_type,adjustment_value,minimum_stay,priority,active,created_by) values(${buId}::uuid,${propertyId}::uuid,${name},${ruleType},${startsOn||null}::date,${endsOn||null}::date,${occupancyMin},${occupancyMax},${adjustmentType},${adjustmentValue},${minimumStay},${priority},true,${session.userId}::uuid) returning id::text,active`;
+     await audit(sql,buId,session.userId,"hospitality.pricing_rule.create","pricing_rule",String(row.id),{propertyId,ruleType,adjustmentType});
      return ok(row,201);
     }
     case "guest":{
-     const fullName=str(body.fullName); if(!fullName)return bad("INVALID_GUEST","fullName is required");
-     const [row]=await sql`insert into hospitality.guests(business_unit_id,full_name,email,phone,vip_level,preferences,notes) values(${buId}::uuid,${fullName},${str(body.email)||null},${str(body.phone)||null},${str(body.vipLevel)||"standard"},${JSON.stringify(body.preferences??{})}::jsonb,${str(body.notes)||null}) returning id::text,full_name,vip_level`;
+     const fullName=str(body.fullName),vipLevel=str(body.vipLevel)||"standard",email=str(body.email),phone=str(body.phone);
+     if(fullName.length<2||fullName.length>200||!vipLevels.has(vipLevel)||email.length>320||phone.length>80)return bad("INVALID_GUEST","Invalid guest payload");
+     const [row]=await sql`insert into hospitality.guests(business_unit_id,full_name,email,phone,vip_level,preferences,notes) values(${buId}::uuid,${fullName},${email||null},${phone||null},${vipLevel},${JSON.stringify(body.preferences??{})}::jsonb,${str(body.notes).slice(0,2000)||null}) returning id::text,full_name,vip_level`;
+     await audit(sql,buId,session.userId,"hospitality.guest.create","guest",String(row.id),{vipLevel});
      return ok(row,201);
     }
     case "move_reservation":{
-     const reservationId=str(body.reservationId),propertyId=str(body.propertyId); if(!reservationId||!propertyId)return bad("INVALID_MOVE","reservationId and propertyId are required");
-     const [target]=await sql`select id from hospitality.properties where id=${propertyId}::uuid and business_unit_id=${buId}::uuid and archived_at is null`; if(!target)return bad("PROPERTY_NOT_FOUND","Target property not found",404);
-     const [reservation]=await sql<{check_in:string;check_out:string}[]>`select check_in::text,check_out::text from hospitality.reservations where id=${reservationId}::uuid and business_unit_id=${buId}::uuid and archived_at is null limit 1`; if(!reservation)return bad("RESERVATION_NOT_FOUND","Reservation not found",404);
+     const reservationId=str(body.reservationId),propertyId=str(body.propertyId); if(!uuid.test(reservationId)||!uuid.test(propertyId))return bad("INVALID_MOVE","reservationId and propertyId must be valid UUIDs");
+     const [target]=await sql<{id:string;max_guests:number;status:string}[]>`select id::text,max_guests,status from hospitality.properties where id=${propertyId}::uuid and business_unit_id=${buId}::uuid and archived_at is null`; if(!target)return bad("PROPERTY_NOT_FOUND","Target property not found",404);
+     if(target.status!=="active")return bad("PROPERTY_NOT_ACTIVE","Target property is not active",409);
+     const [reservation]=await sql<{property_id:string;check_in:string;check_out:string;guests:number;status:string}[]>`select property_id::text,check_in::text,check_out::text,guests,status from hospitality.reservations where id=${reservationId}::uuid and business_unit_id=${buId}::uuid and archived_at is null limit 1`; if(!reservation)return bad("RESERVATION_NOT_FOUND","Reservation not found",404);
+     if(!["pending","confirmed","checked_in"].includes(reservation.status))return bad("RESERVATION_NOT_MOVABLE","Reservation lifecycle does not allow a property move",409);
+     if(Number(reservation.guests)>Number(target.max_guests))return bad("PROPERTY_CAPACITY_EXCEEDED","Target property capacity is too small for this reservation",409);
+     if(reservation.property_id===propertyId)return ok({id:reservationId,property_id:propertyId,check_in:reservation.check_in,check_out:reservation.check_out,status:reservation.status,noChange:true});
      const [airbnbConflict]=await sql<{id:string}[]>`select id::text from hospitality.calendar_blocks where property_id=${propertyId}::uuid and archived_at is null and daterange(starts_on,ends_on,'[)') && daterange(${reservation.check_in}::date,${reservation.check_out}::date,'[)') limit 1`;
      if(airbnbConflict)return bad("AIRBNB_AVAILABILITY_CONFLICT","Target property is unavailable on Airbnb for the reservation dates",409);
+     const [reservationConflict]=await sql<{id:string}[]>`select id::text from hospitality.reservations where id<>${reservationId}::uuid and property_id=${propertyId}::uuid and archived_at is null and status not in ('cancelled','no_show') and daterange(check_in,check_out,'[)') && daterange(${reservation.check_in}::date,${reservation.check_out}::date,'[)') limit 1`;
+     if(reservationConflict)return bad("RESERVATION_OVERLAP","Target property is already booked for the reservation dates",409);
      const [row]=await sql`update hospitality.reservations set property_id=${propertyId}::uuid,updated_at=now() where id=${reservationId}::uuid and business_unit_id=${buId}::uuid returning id::text,property_id::text,check_in,check_out,status`;
+     await audit(sql,buId,session.userId,"hospitality.reservation.move","reservation",reservationId,{fromPropertyId:reservation.property_id,toPropertyId:propertyId});
      return ok(row);
     }
     case "channel_reconcile":{
-     const reconciliationId=str(body.reconciliationId); if(!reconciliationId)return bad("INVALID_RECONCILIATION","reconciliationId is required");
+     const reconciliationId=str(body.reconciliationId); if(!uuid.test(reconciliationId))return bad("INVALID_RECONCILIATION","reconciliationId must be a valid UUID");
      const [allowed]=await sql`select id from hospitality.channel_reconciliations where id=${reconciliationId}::uuid and business_unit_id=${buId}::uuid`; if(!allowed)return bad("RECONCILIATION_NOT_FOUND","Reconciliation not found",404);
-     const [row]=await sql`select * from hospitality.refresh_channel_reconciliation(${reconciliationId}::uuid)`; return ok(row);
+     const [row]=await sql`select * from hospitality.refresh_channel_reconciliation(${reconciliationId}::uuid)`;
+     await audit(sql,buId,session.userId,"hospitality.channel_reconciliation.refresh","channel_reconciliation",reconciliationId,{});
+     return ok(row);
     }
     default:return bad("UNSUPPORTED_OPERATION","Unsupported Hospitality operation");
    }

@@ -1,7 +1,7 @@
 import {classifyVivitoProviderFailure,type VivitoProviderHealth} from "./quota-resilience";
 import type {VivitoMeshTask} from "./model-mesh-v1";
 
-export const GROQ_FREE_MODEL_IDS=["openai/gpt-oss-120b","openai/gpt-oss-20b"] as const;
+export const GROQ_FREE_MODEL_IDS=["openai/gpt-oss-120b","openai/gpt-oss-20b","qwen/qwen3.6-27b","qwen/qwen3.8-27b"] as const;
 export type GroqFreeModelId=(typeof GROQ_FREE_MODEL_IDS)[number];
 type Options={task?:VivitoMeshTask;maxTokens?:number;temperature?:number;timeoutMs?:number;modelId?:string;apiKey?:string};
 type HealthState={health:VivitoProviderHealth;cooldownUntil:number;successes:number;failures:number;lastLatencyMs?:number;lastErrorCode?:string};
@@ -31,7 +31,7 @@ export async function discoverGroqFreeModels(force=false,apiKey?:string):Promise
 }
 
 function ordered(models:GroqFreeModelId[],task:VivitoMeshTask="general"){
-  const pref=task==="coding"?["openai/gpt-oss-20b","openai/gpt-oss-120b"]:["openai/gpt-oss-120b","openai/gpt-oss-20b"];
+  const pref=task==="coding"?["qwen/qwen3.8-27b","qwen/qwen3.6-27b","openai/gpt-oss-20b","openai/gpt-oss-120b"]:["openai/gpt-oss-120b","qwen/qwen3.8-27b","qwen/qwen3.6-27b","openai/gpt-oss-20b"];
   return pref.filter((id):id is GroqFreeModelId=>models.includes(id as GroqFreeModelId));
 }
 

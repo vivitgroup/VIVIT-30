@@ -6,9 +6,11 @@ import {getHospitalityOwnerScope,ownerCanAccessProperty} from "@/lib/vgroup/hosp
 
 const BUCKET="vgroup-hospitality";
 const allowedReceipts=new Set(["image/jpeg","image/png","image/webp","application/pdf"]);
+const invoiceTypes=new Set(["owner_charge","vendor_bill","platform_fee","company_fee","other"]);
 const ext=(type:string)=>type==="image/png"?"png":type==="image/webp"?"webp":type==="application/pdf"?"pdf":"jpg";
 const headers=(key:string)=>({Authorization:`Bearer ${key}`,apikey:key});
 const uuid=/^[0-9a-f-]{36}$/i;
+const date=/^\d{4}-\d{2}-\d{2}$/;
 
 async function signedUrl(objectPath:string){
   const config=getVGroupRuntimeConfig();
@@ -42,10 +44,8 @@ export async function GET(request:Request){
       :ownerScope.isOwner
         ?ownerPropertyIds.length?await sql`select id::text,name from hospitality.properties where id=any(${ownerPropertyIds}::uuid[]) and archived_at is null order by name`:[]
         :await sql`select id::text,name from hospitality.properties where archived_at is null order by name`;
-    const [categories,vendors]=await Promise.all([
-      sql`select id::text,name from hospitality.expense_categories where active order by name`,
-      sql`select id::text,name from hospitality.vendors where archived_at is null order by name`,
-    ]);
+    const categories=ownerScope.isOwner?[]:await sql`select id::text,name from hospitality.expense_categories where active order by name`;
+    const vendors=ownerScope.isOwner?[]:await sql`select id::text,name from hospitality.vendors where archived_at is null order by name`;
     return NextResponse.json({expenses:Array.from(expenses),properties:Array.from(properties),categories:Array.from(categories),vendors:Array.from(vendors),propertyContext:propertyId},{headers:{"Cache-Control":"private, no-store"}});
   }catch(error){return apiErrorResponse(error)}
 }
@@ -58,7 +58,7 @@ export async function POST(request:Request){
     const categoryId=String(form.get("categoryId")??"");
     const vendorId=String(form.get("vendorId")??"");
     const invoiceNumber=String(form.get("invoiceNumber")??"").trim();
-    const invoiceType=String(form.get("invoiceType")??"vendor_bill");
+    const invoiceType=String(form.get("invoiceType")??"vendor_bill").trim();
     const currency=String(form.get("currency")??"EGP").trim().toUpperCase();
     const subtotal=Number(form.get("subtotal")??0),tax=Number(form.get("tax")??0);
     const issuedAt=String(form.get("issuedAt")??"");
@@ -67,13 +67,18 @@ export async function POST(request:Request){
     if(!uuid.test(propertyId))return NextResponse.json({error:{code:"PROPERTY_REQUIRED",message:"Every hospitality expense must be linked to a property"}},{status:400,headers:{"Cache-Control":"no-store"}});
     if(categoryId&&!uuid.test(categoryId))return NextResponse.json({error:{code:"INVALID_CATEGORY",message:"Invalid expense category"}},{status:400,headers:{"Cache-Control":"no-store"}});
     if(vendorId&&!uuid.test(vendorId))return NextResponse.json({error:{code:"INVALID_VENDOR",message:"Invalid vendor"}},{status:400,headers:{"Cache-Control":"no-store"}});
+    if(!invoiceTypes.has(invoiceType))return NextResponse.json({error:{code:"INVALID_INVOICE_TYPE",message:"Invalid invoice type"}},{status:400,headers:{"Cache-Control":"no-store"}});
+    if(!/^[A-Z]{3}$/.test(currency))return NextResponse.json({error:{code:"INVALID_CURRENCY",message:"Currency must be a 3-letter code"}},{status:400,headers:{"Cache-Control":"no-store"}});
+    if(invoiceNumber.length>120||notes.length>2000)return NextResponse.json({error:{code:"INVALID_TEXT",message:"Invoice number or notes are too long"}},{status:400,headers:{"Cache-Control":"no-store"}});
     if(!Number.isFinite(subtotal)||subtotal<0||!Number.isFinite(tax)||tax<0)return NextResponse.json({error:{code:"INVALID_AMOUNT",message:"Subtotal and tax must be valid non-negative numbers"}},{status:400,headers:{"Cache-Control":"no-store"}});
-    if(!/^\d{4}-\d{2}-\d{2}$/.test(issuedAt))return NextResponse.json({error:{code:"INVALID_DATE",message:"Issue date is required"}},{status:400,headers:{"Cache-Control":"no-store"}});
+    if(!date.test(issuedAt)||Boolean(dueAt&&!date.test(dueAt))||Boolean(dueAt&&dueAt<issuedAt))return NextResponse.json({error:{code:"INVALID_DATE",message:"Issue date is required and due date cannot be earlier"}},{status:400,headers:{"Cache-Control":"no-store"}});
     const sql=getVGroupSql();
     const [property]=await sql`select p.id::text,p.business_unit_id::text,p.name from hospitality.properties p join vgroup.business_units bu on bu.id=p.business_unit_id where p.id=${propertyId}::uuid and p.archived_at is null and bu.code='hospitality' and bu.status='active' limit 1`;
     if(!property)return NextResponse.json({error:{code:"PROPERTY_NOT_FOUND",message:"Property not found"}},{status:404,headers:{"Cache-Control":"no-store"}});
+    if(categoryId){const [category]=await sql`select id from hospitality.expense_categories where id=${categoryId}::uuid and business_unit_id=${property.business_unit_id}::uuid and active limit 1`;if(!category)return NextResponse.json({error:{code:"CATEGORY_NOT_FOUND",message:"Expense category not found"}},{status:404,headers:{"Cache-Control":"no-store"}})}
+    if(vendorId){const [vendor]=await sql`select id from hospitality.vendors where id=${vendorId}::uuid and business_unit_id=${property.business_unit_id}::uuid and archived_at is null limit 1`;if(!vendor)return NextResponse.json({error:{code:"VENDOR_NOT_FOUND",message:"Vendor not found"}},{status:404,headers:{"Cache-Control":"no-store"}})}
     const total=subtotal+tax;
-    const [invoice]=await sql`insert into hospitality.invoices(business_unit_id,property_id,vendor_id,expense_category_id,invoice_number,invoice_type,currency,subtotal,tax,total,issued_at,due_at,status,notes,created_by) values(${property.business_unit_id}::uuid,${propertyId}::uuid,${vendorId||null}::uuid,${categoryId||null}::uuid,${invoiceNumber||null},${invoiceType},${currency||"EGP"},${subtotal},${tax},${total},${issuedAt}::date,${dueAt||null}::date,'draft',${notes||null},${session.userId}::uuid) returning id::text,property_id::text,total,currency,status`;
+    const [invoice]=await sql`insert into hospitality.invoices(business_unit_id,property_id,vendor_id,expense_category_id,invoice_number,invoice_type,currency,subtotal,tax,total,issued_at,due_at,status,notes,created_by) values(${property.business_unit_id}::uuid,${propertyId}::uuid,${vendorId||null}::uuid,${categoryId||null}::uuid,${invoiceNumber||null},${invoiceType},${currency},${subtotal},${tax},${total},${issuedAt}::date,${dueAt||null}::date,'draft',${notes||null},${session.userId}::uuid) returning id::text,property_id::text,total,currency,status`;
     const file=form.get("receipt");
     let receipt:null|{id:string;file_name:string;url:string|null}=null;
     if(file instanceof File&&file.size>0){
@@ -87,7 +92,7 @@ export async function POST(request:Request){
         receipt={...row,url:await signedUrl(objectPath)} as {id:string;file_name:string;url:string|null};
       }catch(error){await fetch(`${config.supabaseUrl}/storage/v1/object/${BUCKET}/${objectPath}`,{method:"DELETE",headers:headers(config.serviceKey)}).catch(()=>undefined);await sql`delete from hospitality.invoices where id=${invoice.id}::uuid`;throw error}
     }
-    await sql`insert into vgroup.audit_logs(business_unit_id,user_id,action,entity_type,entity_id,new_value) values(${property.business_unit_id}::uuid,${session.userId}::uuid,'hospitality.expense.create','hospitality_invoice',${invoice.id}::uuid,jsonb_build_object('property_id',${propertyId},'total',${total},'currency',${currency||"EGP"},'receipt_attached',${receipt!==null}))`;
+    await sql`insert into vgroup.audit_logs(business_unit_id,user_id,action,entity_type,entity_id,new_value) values(${property.business_unit_id}::uuid,${session.userId}::uuid,'hospitality.expense.create','hospitality_invoice',${invoice.id}::uuid,jsonb_build_object('property_id',${propertyId},'total',${total},'currency',${currency},'receipt_attached',${receipt!==null}))`;
     return NextResponse.json({expense:invoice,receipt},{status:201,headers:{"Cache-Control":"no-store"}});
   }catch(error){return apiErrorResponse(error)}
 }

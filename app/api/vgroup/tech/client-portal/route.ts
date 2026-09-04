@@ -15,11 +15,13 @@ export async function GET(){
     const session=await requireApiBusinessUnit("tech");
     const techMembership=session.memberships.find(m=>m.businessUnit==="tech"||m.role==="GROUP_SUPER_ADMIN");
     const sql=getVGroupSql();
+    const [bu]=await sql<{id:string}[]>`select id::text from vgroup.business_units where code='tech' and status='active' limit 1`;
+    if(!bu)return NextResponse.json({error:"TECH_BUSINESS_UNIT_UNAVAILABLE"},{status:503,headers:{"Cache-Control":"private, no-store"}});
     const isClient=techMembership?.role==="TECH_CLIENT";
     const clients=await sql<ClientRow[]>`
       select c.id::text,c.company_name,c.contact_name,c.email
       from tech.clients c
-      where c.archived_at is null
+      where c.business_unit_id=${bu.id}::uuid and c.archived_at is null
         and (${isClient}::boolean=false or c.portal_user_id=${session.userId}::uuid)
       order by c.created_at desc
     `;
@@ -32,8 +34,8 @@ export async function GET(){
              coalesce((select sum(pi.paid_amount) from tech.payment_installments pi where pi.project_id=p.id),0) paid_amount,
              (select min(pi.due_date) from tech.payment_installments pi where pi.project_id=p.id and pi.status in ('pending','partial','overdue')) next_due
       from tech.projects p
-      where p.archived_at is null
-        and (${isClient}::boolean=false or p.client_id in (select id from tech.clients where portal_user_id=${session.userId}::uuid and archived_at is null))
+      where p.business_unit_id=${bu.id}::uuid and p.archived_at is null
+        and (${isClient}::boolean=false or p.client_id in (select id from tech.clients where business_unit_id=${bu.id}::uuid and portal_user_id=${session.userId}::uuid and archived_at is null))
       order by p.created_at desc
     `;
     const projectRows=Array.from(projects);

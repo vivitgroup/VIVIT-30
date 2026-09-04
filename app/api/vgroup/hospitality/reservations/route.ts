@@ -3,6 +3,8 @@ import {getVGroupSql} from "@/lib/vgroup/db";
 import {apiErrorResponse,requireApiPermission} from "@/lib/vgroup/api-access";
 
 export const dynamic="force-dynamic";
+const uuid=/^[0-9a-f-]{36}$/i;
+const transitions:Record<string,readonly string[]>={pending:["confirmed","cancelled"],confirmed:["checked_in","cancelled","no_show"],checked_in:["checked_out"],checked_out:[],cancelled:[],no_show:[]};
 
 export async function GET(){
   try{
@@ -67,4 +69,24 @@ export async function POST(request:Request){
     if(message.includes("reservations_no_active_overlap"))return NextResponse.json({error:"Property is already booked for the selected dates"},{status:409});
     return apiErrorResponse(error)
   }
+}
+
+export async function PATCH(request:Request){
+  try{
+    const session=await requireApiPermission("hospitality","reservations:update");
+    const body=await request.json().catch(()=>null) as {reservationId?:string;status?:string}|null;
+    const reservationId=String(body?.reservationId??"");const nextStatus=String(body?.status??"");
+    if(!uuid.test(reservationId)||!Object.prototype.hasOwnProperty.call(transitions,nextStatus))return NextResponse.json({error:"Invalid reservation status update"},{status:400,headers:{"Cache-Control":"no-store"}});
+    const sql=getVGroupSql();
+    const [reservation]=await sql<{id:string;business_unit_id:string;property_id:string;status:string;check_in:string;check_out:string}[]>`select id::text,business_unit_id::text,property_id::text,status,check_in::text,check_out::text from hospitality.reservations where id=${reservationId}::uuid and archived_at is null limit 1`;
+    if(!reservation)return NextResponse.json({error:"Reservation not found"},{status:404,headers:{"Cache-Control":"no-store"}});
+    if(!transitions[reservation.status]?.includes(nextStatus))return NextResponse.json({error:`Invalid status transition ${reservation.status} → ${nextStatus}`},{status:409,headers:{"Cache-Control":"no-store"}});
+    if(nextStatus==="confirmed"||nextStatus==="checked_in"){
+      const [block]=await sql<{id:string}[]>`select id::text from hospitality.calendar_blocks where property_id=${reservation.property_id}::uuid and archived_at is null and daterange(starts_on,ends_on,'[)') && daterange(${reservation.check_in}::date,${reservation.check_out}::date,'[)') limit 1`;
+      if(block)return NextResponse.json({error:"Reservation cannot become active because synced channel availability blocks these dates"},{status:409,headers:{"Cache-Control":"no-store"}});
+    }
+    const [updated]=await sql`update hospitality.reservations set status=${nextStatus},updated_at=now() where id=${reservationId}::uuid returning id::text,status`;
+    await sql`insert into vgroup.audit_logs(business_unit_id,user_id,action,entity_type,entity_id,new_value) values(${reservation.business_unit_id}::uuid,${session.userId}::uuid,'reservation.status.change','reservation',${reservationId}::uuid,jsonb_build_object('from',${reservation.status},'to',${nextStatus}))`;
+    return NextResponse.json({reservation:updated},{headers:{"Cache-Control":"no-store"}});
+  }catch(error){return apiErrorResponse(error)}
 }

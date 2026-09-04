@@ -4,7 +4,6 @@ import {FormEvent,useState} from "react";
 import Link from "next/link";
 
 type Workspace="group"|"tech"|"hospitality";
-const labels:Record<Workspace,string>={group:"Vivit Group",tech:"Vivit Technology",hospitality:"Vivit Hospitality"};
 function selectedWorkspace():Workspace{if(typeof window==="undefined")return"group";const raw=new URLSearchParams(window.location.search).get("workspace");return raw==="tech"||raw==="hospitality"?raw:"group"}
 
 export default function GroupLogin(){

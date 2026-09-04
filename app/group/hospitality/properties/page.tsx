@@ -1,11 +1,11 @@
 import Link from "next/link";
-import {requireBusinessUnitAccess} from "@/lib/vgroup/access";
+import {requireBusinessPermission} from "@/lib/vgroup/access";
 import {getVGroupSql} from "@/lib/vgroup/db";
 import {PropertyManager} from "@/components/vgroup/property-manager";
 
 export const dynamic="force-dynamic";
 export default async function PropertiesPage(){
-  await requireBusinessUnitAccess("hospitality");
+  await requireBusinessPermission("hospitality","properties:view");
   const sql=getVGroupSql();
   const owners=await sql`select id::text,full_name from hospitality.owners where archived_at is null order by full_name`;
   const properties=await sql`select p.id::text,p.owner_id::text,o.full_name owner_name,p.name,p.property_type,p.city,p.country,p.bedrooms,p.bathrooms,p.max_guests,p.status,

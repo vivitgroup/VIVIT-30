@@ -25,6 +25,14 @@ function requireVGroupDatabaseUrl(): string {
   return url;
 }
 
+function getVGroupSsl() {
+  const disabled = process.env.VGROUP_DATABASE_SSL_DISABLED === "1";
+  if (disabled && process.env.CI !== "true") {
+    throw new Error("VGROUP_DATABASE_SSL_DISABLED is only allowed in CI");
+  }
+  return disabled ? false : { rejectUnauthorized: false };
+}
+
 export function getVGroupSql() {
   if (globalThis._vgroupPgClient) return globalThis._vgroupPgClient;
 
@@ -32,7 +40,7 @@ export function getVGroupSql() {
   // allocating another Postgres pool. Supabase's pooler remains responsible for
   // multiplexing connections across isolates.
   globalThis._vgroupPgClient = postgres(requireVGroupDatabaseUrl(), {
-    ssl: { rejectUnauthorized: false },
+    ssl: getVGroupSsl(),
     max: 2,
     idle_timeout: 20,
     connect_timeout: 10,

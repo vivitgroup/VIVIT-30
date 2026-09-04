@@ -14,6 +14,10 @@ const publicMutationValidators=new Map([
   ["app/api/signup/otp/route.ts",source=>source.includes("consumeAuthRateLimit")&&source.includes("security_signup_otp_burst")&&source.includes("security_signup_otp_hourly")&&source.includes("pg_advisory_xact_lock")&&source.includes("OTP_COOLDOWN")],
   ["app/api/password/forgot/route.ts",source=>source.includes("consumeAuthRateLimit")&&source.includes("security_password_reset_request")&&source.includes("pg_advisory_xact_lock")&&source.includes("password-reset:")],
   ["app/api/password/reset/route.ts",source=>source.includes('createHash("sha256")')&&source.includes("isNull(passwordResetTokens.usedAt)")&&source.includes("claimed.length!==1")&&source.includes("db.transaction(async tx=>")],
+  ["app/api/integrations/vgroup-handoff/route.ts",source=>source.includes('VGROUP_MARKETING_HANDOFF_RECEIVER_ENABLED!=="true"')&&source.includes("VGROUP_GROUP_ORIGIN")&&source.includes('signIn("group-handoff"')&&source.includes("HANDOFF_AUTH_FAILED")],
+  ["app/api/vgroup/auth/login/route.ts",source=>source.includes("auth_rate_limits")&&source.includes("hashRateLimitKey")&&source.includes("grant_type=password")&&source.includes("VGROUP_ACCESS_COOKIE")&&source.includes("VGROUP_REFRESH_COOKIE")],
+  ["app/api/vgroup/auth/logout/route.ts",source=>source.includes("VGROUP_ACCESS_COOKIE")&&source.includes("VGROUP_REFRESH_COOKIE")&&source.includes("maxAge:0")],
+  ["app/api/vgroup/auth/refresh/route.ts",source=>source.includes("VGROUP_REFRESH_COOKIE")&&source.includes("grant_type=refresh_token")&&source.includes("VGROUP_ACCESS_COOKIE")&&source.includes("Cache-Control")],
 ]);
 const findings=[];
 for(const file of files){
@@ -22,7 +26,12 @@ for(const file of files){
   const validatePublic=publicMutationValidators.get(name);
   if(validatePublic){if(!validatePublic(source))findings.push(`${name}: public mutation exception no longer satisfies its required security contract`);continue;}
   if(name.startsWith("app/api/cron/"))continue; // proxy.ts enforces CRON_SECRET before route execution.
-  const hasAuth=/\bauth\s*\(/.test(source)||/\bsessionScope\s*\(/.test(source)||/\brequire(?:Role|Session|Auth)\s*\(/.test(source);
+  const hasAuth=/\bauth\s*\(/.test(source)
+    ||/\bsessionScope\s*\(/.test(source)
+    ||/\brequire(?:Role|Session|Auth|ApiPermission|VGroupSession|ApiGroupSuperAdmin)\s*\(/.test(source)
+    ||/\bapiPermissionOrResponse\s*\(/.test(source)
+    ||/\bgetVGroupSession\s*\(/.test(source)
+    ||/\bVGROUP_CRON_SECRET\b/.test(source);
   if(!hasAuth)findings.push(`${name}: ${[...new Set(methods)].join(",")} has no explicit route authentication marker`);
 }
 console.log(`Scanned ${files.length} API route files for mutation authentication.`);

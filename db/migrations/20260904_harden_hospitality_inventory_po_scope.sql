@@ -51,8 +51,7 @@ begin
   end if;
 
   if v_property_id is not null and not exists (
-    select 1
-    from hospitality.properties p
+    select 1 from hospitality.properties p
     where p.id = v_property_id
       and p.business_unit_id = v_hospitality_bu
       and p.archived_at is null
@@ -61,8 +60,7 @@ begin
   end if;
 
   if p_work_order_id is not null and not exists (
-    select 1
-    from hospitality.work_orders wo
+    select 1 from hospitality.work_orders wo
     where wo.id = p_work_order_id
       and wo.business_unit_id = v_hospitality_bu
       and (v_property_id is null or wo.property_id = v_property_id)
@@ -76,28 +74,14 @@ begin
   end if;
 
   update hospitality.inventory_items ii
-  set quantity = v_new,
-      updated_at = now()
-  where ii.id = p_item_id
-    and ii.business_unit_id = v_hospitality_bu;
+  set quantity = v_new, updated_at = now()
+  where ii.id = p_item_id and ii.business_unit_id = v_hospitality_bu;
 
   insert into hospitality.inventory_movements(
-    item_id,
-    movement_type,
-    quantity_delta,
-    reason,
-    related_work_order_id,
-    created_by
-  )
-  values(
-    p_item_id,
-    p_movement_type,
-    p_quantity_delta,
-    p_reason,
-    p_work_order_id,
-    p_created_by
-  )
-  returning id into v_mid;
+    item_id, movement_type, quantity_delta, reason, related_work_order_id, created_by
+  ) values (
+    p_item_id, p_movement_type, p_quantity_delta, p_reason, p_work_order_id, p_created_by
+  ) returning id into v_mid;
 
   return query select p_item_id, v_new, v_mid;
 end
@@ -137,8 +121,7 @@ begin
   end if;
 
   if not exists (
-    select 1
-    from hospitality.vendors v
+    select 1 from hospitality.vendors v
     where v.id = v_row.vendor_id
       and v.business_unit_id = v_hospitality_bu
   ) then
@@ -146,8 +129,7 @@ begin
   end if;
 
   if v_row.property_id is not null and not exists (
-    select 1
-    from hospitality.properties p
+    select 1 from hospitality.properties p
     where p.id = v_row.property_id
       and p.business_unit_id = v_hospitality_bu
       and p.archived_at is null
@@ -156,8 +138,7 @@ begin
   end if;
 
   if v_row.work_order_id is not null and not exists (
-    select 1
-    from hospitality.work_orders wo
+    select 1 from hospitality.work_orders wo
     where wo.id = v_row.work_order_id
       and wo.business_unit_id = v_hospitality_bu
       and (v_row.property_id is null or wo.property_id = v_row.property_id)
@@ -166,12 +147,8 @@ begin
   end if;
 
   update hospitality.purchase_orders po
-  set status = 'approved',
-      approved_by = p_approved_by,
-      approved_at = now(),
-      updated_at = now()
-  where po.id = p_po_id
-    and po.business_unit_id = v_hospitality_bu
+  set status = 'approved', approved_by = p_approved_by, approved_at = now(), updated_at = now()
+  where po.id = p_po_id and po.business_unit_id = v_hospitality_bu
   returning po.* into v_row;
 
   return v_row;

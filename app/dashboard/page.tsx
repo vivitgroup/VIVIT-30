@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { db, clients, financeRecords, creativeTasks, salesLeads,
-  mediaMetrics, companyExpenses, notifications,
+  companyExpenses, notifications,
   agencyHealthScores, payrollLocks, sql } from "@/lib/db";
 import { eq, and, gte, lte, sum, count, desc, notInArray, lt } from "drizzle-orm";
 import { Role } from "@/lib/types";

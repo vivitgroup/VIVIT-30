@@ -1,0 +1,6 @@
+export const dynamic="force-dynamic";
+
+import Link from "next/link";
+import {GroupFinancePanel} from "@/components/vgroup/group-finance-panel";
+import {requireVGroupSession} from "@/lib/vgroup/session";
+export default async function Page(){await requireVGroupSession();return <main style={{minHeight:'100vh',background:'#0d0d12',color:'#f6f6f8',padding:'28px 20px'}}><section style={{maxWidth:1180,margin:'0 auto'}}><Link href="/group" style={{color:'#a78bfa',textDecoration:'none',fontWeight:800}}>← Vivit Group</Link><div style={{margin:'36px 0 24px'}}><div style={{fontSize:12,letterSpacing:'.18em',fontWeight:900,color:'#a78bfa'}}>VIVIT GROUP FINANCE</div><h1 style={{fontSize:'clamp(34px,5vw,60px)',margin:'8px 0'}}>Group Finance</h1><p style={{color:'#a6a6b2'}}>Live cross-business revenue, cost, net-profit and transaction visibility filtered by authorized business units.</p></div><GroupFinancePanel/></section></main>}

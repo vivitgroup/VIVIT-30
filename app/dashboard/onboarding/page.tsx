@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { db, clients, onboardingProgress, auditLogs, sql } from "@/lib/db";
+import { db, clients, onboardingProgress } from "@/lib/db";
 import { eq, and, inArray } from "drizzle-orm";
 import { Role } from "@/lib/types";
 
@@ -26,12 +26,13 @@ const CATEGORY_COLOR: Record<string,string> = {
 async function toggleStep(clientId: string, stepId: string, completed: boolean) {
   "use server";
   const { auth: getAuth } = await import("@/lib/auth");
-  const { db, onboardingProgress, clients } = await import("@/lib/db");
-  const { eq, and } = await import("drizzle-orm");
+  const { db, onboardingProgress, clients, auditLogs, sql } = await import("@/lib/db");
+  const { eq, and, inArray } = await import("drizzle-orm");
   const session = await getAuth();
   const role = session?.user?.role as Role | undefined;
   if (!session?.user || ![Role.SUPER_ADMIN, Role.ACCOUNT_MANAGER].includes(role!)) throw new Error("Unauthorized");
-  if (!STEPS.some(step => step.id === stepId)) throw new Error("Invalid onboarding step");
+  const stepIndex=STEPS.findIndex(step => step.id === stepId);
+  if (stepIndex<0) throw new Error("Invalid onboarding step");
   const userId = String(session.user.id||""), workspaceId=String(session.user.workspaceId||"");
   if(!workspaceId||!userId)throw new Error("Workspace unavailable");
   if (role === Role.ACCOUNT_MANAGER) {
@@ -42,14 +43,36 @@ async function toggleStep(clientId: string, stepId: string, completed: boolean) 
     const [existingClient] = await db.select({ id: clients.id }).from(clients).where(and(eq(clients.id,clientId),eq(clients.workspaceId,workspaceId),eq(clients.isActive,true))).limit(1);
     if (!existingClient) throw new Error("Client not found");
   }
-  const lockKey=`onboarding-ui:${clientId}:${stepId}`;
+  const lockKey=`onboarding-ui:${workspaceId}:${clientId}`;
   await db.transaction(async tx=>{
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${lockKey}))`);
-    const [existing]=await tx.select().from(onboardingProgress).where(and(eq(onboardingProgress.clientId,clientId),eq(onboardingProgress.stepId,stepId))).limit(1);
-    const values={completed,completedAt:completed?new Date():null,completedBy:completed?userId:null};
-    let entityId:string;
-    if(existing){await tx.update(onboardingProgress).set(values).where(and(eq(onboardingProgress.id,existing.id),eq(onboardingProgress.clientId,clientId)));entityId=existing.id}else{const [created]=await tx.insert(onboardingProgress).values({clientId,stepId,...values}).returning({id:onboardingProgress.id});entityId=created.id}
-    await tx.insert(auditLogs).values({workspaceId,userId,action:"onboarding_step_updated",entity:"onboarding_progress",entityId,newValues:JSON.stringify({clientId,stepId,completed,source:"dashboard"})});
+    const rows=await tx.select().from(onboardingProgress).where(eq(onboardingProgress.clientId,clientId));
+    const progress=new Map(rows.map(row=>[row.stepId,row]));
+    const existing=progress.get(stepId);
+    let entityId=existing?.id||"";
+
+    if(completed){
+      const missingPrior=STEPS.slice(0,stepIndex).find(step=>progress.get(step.id)?.completed!==true);
+      if(missingPrior)throw new Error(`Complete “${missingPrior.label}” before this step.`);
+      const values={completed:true,completedAt:new Date(),completedBy:userId};
+      if(existing){
+        await tx.update(onboardingProgress).set(values).where(and(eq(onboardingProgress.id,existing.id),eq(onboardingProgress.clientId,clientId)));
+      }else{
+        const [created]=await tx.insert(onboardingProgress).values({clientId,stepId,...values}).returning({id:onboardingProgress.id});
+        entityId=created.id;
+      }
+    }else{
+      const affectedIds=STEPS.slice(stepIndex).map(step=>step.id);
+      if(affectedIds.length){
+        await tx.update(onboardingProgress).set({completed:false,completedAt:null,completedBy:null})
+          .where(and(eq(onboardingProgress.clientId,clientId),inArray(onboardingProgress.stepId,affectedIds)));
+      }
+      if(!existing){
+        const [created]=await tx.insert(onboardingProgress).values({clientId,stepId,completed:false,completedAt:null,completedBy:null}).returning({id:onboardingProgress.id});
+        entityId=created.id;
+      }
+    }
+    await tx.insert(auditLogs).values({workspaceId,userId,action:"onboarding_step_updated",entity:"onboarding_progress",entityId:entityId||clientId,newValues:JSON.stringify({clientId,stepId,completed,source:"dashboard",sequential:true,cascadesLaterSteps:!completed})});
   });
   const { revalidatePath } = await import("next/cache");
   revalidatePath("/dashboard/onboarding");
@@ -92,7 +115,7 @@ export default async function OnboardingPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="page-title">✅ Client Onboarding</h1>
-          <p className="text-sm text-[#6B8FAF] mt-1">{newClients.length} in progress · {fullyOnboarded.length} fully onboarded</p>
+          <p className="text-sm text-[#6B8FAF] mt-1">{newClients.length} in progress · {fullyOnboarded.length} fully onboarded · steps must be completed in order</p>
         </div>
       </div>
 
@@ -114,11 +137,12 @@ export default async function OnboardingPage() {
         const done = STEPS.filter(s=>prg[s.id]).length;
         const pct  = Math.round((done/STEPS.length)*100);
         const isComplete = pct === 100;
+        const firstIncomplete=STEPS.findIndex(step=>prg[step.id]!==true);
         return (
           <div key={client.id} className="card" style={{border:isComplete?"1px solid rgba(16,185,129,0.2)":undefined}}>
             <div className="flex items-center justify-between mb-4"><div className="flex items-center gap-3"><div className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-sm font-bold flex-shrink-0" style={{background:"linear-gradient(135deg,#244D87,#00B4D8)"}}>{client.companyName.slice(0,2).toUpperCase()}</div><div><p className="font-bold">{client.companyName}</p><p className="text-xs text-[#6B8FAF]">Client since {new Date(client.createdAt).toLocaleDateString("en-GB",{month:"short",year:"numeric"})}</p></div></div><div className="text-right"><p className="text-2xl font-black" style={{color:isComplete?"#10b981":pct>=60?"#244D87":"#f59e0b"}}>{pct}%</p><p className="text-xs text-[#6B8FAF]">{done}/{STEPS.length} steps</p></div></div>
             <div className="h-2 rounded-full bg-white/10 mb-4"><div className="h-2 rounded-full transition-all" style={{width:`${pct}%`,background:isComplete?"#10b981":"linear-gradient(90deg,#244D87,#00B4D8)"}}/></div>
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">{STEPS.map(step=>{const isDone=prg[step.id]===true;return <form key={step.id} action={async()=>{"use server";await toggleStep(client.id,step.id,!isDone);}}><button type="submit" className="w-full p-2.5 rounded-xl border transition-all text-left" style={{background:isDone?`${CATEGORY_COLOR[step.category]}12`:"rgba(255,255,255,0.02)",border:isDone?`1px solid ${CATEGORY_COLOR[step.category]}30`:"1px solid rgba(255,255,255,0.06)"}}><div className="flex items-center gap-1.5 mb-1"><span className="text-base">{isDone?"✅":step.icon}</span><span className="text-[10px] font-bold" style={{color:CATEGORY_COLOR[step.category]}}>{step.category}</span></div><p className="text-xs font-semibold leading-tight" style={{color:isDone?"#E8F4FD":"#6B8FAF"}}>{step.label}</p></button></form>})}</div>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">{STEPS.map((step,index)=>{const isDone=prg[step.id]===true,locked=!isDone&&firstIncomplete>=0&&index>firstIncomplete;return <form key={step.id} action={async()=>{"use server";await toggleStep(client.id,step.id,!isDone);}}><button type="submit" disabled={locked} title={locked?"Complete the previous mandatory step first":isDone?"Undoing this step also reopens every later step":"Complete this step"} className="w-full p-2.5 rounded-xl border transition-all text-left disabled:opacity-40 disabled:cursor-not-allowed" style={{background:isDone?`${CATEGORY_COLOR[step.category]}12`:"rgba(255,255,255,0.02)",border:isDone?`1px solid ${CATEGORY_COLOR[step.category]}30`:"1px solid rgba(255,255,255,0.06)"}}><div className="flex items-center gap-1.5 mb-1"><span className="text-base">{isDone?"✅":locked?"🔒":step.icon}</span><span className="text-[10px] font-bold" style={{color:CATEGORY_COLOR[step.category]}}>{step.category}</span></div><p className="text-xs font-semibold leading-tight" style={{color:isDone?"#E8F4FD":"#6B8FAF"}}>{step.label}</p></button></form>})}</div>
             {isComplete&&<div className="mt-3 flex items-center gap-2 p-2 rounded-lg" style={{background:"rgba(16,185,129,0.08)"}}><span className="text-sm">🎉</span><p className="text-xs text-green-400 font-semibold">Client fully onboarded! Ready for full service.</p></div>}
           </div>
         );
@@ -126,7 +150,7 @@ export default async function OnboardingPage() {
 
       <div className="card"><h2 className="font-semibold mb-4">🚀 Client Onboarding Process (ERP View)</h2><div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         <div><p className="text-xs font-semibold text-[#244D87] uppercase tracking-wider mb-3">Phase 1 — Legal & Contract</p><div className="space-y-2">{[
-          {step:"Service Agreement drafted",icon:"📄",tip:"Use contract template from /dashboard/contracts"},{step:"Contract signed by client",icon:"✍️",tip:"Digital signature via approval token email"},{step:"Payment terms agreed",icon:"💳",tip:"Set retainer + media budget in client profile"},{step:"Invoice schedule configured",icon:"🧾",tip:"Set up recurring invoice in Settings"},
+          {step:"Service Agreement drafted",icon:"📄",tip:"Use contract template from /dashboard/contracts"},{step:"Contract signed by client",icon:"✍️",tip:"Digital signature via approval token email"},{step:"Payment terms agreed",icon:"💳",tip:"Accountant or Super Admin completes amount in Accounts Payment"},{step:"Invoice schedule configured",icon:"🧾",tip:"Set up recurring invoice in Finance"},
         ].map(s=><div key={s.step} className="flex items-start gap-3 p-3 rounded-xl bg-white/[0.02] border border-white/5"><span className="text-xl flex-shrink-0">{s.icon}</span><div><p className="text-sm font-semibold">{s.step}</p><p className="text-[11px] text-[#3D5577] mt-0.5">{s.tip}</p></div></div>)}</div></div>
         <div><p className="text-xs font-semibold text-[#8b5cf6] uppercase tracking-wider mb-3">Phase 2 — Technical Setup</p><div className="space-y-2">{[
           {step:"Ad accounts access granted",icon:"📱",tip:"Meta, TikTok, Google, Snapchat — add links to client profile"},{step:"Brand assets received",icon:"🎨",tip:"Logo, colors, fonts — store in client color_palette field"},{step:"Client portal account created",icon:"👤",tip:"Create CLIENT user → linked to client record via userId"},{step:"Kickoff meeting scheduled",icon:"📅",tip:"Add to content calendar + log in communication log"},
@@ -139,10 +163,10 @@ export default async function OnboardingPage() {
         ].map(s=><div key={s.step} className="flex items-start gap-3 p-3 rounded-xl bg-white/[0.02] border border-white/5"><span className="text-xl flex-shrink-0">{s.icon}</span><div><p className="text-sm font-semibold">{s.step}</p><p className="text-[11px] text-[#3D5577] mt-0.5">{s.tip}</p></div></div>)}</div></div>
       </div></div>
 
-      <div className="card" style={{background:"linear-gradient(135deg,rgba(16,185,129,0.08),rgba(0,119,182,0.04))",border:"1px solid rgba(16,185,129,0.2)"}}><h2 className="font-semibold text-green-400 mb-1">🚀 Quick Start — New Agency Setup</h2><p className="text-xs text-muted mb-4">Complete these 5 steps in 30 minutes to go from 0 to fully operational</p><div className="space-y-3 mb-4">{[
-        {n:1,icon:"🏢",task:"Add your first client",action:"Add Client",href:"/dashboard/clients/new",time:"5 min",tip:"Start with your most important existing client"},{n:2,icon:"📣",task:"Enter first month ad metrics",action:"Add Metrics",href:"/dashboard/media",time:"5 min",tip:"Add spend, leads, revenue for last month"},{n:3,icon:"🎨",task:"Create your first creative task",action:"New Task",href:"/dashboard/creative/new",time:"5 min",tip:"Use a template — brief auto-fills in seconds"},{n:4,icon:"💰",task:"Set up first invoice",action:"Go to Finance",href:"/dashboard/finance",time:"5 min",tip:"Add monthly retainer as your first finance record"},{n:5,icon:"👥",task:"Invite a team member",action:"Invite Team",href:"/dashboard/settings",time:"2 min",tip:"Add your Account Manager or Media Buyer first"},
+      <div className="card" style={{background:"linear-gradient(135deg,rgba(16,185,129,0.08),rgba(0,119,182,0.04))",border:"1px solid rgba(16,185,129,0.2)"}}><h2 className="font-semibold text-green-400 mb-1">🚀 Quick Start — New Agency Setup</h2><p className="text-xs text-muted mb-4">Complete these 5 steps in order to go from 0 to fully operational</p><div className="space-y-3 mb-4">{[
+        {n:1,icon:"🏢",task:"Add your first client",action:"Add Client",href:"/dashboard/clients/new",time:"5 min",tip:"Complete every required operational field"},{n:2,icon:"💰",task:"Complete finance setup",action:"Accounts Payment",href:"/dashboard/clients/accounts-payment",time:"5 min",tip:"Accountant or Super Admin enters the client amount"},{n:3,icon:"📣",task:"Enter first month ad metrics",action:"Add Metrics",href:"/dashboard/media",time:"5 min",tip:"Add spend, leads, revenue for last month"},{n:4,icon:"🎨",task:"Create your first creative task",action:"New Task",href:"/dashboard/creative/new",time:"5 min",tip:"Use a template — brief auto-fills in seconds"},{n:5,icon:"👥",task:"Invite a team member",action:"Invite Team",href:"/dashboard/settings",time:"2 min",tip:"Add your Account Manager or Media Buyer first"},
       ].map(step=><div key={step.n} className="flex items-center gap-4 p-4 rounded-xl border border-white/8 bg-white/[0.02]"><div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-black text-sm flex-shrink-0" style={{background:"linear-gradient(135deg,#17345F,#244D87)"}}>{step.n}</div><div className="flex-1"><div className="flex items-center gap-2 mb-0.5"><span className="text-lg">{step.icon}</span><p className="font-semibold text-sm">{step.task}</p><span className="badge badge-muted text-[9px]">{step.time}</span></div><p className="text-[11px] text-muted">💡 {step.tip}</p></div><a href={step.href} className="btn-grad text-xs py-1.5 px-3 flex-shrink-0" style={{textDecoration:"none"}}>{step.action} →</a></div>)}</div>
-        <div className="grid grid-cols-3 gap-3 mb-4">{[{label:"After Step 1-2",desc:"You'll have: Client profile + Media KPIs (ROAS, CAC, CPL) showing live"},{label:"After Step 3",desc:"You'll have: Creative workflow active, tasks visible to creators"},{label:"After Step 4-5",desc:"You'll have: Invoice tracking, team onboarded, ready for clients"}].map(m=><div key={m.label} className="p-3 rounded-xl bg-white/[0.03] border border-white/5"><p className="text-xs font-semibold text-green-400 mb-1">{m.label}</p><p className="text-[10px] text-muted">{m.desc}</p></div>)}</div><div className="p-3 rounded-xl bg-white/[0.02] border border-white/5"><p className="text-xs font-semibold text-[#244D87]">📞 Need help? Book a 30-min setup call with the Vivit team →</p></div>
+        <div className="grid grid-cols-3 gap-3 mb-4">{[{label:"After Step 1-2",desc:"You'll have: Client profile + finance ownership completed"},{label:"After Step 3",desc:"You'll have: Media KPIs (ROAS, CAC, CPL) showing live"},{label:"After Step 4-5",desc:"You'll have: Creative workflow active and team ready"}].map(m=><div key={m.label} className="p-3 rounded-xl bg-white/[0.03] border border-white/5"><p className="text-xs font-semibold text-green-400 mb-1">{m.label}</p><p className="text-[10px] text-muted">{m.desc}</p></div>)}</div><div className="p-3 rounded-xl bg-white/[0.02] border border-white/5"><p className="text-xs font-semibold text-[#244D87]">📞 Need help? Book a 30-min setup call with the Vivit team →</p></div>
       </div>
     </div>
   );

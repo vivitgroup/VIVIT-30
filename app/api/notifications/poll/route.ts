@@ -1,19 +1,22 @@
 export const dynamic="force-dynamic";
 import {NextRequest,NextResponse} from "next/server";
 import {auth} from "@/lib/auth";
-import {db,notifications} from "@/lib/db";
+import {db,notifications,users} from "@/lib/db";
 import {eq,and,gte,desc} from "drizzle-orm";
 import {safeInternalPath} from "@/lib/safe-navigation";
 
 export async function GET(req:NextRequest){
  const session=await auth();
- if(!session?.user)return NextResponse.json({error:"Unauthorized"},{status:401});
+ const sessionUser=session?.user as (typeof session.user&{workspaceId?:string})|undefined;
+ if(!sessionUser?.id||!sessionUser.workspaceId)return NextResponse.json({error:"Unauthorized"},{status:401});
+ const userId=String(sessionUser.id),workspaceId=String(sessionUser.workspaceId);
  const raw=req.nextUrl.searchParams.get("since"),parsed=raw?new Date(raw):new Date(Date.now()-60000);
  if(Number.isNaN(parsed.getTime()))return NextResponse.json({error:"Invalid since cursor"},{status:400});
  const earliest=new Date(Date.now()-24*60*60*1000),sinceDate=parsed<earliest?earliest:parsed;
  const rows=await db.select({id:notifications.id,title:notifications.title,message:notifications.message,type:notifications.type,link:notifications.link,priority:notifications.priority,createdAt:notifications.createdAt})
   .from(notifications)
-  .where(and(eq(notifications.userId,String(session.user.id)),eq(notifications.isRead,false),gte(notifications.createdAt,sinceDate)))
+  .innerJoin(users,and(eq(users.id,notifications.userId),eq(users.workspaceId,workspaceId),eq(users.isActive,true)))
+  .where(and(eq(notifications.userId,userId),eq(notifications.isRead,false),gte(notifications.createdAt,sinceDate)))
   .orderBy(desc(notifications.createdAt))
   .limit(100);
  const newNotifs=rows.map(n=>({...n,link:safeInternalPath(n.link)}));

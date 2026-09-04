@@ -1,0 +1,110 @@
+name: Role By Role E2E Audit
+
+on:
+  push:
+    branches:
+      - audit/role-by-role-e2e-2026-09-01
+  pull_request:
+    branches:
+      - audit/database-data-integrity-2026-09-01
+
+concurrency:
+  group: role-by-role-e2e-${{ github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  role-e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: vivit_role_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d vivit_role_e2e"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/vivit_role_e2e
+      DRIZZLE_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/vivit_role_e2e
+      DATABASE_SSL_DISABLED: "1"
+      AUTH_SECRET: role-e2e-auth-secret-2026-minimum-32-characters
+      NEXTAUTH_SECRET: role-e2e-auth-secret-2026-minimum-32-characters
+      NEXTAUTH_URL: http://127.0.0.1:3000
+      AUTH_URL: http://127.0.0.1:3000
+      SUPABASE_URL: http://127.0.0.1:4599
+      SUPABASE_SERVICE_KEY: role-e2e-local-service-key
+      MOCK_SUPABASE_PORT: "4599"
+      BASE_URL: http://127.0.0.1:3000
+    steps:
+      - name: Checkout exact candidate SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+
+      - name: Assert exact candidate SHA
+        run: test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Build ephemeral database
+        run: npx drizzle-kit push --force
+
+      - name: Database and data-integrity regression
+        run: node scripts/qa-database-data-integrity.mjs
+
+      - name: Security and RBAC static regression
+        run: |
+          node scripts/qa-security-auth-hardcore.mjs
+          node scripts/qa-security-api-surface.mjs
+          node scripts/qa-rbac-security.mjs
+          node scripts/qa-search-rbac.mjs
+          node scripts/qa-session-security.mjs
+
+      - name: ESLint zero-warning gate
+        run: npx eslint . --max-warnings=0
+
+      - name: TypeScript gate
+        run: npm run type-check
+
+      - name: Production build gate
+        run: npm run build
+
+      - name: Start built server
+        run: |
+          NODE_ENV=production npm start > /tmp/vivit-role-e2e-server.log 2>&1 &
+          echo $! > /tmp/vivit-role-e2e-server.pid
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:3000/api/health >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/vivit-role-e2e-server.log
+          exit 1
+
+      - name: Authenticated role-by-role runtime E2E
+        run: node scripts/qa-role-by-role-e2e.mjs
+
+      - name: Anonymous runtime security regression
+        run: node scripts/qa-runtime-smoke.mjs
+
+      - name: Dump server log on failure
+        if: failure()
+        run: cat /tmp/vivit-role-e2e-server.log || true
+
+      - name: Stop built server
+        if: always()
+        run: |
+          if [ -f /tmp/vivit-role-e2e-server.pid ]; then kill "$(cat /tmp/vivit-role-e2e-server.pid)" || true; fi

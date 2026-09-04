@@ -2,8 +2,8 @@ export const dynamic = "force-dynamic";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { db, clients, financeRecords, creativeTasks, salesLeads,
-  mediaMetrics, companyExpenses, notifications,
-  agencyHealthScores, payrollLocks } from "@/lib/db";
+  companyExpenses, notifications,
+  agencyHealthScores, payrollLocks, sql } from "@/lib/db";
 import { eq, and, gte, lte, sum, count, desc, notInArray, lt } from "drizzle-orm";
 import { Role } from "@/lib/types";
 import Link from "next/link";
@@ -36,11 +36,10 @@ export default async function DashboardPage() {
       .from(financeRecords).where(and(eq(financeRecords.workspaceId,workspaceId),eq(financeRecords.month,month===1?12:month-1),eq(financeRecords.year,month===1?year-1:year))),
     db.select({ total:sum(financeRecords.totalRevenue), paid:sum(financeRecords.paid) })
       .from(financeRecords).where(and(eq(financeRecords.workspaceId,workspaceId),gte(financeRecords.createdAt,yrStart))),
-    db.select({ spend:sum(mediaMetrics.adSpend), leads:sum(mediaMetrics.leads), revenue:sum(mediaMetrics.revenue) })
-      .from(mediaMetrics).where(and(eq(mediaMetrics.workspaceId,workspaceId),gte(mediaMetrics.date,moStart))),
+    db.execute<{spend:number|string|null;leads:number|string|null;revenue:number|string|null}>(sql`select coalesce(sum(p.spend),0) spend,coalesce(sum(p.results),0) leads,coalesce(sum(p.revenue),0) revenue from ad_performance_daily p join ad_campaigns a on a.id=p.campaign_id where a.workspace_id=${workspaceId} and a.archived_at is null and p.date>=date_trunc('month',now()) and p.breakdown_type='TOTAL' and p.ad_set_id is null and p.ad_id is null`),
     db.select({cnt:count()}).from(creativeTasks).where(and(eq(creativeTasks.workspaceId,workspaceId),notInArray(creativeTasks.status,["COMPLETED","REJECTED"]))),
     db.select({cnt:count()}).from(creativeTasks).where(and(eq(creativeTasks.workspaceId,workspaceId),eq(creativeTasks.status,"REVIEW"))),
-    db.select({cnt:count()}).from(creativeTasks).where(and(eq(creativeTasks.workspaceId,workspaceId),lt(creativeTasks.deadline,today),notInArray(creativeTasks.status,["COMPLETED","REJECTED","APPROVED"]))),
+    db.select({cnt:count()}).from(creativeTasks).where(and(eq(creativeTasks.workspaceId,workspaceId),lt(creativeTasks.deadline,today),notInArray(creativeTasks.status,["COMPLETED","REJECTED"]),sql`${creativeTasks.id} in (select id from creative_tasks where workspace_id=${workspaceId} and archived_at is null and deleted_at is null)`)),
     db.select({cnt:count()}).from(salesLeads).where(and(eq(salesLeads.workspaceId,workspaceId),eq(salesLeads.stage,"WON"))),
     db.select({cnt:count()}).from(salesLeads).where(and(eq(salesLeads.workspaceId,workspaceId),lte(salesLeads.updatedAt,new Date(today.getTime()-5*86400000)),notInArray(salesLeads.stage,["WON","LOST"]))),
     db.select({total:sum(companyExpenses.amount)}).from(companyExpenses).where(and(eq(companyExpenses.workspaceId,workspaceId),gte(companyExpenses.date,moStart))),
@@ -98,7 +97,7 @@ export default async function DashboardPage() {
 
   // Agency health score
   const health = agencyHealth[0];
-  const healthScore   = Math.round(health?.overallScore??0);
+  const clientHealthValues=allClients.map(c=>Number(c.healthScore??0)).filter(v=>Number.isFinite(v)),healthScore=clientHealthValues.length?Math.round(clientHealthValues.reduce((a,b)=>a+b,0)/clientHealthValues.length):0;
   const mrr           = Number(health?.mrr??0);
   const arr           = Number(health?.arr??0);
   const utilization   = Math.round(health?.employeeUtilization??0);

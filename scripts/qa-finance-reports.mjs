@@ -8,6 +8,7 @@ const check = (name, ok) => checks.push({ name, ok: Boolean(ok) });
 
 const finance = read("app/dashboard/finance/page.tsx");
 const accounts = read("app/dashboard/clients/accounts-payment/page.tsx");
+const clientApi = read("app/api/clients/route.ts");
 const invoice = read("app/api/invoice/[id]/route.ts");
 const pdf = read("app/api/pdf-report/[clientId]/route.ts");
 const monthly = read("app/api/monthly-summary/[clientId]/route.ts");
@@ -41,6 +42,9 @@ check("Expense creation writes pending-approval audit history", finance.includes
 check("Mark paid is finance-role gated", finance.includes("async function markPaid") && finance.includes("requireFinanceUser()"));
 check("Mark paid uses database transaction", finance.includes("db.transaction(async tx=>"));
 check("Mark paid invoice is workspace scoped", finance.includes("eq(financeRecords.id,id),eq(financeRecords.workspaceId,workspaceId)"));
+check("Mark paid serializes concurrent settlement", finance.includes('lockKey=`payment:${workspaceId}:${id}`') && finance.includes("pg_advisory_xact_lock(hashtext(${lockKey}))"));
+check("Mark paid accepts manual bank and cash only", finance.includes('!["bank","cash"].includes(method)') && !finance.includes('<option value="stripe">') && !finance.includes('<option value="paymob">') && !finance.includes('<option value="paytabs">'));
+check("Manual settlement does not masquerade as provider confirmation", finance.includes('verification:"manual"') && finance.includes("Provider-confirmed online payments require a verified provider flow"));
 check("Mark paid is idempotent for settled invoices", finance.includes('remaining<=0||r.invoiceStatus==="PAID"'));
 check("Mark paid creates payment history row", finance.includes("tx.insert(paymentRecords).values"));
 check("Payment history records invoice and client", finance.includes("invoiceId:r.id,clientId:r.clientId"));
@@ -50,8 +54,21 @@ check("Mark paid updates paid date and method", finance.includes("paidDate:now,p
 check("Mark paid writes audit history", finance.includes('action:"invoice_paid"'));
 check("Finance page shows recent payment history", finance.includes("Recent payments") && finance.includes("recentPayments"));
 check("Workspace currency drives finance display", finance.includes("workspaces.currency") && finance.includes('currency=workspace?.currency||"EGP"'));
+
 check("Accounts Payment rejects Account Manager and Media Buyer", accounts.includes("Role.SUPER_ADMIN,Role.ACCOUNTANT") && accounts.includes('redirect("/dashboard/universe")'));
-check("Accounts Payment only includes active clients for admin/accountant", accounts.includes('workspaceId=String(session.user.workspaceId||"")') && accounts.includes("p.workspace_id=${workspaceId}") && accounts.includes("where c.workspace_id=${workspaceId} and c.is_active=true"));
+check("Accounts Payment includes every active workspace client", accounts.includes("left join client_payment_profiles") && accounts.includes("p.workspace_id=${workspaceId}") && accounts.includes("where c.workspace_id=${workspaceId} and c.is_active=true"));
+check("Accounts Payment exposes missing finance profiles as setup required", accounts.includes("(p.id is not null) as has_profile") && accounts.includes("Finance setup required") && accounts.includes('"SETUP_REQUIRED"'));
+check("Client finance write is restricted to Accountant and Super Admin", accounts.includes("async function saveFinanceSetup") && accounts.includes("Role.SUPER_ADMIN,Role.ACCOUNTANT") && accounts.includes("Finance setup is restricted to Accountant and Super Admin"));
+check("Client finance amount must be positive", accounts.includes("!Number.isFinite(amountDue)||amountDue<=0"));
+check("Client finance setup is workspace scoped and concurrency locked", accounts.includes("client-finance-setup:${workspaceId}:${clientId}") && accounts.includes("pg_advisory_xact_lock") && accounts.includes("c.workspace_id=${workspaceId}") && accounts.includes("c.is_active=true"));
+check("Client finance setup uses workspace-client upsert", accounts.includes("on conflict (workspace_id,client_id) do update set"));
+check("Client finance setup updates retainer only from finance flow", accounts.includes("update clients set monthly_retainer=${amountDue},currency=${currency}") && accounts.includes('action:"client_finance_setup"'));
+check("Accounts Payment formats each row using its stored currency", accounts.includes('const currency=String(r.currency||"EGP").toUpperCase()') && accounts.includes("money(r.amount_due,currency)") && accounts.includes("money(r.amount_paid,currency)") && accounts.includes("money(r.amount_remaining,currency)"));
+check("Accounts Payment does not sum unconfigured clients or mixed currencies", accounts.includes("const configured=rows.filter(r=>r.has_profile)") && accounts.includes('configured.length?"Mixed currencies":"—"') && accounts.includes('configured.length?"Per currency":"—"'));
+check("Client creation rejects finance payloads", clientApi.includes("hasFinancePayload") && clientApi.includes("Financial amounts must be entered from Accounts Payment"));
+check("Client creation initializes money to zero", clientApi.includes("monthlyRetainer:0,mediaBudget:0,contractValue:0"));
+check("Client creation notifies Accountant and Super Admin of finance handoff", clientApi.includes('inArray(users.role,["ACCOUNTANT","SUPER_ADMIN"])') && clientApi.includes('type:"finance_setup_required"') && clientApi.includes('link:"/dashboard/clients/accounts-payment"'));
+
 check("Invoice API derives workspace from authenticated session", derivesWorkspace(invoice));
 check("Invoice API is workspace scoped", invoice.includes("eq(financeRecords.workspaceId,workspaceId)"));
 check("Invoice API validates finance client access", invoice.includes("canAccessClient(session,record.clientId,{finance:true})"));

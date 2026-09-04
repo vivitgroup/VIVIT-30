@@ -277,12 +277,12 @@ export const financeRecords = pgTable("finance_records", {
   clientId:       text("client_id").notNull(),
   month:          integer("month").notNull(),
   year:           integer("year").notNull(),
-  retainer:       real("retainer").notNull().default(0),
-  mediaBuyingFee: real("media_buying_fee").notNull().default(0),
-  extraServices:  real("extra_services").notNull().default(0),
-  totalRevenue:   real("total_revenue").notNull().default(0),
-  paid:           real("paid").notNull().default(0),
-  outstanding:    real("outstanding").notNull().default(0),
+  retainer:     numeric("retainer", { precision: 18, scale: 2, mode: "number" }).notNull().default(0),
+  mediaBuyingFee:     numeric("media_buying_fee", { precision: 18, scale: 2, mode: "number" }).notNull().default(0),
+  extraServices:     numeric("extra_services", { precision: 18, scale: 2, mode: "number" }).notNull().default(0),
+  totalRevenue:     numeric("total_revenue", { precision: 18, scale: 2, mode: "number" }).notNull().default(0),
+  paid:     numeric("paid", { precision: 18, scale: 2, mode: "number" }).notNull().default(0),
+  outstanding:     numeric("outstanding", { precision: 18, scale: 2, mode: "number" }).notNull().default(0),
   invoiceNumber:  text("invoice_number"),
   invoiceStatus:  invoiceStatusEnum("invoice_status").default("DRAFT"),
   dueDate:        timestamp("due_date"),
@@ -290,11 +290,11 @@ export const financeRecords = pgTable("finance_records", {
   paymentMethod:  text("payment_method"),
   notes:          text("notes"),
   // Revenue share
-  commissionRate: real("commission_rate"),                    // AM commission %
-  commissionPaid: real("commission_paid").default(0),
+  commissionRate:     numeric("commission_rate", { precision: 9, scale: 4, mode: "number" }),                    // AM commission %
+  commissionPaid:     numeric("commission_paid", { precision: 18, scale: 2, mode: "number" }).default(0),
   createdAt:      timestamp("created_at").notNull().defaultNow(),
   updatedAt:      timestamp("updated_at").notNull().defaultNow(),
-});
+}, t=>[unique("uq_finance_records_workspace_client_period").on(t.workspaceId,t.clientId,t.year,t.month)]);
 
 // ── Company Expenses ───────────────────────────────────────────────────────
 export const companyExpenses = pgTable("company_expenses", {
@@ -302,7 +302,7 @@ export const companyExpenses = pgTable("company_expenses", {
   workspaceId: text("workspace_id").notNull().default("default"),
   category:    text("category").notNull(),
   description: text("description").notNull(),
-  amount:      real("amount").notNull(),
+  amount:     numeric("amount", { precision: 18, scale: 2, mode: "number" }).notNull(),
   date:        timestamp("date").notNull(),
   receipt:     text("receipt"),
   approvedBy:  text("approved_by"),
@@ -586,10 +586,10 @@ export const payroll = pgTable("payroll", {
   workspaceId: text("workspace_id").notNull().default("default"),
   month:       integer("month").notNull(),
   year:        integer("year").notNull(),
-  baseSalary:  real("base_salary").notNull().default(0),
-  bonus:       real("bonus").notNull().default(0),
-  deductions:  real("deductions").notNull().default(0),
-  netPay:      real("net_pay").notNull().default(0),
+  baseSalary:     numeric("base_salary", { precision: 18, scale: 2, mode: "number" }).notNull().default(0),
+  bonus:     numeric("bonus", { precision: 18, scale: 2, mode: "number" }).notNull().default(0),
+  deductions:     numeric("deductions", { precision: 18, scale: 2, mode: "number" }).notNull().default(0),
+  netPay:     numeric("net_pay", { precision: 18, scale: 2, mode: "number" }).notNull().default(0),
   status:      text("status").notNull().default("DRAFT"), // DRAFT | APPROVED | PAID
   paidAt:      timestamp("paid_at"),
   notes:       text("notes"),
@@ -660,9 +660,9 @@ export const purchaseOrders = pgTable("purchase_orders", {
   poNumber:     text("po_number").notNull(),
   description:  text("description").notNull(),
   category:     text("category").notNull(),
-  amount:       real("amount").notNull().default(0),
-  tax:          real("tax").notNull().default(0),
-  total:        real("total").notNull().default(0),
+  amount:     numeric("amount", { precision: 18, scale: 2, mode: "number" }).notNull().default(0),
+  tax:     numeric("tax", { precision: 18, scale: 2, mode: "number" }).notNull().default(0),
+  total:     numeric("total", { precision: 18, scale: 2, mode: "number" }).notNull().default(0),
   status:       text("status").notNull().default("PENDING"), // PENDING | APPROVED | PAID | OVERDUE | CANCELLED
   dueDate:      timestamp("due_date"),
   paidAt:       timestamp("paid_at"),
@@ -695,7 +695,7 @@ export const expenseClaims = pgTable("expense_claims", {
   userId:      text("user_id").notNull(),
   category:    text("category").notNull(),
   description: text("description").notNull(),
-  amount:      real("amount").notNull().default(0),
+  amount:     numeric("amount", { precision: 18, scale: 2, mode: "number" }).notNull().default(0),
   date:        timestamp("date").notNull(),
   receiptUrl:  text("receipt_url"),
   status:      text("status").notNull().default("PENDING"), // PENDING | APPROVED | PAID | REJECTED
@@ -712,8 +712,8 @@ export const projectBudgets = pgTable("project_budgets", {
   clientId:      text("client_id").notNull(),
   name:          text("name").notNull(),
   type:          text("type").notNull().default("RETAINER"), // RETAINER | PROJECT | CAMPAIGN
-  totalBudget:   real("total_budget").notNull().default(0),
-  spentBudget:   real("spent_budget").notNull().default(0),
+  totalBudget:     numeric("total_budget", { precision: 18, scale: 2, mode: "number" }).notNull().default(0),
+  spentBudget:     numeric("spent_budget", { precision: 18, scale: 2, mode: "number" }).notNull().default(0),
   startDate:     timestamp("start_date").notNull(),
   endDate:       timestamp("end_date").notNull(),
   status:        text("status").notNull().default("ACTIVE"), // ACTIVE | COMPLETED | ON_HOLD
@@ -745,7 +745,7 @@ export const chartOfAccounts = pgTable("chart_of_accounts", {
   type:        text("type").notNull(), // ASSET|LIABILITY|EQUITY|REVENUE|EXPENSE
   subtype:     text("subtype"),        // e.g. Current Asset, Fixed Asset
   currency:    text("currency").notNull().default("USD"),
-  balance:     real("balance").notNull().default(0),
+  balance:     numeric("balance", { precision: 18, scale: 2, mode: "number" }).notNull().default(0),
   isActive:    boolean("is_active").notNull().default(true),
   createdAt:   timestamp("created_at").notNull().defaultNow(),
 });
@@ -757,8 +757,8 @@ export const journalEntries = pgTable("journal_entries", {
   description: text("description").notNull(),
   reference:   text("reference"),   // e.g. INV-001, PO-005
   status:      text("status").notNull().default("DRAFT"), // DRAFT|POSTED|VOID
-  totalDebit:  real("total_debit").notNull().default(0),
-  totalCredit: real("total_credit").notNull().default(0),
+  totalDebit:     numeric("total_debit", { precision: 18, scale: 2, mode: "number" }).notNull().default(0),
+  totalCredit:     numeric("total_credit", { precision: 18, scale: 2, mode: "number" }).notNull().default(0),
   createdById: text("created_by_id").notNull(),
   createdAt:   timestamp("created_at").notNull().defaultNow(),
 });
@@ -768,8 +768,8 @@ export const journalLines = pgTable("journal_lines", {
   entryId:     text("entry_id").notNull(),
   accountId:   text("account_id").notNull(),
   description: text("description"),
-  debit:       real("debit").notNull().default(0),
-  credit:      real("credit").notNull().default(0),
+  debit:     numeric("debit", { precision: 18, scale: 2, mode: "number" }).notNull().default(0),
+  credit:     numeric("credit", { precision: 18, scale: 2, mode: "number" }).notNull().default(0),
 });
 
 // ── Payment Records ───────────────────────────────────────────
@@ -778,7 +778,7 @@ export const paymentRecords = pgTable("payment_records", {
   workspaceId:   text("workspace_id").notNull().default("default"),
   invoiceId:     text("invoice_id").notNull(),
   clientId:      text("client_id").notNull(),
-  amount:        real("amount").notNull(),
+  amount:     numeric("amount", { precision: 18, scale: 2, mode: "number" }).notNull(),
   currency:      text("currency").notNull().default("USD"),
   method:        text("method").notNull().default("stripe"), // stripe|paymob|paytabs|bank|cash
   stripePaymentId: text("stripe_payment_id"),

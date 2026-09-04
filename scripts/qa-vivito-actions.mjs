@@ -83,8 +83,7 @@ check("Local V2 preserves explicit timezone-bearing datetimes",localV2.includes(
 check("Local V2 blocks silently scheduled reminders",localV2.includes("scheduled reminder unsupported")&&localV2.includes("args.dueAt=due"));
 check("Local V2 preserves confirmation boundary",localV2.includes("requiresConfirmation:true"));
 check("Workspace settings resolve exactly one tenant with legacy-default fallback",operator.includes("async function workspaceTargetId()")&&operator.includes('if(current==="default")')&&operator.includes("slug='vivit-group'")&&operator.includes("where id=${workspaceId}")&&!operator.includes("where id=${tenantId()} or slug='vivit-group'"));
-const fallbackOrder=["generateLocalActionPlanV2(prompt,system)","generateLocalAdvisorV2(prompt,system)","generateLocalCaseAdvisorV4(prompt,system)","generateLocalVivito(prompt,system)"].map(x=>providers.indexOf(x));
-check("Provider fallback prefers hardened V2 and keeps legacy generic last",fallbackOrder.every(x=>x>=0)&&fallbackOrder.every((x,i)=>i===0||fallbackOrder[i-1]<x));
+check("Provider fallback uses hardened V2 only for governed actions and fails transparently for general advisor",providers.includes("generateLocalActionPlanV2(prompt,system)")&&providers.includes("transparentAdvisorFailure")&&providers.includes("if(isGeneralAdvisorSystem(system))return transparentAdvisorFailure")&&!providers.includes("generateLocalAdvisorV2")&&!providers.includes("generateLocalCaseAdvisorV4")&&!providers.includes("generateLocalVivito"));
 check("i18n protects user and VIVITO generated content",i18n.includes("[data-user-content]")&&i18n.includes("[data-vivito-message]"));
 check("i18n translates accessibility attributes",i18n.includes("aria-label")&&i18n.includes("attributeFilter"));
 check("i18n covers key Sales Media Finance HR and Settings labels",["Pipeline Board","Daily Budget","Ledger Revenue","Payroll","Workspace Settings"].every(x=>i18n.includes(`\"${x}\"`)));

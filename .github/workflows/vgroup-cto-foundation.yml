@@ -1,0 +1,130 @@
+name: Vivit Group CTO Foundation
+
+on:
+  push:
+    branches:
+      - feat/vivit-group-erp-7d
+      - integration/vgroup-marketing-dry-run
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  foundation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Dependency security gate
+        run: npm audit --audit-level=high
+      - name: Vivit Group isolation regression
+        run: node scripts/qa-vgroup-isolation.mjs
+      - name: Role and permission contract regression
+        run: node scripts/qa-vgroup-role-contracts.mjs
+      - name: Portal isolation and sensitive actions
+        run: node scripts/qa-vgroup-portal-isolation.mjs
+      - name: Auth lifecycle regression
+        run: node scripts/qa-vgroup-auth-lifecycle.mjs
+      - name: API error contract regression
+        run: node scripts/qa-vgroup-api-contracts.mjs
+      - name: Forensic API boundary audit
+        run: node scripts/qa-vgroup-forensic-api-audit.mjs
+      - name: Responsive shell regression
+        run: node scripts/qa-vgroup-responsive-shell.mjs
+      - name: Business logic hardening regression
+        run: node scripts/qa-vgroup-business-hardening.mjs
+      - name: Brutal pre-integration review
+        run: node scripts/qa-vgroup-preintegration-brutal.mjs
+      - name: Hospitality property expense regression
+        run: node scripts/qa-vgroup-hospitality-expenses.mjs
+      - name: Hospitality Airbnb integration regression
+        run: node scripts/qa-vgroup-hospitality-airbnb.mjs
+      - name: Hospitality strict property context regression
+        run: node scripts/qa-vgroup-hospitality-property-context.mjs
+      - name: Vivito cross-workspace execution regression
+        run: node scripts/qa-vgroup-vivito-cross-workspace.mjs
+      - name: Tech operating system regression
+        run: node scripts/qa-vgroup-tech-operating-system.mjs
+      - name: Operating expansion regression
+        run: node scripts/qa-vgroup-operating-expansion.mjs
+      - name: Board control center regression
+        run: node scripts/qa-vgroup-board-control-center.mjs
+      - name: Deep Vivit Group source audit
+        run: node scripts/qa-vgroup-deep-code-audit.mjs
+      - name: Scoped Vivit Group ESLint
+        run: npx eslint proxy.ts app/group app/api/vgroup lib/vgroup components/vgroup lib/group-handoff.ts app/api/integrations/vgroup-handoff app/api/integrations/vgroup-vivito-marketing --max-warnings=0
+      - name: Accounting integration contract regression
+        run: node scripts/qa-vgroup-accounting-integration-contract.mjs
+      - name: Marketing integration readiness regression
+        run: node scripts/qa-vgroup-marketing-integration.mjs
+      - name: Unified brutal production certification
+        run: node scripts/qa-vgroup-unified-production-brutal.mjs
+      - name: Release readiness and rollback prerequisites
+        run: node scripts/qa-vgroup-release-readiness.mjs
+      - name: Pre-integration CTO acceptance contract
+        run: node scripts/qa-vgroup-preintegration.mjs
+      - name: Handover completeness gate
+        run: node scripts/qa-vgroup-handover.mjs
+      - name: TypeScript contract check
+        run: npm run type-check
+      - name: Production compilation gate
+        env:
+          VGROUP_DATABASE_URL: postgresql://vgroup_ci:vgroup_ci@127.0.0.1:5432/vgroup_ci
+          VGROUP_SUPABASE_URL: https://vgroup-ci.invalid
+          VGROUP_SUPABASE_SERVICE_KEY: vgroup-ci-service-key-not-a-secret
+          VGROUP_AUTH_SECRET: vgroup-ci-auth-secret-not-a-secret-32chars
+          VGROUP_ENVIRONMENT: ci
+          VGROUP_MARKETING_INTEGRATION_ENABLED: "false"
+          VGROUP_MARKETING_CANDIDATE_SHA: 9817ec42750b17104c5292eb2ec4d02358b53290
+          DATABASE_URL: postgresql://marketing_ci:marketing_ci@127.0.0.1:5432/marketing_ci
+          SUPABASE_URL: https://marketing-ci.invalid
+          SUPABASE_SERVICE_KEY: marketing-ci-service-key-not-a-secret
+          AUTH_SECRET: marketing-ci-auth-secret-not-a-secret-32chars
+          VGROUP_MARKETING_HANDOFF_RECEIVER_ENABLED: "false"
+        run: npx next build
+      - name: Start built candidate for runtime smoke
+        env:
+          VGROUP_DATABASE_URL: postgresql://vgroup_ci:vgroup_ci@127.0.0.1:5432/vgroup_ci
+          VGROUP_SUPABASE_URL: https://vgroup-ci.invalid
+          VGROUP_SUPABASE_SERVICE_KEY: vgroup-ci-service-key-not-a-secret
+          VGROUP_AUTH_SECRET: vgroup-ci-auth-secret-not-a-secret-32chars
+          VGROUP_ENVIRONMENT: ci
+          VGROUP_MARKETING_INTEGRATION_ENABLED: "false"
+          VGROUP_MARKETING_CANDIDATE_SHA: 9817ec42750b17104c5292eb2ec4d02358b53290
+          DATABASE_URL: postgresql://marketing_ci:marketing_ci@127.0.0.1:5432/marketing_ci
+          SUPABASE_URL: https://marketing-ci.invalid
+          SUPABASE_SERVICE_KEY: marketing-ci-service-key-not-a-secret
+          AUTH_SECRET: marketing-ci-auth-secret-not-a-secret-32chars
+          VGROUP_MARKETING_HANDOFF_RECEIVER_ENABLED: "false"
+        run: |
+          (npx next start -p 3000 > /tmp/vgroup-next.log 2>&1 & echo $! > /tmp/vgroup-next.pid)
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:3000/group/login >/dev/null 2>&1; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/vgroup-next.log
+          exit 1
+      - name: Built Vivit Group runtime smoke
+        run: node scripts/qa-vgroup-runtime-smoke.mjs
+      - name: Upload Vivit Group runtime smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vgroup-runtime-smoke-evidence
+          path: /tmp/vgroup-runtime-smoke.json
+          if-no-files-found: error
+      - name: Stop built candidate
+        if: always()
+        run: |
+          if [ -f /tmp/vgroup-next.pid ]; then kill "$(cat /tmp/vgroup-next.pid)" || true; fi

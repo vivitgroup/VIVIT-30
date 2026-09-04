@@ -41,6 +41,7 @@ function mutationCsrfValid(req:NextRequest){
 
 const {auth}=NextAuth(authConfig);
 const OPS=["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"];
+const STAFF=[...OPS,"CREATOR","SALES","ACCOUNTANT"];
 const clientTaskDetailPath=(pathname:string)=>/^\/dashboard\/creative\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(pathname);
 
 export default auth((req)=>{
@@ -51,6 +52,15 @@ export default auth((req)=>{
     const bearer=req.headers.get("authorization")?.replace(/^Bearer\s+/i,""),secret=req.headers.get("x-cron-secret")??bearer,expected=process.env.CRON_SECRET;
     if(!expected||secret!==expected)return secHeaders(NextResponse.json({error:"Unauthorized"},{status:401}));
   }
+
+  // Group routes own an isolated auth/session boundary. Let the Group page/API
+  // handlers perform their own session and permission checks rather than
+  // coupling them to the legacy Marketing NextAuth session. The global
+  // same-origin mutation CSRF gate above still applies to Group writes.
+  if(pathname==="/group"||pathname.startsWith("/group/")||pathname==="/api/vgroup"||pathname.startsWith("/api/vgroup/")){
+    return secHeaders(NextResponse.next());
+  }
+
   const publicExact=["/","/login","/signup","/forgot-password","/reset-password","/robots.txt","/sitemap.xml"],publicPrefixes=["/api/auth","/api/health","/api/signup","/api/password","/approve/","/api/v1/"];
   if(publicExact.includes(pathname)||publicPrefixes.some(p=>pathname.startsWith(p))){
     const res=NextResponse.next();secHeaders(res);if(pathname.startsWith("/api/v1"))corsHeaders(res,origin);return res;
@@ -77,7 +87,7 @@ export default auth((req)=>{
     ["/dashboard/executive",["SUPER_ADMIN"]],["/dashboard/operations",["SUPER_ADMIN","ACCOUNT_MANAGER"]],
     ["/dashboard/whatsapp",[...OPS,"SALES"]],
     ["/dashboard/settings",["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CREATOR","ACCOUNTANT","SALES","CLIENT"]],
-    ["/dashboard/archive",[...OPS,"SALES"]],
+    ["/dashboard/archive",STAFF],
     ["/dashboard/team",["SUPER_ADMIN"]],["/dashboard/workspace",["SUPER_ADMIN"]],["/dashboard/activity",["SUPER_ADMIN"]],["/dashboard/kpis",["SUPER_ADMIN"]],["/dashboard/billing",["SUPER_ADMIN"]],["/dashboard/referrals",["SUPER_ADMIN"]],["/dashboard/saas-analytics",["SUPER_ADMIN"]],["/dashboard/revenue-attribution",["SUPER_ADMIN"]],["/dashboard/nps",["SUPER_ADMIN"]],
     ["/dashboard/onboarding",OPS],["/dashboard/monthly-reports",OPS],["/dashboard/marketplace",[...OPS,"CREATOR"]],["/dashboard/budget",OPS],
     ["/dashboard/contracts",["SUPER_ADMIN","ACCOUNTANT"]],["/dashboard/finance",["SUPER_ADMIN","ACCOUNTANT"]],["/dashboard/forecast",["SUPER_ADMIN","ACCOUNTANT"]],["/dashboard/ltv",["SUPER_ADMIN","ACCOUNTANT"]],

@@ -1,7 +1,24 @@
 import fs from "node:fs";import path from "node:path";
 const root=process.cwd(),read=f=>fs.readFileSync(path.join(root,f),"utf8"),checks=[],check=(n,o)=>checks.push({name:n,ok:Boolean(o)});
 const proxy=read("proxy.ts"),side=read("components/layout/Sidebar.tsx"),mobile=read("components/layout/MobileNav.tsx"),apps=read("app/apps/page.tsx"),access=read("lib/client-access.ts"),search=read("app/api/search/route.ts"),bulk=read("app/api/bulk/route.ts"),assistant=read("app/api/assistant/route.ts"),poll=read("app/api/notifications/poll/route.ts"),onboarding=read("app/api/onboarding/route.ts"),v1c=read("app/api/v1/clients/route.ts"),v1t=read("app/api/v1/tasks/route.ts"),v1m=read("app/api/v1/metrics/route.ts"),publicApiAuth=read("lib/public-api-auth.ts"),keys=read("app/api/api-keys/route.ts"),hooks=read("app/api/webhooks/route.ts"),backup=read("app/api/backup/route.ts"),email=read("app/api/email/route.ts"),signup=read("app/api/signup/route.ts"),otp=read("app/api/signup/otp/route.ts");
-const sideItem=(label,href,roles)=>new RegExp(`label:\\s*"${label}"\\s*,\\s*href:\\s*"${href.replaceAll("/","\\/")}"\\s*,\\s*roles:\\s*${roles}`).test(side);
+const reEsc=value=>value.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+function expandRoleExpr(source,expr,seen=new Set()){
+ const value=String(expr||"").trim();if(!value)return [];
+ if(/^[A-Z_]+$/.test(value)){
+  if(seen.has(value))return [];
+  const match=source.match(new RegExp(`const\\s+${reEsc(value)}\\s*=\\s*(\\[[^;]*\\])\\s*;`));
+  return match?expandRoleExpr(source,match[1],new Set([...seen,value])):[];
+ }
+ const roles=[...value.matchAll(/["']([A-Z_]+)["']/g)].map(m=>m[1]);
+ for(const spread of value.matchAll(/\.\.\.([A-Z_]+)/g))roles.push(...expandRoleExpr(source,spread[1],seen));
+ return [...new Set(roles)].sort();
+}
+function routeRoles(source,href,kind){
+ const route=reEsc(href);
+ const pattern=kind==="sidebar"?new RegExp(`href:\\s*["']${route}["']\\s*,\\s*roles:\\s*(\\[[^\\]]*\\]|[A-Z_]+)`):new RegExp(`\\[\\s*["']${route}["']\\s*,\\s*(\\[[^\\]]*\\]|[A-Z_]+)\\s*\\]`);
+ return expandRoleExpr(source,source.match(pattern)?.[1]||"");
+}
+const navProxyAgree=href=>{const a=routeRoles(side,href,"sidebar"),b=routeRoles(proxy,href,"proxy");return a.length>0&&a.length===b.length&&a.every((role,i)=>role===b[i])};
 check("Proxy requires auth for non-public API and dashboard routes",proxy.includes("if(!session)")&&proxy.includes('pathname.startsWith("/api/")')&&proxy.includes("callbackUrl"));
 check("Proxy enforces exact same-origin CSRF",proxy.includes("CSRF validation failed")&&proxy.includes("sameOrigin(origin,req.url)")&&proxy.includes("a.protocol===b.protocol&&a.host===b.host")&&!proxy.includes("origin.includes(host)"));
 check("CORS does not default to wildcard",proxy.includes('process.env.ALLOWED_ORIGINS??""')&&!proxy.includes('ALLOWED_ORIGINS ?? "*"'));
@@ -13,12 +30,12 @@ check("Proxy has explicit Accounts Payment rule before broad Clients rule",proxy
 check("Proxy has explicit WhatsApp operating roles",proxy.includes('["/dashboard/whatsapp",[...OPS,"SALES"]]'));
 check("Proxy has explicit role rules for sensitive finance/team/workspace/media/sales pages",proxy.includes('["/dashboard/team",["SUPER_ADMIN"]]')&&proxy.includes('["/dashboard/workspace",["SUPER_ADMIN"]]')&&proxy.includes('["/dashboard/finance",["SUPER_ADMIN","ACCOUNTANT"]]')&&proxy.includes('["/dashboard/sales",["SUPER_ADMIN","SALES"]]')&&proxy.includes('["/dashboard/media",OPS]'));
 check("Client role has a positive allowlist instead of broad dashboard access",proxy.includes('if(role==="CLIENT")')&&proxy.includes("clientAllowed")&&proxy.includes('"/dashboard/portal"'));
-check("Sidebar finance role matrix matches proxy",sideItem("المالية","/dashboard/finance",'\\["SUPER_ADMIN",\\s*"ACCOUNTANT"\\]')&&proxy.includes('["/dashboard/finance",["SUPER_ADMIN","ACCOUNTANT"]]'));
-check("Sidebar sales role matrix matches proxy",sideItem("المبيعات","/dashboard/sales",'\\["SUPER_ADMIN",\\s*"SALES"\\]')&&proxy.includes('["/dashboard/sales",["SUPER_ADMIN","SALES"]]'));
-check("Sidebar media sync gives AM and Media Buyer same operating access",sideItem("ربط المنصات","/dashboard/media/sync","OPS")&&proxy.includes('["/dashboard/media/sync",OPS]'));
-check("Sidebar payment is finance-only",sideItem("تحصيلات العملاء","/dashboard/clients/accounts-payment",'\\["SUPER_ADMIN",\\s*"ACCOUNTANT"\\]')&&proxy.includes('["/dashboard/clients/accounts-payment",["SUPER_ADMIN","ACCOUNTANT"]]'));
-check("Sidebar WhatsApp gives operating roles access",sideItem("واتساب","/dashboard/whatsapp",'\\[\\.\\.\\.OPS,\\s*"SALES"\\]')&&proxy.includes('["/dashboard/whatsapp",[...OPS,"SALES"]]'));
-check("Sidebar portal is client-only",sideItem("بوابتي","/dashboard/portal",'\\["CLIENT"\\]')&&proxy.includes('["/dashboard/portal",["CLIENT"]]'));
+check("Sidebar finance role matrix matches proxy semantically",navProxyAgree("/dashboard/finance"));
+check("Sidebar sales role matrix matches proxy semantically",navProxyAgree("/dashboard/sales"));
+check("Sidebar media sync role matrix matches proxy semantically",navProxyAgree("/dashboard/media/sync"));
+check("Sidebar payment role matrix matches proxy semantically",navProxyAgree("/dashboard/clients/accounts-payment"));
+check("Sidebar WhatsApp role matrix matches proxy semantically",navProxyAgree("/dashboard/whatsapp"));
+check("Sidebar portal role matrix matches proxy semantically",navProxyAgree("/dashboard/portal"));
 check("Mobile accountant navigation points only to allowed finance/report/file routes",mobile.includes('ACCOUNTANT:[{icon:"🏠",label:"Home",href:"/apps"},{icon:"💰",label:"Finance",href:"/dashboard/finance"')&&mobile.includes('href:"/dashboard/reports"')&&mobile.includes('href:"/dashboard/clients/accounts-payment"'));
 check("Mobile client navigation stays inside client-safe routes",mobile.includes('CLIENT:[{icon:"🏠",label:"Home",href:"/apps"},{icon:"🌐",label:"Portal",href:"/dashboard/portal"')&&mobile.includes('href:"/dashboard/calendar"')&&mobile.includes('href:"/dashboard/files"'));
 check("Launcher payment alert requires active workspace client",apps.includes("eq(clients.workspaceId,workspaceId)")&&apps.includes("eq(clients.isActive,true)")&&apps.includes("eq(clients.userId,userId)"));
@@ -49,7 +66,7 @@ check("Assistant client scope is active and workspace scoped",assistant.includes
 check("Assistant Creator scope requires assignment unarchived task and active client",assistant.includes("t.assigned_to_id=${userId}")&&assistant.includes("t.archived_at is null")&&assistant.includes("c.is_active=true"));
 check("Assistant active task source is workspace scoped",assistant.includes("t.workspace_id=${workspaceId}")&&assistant.includes("c.workspace_id=${workspaceId}")&&assistant.includes("c.is_active=true"));
 check("Notification poll requires authentication",poll.includes('error:"Unauthorized"')&&poll.includes("status:401"));
-check("Notification poll preserves user ownership",poll.includes("eq(notifications.userId,String(session.user.id))"));
+check("Notification poll preserves user ownership",/eq\(notifications\.userId,\s*String\(session(?:User)?\.id\)\)/.test(poll)||(/const\s+userId\s*=\s*String\(sessionUser\.id\)/.test(poll)&&/eq\(notifications\.userId,\s*userId\)/.test(poll)));
 check("Notification poll validates cursor and bounds lookback/results",poll.includes("Number.isNaN(parsed.getTime())")&&poll.includes("24*60*60*1000")&&poll.includes(".limit(100)"));
 check("Onboarding reads and writes through central write ownership",(onboarding.match(/canAccessClient\(session,clientId,\{write:true\}\)/g)||[]).length>=2);
 check("Public v1 APIs authenticate keys from headers only through central guard",publicApiAuth.includes('req.headers.get("x-api-key")')&&publicApiAuth.includes('req.headers.get("authorization")')&&!publicApiAuth.includes('searchParams.get("api_key")')&&[v1c,v1t,v1m].every(s=>s.includes("authenticatePublicRead(req)")));

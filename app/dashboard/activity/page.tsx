@@ -2,22 +2,24 @@ export const dynamic = "force-dynamic";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { db, auditLogs, users } from "@/lib/db";
-import { desc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { Role } from "@/lib/types";
 
 export default async function ActivityPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
   if (session.user.role !== Role.SUPER_ADMIN) redirect("/dashboard");
+  const workspaceId = String(session.user.workspaceId || "");
+  if (!workspaceId) redirect("/dashboard");
 
   const logs = await db.select({
     id:auditLogs.id, action:auditLogs.action, entity:auditLogs.entity,
     entityId:auditLogs.entityId, userId:auditLogs.userId,
     ipAddress:auditLogs.ipAddress, createdAt:auditLogs.createdAt,
     newValues:auditLogs.newValues,
-  }).from(auditLogs).orderBy(desc(auditLogs.createdAt)).limit(200);
+  }).from(auditLogs).where(eq(auditLogs.workspaceId,workspaceId)).orderBy(desc(auditLogs.createdAt)).limit(200);
 
-  const allUsers = await db.select({id:users.id,name:users.name}).from(users);
+  const allUsers = await db.select({id:users.id,name:users.name}).from(users).where(eq(users.workspaceId,workspaceId));
   const userMap = Object.fromEntries(allUsers.map(u=>[u.id,u.name]));
 
   const ACTION_CONFIG: Record<string,{icon:string;color:string}> = {
@@ -40,10 +42,9 @@ export default async function ActivityPage() {
     <div style={{display:"flex",flexDirection:"column",gap:"20px",maxWidth:"900px"}}>
       <div>
         <h1 className="page-title">Activity Log</h1>
-        <p className="page-subtitle">{logs.length} events · Full audit trail with IP tracking</p>
+        <p className="page-subtitle">{logs.length} events · Workspace-scoped audit trail with IP tracking</p>
       </div>
 
-      {/* Stats */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"12px"}}>
         {[
           {label:"Total Events", value:String(logs.length),                             icon:"📝",color:"blue"},
@@ -59,11 +60,8 @@ export default async function ActivityPage() {
         ))}
       </div>
 
-      {/* Log Timeline */}
       <div className="card">
-        <div className="card-header">
-          <p className="card-title">Event Timeline</p>
-        </div>
+        <div className="card-header"><p className="card-title">Event Timeline</p></div>
         <div style={{maxHeight:"600px",overflowY:"auto"}}>
           {logs.map((log,i)=>{
             const cfg = ACTION_CONFIG[log.action] ?? {icon:"⚡",color:"var(--text-muted)"};
@@ -74,16 +72,11 @@ export default async function ActivityPage() {
               <div key={log.id}>
                 {showDate&&(
                   <div style={{padding:"8px 20px",background:"var(--bg-tertiary)",borderBottom:"1px solid var(--card-border)",display:"sticky",top:0}}>
-                    <p style={{fontSize:"11px",fontWeight:700,color:"var(--text-muted)",textTransform:"uppercase",letterSpacing:"0.07em"}}>
-                      {new Date(log.createdAt).toLocaleDateString("en-GB",{weekday:"long",day:"2-digit",month:"long"})}
-                    </p>
+                    <p style={{fontSize:"11px",fontWeight:700,color:"var(--text-muted)",textTransform:"uppercase",letterSpacing:"0.07em"}}>{new Date(log.createdAt).toLocaleDateString("en-GB",{weekday:"long",day:"2-digit",month:"long"})}</p>
                   </div>
                 )}
-                <div style={{display:"flex",gap:"14px",padding:"12px 20px",borderBottom:"1px solid var(--card-border)",alignItems:"flex-start",transition:"background 0.1s"}}
-                  onMouseEnter={undefined}>
-                  <div style={{width:"36px",height:"36px",borderRadius:"50%",background:`${cfg.color}15`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"16px",flexShrink:0}}>
-                    {cfg.icon}
-                  </div>
+                <div style={{display:"flex",gap:"14px",padding:"12px 20px",borderBottom:"1px solid var(--card-border)",alignItems:"flex-start",transition:"background 0.1s"}} onMouseEnter={undefined}>
+                  <div style={{width:"36px",height:"36px",borderRadius:"50%",background:`${cfg.color}15`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"16px",flexShrink:0}}>{cfg.icon}</div>
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{display:"flex",justifyContent:"space-between",gap:"8px",flexWrap:"wrap"}}>
                       <div>
@@ -94,23 +87,13 @@ export default async function ActivityPage() {
                       <span style={{fontSize:"11px",color:"var(--text-muted)",flexShrink:0,fontFamily:"JetBrains Mono,monospace"}}>{timeStr}</span>
                     </div>
                     {log.ipAddress&&<p style={{fontSize:"11px",color:"var(--text-dim)",marginTop:"2px",fontFamily:"JetBrains Mono,monospace"}}>IP: {log.ipAddress}</p>}
-                    {log.newValues&&log.newValues!=="{}"&&(
-                      <p style={{fontSize:"11px",color:"var(--text-muted)",marginTop:"3px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                        {logSummary(log.newValues)}
-                      </p>
-                    )}
+                    {log.newValues&&log.newValues!=="{}"&&<p style={{fontSize:"11px",color:"var(--text-muted)",marginTop:"3px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{logSummary(log.newValues)}</p>}
                   </div>
                 </div>
               </div>
             );
           })}
-          {logs.length===0&&(
-            <div className="empty-state">
-              <p className="empty-state-icon">📝</p>
-              <p className="empty-state-title">No activity yet</p>
-              <p className="empty-state-desc">Mutations will appear here as audit trail events.</p>
-            </div>
-          )}
+          {logs.length===0&&<div className="empty-state"><p className="empty-state-icon">📝</p><p className="empty-state-title">No activity yet</p><p className="empty-state-desc">Mutations will appear here as audit trail events.</p></div>}
         </div>
       </div>
     </div>

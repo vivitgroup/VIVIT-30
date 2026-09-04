@@ -8,6 +8,7 @@ import {eq,desc,and} from "drizzle-orm";
 import {SystemAssistant} from "@/components/assistant/SystemAssistant";
 
 const OPS=["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"];
+const REPORT_ROLES=["SUPER_ADMIN","ACCOUNTANT","ACCOUNT_MANAGER","MEDIA_BUYER","SALES"];
 const APPS=[
  {title:"Dashboard",desc:"Agency command center & performance",icon:"🏠",href:"/dashboard",tone:"#875A7B",roles:["SUPER_ADMIN"]},
  {title:"Clients",desc:"Accounts, health, retainers & portal",icon:"🏢",href:"/dashboard/universe",tone:"#244D87",roles:OPS},
@@ -20,7 +21,8 @@ const APPS=[
  {title:"Tasks",desc:"Work queue, ownership & deadlines",icon:"📥",href:"/dashboard/tasks-inbox",tone:"#4F46E5",roles:OPS},
  {title:"Calendar",desc:"Client content schedule & delivery",icon:"🗓️",href:"/dashboard/calendar",tone:"#2563EB",roles:[...OPS,"CREATOR","SALES","CLIENT"]},
  {title:"Finance",desc:"Revenue, invoices, expenses & payroll",icon:"💰",href:"/dashboard/finance",tone:"#15803D",roles:["SUPER_ADMIN","ACCOUNTANT"]},
- {title:"Analytics",desc:"Reports, KPIs & agency intelligence",icon:"📊",href:"/dashboard/analytics",tone:"#9333EA",roles:["SUPER_ADMIN"]},
+ {title:"Analytics",desc:"Agency intelligence & executive analytics",icon:"📊",href:"/dashboard/analytics",tone:"#9333EA",roles:["SUPER_ADMIN"]},
+ {title:"Reports",desc:"Role-scoped operational and performance reports",icon:"📈",href:"/dashboard/reports",tone:"#7C3AED",roles:REPORT_ROLES},
  {title:"AI Assistant",desc:"System help, marketing & media buying",icon:"✨",href:"/dashboard/ai-studio",tone:"#7C3AED",roles:["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CREATOR","SALES","ACCOUNTANT","CLIENT"]},
  {title:"Files",desc:"Content plans, strategy & documents",icon:"📁",href:"/dashboard/files",tone:"#0F766E",roles:["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CREATOR","SALES","ACCOUNTANT","CLIENT"]},
  {title:"Settings",desc:"Language, reminders & account",icon:"⚙️",href:"/dashboard/settings",tone:"#475569",roles:["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","CREATOR","SALES","ACCOUNTANT","CLIENT"]},

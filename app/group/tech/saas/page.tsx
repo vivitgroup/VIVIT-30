@@ -1,0 +1,4 @@
+import Link from "next/link";
+import {SaasPanel} from "@/components/vgroup/saas-panel";
+import {requireBusinessUnitAccess} from "@/lib/vgroup/access";
+export default async function Page(){await requireBusinessUnitAccess("tech");return <main style={{minHeight:'100vh',background:'#070b12',color:'#eef7ff',padding:'28px 20px'}}><section style={{maxWidth:1180,margin:'0 auto'}}><Link href="/group/tech" style={{color:'#42adf5',textDecoration:'none',fontWeight:800}}>← Technology</Link><div style={{margin:'36px 0 24px'}}><div style={{fontSize:12,letterSpacing:'.18em',fontWeight:900,color:'#42adf5'}}>TECH SAAS</div><h1 style={{fontSize:'clamp(34px,5vw,60px)',margin:'8px 0'}}>Subscriptions</h1><p style={{color:'#9eb3c8'}}>Live plans, tenant subscriptions, recurring invoices and SLA incidents.</p></div><SaasPanel/></section></main>}

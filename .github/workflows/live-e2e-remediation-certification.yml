@@ -1,0 +1,36 @@
+name: Live E2E Remediation Certification
+
+on:
+  push:
+    branches:
+      - fix/live-e2e-17-20260902
+
+permissions:
+  contents: read
+
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # Build-only placeholder. postgres.js is lazy; this prevents import-time
+      # configuration failure during Next route discovery without contacting production.
+      DATABASE_URL: postgresql://ci_user:ci_password@127.0.0.1:5432/ci_db
+      NEXTAUTH_URL: http://localhost:3000
+      AUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: ci-build-only-secret-not-for-runtime
+      AUTH_SECRET: ci-build-only-secret-not-for-runtime
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install exact lockfile
+        run: npm ci
+      - name: Dependency high-critical gate
+        run: npm audit --audit-level=high
+      - name: TypeScript exact-head gate
+        run: npx tsc --noEmit
+      - name: Next production compile
+        run: npx next build

@@ -1,0 +1,43 @@
+name: Build Diagnostic
+
+on:
+  push:
+    branches:
+      - main
+      - audit/finance-deep-2026-09-01
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-diagnostic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # Build-only placeholders. Next.js imports runtime modules while collecting
+      # route metadata, and both primary + Vivit Group database helpers validate
+      # their URLs at import time. They must remain distinct to preserve the
+      # runtime isolation contract. No database connection is made by this build.
+      DATABASE_URL: postgresql://build:build@127.0.0.1:5432/vivit_build
+      VGROUP_DATABASE_URL: postgresql://build:build@127.0.0.1:5432/vivit_group_build
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Dependency security audit
+        id: dependency-audit
+        continue-on-error: true
+        run: npm audit --audit-level=high
+      - name: TypeScript
+        run: npm run type-check
+      - name: Next production compile
+        run: npx next build

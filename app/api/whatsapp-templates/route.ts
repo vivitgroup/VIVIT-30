@@ -4,7 +4,7 @@ import {auth} from "@/lib/auth";
 import {db,whatsappMessages,clients} from "@/lib/db";
 import {eq,desc,and} from "drizzle-orm";
 
-const allowedRoles=["SUPER_ADMIN","ACCOUNT_MANAGER","SALES"];
+const allowedRoles=["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER","SALES"];
 const normalizePhone=(value:string)=>String(value||"").replace(/[^0-9]/g,"");
 const graphVersion=()=>process.env.WHATSAPP_GRAPH_VERSION||process.env.META_GRAPH_VERSION||"v23.0";
 
@@ -17,8 +17,8 @@ async function sendWhatsAppMessage(input:{workspaceId:string;to:string;body:stri
  const [msg]=await db.insert(whatsappMessages).values({workspaceId:input.workspaceId,to,template:mode==="template"?templateName:"custom",body:input.body,clientId:input.clientId||null,status:"PENDING"}).returning();
  const payload=mode==="template"?{messaging_product:"whatsapp",to,type:"template",template:{name:templateName,language:{code:languageCode}}}:{messaging_product:"whatsapp",to,type:"text",text:{preview_url:false,body:input.body}};
  try{
-  const res=await fetch(`https://graph.facebook.com/${graphVersion()}/${encodeURIComponent(phoneId)}/messages`,{method:"POST",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify(payload),cache:"no-store"});
-  const data=await res.json();const messageId=data?.messages?.[0]?.id;
+  const res=await fetch(`https://graph.facebook.com/${graphVersion()}/${encodeURIComponent(phoneId)}/messages`,{method:"POST",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify(payload),cache:"no-store",signal:AbortSignal.timeout(10000)});
+  const raw=await res.text();let data:{messages?:Array<{id?:string}>;error?:{message?:string}}={};try{data=raw?JSON.parse(raw):{}}catch{if(!res.ok)throw new Error(`WhatsApp returned an invalid response (${res.status}).`)}const messageId=data?.messages?.[0]?.id;
   if(!res.ok||!messageId)throw new Error(data?.error?.message||"WhatsApp rejected the message.");
   if(msg)await db.update(whatsappMessages).set({waMessageId:messageId,status:"SENT"}).where(and(eq(whatsappMessages.id,msg.id),eq(whatsappMessages.workspaceId,input.workspaceId)));
   return{success:true,messageId};
@@ -35,7 +35,7 @@ export async function GET(){
   {id:"lead_followup",label:"🎯 Sales Follow-up",body:"Hi {name}! Following up on our conversation about growing {company}. When is a good time to chat?"},
   {id:"campaign_alert",label:"🚨 Campaign Performance Alert",body:"Alert: {campaign} ROAS is {roas}×. We are optimizing it now."}
  ];
- return NextResponse.json({templates,recent,hasRealAPI:!!(process.env.WHATSAPP_TOKEN&&process.env.WHATSAPP_PHONE_ID),graphVersion:graphVersion()});
+ return NextResponse.json({templates,recent,hasRealAPI:!!(process.env.WHATSAPP_TOKEN&&process.env.WHATSAPP_PHONE_ID),graphVersion:graphVersion()},{headers:{"Cache-Control":"private, no-store"}});
 }
 
 export async function POST(req:NextRequest){

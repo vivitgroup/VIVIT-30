@@ -10,11 +10,32 @@ for(const file of sources){const source=read(file);for(const m of source.matchAl
 const routeExists=href=>pages.has(href)||[...pages].some(page=>{const p="^"+page.replace(/[.*+?^${}()|[\]\\]/g,"\\$&").replace(/\\\[[^/]+\\\]/g,"[^/]+")+"$";return new RegExp(p).test(href.replace(/\$\{[^}]+\}/g,"preview-id"))});
 const broken=[...internalLinks].filter(h=>!routeExists(h));pass("All static dashboard links resolve",broken.length===0,broken.join(", "));
 const proxy=read("proxy.ts"),sidebar=read("components/layout/Sidebar.tsx"),mobile=read("components/layout/MobileNav.tsx"),calendarPage=read("app/dashboard/calendar/page.tsx"),calendar=read("components/calendar/CalendarClient.tsx"),filesApi=read("app/api/files/route.ts"),filesPage=read("app/dashboard/files/page.tsx"),lifecycleApi=read("app/api/lifecycle/route.ts"),archivePage=read("app/dashboard/archive/page.tsx"),creativePage=read("app/dashboard/creative/page.tsx"),salesPage=read("app/dashboard/sales/page.tsx"),clientPage=read("app/dashboard/clients/page.tsx"),clientApi=read("app/api/clients/route.ts"),reports=read("components/reports/ReportsClient.tsx"),ai=read("app/api/ai/route.ts"),assistant=read("app/api/assistant/route.ts"),layout=read("app/layout.tsx"),tasksInbox=read("app/dashboard/tasks-inbox/page.tsx"),actions=read("lib/actions/index.ts"),bulkApi=read("app/api/bulk/route.ts"),monthlySummary=read("app/api/monthly-summary/[clientId]/route.ts"),pdfReport=read("app/api/pdf-report/[clientId]/route.ts"),media=read("app/dashboard/media/page.tsx"),health=read("app/api/health/route.ts");
+const reEsc=value=>value.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+function expandRoleExpr(source,expr,seen=new Set()){
+ const value=String(expr||"").trim();if(!value)return [];
+ if(/^[A-Z_]+$/.test(value)){
+  if(seen.has(value))return [];
+  const match=source.match(new RegExp(`const\\s+${reEsc(value)}\\s*=\\s*(\\[[^;]*\\])\\s*;`));
+  return match?expandRoleExpr(source,match[1],new Set([...seen,value])):[];
+ }
+ const roles=[...value.matchAll(/["']([A-Z_]+)["']/g)].map(m=>m[1]);
+ for(const spread of value.matchAll(/\.\.\.([A-Z_]+)/g))roles.push(...expandRoleExpr(source,spread[1],seen));
+ return [...new Set(roles)];
+}
+function routeRoles(source,href,kind){
+ const route=reEsc(href);
+ const pattern=kind==="sidebar"?new RegExp(`href:\\s*["']${route}["']\\s*,\\s*roles:\\s*(\\[[^\\]]*\\]|[A-Z_]+)`):new RegExp(`\\[\\s*["']${route}["']\\s*,\\s*(\\[[^\\]]*\\]|[A-Z_]+)\\s*\\]`);
+ const expr=source.match(pattern)?.[1]||"";return expandRoleExpr(source,expr).sort();
+}
+const sameRoles=(a,b)=>a.length===b.length&&a.every((role,i)=>role===b[i]);
 for(const route of ["/dashboard/revenue-attribution","/dashboard/nps","/dashboard/onboarding","/dashboard/monthly-reports","/dashboard/marketplace","/dashboard/budget","/dashboard/archive"])pass(`Proxy protects ${route}`,proxy.includes(route));
 pass("Next 16 proxy convention is used",fs.existsSync(path.join(root,"proxy.ts"))&&!fs.existsSync(path.join(root,"middleware.ts")));
-pass("Calendar navigation and proxy agree for CLIENT",/label:\s*"التقويم"[\s\S]{0,120}href:\s*"\/dashboard\/calendar"/.test(sidebar)&&proxy.includes('"/dashboard/calendar"')&&proxy.includes('"SALES","CLIENT"'));
-pass("VIVITO navigation and proxy agree",sidebar.includes('label:"VIVITO"')&&sidebar.includes('href:"/dashboard/ai-studio"')&&proxy.includes('"/dashboard/ai-studio"')&&proxy.includes('"CREATOR","SALES","ACCOUNTANT","CLIENT"'));
-pass("Archive navigation and proxy agree",/label:\s*"الأرشيف"[\s\S]{0,120}href:\s*"\/dashboard\/archive"/.test(sidebar)&&/roles:\s*\[\.\.\.OPS,\s*"SALES"\]/.test(sidebar)&&proxy.includes('["/dashboard/archive",[...OPS,"SALES"]]'));
+const sidebarCalendarRoles=routeRoles(sidebar,"/dashboard/calendar","sidebar"),proxyCalendarRoles=routeRoles(proxy,"/dashboard/calendar","proxy");
+pass("Calendar navigation and proxy agree semantically",sidebarCalendarRoles.length>0&&sameRoles(sidebarCalendarRoles,proxyCalendarRoles)&&proxyCalendarRoles.includes("CLIENT")&&proxyCalendarRoles.includes("SALES"),`sidebar=${sidebarCalendarRoles.join(",")} proxy=${proxyCalendarRoles.join(",")}`);
+const sidebarVivitoRoles=routeRoles(sidebar,"/dashboard/ai-studio","sidebar"),proxyVivitoRoles=routeRoles(proxy,"/dashboard/ai-studio","proxy");
+pass("VIVITO navigation and proxy agree semantically",sidebarVivitoRoles.length===7&&sameRoles(sidebarVivitoRoles,proxyVivitoRoles)&&proxyVivitoRoles.includes("CLIENT"),`sidebar=${sidebarVivitoRoles.join(",")} proxy=${proxyVivitoRoles.join(",")}`);
+const sidebarArchiveRoles=routeRoles(sidebar,"/dashboard/archive","sidebar"),proxyArchiveRoles=routeRoles(proxy,"/dashboard/archive","proxy");
+pass("Archive navigation and proxy agree semantically",sidebarArchiveRoles.length>0&&sameRoles(sidebarArchiveRoles,proxyArchiveRoles)&&!proxyArchiveRoles.includes("CLIENT"),`sidebar=${sidebarArchiveRoles.join(",")} proxy=${proxyArchiveRoles.join(",")}`);
 pass("Mobile CLIENT calendar is not dead navigation",mobile.includes('href:"/dashboard/calendar"')&&proxy.includes('"/dashboard/calendar"'));
 pass("Calendar page allows CLIENT and SALES read access",calendarPage.includes("Role.CLIENT")&&calendarPage.includes("Role.SALES"));
 const canManageExpr=calendarPage.match(/const canManage=([^;]+);/)?.[1]||"";pass("Calendar management excludes SALES",canManageExpr.length>0&&!canManageExpr.includes("Role.SALES"));
@@ -24,7 +45,7 @@ pass("Scheduled posts accept images and video",/image\/\*,video\/\*/.test(calend
 pass("Files support 500 MB",/500\s*\*\s*1024\s*\*\s*1024/.test(filesApi)&&/500\s*\*\s*1024\s*\*\s*1024/.test(filesPage));
 pass("Files API supports owner/admin edit",/export async function PATCH/.test(filesApi)&&/uploadedBy/.test(filesApi)&&/SUPER_ADMIN/.test(filesApi));
 pass("Files API supports owner/admin delete",/export async function DELETE/.test(filesApi)&&/uploadedBy/.test(filesApi)&&/SUPER_ADMIN/.test(filesApi));
-pass("Files support archive and restore",filesApi.includes('op==="archive"')&&filesApi.includes('op==="restore"')&&filesPage.includes("Archive")&&filesPage.includes("Restore"));
+pass("Files support archive and restore",/op\s*===\s*["']archive["']/.test(filesApi)&&/op\s*===\s*["']restore["']/.test(filesApi)&&filesPage.includes("Archive")&&filesPage.includes("Restore"));
 pass("Archived files excluded from active view",filesApi.includes("archived_at is null")&&filesApi.includes("archived_at is not null"));
 pass("Files UI exposes edit/delete actions",/Edit/.test(filesPage)&&/Delete/.test(filesPage));
 pass("File storage bucket self-heals",/ensureBucket/.test(filesApi));pass("File links are role/client scoped",/validateLinks/.test(filesApi)&&/ACCOUNT_MANAGER/.test(filesApi)&&/MEDIA_BUYER/.test(filesApi));
@@ -45,6 +66,9 @@ pass("AI requires a configured provider",ai.includes("AI provider is not configu
 pass("Account Manager task inbox is client-scoped",tasksInbox.includes("clients.accountManagerId")&&tasksInbox.includes("inArray(creativeTasks.clientId"));
 pass("Task inbox mutations are scoped",/owned|scope|accountManagerId|managedClient/i.test(tasksInbox));
 pass("Notification delete is owner scoped",/deleteNotification[\s\S]*notifications\.userId/.test(actions));pass("Task create stores creator ownership",/createdById:\s*session\.user\.id/.test(actions));pass("Task mutations check access",/taskForAccess/.test(actions)&&/requireClientAccess/.test(actions));
-pass("Bulk API has explicit task transition allowlist",bulkApi.includes("const TRANSITIONS")&&bulkApi.includes("from=TRANSITIONS[target]")&&bulkApi.includes("Invalid task IDs or transition"));pass("Bulk task writes scope Account Managers",bulkApi.includes("managedClientIds")&&bulkApi.includes("inArray(creativeTasks.clientId,owned)"));pass("Monthly summary validates client access",monthlySummary.includes("canAccessClient"));pass("Monthly summary validates report period",monthlySummary.includes("month<1||month>12")&&monthlySummary.includes("year<2020||year>2100"));pass("PDF report validates client access",pdfReport.includes("canAccessClient"));pass("Media metric writes validate client ownership",media.includes("Invalid client or platform")&&media.includes("Forbidden"));
+pass("Bulk API has explicit task transition allowlist",bulkApi.includes("const TRANSITIONS")&&bulkApi.includes("from=TRANSITIONS[target]")&&bulkApi.includes("Invalid task IDs or transition"));pass("Bulk task writes scope Account Managers",bulkApi.includes("managedClientIds")&&bulkApi.includes("inArray(creativeTasks.clientId,owned)"));pass("Monthly summary validates client access",monthlySummary.includes("canAccessClient"));pass("Monthly summary validates report period",monthlySummary.includes("month<1||month>12")&&monthlySummary.includes("year<2020||year>2100"));pass("PDF report validates client access",pdfReport.includes("canAccessClient"));
+const legacyMediaWriteGuard=media.includes("Invalid client or platform")&&media.includes("Forbidden");
+const canonicalMediaRedirect=media.includes('redirect("/dashboard/media/control-center")')&&!/insert\(|update\(|delete\(|mediaMetrics|reported_metrics/.test(media);
+pass("Media metric writes validate client ownership",legacyMediaWriteGuard||canonicalMediaRedirect);
 pass("Health endpoint follows minimal-disclosure contract",health.includes('status:"healthy"')&&health.includes('status:"degraded"')&&!health.includes("pkg.version")&&!health.includes('database:"connected"')&&!health.includes('database:"error"'));
 for(const c of checks)console.log(`${c.ok?"PASS":"FAIL"}  ${c.name}${c.detail?` — ${c.detail}`:""}`);console.log(`\n${checks.length-failures.length}/${checks.length} static QA checks passed.`);if(failures.length)process.exit(1);

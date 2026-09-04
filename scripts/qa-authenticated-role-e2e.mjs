@@ -91,6 +91,28 @@ async function bootstrapVGroupAuthContract(){
       attempt_count integer not null default 0 check (attempt_count >= 0),
       updated_at timestamptz not null default now()
     );
+
+    create table if not exists vgroup.employees (
+      id uuid primary key default gen_random_uuid(),
+      user_id uuid not null references vgroup.users(id) on delete cascade,
+      business_unit_id uuid not null references vgroup.business_units(id) on delete cascade,
+      job_title text,
+      hire_date date,
+      status text not null default 'active',
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now(),
+      unique(user_id,business_unit_id)
+    );
+
+    create table if not exists vgroup.employee_permissions (
+      id uuid primary key default gen_random_uuid(),
+      employee_id uuid not null references vgroup.employees(id) on delete cascade,
+      permission_id uuid not null references vgroup.permissions(id) on delete cascade,
+      effect text not null default 'allow' check (effect in ('allow','deny')),
+      granted_by uuid references vgroup.users(id),
+      granted_at timestamptz not null default now(),
+      unique(employee_id,permission_id)
+    );
   `);
   console.log("PASS isolated VGroup auth/RBAC contract bootstrapped");
 }

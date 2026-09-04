@@ -60,6 +60,29 @@ export async function POST(request:Request,{params}:{params:Promise<{id:string}>
   }catch(error){return apiErrorResponse(error)}
 }
 
+export async function PATCH(request:Request,{params}:{params:Promise<{id:string}>}){
+  try{
+    const session=await requireApiPermission("hospitality","properties:update");
+    const {id}=await params;
+    if(!uuid.test(id))return NextResponse.json({error:"Invalid property id"},{status:400});
+    const body=await request.json() as {imageId?:string;setCover?:boolean;caption?:string|null;altText?:string|null;sortOrder?:number};
+    if(!body.imageId||!uuid.test(body.imageId))return NextResponse.json({error:"Invalid image id"},{status:400});
+    const sql=getVGroupSql();
+    const [image]=await sql<{id:string;business_unit_id:string}[]>`select id::text,business_unit_id::text from hospitality.property_images where id=${body.imageId}::uuid and property_id=${id}::uuid and archived_at is null`;
+    if(!image)return NextResponse.json({error:"Image not found"},{status:404});
+    const caption=body.caption===undefined?undefined:(body.caption?.trim().slice(0,500)||null);
+    const altText=body.altText===undefined?undefined:(body.altText?.trim().slice(0,500)||null);
+    const sortOrder=body.sortOrder===undefined?undefined:Number(body.sortOrder);
+    if(sortOrder!==undefined&&(!Number.isFinite(sortOrder)||sortOrder<0||!Number.isInteger(sortOrder)))return NextResponse.json({error:"Invalid sort order"},{status:400});
+    await sql.begin(async tx=>{
+      if(body.setCover){await tx`update hospitality.property_images set is_cover=false,updated_at=now() where property_id=${id}::uuid and archived_at is null`;await tx`update hospitality.property_images set is_cover=true,updated_at=now() where id=${body.imageId}::uuid`}
+      if(caption!==undefined||altText!==undefined||sortOrder!==undefined)await tx`update hospitality.property_images set caption=case when ${caption!==undefined} then ${caption??null} else caption end,alt_text=case when ${altText!==undefined} then ${altText??null} else alt_text end,sort_order=case when ${sortOrder!==undefined} then ${sortOrder??0} else sort_order end,updated_at=now() where id=${body.imageId}::uuid`;
+      await tx`insert into vgroup.audit_logs(business_unit_id,user_id,action,entity_type,entity_id,new_value) values(${image.business_unit_id}::uuid,${session.userId}::uuid,'property.image.update','property',${id}::uuid,jsonb_build_object('image_id',${body.imageId},'set_cover',${Boolean(body.setCover)},'caption_changed',${caption!==undefined},'alt_changed',${altText!==undefined},'sort_order',${sortOrder??null}))`;
+    });
+    return NextResponse.json({ok:true});
+  }catch(error){return apiErrorResponse(error)}
+}
+
 export async function DELETE(request:Request,{params}:{params:Promise<{id:string}>}){
   try{
     const session=await requireApiPermission("hospitality","properties:update");

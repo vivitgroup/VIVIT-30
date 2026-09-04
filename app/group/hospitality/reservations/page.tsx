@@ -3,7 +3,7 @@ import {notFound} from "next/navigation";
 import {WorkspacePage} from "@/components/vgroup/workspace-page";
 import {JsonMutationForm} from "@/components/vgroup/json-mutation-form";
 import {ReservationStatusActions} from "@/components/vgroup/reservation-status-actions";
-import {requireBusinessUnitAccess} from "@/lib/vgroup/access";
+import {requireBusinessPermission} from "@/lib/vgroup/access";
 import {hasPermission} from "@/lib/vgroup/contracts";
 import {getVGroupSql} from "@/lib/vgroup/db";
 
@@ -13,7 +13,7 @@ type ReservationRow={id:string;property_name:string;guest_name:string;check_in:s
 type BlockRow={id:string;property_name:string;summary:string;starts_on:string|Date;ends_on:string|Date;source:string};
 
 export default async function Page({searchParams}:{searchParams:Promise<{propertyId?:string}>}){
-  const session=await requireBusinessUnitAccess("hospitality");
+  const session=await requireBusinessPermission("hospitality","reservations:view");
   const canCreate=hasPermission(session,"hospitality","reservations:create");
   const canUpdate=hasPermission(session,"hospitality","reservations:update");
   const {propertyId:rawPropertyId}=await searchParams;

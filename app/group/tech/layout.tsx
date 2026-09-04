@@ -1,6 +1,8 @@
 import type {ReactNode} from "react";
 import {VivitoLauncher} from "@/components/vgroup/vivito-launcher";
 
+export const dynamic = "force-dynamic";
+
 export default function TechLayout({children}:{children:ReactNode}){
   return <div className="vgroup-tech-brand">
     <style>{`

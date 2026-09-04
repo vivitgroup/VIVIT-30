@@ -38,8 +38,15 @@ export async function GET(request:Request){
 export async function POST(request:Request){
   try{
     await requireApiPermission("hospitality","finance:create");
-    const body=await request.json() as {ownerId?:string;periodStart?:string;periodEnd?:string};
-    if(!body.ownerId||!/^\d{4}-\d{2}-\d{2}$/.test(body.periodStart||"")||!/^\d{4}-\d{2}-\d{2}$/.test(body.periodEnd||""))return NextResponse.json({error:"invalid_statement_payload"},{status:400,headers:NO_STORE});
-    return NextResponse.json({statement:await generateOwnerStatement(body.ownerId,body.periodStart!,body.periodEnd!)},{status:201,headers:NO_STORE});
+    const body=await request.json().catch(()=>null) as {ownerId?:string;periodStart?:string;periodEnd?:string}|null;
+    const ownerId=String(body?.ownerId??"");
+    const periodStart=String(body?.periodStart??"");
+    const periodEnd=String(body?.periodEnd??"");
+    if(!uuid.test(ownerId)||!/^\d{4}-\d{2}-\d{2}$/.test(periodStart)||!/^\d{4}-\d{2}-\d{2}$/.test(periodEnd))return NextResponse.json({error:"invalid_statement_payload"},{status:400,headers:NO_STORE});
+    if(periodEnd<periodStart)return NextResponse.json({error:"invalid_statement_period"},{status:400,headers:NO_STORE});
+    const sql=getVGroupSql();
+    const [owner]=await sql<{id:string}[]>`select id::text from hospitality.owners where id=${ownerId}::uuid and archived_at is null limit 1`;
+    if(!owner)return NextResponse.json({error:"owner_not_found"},{status:404,headers:NO_STORE});
+    return NextResponse.json({statement:await generateOwnerStatement(ownerId,periodStart,periodEnd)},{status:201,headers:NO_STORE});
   }catch(error){return apiErrorResponse(error)}
 }

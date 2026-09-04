@@ -18,6 +18,7 @@ jobs:
     timeout-minutes: 12
     env:
       AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -27,14 +28,15 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - name: Verify router failover and manual pinning contracts
         run: npx tsx scripts/qa-vivito-model-mesh-v1.ts
-      - name: Verify exact-preview live-cert wiring
+      - name: Verify preview + OAuth runtime certification wiring
         run: |
           grep -F 'qa-vivito-live-model-cert-preview.mjs' scripts/vercel-build.mjs
-          grep -F 'audit/vivito-200-operating-agent' scripts/qa-vivito-live-model-cert-preview.mjs
-          grep -F 'VERCEL_OIDC_TOKEN' scripts/qa-vivito-live-model-cert.ts
-      - name: Run live certification when GitHub credential exists
-        if: ${{ env.AI_GATEWAY_API_KEY != '' }}
+          grep -F 'qa-vivito-gateway-live-preflight.ts' scripts/qa-vivito-live-model-cert-preview.mjs
+          grep -F '/api/vivito/openrouter/certify' app/group/vivito/page.tsx
+          grep -F 'OPENROUTER_KEY_COOKIE' app/api/vivito/openrouter/callback/route.ts
+      - name: Run full multi-provider live certification when both CI credentials exist
+        if: ${{ env.AI_GATEWAY_API_KEY != '' && env.OPENROUTER_API_KEY != '' }}
         run: npx tsx scripts/qa-vivito-live-model-cert.ts
-      - name: Declare live proof source when GitHub credential is absent
-        if: ${{ env.AI_GATEWAY_API_KEY == '' }}
-        run: echo 'Live >=20-model certification is fail-closed inside the exact Vercel preview build via VERCEL_OIDC_TOKEN.'
+      - name: Declare runtime proof source when OpenRouter CI secret is absent
+        if: ${{ env.OPENROUTER_API_KEY == '' }}
+        run: echo 'Exact preview must pass Gateway live preflight; final >=20 OpenRouter free-model proof is performed post-deploy through authenticated OAuth + /api/vivito/openrouter/certify.'

@@ -132,10 +132,10 @@ async function createAuthUser(persona){
   return {...persona,email,password,externalAuthId};
 }
 
-async function ensureBusinessUnit(){
-  let [row]=await sql`select id from vgroup.business_units where code='hospitality' limit 1`;
+async function ensureBusinessUnit(code,displayNameAr,displayNameEn){
+  let [row]=await sql`select id from vgroup.business_units where code=${code} limit 1`;
   if(!row){
-    [row]=await sql`insert into vgroup.business_units(code,display_name_ar,display_name_en,status) values('hospitality','الضيافة','Hospitality','active') returning id`;
+    [row]=await sql`insert into vgroup.business_units(code,display_name_ar,display_name_en,status) values(${code},${displayNameAr},${displayNameEn},'active') returning id`;
   }else{
     await sql`update vgroup.business_units set status='active',updated_at=now() where id=${row.id}`;
   }
@@ -168,9 +168,13 @@ async function bridgeGroupIdentity(user,businessUnitId,roleId){
     insert into vgroup.users(external_auth_id,email,full_name,preferred_language,status)
     values(${user.externalAuthId},${user.email},${`QA ${user.name}`},'en','active')
     returning id`;
-  await sql`
-    insert into vgroup.user_business_unit_roles(user_id,business_unit_id,role_id,status)
-    values(${groupUser.id}::uuid,${businessUnitId}::uuid,${roleId}::uuid,'active')`;
+  await addMembership(groupUser.id,businessUnitId,roleId);
+  return groupUser.id;
+}
+
+async function addMembership(userId,businessUnitId,roleId){
+  const [existing]=await sql`select id from vgroup.user_business_unit_roles where user_id=${userId}::uuid and business_unit_id=${businessUnitId}::uuid and role_id=${roleId}::uuid limit 1`;
+  if(!existing)await sql`insert into vgroup.user_business_unit_roles(user_id,business_unit_id,role_id,status) values(${userId}::uuid,${businessUnitId}::uuid,${roleId}::uuid,'active')`;
 }
 
 async function login(user){
@@ -191,6 +195,12 @@ async function request(path,{cookie,method="GET"}={}){
   return fetch(`${baseUrl}${path}`,{method,headers:cookie?{Cookie:cookie}:{},redirect:"manual"});
 }
 
+function assertRedirect(response,expectedPath,label){
+  assert([307,308].includes(response.status),`${label}_expected_redirect_got_${response.status}`);
+  const location=response.headers.get("location")||"";
+  assert(location.endsWith(expectedPath),`${label}_unexpected_location:${location}`);
+}
+
 async function main(){
   const unauthenticated=await request("/api/vgroup/hospitality/owner-portal?propertyId=not-a-uuid");
   assert(unauthenticated.status===401,`unauthenticated_gate_expected_401_got_${unauthenticated.status}`);
@@ -198,16 +208,24 @@ async function main(){
 
   await bootstrapVGroupAuthContract();
 
-  const businessUnitId=await ensureBusinessUnit();
+  const hospitalityId=await ensureBusinessUnit("hospitality","الضيافة","Hospitality");
+  const marketingId=await ensureBusinessUnit("marketing","التسويق","Marketing");
+  const techId=await ensureBusinessUnit("tech","التكنولوجيا","Technology");
   const roleIds={};
-  for(const persona of personas)roleIds[persona.role]=await ensureRole(persona.role,businessUnitId);
-  const purchaseOrderApprove=await ensurePermission("purchase_orders","approve",businessUnitId);
+  for(const persona of personas)roleIds[persona.role]=await ensureRole(persona.role,hospitalityId);
+  const marketingAdminRole=await ensureRole("MARKETING_ADMIN",marketingId);
+  const techAdminRole=await ensureRole("TECH_ADMIN",techId);
+  const purchaseOrderApprove=await ensurePermission("purchase_orders","approve",hospitalityId);
   await grant(roleIds.HOSPITALITY_ADMIN,purchaseOrderApprove);
 
   const users=[];
   for(const persona of personas){
     const user=await createAuthUser(persona);
-    await bridgeGroupIdentity(user,businessUnitId,roleIds[persona.role]);
+    const groupUserId=await bridgeGroupIdentity(user,hospitalityId,roleIds[persona.role]);
+    if(persona.name==="staff"){
+      await addMembership(groupUserId,marketingId,marketingAdminRole);
+      await addMembership(groupUserId,techId,techAdminRole);
+    }
     users.push(user);
   }
 
@@ -216,6 +234,26 @@ async function main(){
     sessions[user.name]=await login(user);
     console.log(`PASS ${user.role} authenticated through /api/vgroup/auth/login with a real Supabase session`);
   }
+
+  const groupHome=await request("/group",{cookie:sessions.staff});
+  assert(groupHome.status===200,`group_portal_expected_200_got_${groupHome.status}`);
+  console.log("PASS Group portal renders for an authenticated VGroup user (200)");
+
+  const hospitalityEntry=await request("/group/enter/hospitality",{cookie:sessions.staff});
+  assertRedirect(hospitalityEntry,"/group/hospitality","hospitality_entry");
+  console.log("PASS Hospitality portal entry authorizes membership and routes to /group/hospitality");
+
+  const techEntry=await request("/group/enter/tech",{cookie:sessions.staff});
+  assertRedirect(techEntry,"/group/tech","tech_entry");
+  console.log("PASS Tech portal entry authorizes membership and routes to /group/tech");
+
+  const marketingEntry=await request("/group/enter/marketing",{cookie:sessions.staff});
+  assertRedirect(marketingEntry,"/login?workspace=marketing","marketing_native_entry");
+  console.log("PASS Marketing portal preserves its native ERP auth boundary and routes to /login?workspace=marketing");
+
+  const marketingIntegration=await request("/group/marketing",{cookie:sessions.staff});
+  assert(marketingIntegration.status===200,`marketing_integration_gate_expected_200_got_${marketingIntegration.status}`);
+  console.log("PASS authenticated Marketing membership reaches the Group↔Marketing integration gate (200)");
 
   for(const persona of ["owner","manager","staff"]){
     const businessUnitGate=await request("/api/vgroup/hospitality/owner-portal?propertyId=not-a-uuid",{cookie:sessions[persona]});
@@ -233,6 +271,7 @@ async function main(){
   assert(staffAllowed.status===400,`staff_po_permission_expected_400_after_authorization_got_${staffAllowed.status}`);
   console.log("PASS HOSPITALITY_ADMIN passes purchase_orders:approve RBAC and reaches route validation (400)");
 
+  console.log("FOUR_WORKSPACE_ENTRY_E2E: PASS (GROUP / MARKETING NATIVE BOUNDARY / HOSPITALITY / TECH)");
   console.log("AUTHENTICATED_ROLE_BY_ROLE_E2E: PASS (OWNER / PROPERTY_MANAGER / HOSPITALITY_ADMIN)");
 }
 

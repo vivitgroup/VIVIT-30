@@ -4,6 +4,7 @@ import {WorkspacePage} from "@/components/vgroup/workspace-page";
 import {JsonMutationForm} from "@/components/vgroup/json-mutation-form";
 import {ReservationStatusActions} from "@/components/vgroup/reservation-status-actions";
 import {requireBusinessUnitAccess} from "@/lib/vgroup/access";
+import {hasPermission} from "@/lib/vgroup/contracts";
 import {getVGroupSql} from "@/lib/vgroup/db";
 
 export const dynamic="force-dynamic";
@@ -12,7 +13,9 @@ type ReservationRow={id:string;property_name:string;guest_name:string;check_in:s
 type BlockRow={id:string;property_name:string;summary:string;starts_on:string|Date;ends_on:string|Date;source:string};
 
 export default async function Page({searchParams}:{searchParams:Promise<{propertyId?:string}>}){
-  await requireBusinessUnitAccess("hospitality");
+  const session=await requireBusinessUnitAccess("hospitality");
+  const canCreate=hasPermission(session,"hospitality","reservations:create");
+  const canUpdate=hasPermission(session,"hospitality","reservations:update");
   const {propertyId:rawPropertyId}=await searchParams;
   if(rawPropertyId&&!uuid.test(rawPropertyId))notFound();
   const propertyId=rawPropertyId||null;
@@ -34,9 +37,9 @@ export default async function Page({searchParams}:{searchParams:Promise<{propert
     <section style={{maxWidth:1180,margin:"-40px auto 60px",padding:"0 20px",color:"#f7f1e3"}}>
       {propertyId&&propertyName?<div style={{marginBottom:14,padding:"12px 14px",border:"1px solid #6b5528",borderRadius:14,display:"flex",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}><b>PROPERTY CONTEXT · {propertyName}</b><Link href={`/group/hospitality/properties/${propertyId}`} style={{color:"#d6ad5b"}}>← Property dashboard</Link></div>:null}
       <article style={{padding:16,border:"1px solid #6b5528",borderRadius:16,marginBottom:18,background:"rgba(214,173,91,.045)"}}><div style={{fontSize:11,letterSpacing:".12em",fontWeight:900,color:"#d6ad5b"}}>LIVE AVAILABILITY SOURCE</div><strong style={{display:"block",marginTop:5}}>{blocks.length} upcoming Airbnb/channel block{blocks.length===1?"":"s"}</strong><p style={{fontSize:12,color:"#b7aa8b",lineHeight:1.6,marginBottom:0}}>These dates affect availability everywhere in Hospitality. They are not converted into guest reservations because Airbnb iCal does not contain trusted guest identity or booking finance.</p></article>
-      <JsonMutationForm tone="hospitality" endpoint="/api/vgroup/hospitality/reservations" title="Create reservation" submitLabel="Create booking" fields={[{name:"propertyId",label:"Property ID",required:true,defaultValue:propertyId||undefined,readOnly:Boolean(propertyId)},{name:"guestName",label:"Guest name",required:true},{name:"guestEmail",label:"Guest email",type:"email"},{name:"checkIn",label:"Check-in",type:"date",required:true},{name:"checkOut",label:"Check-out",type:"date",required:true},{name:"guests",label:"Guests",type:"number",required:true},{name:"grossAmount",label:"Gross amount",type:"number",required:true},{name:"platformFee",label:"Platform fee",type:"number"},{name:"companyCommission",label:"Company commission",type:"number"}]}/>
+      {canCreate?<JsonMutationForm tone="hospitality" endpoint="/api/vgroup/hospitality/reservations" title="Create reservation" submitLabel="Create booking" fields={[{name:"propertyId",label:"Property ID",required:true,defaultValue:propertyId||undefined,readOnly:Boolean(propertyId)},{name:"guestName",label:"Guest name",required:true},{name:"guestEmail",label:"Guest email",type:"email"},{name:"checkIn",label:"Check-in",type:"date",required:true},{name:"checkOut",label:"Check-out",type:"date",required:true},{name:"guests",label:"Guests",type:"number",required:true},{name:"grossAmount",label:"Gross amount",type:"number",required:true},{name:"platformFee",label:"Platform fee",type:"number"},{name:"companyCommission",label:"Company commission",type:"number"}]}/>:null}
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(320px,1fr))",gap:18,marginTop:20}}>
-        <section><h2>VIVIT reservations</h2><div style={{display:"grid",gap:10}}>{Array.from(rows).map(r=><article key={r.id} style={{padding:15,border:"1px solid #4a3a1c",borderRadius:14,display:"grid",gridTemplateColumns:"minmax(0,1fr) auto",gap:14,alignItems:"center"}}><div><b>{r.guest_name}</b><div style={{fontSize:12,color:"#b7aa8b"}}>{r.property_name} · {String(r.check_in)} → {String(r.check_out)}</div><div style={{fontSize:12,fontWeight:900,marginTop:4}}>{r.status} · Net {Number(r.net_owner_amount||0).toFixed(2)}</div></div><ReservationStatusActions reservationId={r.id} status={r.status}/></article>)}{rows.length===0?<p style={{color:"#b7aa8b"}}>No VIVIT reservation records yet.</p>:null}</div></section>
+        <section><h2>VIVIT reservations</h2><div style={{display:"grid",gap:10}}>{Array.from(rows).map(r=><article key={r.id} style={{padding:15,border:"1px solid #4a3a1c",borderRadius:14,display:"grid",gridTemplateColumns:"minmax(0,1fr) auto",gap:14,alignItems:"center"}}><div><b>{r.guest_name}</b><div style={{fontSize:12,color:"#b7aa8b"}}>{r.property_name} · {String(r.check_in)} → {String(r.check_out)}</div><div style={{fontSize:12,fontWeight:900,marginTop:4}}>{r.status} · Net {Number(r.net_owner_amount||0).toFixed(2)}</div></div>{canUpdate?<ReservationStatusActions reservationId={r.id} status={r.status}/>:null}</article>)}{rows.length===0?<p style={{color:"#b7aa8b"}}>No VIVIT reservation records yet.</p>:null}</div></section>
         <section><h2>Airbnb / channel availability</h2><div style={{display:"grid",gap:10}}>{Array.from(blocks).map(b=><article key={b.id} style={{padding:15,border:"1px solid #4a3a1c",borderRadius:14}}><b>{b.property_name}</b><div style={{fontSize:12,color:"#b7aa8b",marginTop:5}}>{b.summary||"Unavailable"} · {String(b.starts_on)} → {String(b.ends_on)} · {b.source}</div></article>)}{blocks.length===0?<p style={{color:"#b7aa8b"}}>No upcoming channel availability blocks.</p>:null}</div></section>
       </div>
     </section>

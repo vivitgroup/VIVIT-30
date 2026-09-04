@@ -2,9 +2,10 @@ import {notFound} from "next/navigation";
 import PropertyGallery from "@/components/vgroup/property-gallery";
 import {AirbnbConnectionManager} from "@/components/vgroup/airbnb-connection-manager";
 import {PropertyDetailsManager} from "@/components/vgroup/property-details-manager";
-import {requireBusinessPermission} from "@/lib/vgroup/access";
+import {requireBusinessUnitAccess} from "@/lib/vgroup/access";
 import {hasPermission} from "@/lib/vgroup/contracts";
 import {getVGroupSql} from "@/lib/vgroup/db";
+import {getHospitalityOwnerScope,ownerCanAccessProperty} from "@/lib/vgroup/hospitality-owner-scope";
 
 export const dynamic="force-dynamic";
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -12,10 +13,14 @@ const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]
 type StateRow={name:string;property_type:string;address_line1:string|null;address_line2:string|null;city:string|null;country:string;timezone:string;bedrooms:number;bathrooms:number;max_guests:number;status:string;airbnb_connected:number;airbnb_blocks:number;reservations:number;images:number};
 
 export default async function PropertyLayout({children,params}:{children:React.ReactNode;params:Promise<{id:string}>}){
-  const session=await requireBusinessPermission("hospitality","properties:view");
-  const canManageProperty=hasPermission(session,"hospitality","properties:update");
+  const session=await requireBusinessUnitAccess("hospitality");
   const {id}=await params;
   if(!uuid.test(id))notFound();
+  const ownerScope=await getHospitalityOwnerScope(session);
+  if(ownerScope.isOwner){
+    if(!ownerCanAccessProperty(ownerScope,id))notFound();
+  }else if(!hasPermission(session,"hospitality","properties:view"))notFound();
+  const canManageProperty=!ownerScope.isOwner&&hasPermission(session,"hospitality","properties:update");
   const sql=getVGroupSql();
   const [state]=await sql<StateRow[]>`
     select p.name,p.property_type,p.address_line1,p.address_line2,p.city,p.country,p.timezone,p.bedrooms,p.bathrooms,p.max_guests,p.status,

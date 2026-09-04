@@ -28,14 +28,14 @@ export async function getTechDashboard():Promise<TechDashboard>{
   const sql=getVGroupSql();
   const [row]=await sql<Record<string,unknown>[]>`
     select
-      (select count(*) from tech.clients where archived_at is null) clients,
-      (select count(*) from tech.projects where archived_at is null) projects,
-      (select count(*) from tech.projects where archived_at is null and status='active') active_projects,
-      (select count(*) from tech.change_requests where status in ('submitted','priced')) open_change_requests,
-      (select count(*) from tech.payment_installments where status in ('pending','partial','overdue')) outstanding_installments,
-      (select count(*) from tech.subscriptions) subscriptions,
-      (select count(*) from tech.subscriptions where status in ('trialing','active')) active_subscriptions,
-      coalesce((select sum(lt.amount) from vgroup.ledger_transactions lt join vgroup.business_units bu on bu.id=lt.business_unit_id where bu.code='tech' and lt.direction='credit'),0) revenue
+      (select count(*) from tech.clients c join vgroup.business_units bu on bu.id=c.business_unit_id where bu.code='tech' and bu.status='active' and c.archived_at is null) clients,
+      (select count(*) from tech.projects p join vgroup.business_units bu on bu.id=p.business_unit_id where bu.code='tech' and bu.status='active' and p.archived_at is null) projects,
+      (select count(*) from tech.projects p join vgroup.business_units bu on bu.id=p.business_unit_id where bu.code='tech' and bu.status='active' and p.archived_at is null and p.status='active') active_projects,
+      (select count(*) from tech.change_requests cr join tech.projects p on p.id=cr.project_id join vgroup.business_units bu on bu.id=p.business_unit_id where bu.code='tech' and bu.status='active' and p.archived_at is null and cr.status in ('submitted','priced')) open_change_requests,
+      (select count(*) from tech.payment_installments pi join tech.projects p on p.id=pi.project_id join vgroup.business_units bu on bu.id=p.business_unit_id where bu.code='tech' and bu.status='active' and p.archived_at is null and pi.status in ('pending','partial','overdue')) outstanding_installments,
+      (select count(*) from tech.subscriptions s join vgroup.business_units bu on bu.id=s.business_unit_id where bu.code='tech' and bu.status='active') subscriptions,
+      (select count(*) from tech.subscriptions s join vgroup.business_units bu on bu.id=s.business_unit_id where bu.code='tech' and bu.status='active' and s.status in ('trialing','active')) active_subscriptions,
+      coalesce((select sum(lt.amount) from vgroup.ledger_transactions lt join vgroup.business_units bu on bu.id=lt.business_unit_id where bu.code='tech' and bu.status='active' and lt.direction='credit'),0) revenue
   `;
   return {clients:n(row.clients),projects:n(row.projects),activeProjects:n(row.active_projects),openChangeRequests:n(row.open_change_requests),outstandingInstallments:n(row.outstanding_installments),subscriptions:n(row.subscriptions),activeSubscriptions:n(row.active_subscriptions),revenue:n(row.revenue)};
 }

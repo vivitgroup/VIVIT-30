@@ -24,7 +24,10 @@ check('Hierarchy persists Ad Set and Ad entity rows',hier.includes("'ENTITY','AD
 check('Hierarchy persists ATC purchases revenue',hier.includes('${m.purchases},${m.addToCart},${m.revenue}'));
 check('Campaign sync owns Meta hierarchy refresh',api.includes('syncMetaHierarchy(')&&api.includes('op==="sync_campaign"'));
 check('Campaign sync passes selected range into Meta hierarchy',api.includes('syncMetaHierarchy')&&api.includes('r.start')&&api.includes('r.end'));
-check('Active intelligence UI avoids duplicate hierarchy request',!ui.includes('fetch(`/api/media-hierarchy/${id}`')));
+check(
+  'Active intelligence UI avoids duplicate hierarchy request',
+  !ui.includes('fetch(`/api/media-hierarchy/${id}`'),
+);
 check('Active intelligence UI reports backend hierarchy counts',ui.includes('d.hierarchy')&&ui.includes('h.adSets')&&ui.includes('h.ads'));
 check('Control GET prevents campaign double counting',api.includes('!p.adSetId&&!p.adId'));
 check('Control GET nests Ad Sets and Ads',api.includes('adSets:hierarchy')&&api.includes('ads:adRows.filter'));

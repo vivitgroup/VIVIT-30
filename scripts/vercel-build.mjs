@@ -1,6 +1,7 @@
 import {readFileSync} from "node:fs";
 import {spawnSync} from "node:child_process";
 
+// Final hardening preview marker: keep this file in the deploy diff so Vercel certifies the exact candidate SHA.
 const root=new URL("..",import.meta.url);
 const pkg=JSON.parse(readFileSync(new URL("../package.json",import.meta.url),"utf8"));
 const source=String(pkg?.scripts?.build??"");

@@ -21,7 +21,7 @@ begin
     ('reservations','view'),('reservations','create'),('reservations','update'),('reservations','delete'),
     ('owners','view'),('owners','create'),('owners','update'),
     ('maintenance','view'),('maintenance','approve'),
-    ('inventory','view'),
+    ('inventory','view'),('inventory','update'),
     ('purchase_orders','view'),('purchase_orders','approve')
   ) as required(module,action)
   on conflict(module,action,business_unit_id) do nothing;
@@ -34,7 +34,7 @@ begin
       (p.module in ('properties','reservations') and p.action in ('view','create','update','delete'))
       or (p.module='owners' and p.action in ('view','create','update'))
       or (p.module='maintenance' and p.action in ('view','approve'))
-      or (p.module='inventory' and p.action='view')
+      or (p.module='inventory' and p.action in ('view','update'))
       or (p.module='purchase_orders' and p.action in ('view','approve'))
     )
   on conflict(role_id,permission_id) do nothing;
@@ -48,7 +48,7 @@ begin
       or (p.module='reservations' and p.action in ('view','create','update'))
       or (p.module='owners' and p.action='view')
       or (p.module='maintenance' and p.action='view')
-      or (p.module='inventory' and p.action='view')
+      or (p.module='inventory' and p.action in ('view','update'))
       or (p.module='purchase_orders' and p.action='view')
     )
   on conflict(role_id,permission_id) do nothing;

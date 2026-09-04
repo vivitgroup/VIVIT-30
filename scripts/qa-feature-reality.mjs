@@ -24,6 +24,7 @@ check("LTV explicitly distinguishes actual from estimated",ltv.includes("actual 
 check("WhatsApp UI does not fake Cloud API availability",wa.includes("hasRealAPI")&&wa.includes("needs WHATSAPP_TOKEN + WHATSAPP_PHONE_ID"));
 check("Tech operations resolve active Tech business unit",techOps.includes("code='tech' and status='active'")&&techOps.includes("business_unit_id=${buId}::uuid"));
 check("Tech operations project writes fail closed on project scope",techOps.includes("requireProject(sql,buId,projectId)")&&techOps.includes('PROJECT_NOT_FOUND'));
+check("Tech operations assignees require active Tech membership",techOps.includes("requireTechUser")&&techOps.includes("TECH_USER_NOT_FOUND")&&techOps.includes("user_business_unit_roles ubr"));
 check("Tech deliverables bind optional phase and milestone to the same project",techOps.includes("project_phases where id=${phaseId}::uuid and project_id=${projectId}::uuid")&&techOps.includes("project_milestones where id=${milestoneId}::uuid and project_id=${projectId}::uuid"));
 check("Tech UAT and issue references bind to the same project",techOps.includes("deliverables where id=${deliverableId}::uuid and project_id=${projectId}::uuid")&&techOps.includes("uat_cycles where id=${uatCycleId}::uuid and project_id=${projectId}::uuid"));
 check("Tech releases bind environment to the same project",techOps.includes("project_environments where id=${environmentId}::uuid and project_id=${projectId}::uuid"));
@@ -33,6 +34,7 @@ check("Tech proposals bind opportunity to selected Tech client",techSales.includ
 check("Tech support tickets validate project contract and subscription relationships",techSales.includes('PROJECT_CLIENT_MISMATCH')&&techSales.includes('SUPPORT_CONTRACT_MISMATCH')&&techSales.includes('SUBSCRIPTION_CLIENT_MISMATCH'));
 check("Tech handover items fail closed on Tech project scope",techSales.includes('PROJECT_NOT_FOUND')&&techSales.includes("techProject(sql,buId,projectId)"));
 check("Tech installment payment is scoped through active Tech project",techPay.includes("tech.payment_installments i join tech.projects p")&&techPay.includes("bu.code='tech' and bu.status='active'")&&techPay.includes("p.archived_at is null"));
+check("Tech installment payments write an actor-scoped audit event",techPay.includes("insert into vgroup.audit_logs")&&techPay.includes("'installment.payment'")&&techPay.includes("${auth.userId}::uuid"));
 check("Tech change request pricing is project and Tech scoped",techCrPrice.includes("tech.change_requests cr join tech.projects p")&&techCrPrice.includes("bu.code='tech' and bu.status='active'")&&techCrPrice.includes("p.archived_at is null"));
 check("Tech change request approval is project and Tech scoped",techCrApprove.includes("tech.change_requests cr join tech.projects p")&&techCrApprove.includes("bu.code='tech' and bu.status='active'")&&techCrApprove.includes("p.archived_at is null"));
 check("Tech change request rejection is project and Tech scoped",techCrReject.includes("tech.change_requests cr join tech.projects p")&&techCrReject.includes("bu.code='tech' and bu.status='active'")&&techCrReject.includes("p.archived_at is null"));

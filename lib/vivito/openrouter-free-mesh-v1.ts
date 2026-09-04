@@ -6,7 +6,6 @@ type Cache={expiresAt:number;models:FreeModel[]};
 type Options={task?:VivitoMeshTask;maxTokens?:number;temperature?:number;timeoutMs?:number;modelId?:string};
 const MODELS_URL="https://openrouter.ai/api/v1/models";
 const CHAT_URL="https://openrouter.ai/api/v1/chat/completions";
-const CACHE_MS=15*60_000;
 const health=new Map<string,{successes:number;failures:number;cooldownUntil:number;lastLatencyMs?:number}>();
 let cache:Cache|null=null;
 const asRecord=(v:unknown):JsonRecord=>v&&typeof v==="object"&&!Array.isArray(v)?v as JsonRecord:{};

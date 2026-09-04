@@ -41,7 +41,10 @@ export async function PATCH(request:Request,{params}:{params:Promise<{id:string}
     const sql=getVGroupSql();
     const [existing]=await sql<{id:string;business_unit_id:string}[]>`select id::text,business_unit_id::text from hospitality.properties where id=${id}::uuid and archived_at is null`;
     if(!existing)return NextResponse.json({error:"Property not found"},{status:404,headers:noStore});
-    if(ownerSpecified&&ownerId){const [owner]=await sql`select id from hospitality.owners where id=${ownerId}::uuid and business_unit_id=${existing.business_unit_id}::uuid and archived_at is null`;if(!owner)return NextResponse.json({error:"Owner unavailable"},{status:404,headers:noStore})}
+    if(ownerSpecified&&ownerId){
+      const [owner]=await sql`select id from hospitality.owners where id=${ownerId}::uuid and business_unit_id=${existing.business_unit_id}::uuid and archived_at is null and status='active'`;
+      if(!owner)return NextResponse.json({error:"Owner must be active before assignment"},{status:409,headers:noStore});
+    }
 
     await sql.begin(async tx=>{
       if(detailsSpecified){

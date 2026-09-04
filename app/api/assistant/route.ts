@@ -37,8 +37,6 @@ type AdvisorContext={role:string;scope:{clientCount:number;clientNames:string[]}
 
 const n=(v:unknown)=>Number(v||0);
 const isArabic=(s:string)=>/[\u0600-\u06ff]/.test(s);
-const cairoDay=(d:Date)=>new Intl.DateTimeFormat("en-CA",{timeZone:"Africa/Cairo",year:"numeric",month:"2-digit",day:"2-digit"}).format(d);
-const dateLabel=(d:Date,arabic:boolean)=>new Intl.DateTimeFormat(arabic?"ar-EG":"en-GB",{timeZone:"Africa/Cairo",day:"2-digit",month:"short",year:"numeric"}).format(d);
 const idsSql=(ids:string[])=>sql.join(ids.map(id=>sql`${id}`),sql`,`);
 const asRecord=(value:unknown):UnknownRecord=>value&&typeof value==="object"&&!Array.isArray(value)?Object.fromEntries(Object.entries(value)):{};
 const errorText=(error:unknown,fallback="VIVITO request failed safely.")=>error instanceof Error?error.message:String(error||fallback);

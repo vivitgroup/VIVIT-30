@@ -41,6 +41,8 @@ jobs:
           grep -F 'replace(/:free$/i' app/api/vivito/openrouter/certify/route.ts
           grep -F 'qwen/qwen3.6-27b' lib/vivito/groq-free-mesh-v1.ts
           grep -F 'qwen/qwen3.8-27b' lib/vivito/groq-free-mesh-v1.ts
+      - name: Certify live read-only Exa research
+        run: npx tsx scripts/qa-vivito-live-research.ts
       - name: Run full live certification when OpenRouter credential exists
         if: ${{ env.OPENROUTER_API_KEY != '' }}
         run: npx tsx scripts/qa-vivito-live-model-cert.ts

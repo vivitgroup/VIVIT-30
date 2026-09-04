@@ -28,15 +28,15 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - name: Verify router failover and manual pinning contracts
         run: npx tsx scripts/qa-vivito-model-mesh-v1.ts
-      - name: Verify preview + OAuth runtime certification wiring
+      - name: Verify OAuth runtime certification wiring
         run: |
           grep -F 'qa-vivito-live-model-cert-preview.mjs' scripts/vercel-build.mjs
-          grep -F 'qa-vivito-gateway-live-preflight.ts' scripts/qa-vivito-live-model-cert-preview.mjs
           grep -F '/api/vivito/openrouter/certify' app/group/vivito/page.tsx
           grep -F 'OPENROUTER_KEY_COOKIE' app/api/vivito/openrouter/callback/route.ts
+          grep -F 'OAuth-based OpenRouter runtime certification' scripts/qa-vivito-live-model-cert-preview.mjs
       - name: Run full multi-provider live certification when both CI credentials exist
         if: ${{ env.AI_GATEWAY_API_KEY != '' && env.OPENROUTER_API_KEY != '' }}
         run: npx tsx scripts/qa-vivito-live-model-cert.ts
-      - name: Declare runtime proof source when OpenRouter CI secret is absent
+      - name: Declare post-deploy proof source otherwise
         if: ${{ env.OPENROUTER_API_KEY == '' }}
-        run: echo 'Exact preview must pass Gateway live preflight; final >=20 OpenRouter free-model proof is performed post-deploy through authenticated OAuth + /api/vivito/openrouter/certify.'
+        run: echo 'Final >=20 distinct free-model proof is authenticated post-deploy via OpenRouter OAuth and /api/vivito/openrouter/certify. Vercel AI Gateway is optional.'

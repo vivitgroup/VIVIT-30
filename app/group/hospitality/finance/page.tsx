@@ -1,11 +1,13 @@
 import Link from "next/link";
-import {notFound} from "next/navigation";
-import {requireBusinessUnitAccess} from "@/lib/vgroup/access";
+import {notFound,redirect} from "next/navigation";
+import {requireBusinessPermission} from "@/lib/vgroup/access";
 import {HospitalityFinancePanel} from "@/components/vgroup/hospitality-finance-panel";
 import {getVGroupSql} from "@/lib/vgroup/db";
 const uuid=/^[0-9a-f-]{36}$/i;
 export default async function Page({searchParams}:{searchParams:Promise<{propertyId?:string}>}){
-  await requireBusinessUnitAccess("hospitality");
+  const session=await requireBusinessPermission("hospitality","finance:view");
+  const isOwner=session.memberships.some(item=>item.businessUnit==="hospitality"&&item.role==="OWNER");
+  if(isOwner)redirect("/group/hospitality/owner-portal");
   const {propertyId:rawPropertyId}=await searchParams;
   if(rawPropertyId&&!uuid.test(rawPropertyId))notFound();
   const propertyId=rawPropertyId||"";

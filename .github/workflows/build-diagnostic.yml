@@ -15,10 +15,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      # Build-only placeholder. Next.js imports API route modules while collecting
-      # route metadata, and lib/db.ts validates that DATABASE_URL exists at import
-      # time. No database connection is made by this diagnostic build.
+      # Build-only placeholders. Next.js imports runtime modules while collecting
+      # route metadata, and both primary + Vivit Group database helpers validate
+      # their URLs at import time. They must remain distinct to preserve the
+      # runtime isolation contract. No database connection is made by this build.
       DATABASE_URL: postgresql://build:build@127.0.0.1:5432/vivit_build
+      VGROUP_DATABASE_URL: postgresql://build:build@127.0.0.1:5432/vivit_group_build
     steps:
       - name: Checkout exact commit
         uses: actions/checkout@v4

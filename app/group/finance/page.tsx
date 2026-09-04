@@ -1,3 +1,5 @@
+export const dynamic="force-dynamic";
+
 import Link from "next/link";
 import {GroupFinancePanel} from "@/components/vgroup/group-finance-panel";
 import {requireVGroupSession} from "@/lib/vgroup/session";

@@ -34,16 +34,16 @@ jobs:
         run: |
           grep -F '/api/vivito/openrouter/certify' app/group/vivito/page.tsx
           grep -F 'OPENROUTER_KEY_COOKIE' app/api/vivito/openrouter/callback/route.ts
-          grep -F 'groq-free' app/api/vivito/openrouter/certify/route.ts
+          grep -F 'groqConfigured' app/api/vivito/openrouter/certify/route.ts
           grep -F 'GROQ_API_KEY' lib/vivito/groq-free-mesh-v1.ts
           grep -F 'canonicalModelIdentity' app/api/vivito/openrouter/certify/route.ts
           grep -F 'canonicalModelIdentity' scripts/qa-vivito-live-model-cert.ts
           grep -F 'replace(/:free$/i' app/api/vivito/openrouter/certify/route.ts
           grep -F 'qwen/qwen3.6-27b' lib/vivito/groq-free-mesh-v1.ts
           grep -F 'qwen/qwen3.8-27b' lib/vivito/groq-free-mesh-v1.ts
-      - name: Run full multi-provider live certification when both free-provider credentials exist
-        if: ${{ env.OPENROUTER_API_KEY != '' && env.GROQ_API_KEY != '' }}
+      - name: Run full live certification when OpenRouter credential exists
+        if: ${{ env.OPENROUTER_API_KEY != '' }}
         run: npx tsx scripts/qa-vivito-live-model-cert.ts
       - name: Declare post-deploy proof source otherwise
-        if: ${{ env.OPENROUTER_API_KEY == '' || env.GROQ_API_KEY == '' }}
-        run: echo 'Final >=20 proof requires distinct underlying canonical models, not duplicate routes. Post-deploy certification uses OpenRouter OAuth plus Groq Free Plan exact-pinned calls.'
+        if: ${{ env.OPENROUTER_API_KEY == '' }}
+        run: echo 'Final >=20 proof uses distinct underlying canonical free models with exact-pinned calls. OpenRouter OAuth is sufficient when >=20 canonical models pass; Groq is optional additional diversity/failover.'

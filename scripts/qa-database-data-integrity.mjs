@@ -28,7 +28,8 @@ check("Invoice creation checks duplicate business period",financePage.includes("
 check("Finance invoice migration fails closed on duplicates",financeMigration.includes("HAVING COUNT(*) > 1")&&financeMigration.includes("RAISE EXCEPTION"));
 check("Finance invoice migration enforces workspace-client-period uniqueness",financeMigration.includes("CREATE UNIQUE INDEX")&&financeMigration.includes("workspace_id, client_id, year, month"));
 check("Database URL parser preserves explicit username/password",dbSource.includes("decodeURIComponent(parsed.username)")&&dbSource.includes("decodeURIComponent(parsed.password)"));
-check("Serverless database pool remains bounded",dbSource.includes("max:             3")&&dbSource.includes("prepare:         false"));
+const poolMatch=dbSource.match(/\bmax:\s*(\d+)\s*,/),poolMax=poolMatch?Number(poolMatch[1]):NaN;
+check("Serverless database pool remains bounded",Number.isFinite(poolMax)&&poolMax>=1&&poolMax<=3&&/prepare:\s*false/.test(dbSource),`max=${Number.isFinite(poolMax)?poolMax:"missing"}`);
 
 const url=String(process.env.DATABASE_URL||"").trim();
 if(!url){check("Ephemeral PostgreSQL integration executed",false,"DATABASE_URL missing");}

@@ -61,19 +61,31 @@ async function main(){
   await check("pool summary declares the key environments without containing secrets",()=>{const s=vivitoMeshSummary();assert.ok(s.defaultPool.requiredKeyEnvs.includes("MOONSHOT_API_KEY"));assert.equal(JSON.stringify(s).includes("test-moonshot"),false)});
 
   resetGatewayMeshHealth();
-  await check("gateway intelligent mesh exposes exactly fifty logical routes",()=>{assert.equal(VIVITO_GATEWAY_ROUTES.length,50);assert.equal(gatewayMeshSummary().routes,50)});
-  await check("gateway mesh is ten models times five routing strategies",()=>{assert.equal(new Set(VIVITO_GATEWAY_ROUTES.map(r=>r.model)).size,10);assert.equal(new Set(VIVITO_GATEWAY_ROUTES.map(r=>r.strategy)).size,5)});
+  await check("gateway intelligent mesh exposes at least fifty logical routes",()=>{const s=gatewayMeshSummary();assert.ok(VIVITO_GATEWAY_ROUTES.length>=50);assert.equal(s.routes,VIVITO_GATEWAY_ROUTES.length);assert.equal(s.routes,s.models*s.strategies)});
+  await check("gateway mesh spans eleven models across five routing strategies",()=>{assert.equal(new Set(VIVITO_GATEWAY_ROUTES.map(r=>r.model)).size,11);assert.equal(new Set(VIVITO_GATEWAY_ROUTES.map(r=>r.strategy)).size,5)});
   await check("gateway task ranking returns ten unique healthy model families",()=>{const models=gatewayModelOrder("reasoning",10);assert.equal(models.length,10);assert.equal(new Set(models).size,10);assert.ok(rankGatewayRoutes("reasoning")[0]?.tasks.includes("reasoning"))});
 
   let capturedBody:Record<string,unknown>|null=null;
-  globalThis.fetch=(async (_input:RequestInfo|URL,init?:RequestInit)=>{capturedBody=JSON.parse(String(init?.body||"{}")) as Record<string,unknown>;return new Response(JSON.stringify({model:"openai/gpt-5.6-sol",choices:[{message:{content:"atomic gateway answer"}}]}),{status:200,headers:{"Content-Type":"application/json"}})}) as typeof fetch;
-  await check("gateway responses are atomic and never stream partial provider output",async()=>{const out=await generateViaGatewayIntelligentMesh("q","s","test-token",{task:"general"});assert.equal(out.text,"atomic gateway answer");assert.equal(out.routeCount,50);assert.equal(capturedBody?.stream,false);assert.equal(Array.isArray(capturedBody?.models),true);assert.equal((capturedBody?.models as unknown[]).length,10)});
+  globalThis.fetch=(async (input:RequestInfo|URL,init?:RequestInit)=>{
+    const url=String(input);
+    if(url.includes("/v1/models"))return new Response(JSON.stringify({data:[
+      {id:"inclusionai/ling-3.0-flash-fin-free",pricing:{input:"0",output:"0"}},
+      {id:"inclusionai/ling-3.0-flash-fin",pricing:{input:"0",output:"0"}},
+      {id:"poolside/laguna-s-2.1-free",pricing:{input:"0",output:"0"}}
+    ]}),{status:200,headers:{"Content-Type":"application/json"}});
+    capturedBody=JSON.parse(String(init?.body||"{}")) as Record<string,unknown>;
+    return new Response(JSON.stringify({model:"inclusionai/ling-3.0-flash-fin-free",choices:[{message:{content:"atomic gateway answer"}}]}),{status:200,headers:{"Content-Type":"application/json"}})
+  }) as typeof fetch;
+  await check("gateway responses are atomic and restricted to the verified free pool",async()=>{const out=await generateViaGatewayIntelligentMesh("q","s","test-token",{task:"general"});assert.equal(out.text,"atomic gateway answer");assert.equal(out.routeCount,VIVITO_GATEWAY_ROUTES.length);assert.equal(capturedBody?.stream,false);assert.equal(String(capturedBody?.model).includes("free")||capturedBody?.model==="inclusionai/ling-3.0-flash-fin",true);const fallbacks=Array.isArray(capturedBody?.models)?capturedBody.models as unknown[]:[];assert.ok(fallbacks.length<=2)});
   await check("gateway request includes internal provider routing preferences without user-visible token errors",()=>{const providerOptions=capturedBody?.providerOptions as Record<string,unknown>;assert.ok(providerOptions&&typeof providerOptions.gateway==="object");assert.equal(JSON.stringify(capturedBody).includes("test-token"),false)});
 
-  globalThis.fetch=(async()=>new Response(JSON.stringify({error:{message:"daily quota exhausted"}}),{status:429,headers:{"Content-Type":"application/json"}})) as typeof fetch;
+  globalThis.fetch=(async (input:RequestInfo|URL)=>String(input).includes("/v1/models")
+    ?new Response(JSON.stringify({data:[{id:"inclusionai/ling-3.0-flash-fin-free",pricing:{input:"0",output:"0"}}]}),{status:200,headers:{"Content-Type":"application/json"}})
+    :new Response(JSON.stringify({error:{message:"daily quota exhausted"}}),{status:429,headers:{"Content-Type":"application/json"}})) as typeof fetch;
+  resetGatewayMeshHealth();
   await check("gateway quota exhaustion enters cooldown instead of poisoning the user response path",async()=>{await assert.rejects(()=>generateViaGatewayIntelligentMesh("q","s","test-token",{task:"finance"}));const summary=gatewayMeshSummary("finance");assert.ok(Object.values(summary.health).some(h=>h.cooldownRemainingMs>0));resetGatewayMeshHealth()});
 
-  console.log(`\n${passed}/23 VIVITO Model Mesh V1 + Gateway 50-Route checks passed.`);
+  console.log(`\n${passed}/23 VIVITO Model Mesh V1 + Gateway free-only checks passed.`);
   if(passed!==23)process.exitCode=1;
 }
 

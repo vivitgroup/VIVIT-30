@@ -1,4 +1,7 @@
 import Link from "next/link";
 import {requireGroupSuperAdmin} from "@/lib/vgroup/access";
 import {GroupAdminPanel} from "@/components/vgroup/group-admin-panel";
+
+export const dynamic="force-dynamic";
+
 export default async function Page(){await requireGroupSuperAdmin();return <main style={{minHeight:"100vh",background:"#0d0d12",color:"#f6f6f8",padding:"28px 20px",fontFamily:"Inter,system-ui,sans-serif"}}><section style={{maxWidth:1180,margin:"0 auto"}}><Link href="/group" style={{color:"#a78bfa",textDecoration:"none",fontWeight:800}}>← Vivit Group</Link><div style={{margin:"38px 0 24px"}}><div style={{fontSize:12,letterSpacing:".18em",fontWeight:900,color:"#a78bfa"}}>VIVIT GROUP ADMIN</div><h1 style={{fontSize:"clamp(34px,5vw,60px)",letterSpacing:"-.045em",margin:"9px 0 12px"}}>People, Access & Governance</h1><p style={{maxWidth:760,color:"#a6a6b2",lineHeight:1.7}}>Super-admin-only workspace for employees, access governance, notifications and audit-related administration.</p></div><GroupAdminPanel/></section></main>}

@@ -7,8 +7,8 @@ const NO_STORE={"Cache-Control":"private, no-store"};
 
 export async function POST(){
   try{
-    await requireApiPermission("hospitality","reservations:create");
-    const result=await syncAllAirbnbChannels();
+    const session=await requireApiPermission("hospitality","reservations:create");
+    const result=await syncAllAirbnbChannels(session.userId);
     return NextResponse.json({ok:result.failed===0,...result},{status:result.total===0?409:200,headers:NO_STORE});
   }catch(error){return apiErrorResponse(error)}
 }

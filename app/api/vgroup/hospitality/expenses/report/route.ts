@@ -2,6 +2,7 @@ import {NextResponse} from "next/server";
 import {getVGroupSql} from "@/lib/vgroup/db";
 import {apiErrorResponse,requireApiPermission} from "@/lib/vgroup/api-access";
 import {buildHospitalityExpenseExcel,buildHospitalityExpensePdf} from "@/lib/vgroup/hospitality-expense-report";
+import {getHospitalityOwnerScope,ownerCanAccessProperty} from "@/lib/vgroup/hospitality-owner-scope";
 
 const uuid=/^[0-9a-f-]{36}$/i;
 const date=/^\d{4}-\d{2}-\d{2}$/;
@@ -9,7 +10,7 @@ const safe=(v:string)=>v.replace(/[^a-z0-9-_]+/gi,"-").replace(/^-+|-+$/g,"").sl
 
 export async function GET(request:Request){
   try{
-    await requireApiPermission("hospitality","finance:export");
+    const session=await requireApiPermission("hospitality","finance:export");
     const url=new URL(request.url);
     const propertyId=url.searchParams.get("propertyId")??"";
     const from=url.searchParams.get("from")??"";
@@ -17,6 +18,8 @@ export async function GET(request:Request){
     const format=(url.searchParams.get("format")??"xls").toLowerCase();
     if(!uuid.test(propertyId)||!date.test(from)||!date.test(to)||from>to)return NextResponse.json({error:{code:"INVALID_REPORT_FILTER",message:"Valid property, from and to dates are required"}},{status:400,headers:{"Cache-Control":"no-store"}});
     if(!["xls","pdf"].includes(format))return NextResponse.json({error:{code:"INVALID_REPORT_FORMAT",message:"Use xls or pdf"}},{status:400,headers:{"Cache-Control":"no-store"}});
+    const ownerScope=await getHospitalityOwnerScope(session);
+    if(!ownerCanAccessProperty(ownerScope,propertyId))return NextResponse.json({error:{code:"PROPERTY_NOT_FOUND",message:"Property not found"}},{status:404,headers:{"Cache-Control":"no-store"}});
     const sql=getVGroupSql();
     const [property]=await sql`select p.id::text,p.name from hospitality.properties p join vgroup.business_units bu on bu.id=p.business_unit_id where p.id=${propertyId}::uuid and p.archived_at is null and bu.code='hospitality' and bu.status='active' limit 1`;
     if(!property)return NextResponse.json({error:{code:"PROPERTY_NOT_FOUND",message:"Property not found"}},{status:404,headers:{"Cache-Control":"no-store"}});

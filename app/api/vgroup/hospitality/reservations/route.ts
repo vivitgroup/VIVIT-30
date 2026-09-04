@@ -38,6 +38,17 @@ export async function POST(request:Request){
     if([grossAmount,platformFee,companyCommission].some(v=>!Number.isFinite(v)||v<0))
       return NextResponse.json({error:"Invalid financial values"},{status:400});
     const sql=getVGroupSql();
+    const [property]=await sql<{id:string}[]>`select id::text from hospitality.properties where id=${propertyId}::uuid and archived_at is null limit 1`;
+    if(!property)return NextResponse.json({error:"Property unavailable"},{status:404});
+    const [blocked]=await sql<{blocked:boolean;source:string|null;summary:string|null}[]>`
+      select exists(
+        select 1 from hospitality.calendar_blocks b
+        where b.property_id=${propertyId}::uuid and b.archived_at is null
+          and b.starts_on<${checkOut}::date and b.ends_on>${checkIn}::date
+      ) blocked,
+      (select b.source from hospitality.calendar_blocks b where b.property_id=${propertyId}::uuid and b.archived_at is null and b.starts_on<${checkOut}::date and b.ends_on>${checkIn}::date order by b.starts_on limit 1) source,
+      (select b.summary from hospitality.calendar_blocks b where b.property_id=${propertyId}::uuid and b.archived_at is null and b.starts_on<${checkOut}::date and b.ends_on>${checkIn}::date order by b.starts_on limit 1) summary`;
+    if(blocked?.blocked)return NextResponse.json({error:"Property is blocked by synced channel availability for the selected dates",conflict:{source:blocked.source,summary:blocked.summary}},{status:409});
     const [row]=await sql`
       insert into hospitality.reservations(business_unit_id,property_id,source,guest_name,guest_email,guest_phone,check_in,check_out,guests,currency,gross_amount,platform_fee,company_commission,status)
       select bu.id,${propertyId}::uuid,${source},${guestName},${body.guestEmail?String(body.guestEmail):null},${body.guestPhone?String(body.guestPhone):null},${checkIn}::date,${checkOut}::date,${guests},${String(body.currency??"EGP")},${grossAmount},${platformFee},${companyCommission},'confirmed'

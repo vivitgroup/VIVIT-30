@@ -1,9 +1,7 @@
 import {NextResponse} from "next/server";
 import {getVGroupSql} from "@/lib/vgroup/db";
 import {getVGroupRuntimeConfig} from "@/lib/vgroup/env";
-import {apiErrorResponse,requireApiBusinessUnit,requireApiPermission} from "@/lib/vgroup/api-access";
-import {hasPermission} from "@/lib/vgroup/contracts";
-import {getHospitalityOwnerScope,ownerCanAccessProperty} from "@/lib/vgroup/hospitality-owner-scope";
+import {apiErrorResponse,requireApiPermission} from "@/lib/vgroup/api-access";
 
 const BUCKET="vgroup-hospitality";
 const allowed=new Set(["image/jpeg","image/png","image/webp"]);
@@ -21,15 +19,9 @@ async function signedUrl(objectPath:string){
 
 export async function GET(_request:Request,{params}:{params:Promise<{id:string}>}){
   try{
-    const session=await requireApiBusinessUnit("hospitality");
+    await requireApiPermission("hospitality","properties:view");
     const {id}=await params;
     if(!uuid.test(id))return NextResponse.json({error:"Invalid property id"},{status:400});
-    const ownerScope=await getHospitalityOwnerScope(session);
-    if(ownerScope.isOwner){
-      if(!ownerCanAccessProperty(ownerScope,id))return NextResponse.json({error:"Property not found"},{status:404,headers:{"Cache-Control":"private, no-store"}});
-    }else if(!hasPermission(session,"hospitality","properties:view")){
-      return NextResponse.json({error:"Forbidden"},{status:403,headers:{"Cache-Control":"private, no-store"}});
-    }
     const sql=getVGroupSql();
     const rows=await sql`select id::text,file_name,mime_type,byte_size,caption,alt_text,sort_order,is_cover,object_path from hospitality.property_images where property_id=${id}::uuid and archived_at is null order by is_cover desc,sort_order,created_at`;
     const images=await Promise.all(Array.from(rows).map(async row=>({...row,url:await signedUrl(String(row.object_path))})));

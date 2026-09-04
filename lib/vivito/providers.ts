@@ -2,13 +2,14 @@ import {classifyVivitoProviderFailure,clearVivitoProviderCooldown,markVivitoProv
 import {generateViaVivitoMesh,vivitoMeshSummary,type VivitoMeshTask} from "./model-mesh-v1";
 import {generateViaGatewayIntelligentMesh} from "./gateway-intelligent-mesh-v3";
 import {generateViaOpenRouterFreeMesh,openRouterFreeConfigured} from "./openrouter-free-mesh-v1";
+import {generateViaGroqFreeMesh,groqFreeConfigured,GROQ_FREE_MODEL_IDS} from "./groq-free-mesh-v1";
 import {generateLocalActionPlanV2} from "./local-action-planner-v2";
 import {repairOrFallbackVivitoActionPlan} from "./action-plan-fallback-v1";
 
-export type VivitoProviderName="gateway"|"openrouter-free"|"gemini"|"claude"|"mesh"|"local";
+export type VivitoProviderName="gateway"|"openrouter-free"|"groq-free"|"gemini"|"claude"|"mesh"|"local";
 export type VivitoGeneration={text:string;provider:VivitoProviderName;attempted:VivitoProviderName[];errors:string[];latencyMs:number;modelId?:string};
 type ExternalProvider=Exclude<VivitoProviderName,"local">;
-type GenerateOptions={temperature?:number;maxTokens?:number;preferred?:VivitoProviderName[];timeoutMs?:number;task?:VivitoMeshTask;modelId?:string;modelProvider?:"gateway"|"openrouter-free"};
+type GenerateOptions={temperature?:number;maxTokens?:number;preferred?:VivitoProviderName[];timeoutMs?:number;task?:VivitoMeshTask;modelId?:string;modelProvider?:"gateway"|"openrouter-free"|"groq-free"};
 type JsonRecord=Record<string,unknown>;
 type ProviderHttpError=Error&{status?:number};
 type GatewayCredential={token:string;source:"api-key"|"oidc"};
@@ -35,8 +36,8 @@ function geminiError(model:string,d:unknown,status:number){const root=asRecord(d
 async function callGemini(prompt:string,system:string,options:GenerateOptions){if(!process.env.GEMINI_API_KEY)throw new Error("gemini-not-configured");const errors:string[]=[];let lastStatus=0;for(const model of geminiModelChain()){try{const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`,{method:"POST",signal:requestSignal(options),headers:{"Content-Type":"application/json"},body:JSON.stringify({systemInstruction:{parts:[{text:system}]},contents:[{role:"user",parts:[{text:prompt}]}],generationConfig:geminiGenerationConfig(model,options)})});const d=await safeJson(r);lastStatus=r.status;if(!r.ok){errors.push(geminiError(model,d,r.status));continue}const root=asRecord(d),candidate=asRecord(asArray(root.candidates)[0]),content=asRecord(candidate.content),parts=asArray(content.parts).map(asRecord),text=parts.filter(part=>!part.thought).map(part=>String(part.text||"")).join("\n").trim();if(!text){errors.push(`${model}:empty-response`);continue}return text}catch(error:unknown){const name=error&&typeof error==="object"&&"name" in error?String((error as {name?:unknown}).name):"",raw=String(name==="TimeoutError"?"timeout":error instanceof Error?error.message:error).replace(/[\r\n\t]+/g," ").slice(0,180);errors.push(`${model}:${raw}`)}}throw providerError(`gemini-model-chain-failed:${errors.join(" | ")}`,lastStatus)}
 
 export function configuredVivitoProviders():VivitoProviderName[]{
-  const providers:VivitoProviderName[]=[];if(gatewayConfigured())providers.push("gateway");if(openRouterFreeConfigured())providers.push("openrouter-free");
-  // Free-only production includes only providers that runtime-enforce zero-price models.
+  const providers:VivitoProviderName[]=[];if(gatewayConfigured())providers.push("gateway");if(openRouterFreeConfigured())providers.push("openrouter-free");if(groqFreeConfigured())providers.push("groq-free");
+  // Free-only production includes only adapters whose model pool is explicitly constrained to a no-charge/free-plan surface.
   if(!vivitoFreeOnlyMode()){if(process.env.GEMINI_API_KEY)providers.push("gemini");if(vivitoMeshSummary().configured>0)providers.push("mesh");if(process.env.ANTHROPIC_API_KEY)providers.push("claude")}
   return providers;
 }
@@ -45,13 +46,13 @@ function requestFromPrompt(prompt:string){const hit=prompt.match(/(?:QUESTION|US
 function isGeneralAdvisorSystem(system:string){return /You are VIVITO — VIVIT Operating Intelligence/i.test(system)&&!/VIVITO Action Planner|VIVITO Operating Orchestrator|Artifact|Memory Planner|Competitive|independent VIVITO critic|VIVITO RED TEAM/i.test(system)}
 function localActionFallback(prompt:string,system:string,attempted:VivitoProviderName[],errors:string[],started:number){if(!/VIVITO Action Planner/i.test(system))return null;const local=generateLocalActionPlanV2(prompt,system);if(!local)return null;const next=[...attempted,"local" as const],text=repairOrFallbackVivitoActionPlan(prompt,system,local.text);console.warn("VIVITO structured local action fallback",{attempted:next,errors:errors.slice(-6),localModel:local.modelId});return{text,provider:"local" as const,attempted:next,errors,latencyMs:Date.now()-started,modelId:local.modelId}}
 function transparentAdvisorFailure(prompt:string,attempted:VivitoProviderName[],errors:string[],started:number):VivitoGeneration{const question=requestFromPrompt(prompt),arabic=/[\u0600-\u06ff]/.test(question),text=arabic?"تعذر على VIVITO إكمال الرد على طلبك الحالي عبر نماذج الـAI المجانية المتاحة. لم أستبدل سؤالك برد جاهز أو بملخص ERP غير مرتبط. أعد المحاولة مرة أخرى.":"VIVITO could not complete this request through the currently available free AI models. Your question was not replaced with a canned response or an unrelated ERP summary. Please retry.";console.warn("VIVITO free model pool unavailable",{attempted,errors:errors.slice(-6)});return{text,provider:"local",attempted:[...attempted,"local"],errors,latencyMs:Date.now()-started,modelId:"vivito-free-pool-unavailable-v1"}}
-function overrideProvider(options:GenerateOptions):ExternalProvider|undefined{if(!options.modelId)return undefined;if(options.modelProvider)return options.modelProvider;return options.modelId.endsWith(":free")?"openrouter-free":"gateway"}
+function overrideProvider(options:GenerateOptions):ExternalProvider|undefined{if(!options.modelId)return undefined;if(options.modelProvider)return options.modelProvider;if(GROQ_FREE_MODEL_IDS.includes(options.modelId as (typeof GROQ_FREE_MODEL_IDS)[number]))return"groq-free";return options.modelId.endsWith(":free")?"openrouter-free":"gateway"}
 
 export async function generateVivito(prompt:string,system:string,options:GenerateOptions={}):Promise<VivitoGeneration>{
   const started=Date.now(),configured=configuredVivitoProviders(),attempted:VivitoProviderName[]=[],errors:string[]=[],forced=overrideProvider(options);
   if(forced&&!configured.includes(forced))throw new Error("requested-model-provider-not-configured");
   if(!configured.length){errors.push(vivitoFreeOnlyMode()?"external:free-provider-not-configured":"external:provider-not-configured");const local=localActionFallback(prompt,system,attempted,errors,started);if(local)return local;if(isGeneralAdvisorSystem(system))return transparentAdvisorFailure(prompt,attempted,errors,started);throw new Error("provider-not-configured")}
-  const defaultOrder:VivitoProviderName[]=vivitoFreeOnlyMode()?["gateway","openrouter-free"]:["gateway","openrouter-free","gemini","mesh","claude"];
+  const defaultOrder:VivitoProviderName[]=vivitoFreeOnlyMode()?["gateway","openrouter-free","groq-free"]:["gateway","openrouter-free","groq-free","gemini","mesh","claude"];
   const requested=forced?[forced]:(options.preferred||defaultOrder),preferred=requested.filter(p=>p!=="local"&&configured.includes(p)),baseOrder=forced?preferred:[...preferred,...configured.filter(p=>!preferred.includes(p))];
   const order=[...baseOrder.filter(p=>vivitoProviderCooldownRemaining(p)===0),...baseOrder.filter(p=>vivitoProviderCooldownRemaining(p)>0)];
   for(const provider of order){
@@ -59,6 +60,7 @@ export async function generateVivito(prompt:string,system:string,options:Generat
     try{
       if(provider==="gateway"){const result=await callGateway(prompt,system,options),text=repairOrFallbackVivitoActionPlan(prompt,system,result.text);clearVivitoProviderCooldown(provider);return{text,provider,attempted,errors,latencyMs:Date.now()-started,modelId:result.modelId}}
       if(provider==="openrouter-free"){const result=await generateViaOpenRouterFreeMesh(prompt,system,options),text=repairOrFallbackVivitoActionPlan(prompt,system,result.text);clearVivitoProviderCooldown(provider);return{text,provider,attempted,errors:[...errors,...result.errors],latencyMs:Date.now()-started,modelId:result.modelId}}
+      if(provider==="groq-free"){const result=await generateViaGroqFreeMesh(prompt,system,options),text=repairOrFallbackVivitoActionPlan(prompt,system,result.text);clearVivitoProviderCooldown(provider);return{text,provider,attempted,errors:[...errors,...result.errors],latencyMs:Date.now()-started,modelId:result.modelId}}
       if(provider==="mesh"){const result=await generateViaVivitoMesh(prompt,system,options),text=repairOrFallbackVivitoActionPlan(prompt,system,result.text);clearVivitoProviderCooldown(provider);return{text,provider,attempted,errors:[...errors,...result.errors],latencyMs:Date.now()-started,modelId:result.modelId}}
       const generated=provider==="gemini"?await callGemini(prompt,system,options):await callClaude(prompt,system,options),text=repairOrFallbackVivitoActionPlan(prompt,system,generated);clearVivitoProviderCooldown(provider);return{text,provider,attempted,errors,latencyMs:Date.now()-started}
     }catch(error:unknown){const failure=classifyVivitoProviderFailure(error,errorStatus(error));markVivitoProviderCooldown(provider,failure);errors.push(safeError(provider,error));if(forced)break}

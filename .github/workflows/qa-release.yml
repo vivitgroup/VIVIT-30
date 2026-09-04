@@ -68,6 +68,7 @@ jobs:
           npx drizzle-kit push --force
           PGPASSWORD=vivito psql -h 127.0.0.1 -U vivito -d postgres -v ON_ERROR_STOP=1 -c "create database vivito_vgroup_qa_release"
           DRIZZLE_DATABASE_URL="$VGROUP_DATABASE_URL" DATABASE_URL="$VGROUP_DATABASE_URL" npx drizzle-kit push --force
+          node scripts/qa-bootstrap-vgroup-tech.mjs
 
       - name: Full release build
         run: npm run build

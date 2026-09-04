@@ -1,17 +1,141 @@
+import Image from "next/image";
 import Link from "next/link";
+import type { CSSProperties } from "react";
+import styles from "./page.module.css";
 
-const workspaces=[
-  {key:"group",title:"Vivit Group",subtitle:"Executive control · consolidated decisions · cross-company view",href:"/group/enter/group",accent:"#63b3ff"},
-  {key:"marketing",title:"Vivit Marketing",subtitle:"Clients · campaigns · creative · media · finance",href:"/login?workspace=marketing",accent:"#ef4b55"},
-  {key:"tech",title:"Vivit Technology",subtitle:"Projects · delivery · support · SaaS · billing",href:"/group/enter/tech",accent:"#56c8ff"},
-  {key:"hospitality",title:"Vivit Hospitality",subtitle:"Properties · reservations · owners · operations",href:"/group/enter/hospitality",accent:"#d6ad62"},
+const workspaces = [
+  {
+    key: "group",
+    title: "VIVIT GROUP",
+    titleLead: "VIVIT",
+    titleAccent: "GROUP",
+    tagline: <>A BRIGHTER<br />TOMORROW</>,
+    backTitle: "One group. One operating view.",
+    backCopy: "Executive control, consolidated decisions, and a live cross-company view.",
+    href: "/group/enter/group",
+    accent: "#1669a9",
+    soft: "rgba(43, 126, 190, .22)",
+  },
+  {
+    key: "hospitality",
+    title: "VIVIT-HOSPITALITY",
+    titleLead: "VIVIT-",
+    titleAccent: "HOSPITALITY",
+    tagline: <>YOU OWN<br />WE HANDLE</>,
+    backTitle: "Hospitality, fully handled.",
+    backCopy: "Properties, reservations, owners, operations, finance, and guest experience.",
+    href: "/group/enter/hospitality",
+    accent: "#b78837",
+    soft: "rgba(214, 173, 98, .28)",
+  },
+  {
+    key: "marketing",
+    title: "VIVIT-MARKETING",
+    titleLead: "VIVIT-",
+    titleAccent: "MARKETING",
+    tagline: <>IDEAS<br />THAT GROW</>,
+    backTitle: "Ideas connected to growth.",
+    backCopy: "Clients, campaigns, creative, media, performance, approvals, and finance.",
+    href: "/login?workspace=marketing",
+    accent: "#cf3742",
+    soft: "rgba(216, 69, 76, .20)",
+  },
+  {
+    key: "tech",
+    title: "VIVIT-TECHNOLOGY",
+    titleLead: "VIVIT-",
+    titleAccent: "TECHNOLOGY",
+    tagline: <>SOLUTIONS<br />THAT SCALE</>,
+    backTitle: "Technology built to scale.",
+    backCopy: "Projects, delivery, SaaS, subscriptions, support, billing, and product operations.",
+    href: "/group/enter/tech",
+    accent: "#2ca7dc",
+    soft: "rgba(75, 184, 227, .23)",
+  },
 ] as const;
 
-export default function RootPage(){
-  return <main style={{minHeight:"100vh",background:"radial-gradient(circle at 10% 0%,rgba(72,163,255,.12),transparent 28%),radial-gradient(circle at 90% 10%,rgba(214,173,98,.10),transparent 26%),#070a0f",color:"#f8fafc",fontFamily:"Inter,system-ui,sans-serif",padding:"42px 20px"}}>
-    <section style={{maxWidth:1220,margin:"0 auto"}}>
-      <div style={{marginBottom:36}}><div style={{fontSize:12,fontWeight:900,letterSpacing:".22em",color:"#9fb1c7"}}>VIVIT OPERATING SYSTEM</div><h1 style={{fontSize:"clamp(42px,7vw,78px)",lineHeight:1,letterSpacing:"-.055em",margin:"14px 0 16px"}}>Where are you<br/>working today?</h1><p style={{maxWidth:720,color:"#9ba8b8",lineHeight:1.7,fontSize:17}}>Choose your workspace first. An existing authorized VIVIT session is reused only when its role is valid for that workspace; otherwise you will be asked to sign in.</p></div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(250px,1fr))",gap:16}}>{workspaces.map(item=><Link key={item.key} href={item.href} style={{textDecoration:"none",color:"inherit"}}><article style={{minHeight:300,borderRadius:28,padding:24,border:`1px solid ${item.accent}55`,background:`linear-gradient(150deg,${item.accent}20,rgba(255,255,255,.035) 52%,rgba(255,255,255,.015))`,display:"flex",flexDirection:"column",justifyContent:"space-between",boxShadow:"0 24px 70px rgba(0,0,0,.28)"}}><div><div style={{width:58,height:58,borderRadius:18,border:`1px solid ${item.accent}88`,display:"grid",placeItems:"center",fontWeight:950,color:item.accent}}>{item.key==="group"?"VG":item.key==="marketing"?"M":item.key==="tech"?"T":"H"}</div><h2 style={{fontSize:28,letterSpacing:"-.035em",margin:"24px 0 10px"}}>{item.title}</h2><p style={{color:"#9ba8b8",lineHeight:1.6,margin:0}}>{item.subtitle}</p></div><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:12,fontWeight:900,letterSpacing:".08em"}}><span>CHOOSE WORKSPACE</span><span style={{fontSize:24,color:item.accent}}>→</span></div></article></Link>)}</div>
-    </section>
-  </main>;
+export default function RootPage() {
+  return (
+    <main className={styles.page}>
+      <section className={styles.shell}>
+        <header className={styles.topBar}>
+          <div className={styles.topLeft}>
+            PEOPLE<br />IDEAS<br />IMPACT
+          </div>
+          <div className={styles.topRight}>
+            <span className={styles.topRule} />
+            <span>ONE GROUP<br />A BRIGHTER TOMORROW</span>
+          </div>
+        </header>
+
+        <div className={styles.hero}>
+          <div className={styles.logoWrap}>
+            <Image
+              src="/vivit-logo.png"
+              alt="VIVIT Group"
+              width={640}
+              height={280}
+              priority
+              className={styles.logo}
+            />
+          </div>
+          <p className={styles.tagline}>
+            DIFFERENT EXPERTISE<br />A STRONGER TOMORROW
+          </p>
+          <div className={styles.heroRule} />
+          <div className={styles.portalLabel}>CHOOSE YOUR PORTAL</div>
+        </div>
+
+        <div className={styles.grid}>
+          {workspaces.map((item) => (
+            <Link
+              key={item.key}
+              href={item.href}
+              className={styles.cardLink}
+              aria-label={`Open ${item.title}`}
+              style={{
+                "--accent": item.accent,
+                "--soft": item.soft,
+              } as CSSProperties}
+            >
+              <div className={styles.cardInner}>
+                <article className={`${styles.face} ${styles.front}`}>
+                  <div className={styles.brandBlock}>
+                    <div className={styles.mark} aria-hidden="true" />
+                    <h2 className={styles.title}>
+                      <span>{item.titleLead}</span>
+                      <span className={styles.titleAccent}>{item.titleAccent}</span>
+                    </h2>
+                    <div className={styles.shortRule} />
+                    <p className={styles.cardTagline}>{item.tagline}</p>
+                  </div>
+
+                  <div className={styles.actionWrap}>
+                    <span className={styles.actionButton} aria-hidden="true">→</span>
+                    <span className={styles.flipHint}>Hover to flip 180°</span>
+                  </div>
+                </article>
+
+                <article className={`${styles.face} ${styles.back}`} aria-hidden="true">
+                  <div className={styles.backContent}>
+                    <div className={styles.backKicker}>{item.title}</div>
+                    <h3 className={styles.backTitle}>{item.backTitle}</h3>
+                    <p className={styles.backCopy}>{item.backCopy}</p>
+                    <span className={styles.enterPill}>ENTER PORTAL <span>→</span></span>
+                  </div>
+                </article>
+              </div>
+            </Link>
+          ))}
+        </div>
+
+        <footer className={styles.footer}>
+          <div className={styles.socials} aria-label="VIVIT social channels">
+            <span>in</span><span>◎</span><span>▶</span>
+          </div>
+          <div>© 2026 VIVIT GROUP. ALL RIGHTS RESERVED.</div>
+        </footer>
+      </section>
+    </main>
+  );
 }

@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import type { CSSProperties } from "react";
 import styles from "./page.module.css";
 
 const workspaces = [
@@ -95,7 +96,7 @@ export default function RootPage() {
               style={{
                 "--accent": item.accent,
                 "--soft": item.soft,
-              } as React.CSSProperties}
+              } as CSSProperties}
             >
               <div className={styles.cardInner}>
                 <article className={`${styles.face} ${styles.front}`}>

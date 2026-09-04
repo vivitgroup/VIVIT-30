@@ -1,6 +1,7 @@
 import fs from "node:fs";
 const r=p=>fs.readFileSync(p,"utf8"),checks=[],check=(n,o)=>checks.push({name:n,ok:Boolean(o)});
 const portal=r("app/dashboard/portal/page.tsx"),calendar=r("app/dashboard/calendar/page.tsx"),analytics=r("app/dashboard/analytics/page.tsx"),kpis=r("app/dashboard/kpis/page.tsx"),forecast=r("app/dashboard/forecast/page.tsx"),ltv=r("app/dashboard/ltv/page.tsx"),wa=r("components/whatsapp/WhatsAppWorkspace.tsx");
+const techOps=r("app/api/vgroup/tech/operations/route.ts"),techSales=r("app/api/vgroup/tech/sales-delivery/route.ts");
 check("Client Portal contains no demo gallery",!portal.includes("PortalDemoGallery"));
 check("Client Portal contains no demo schedules",!portal.includes("Demo schedule")&&!portal.includes("Campaign Launch Reel"));
 check("Calendar contains no demo client component",!calendar.includes("ClientCalendarDemo"));
@@ -21,4 +22,14 @@ check("LTV active clients are workspace scoped",ltv.includes("eq(clients.workspa
 check("LTV collected revenue is workspace scoped",ltv.includes("eq(financeRecords.workspaceId,workspaceId)"));
 check("LTV explicitly distinguishes actual from estimated",ltv.includes("actual collected")&&ltv.includes("estimated total"));
 check("WhatsApp UI does not fake Cloud API availability",wa.includes("hasRealAPI")&&wa.includes("needs WHATSAPP_TOKEN + WHATSAPP_PHONE_ID"));
+check("Tech operations resolve active Tech business unit",techOps.includes("code='tech' and status='active'")&&techOps.includes("business_unit_id=${buId}::uuid"));
+check("Tech operations project writes fail closed on project scope",techOps.includes("requireProject(sql,buId,projectId)")&&techOps.includes('PROJECT_NOT_FOUND'));
+check("Tech deliverables bind optional phase and milestone to the same project",techOps.includes("project_phases where id=${phaseId}::uuid and project_id=${projectId}::uuid")&&techOps.includes("project_milestones where id=${milestoneId}::uuid and project_id=${projectId}::uuid"));
+check("Tech UAT and issue references bind to the same project",techOps.includes("deliverables where id=${deliverableId}::uuid and project_id=${projectId}::uuid")&&techOps.includes("uat_cycles where id=${uatCycleId}::uuid and project_id=${projectId}::uuid"));
+check("Tech releases bind environment to the same project",techOps.includes("project_environments where id=${environmentId}::uuid and project_id=${projectId}::uuid"));
+check("Tech support and feedback enforce project client consistency",techOps.includes('PROJECT_CLIENT_MISMATCH')&&techOps.includes("client_id=${clientId}::uuid and archived_at is null"));
+check("Tech sales opportunities validate optional lead and client scope",techSales.includes('LEAD_NOT_FOUND')&&techSales.includes("sales_leads where id=${leadId}::uuid and business_unit_id=${buId}::uuid")&&techSales.includes('CLIENT_NOT_FOUND'));
+check("Tech proposals bind opportunity to selected Tech client",techSales.includes('OPPORTUNITY_CLIENT_MISMATCH')&&techSales.includes("sales_opportunities where id=${opportunityId}::uuid and business_unit_id=${buId}::uuid"));
+check("Tech support tickets validate project contract and subscription relationships",techSales.includes('PROJECT_CLIENT_MISMATCH')&&techSales.includes('SUPPORT_CONTRACT_MISMATCH')&&techSales.includes('SUBSCRIPTION_CLIENT_MISMATCH'));
+check("Tech handover items fail closed on Tech project scope",techSales.includes('PROJECT_NOT_FOUND')&&techSales.includes("techProject(sql,buId,projectId)"));
 const failed=checks.filter(x=>!x.ok);for(const c of checks)console.log(`${c.ok?"PASS":"FAIL"}  ${c.name}`);console.log(`\n${checks.length-failed.length}/${checks.length} feature reality checks passed.`);if(failed.length)process.exit(1);

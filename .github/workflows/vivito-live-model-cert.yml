@@ -17,8 +17,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 12
     env:
-      AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -27,16 +27,18 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - name: Verify router failover and manual pinning contracts
-        run: npx tsx scripts/qa-vivito-model-mesh-v1.ts
-      - name: Verify OAuth runtime certification wiring
         run: |
-          grep -F 'qa-vivito-live-model-cert-preview.mjs' scripts/vercel-build.mjs
+          npx tsx scripts/qa-vivito-model-mesh-v1.ts
+          npx tsx scripts/qa-vivito-groq-free.ts
+      - name: Verify runtime certification wiring
+        run: |
           grep -F '/api/vivito/openrouter/certify' app/group/vivito/page.tsx
           grep -F 'OPENROUTER_KEY_COOKIE' app/api/vivito/openrouter/callback/route.ts
-          grep -F 'OAuth-based OpenRouter runtime certification' scripts/qa-vivito-live-model-cert-preview.mjs
-      - name: Run full multi-provider live certification when both CI credentials exist
-        if: ${{ env.AI_GATEWAY_API_KEY != '' && env.OPENROUTER_API_KEY != '' }}
+          grep -F 'groq-free' app/api/vivito/openrouter/certify/route.ts
+          grep -F 'GROQ_API_KEY' lib/vivito/groq-free-mesh-v1.ts
+      - name: Run full multi-provider live certification when both free-provider credentials exist
+        if: ${{ env.OPENROUTER_API_KEY != '' && env.GROQ_API_KEY != '' }}
         run: npx tsx scripts/qa-vivito-live-model-cert.ts
       - name: Declare post-deploy proof source otherwise
-        if: ${{ env.OPENROUTER_API_KEY == '' }}
-        run: echo 'Final >=20 distinct free-model proof is authenticated post-deploy via OpenRouter OAuth and /api/vivito/openrouter/certify. Vercel AI Gateway is optional.'
+        if: ${{ env.OPENROUTER_API_KEY == '' || env.GROQ_API_KEY == '' }}
+        run: echo 'Final >=20 distinct free-model proof is post-deploy through OpenRouter OAuth plus the Groq Free Plan adapter. Both providers must return exact-pinned live responses; no router aliases count as extra models.'

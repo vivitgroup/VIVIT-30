@@ -13,10 +13,16 @@ for(const [name,value] of Object.entries({VGROUP_DATABASE_URL:groupDatabaseUrl,V
 
 const sql=postgres(groupDatabaseUrl,{ssl:false,max:1,prepare:false});
 const runId=String(process.env.GITHUB_RUN_ID||Date.now());
-const personas=[
+const hospitalityPersonas=[
   {name:"owner",role:"OWNER"},
   {name:"manager",role:"PROPERTY_MANAGER"},
   {name:"staff",role:"HOSPITALITY_ADMIN"},
+];
+const techPersonas=[
+  {name:"tech-admin",role:"TECH_ADMIN",permissions:[["projects","view"],["projects","create"],["projects","update"],["billing","update"],["change_requests","update"],["change_requests","approve"],["saas","view"]]},
+  {name:"tech-pm",role:"PROJECT_MANAGER",permissions:[["projects","view"],["projects","create"],["projects","update"],["change_requests","update"]]},
+  {name:"tech-finance",role:"TECH_FINANCE",permissions:[["projects","view"],["billing","update"]]},
+  {name:"tech-client",role:"TECH_CLIENT",permissions:[]},
 ];
 
 function assert(condition,message){if(!condition)throw new Error(message)}
@@ -180,7 +186,7 @@ async function addMembership(userId,businessUnitId,roleId){
 async function login(user){
   const response=await fetch(`${baseUrl}/api/vgroup/auth/login`,{
     method:"POST",
-    headers:{"Content-Type":"application/json","x-forwarded-for":`127.0.0.${user.name==='owner'?2:user.name==='manager'?3:4}`},
+    headers:{"Content-Type":"application/json","x-forwarded-for":`127.0.0.${Math.floor(Math.random()*200)+20}`},
     body:JSON.stringify({email:user.email,password:user.password}),
     redirect:"manual",
   });
@@ -191,8 +197,10 @@ async function login(user){
   return cookie;
 }
 
-async function request(path,{cookie,method="GET"}={}){
-  return fetch(`${baseUrl}${path}`,{method,headers:cookie?{Cookie:cookie}:{},redirect:"manual"});
+async function request(path,{cookie,method="GET",body,headers={}}={}){
+  const requestHeaders={...headers,...(cookie?{Cookie:cookie}:{})};
+  if(body!==undefined&&!requestHeaders["Content-Type"])requestHeaders["Content-Type"]="application/json";
+  return fetch(`${baseUrl}${path}`,{method,headers:requestHeaders,body:body===undefined?undefined:typeof body==="string"?body:JSON.stringify(body),redirect:"manual"});
 }
 
 function assertRedirect(response,expectedPath,label){
@@ -206,25 +214,29 @@ async function main(){
   assert(unauthenticated.status===401,`unauthenticated_gate_expected_401_got_${unauthenticated.status}`);
   console.log("PASS unauthenticated hospitality API is rejected (401)");
 
+  const unauthenticatedTech=await request("/api/vgroup/tech/projects");
+  assert(unauthenticatedTech.status===401,`unauthenticated_tech_expected_401_got_${unauthenticatedTech.status}`);
+  console.log("PASS unauthenticated Tech API is rejected (401)");
+
   await bootstrapVGroupAuthContract();
 
   const hospitalityId=await ensureBusinessUnit("hospitality","الضيافة","Hospitality");
   const marketingId=await ensureBusinessUnit("marketing","التسويق","Marketing");
   const techId=await ensureBusinessUnit("tech","التكنولوجيا","Technology");
   const roleIds={};
-  for(const persona of personas)roleIds[persona.role]=await ensureRole(persona.role,hospitalityId);
+  for(const persona of hospitalityPersonas)roleIds[persona.role]=await ensureRole(persona.role,hospitalityId);
   const marketingAdminRole=await ensureRole("MARKETING_ADMIN",marketingId);
-  const techAdminRole=await ensureRole("TECH_ADMIN",techId);
+  const techAdminBridgeRole=await ensureRole("TECH_ADMIN",techId);
   const purchaseOrderApprove=await ensurePermission("purchase_orders","approve",hospitalityId);
   await grant(roleIds.HOSPITALITY_ADMIN,purchaseOrderApprove);
 
   const users=[];
-  for(const persona of personas){
+  for(const persona of hospitalityPersonas){
     const user=await createAuthUser(persona);
     const groupUserId=await bridgeGroupIdentity(user,hospitalityId,roleIds[persona.role]);
     if(persona.name==="staff"){
       await addMembership(groupUserId,marketingId,marketingAdminRole);
-      await addMembership(groupUserId,techId,techAdminRole);
+      await addMembership(groupUserId,techId,techAdminBridgeRole);
     }
     users.push(user);
   }
@@ -233,6 +245,21 @@ async function main(){
   for(const user of users){
     sessions[user.name]=await login(user);
     console.log(`PASS ${user.role} authenticated through /api/vgroup/auth/login with a real Supabase session`);
+  }
+
+  const techUsers={};
+  const techSessions={};
+  for(const persona of techPersonas){
+    const roleId=await ensureRole(persona.role,techId);
+    for(const [module,action] of persona.permissions){
+      const permissionId=await ensurePermission(module,action,techId);
+      await grant(roleId,permissionId);
+    }
+    const user=await createAuthUser(persona);
+    await bridgeGroupIdentity(user,techId,roleId);
+    techUsers[persona.name]=user;
+    techSessions[persona.name]=await login(user);
+    console.log(`PASS ${persona.role} authenticated through /api/vgroup/auth/login with a real Supabase session`);
   }
 
   const groupHome=await request("/group",{cookie:sessions.staff});
@@ -271,8 +298,71 @@ async function main(){
   assert(staffAllowed.status===400,`staff_po_permission_expected_400_after_authorization_got_${staffAllowed.status}`);
   console.log("PASS HOSPITALITY_ADMIN passes purchase_orders:approve RBAC and reaches route validation (400)");
 
+  for(const persona of techPersonas){
+    const entry=await request("/group/enter/tech",{cookie:techSessions[persona.name]});
+    assertRedirect(entry,"/group/tech",`${persona.name}_tech_entry`);
+    console.log(`PASS ${persona.role} enters the Tech workspace through the authenticated membership boundary`);
+  }
+
+  const techAdminProjects=await request("/api/vgroup/tech/projects",{cookie:techSessions["tech-admin"]});
+  assert(techAdminProjects.status===200,`tech_admin_projects_view_expected_200_got_${techAdminProjects.status}`);
+  console.log("PASS TECH_ADMIN reaches projects:view runtime API (200)");
+
+  const techPmProjects=await request("/api/vgroup/tech/projects",{cookie:techSessions["tech-pm"]});
+  assert(techPmProjects.status===200,`tech_pm_projects_view_expected_200_got_${techPmProjects.status}`);
+  console.log("PASS PROJECT_MANAGER reaches projects:view runtime API (200)");
+
+  const techFinanceProjects=await request("/api/vgroup/tech/projects",{cookie:techSessions["tech-finance"]});
+  assert(techFinanceProjects.status===200,`tech_finance_projects_view_expected_200_got_${techFinanceProjects.status}`);
+  console.log("PASS TECH_FINANCE reaches explicitly granted projects:view runtime API (200)");
+
+  const techClientProjects=await request("/api/vgroup/tech/projects",{cookie:techSessions["tech-client"]});
+  assert(techClientProjects.status===403,`tech_client_projects_expected_403_got_${techClientProjects.status}`);
+  console.log("PASS TECH_CLIENT cannot bypass projects:view permission (403)");
+
+  const adminCreateValidation=await request("/api/vgroup/tech/projects",{cookie:techSessions["tech-admin"],method:"POST",body:{}});
+  assert(adminCreateValidation.status===400,`tech_admin_project_create_expected_400_after_auth_got_${adminCreateValidation.status}`);
+  console.log("PASS TECH_ADMIN passes projects:create and reaches payload validation (400)");
+
+  const pmCreateValidation=await request("/api/vgroup/tech/projects",{cookie:techSessions["tech-pm"],method:"POST",body:{}});
+  assert(pmCreateValidation.status===400,`tech_pm_project_create_expected_400_after_auth_got_${pmCreateValidation.status}`);
+  console.log("PASS PROJECT_MANAGER passes projects:create and reaches payload validation (400)");
+
+  const financeCreateDenied=await request("/api/vgroup/tech/projects",{cookie:techSessions["tech-finance"],method:"POST",body:{}});
+  assert(financeCreateDenied.status===403,`tech_finance_project_create_expected_403_got_${financeCreateDenied.status}`);
+  console.log("PASS TECH_FINANCE cannot bypass projects:create permission (403)");
+
+  const adminSaas=await request("/api/vgroup/tech/saas",{cookie:techSessions["tech-admin"]});
+  assert(adminSaas.status===200,`tech_admin_saas_expected_200_got_${adminSaas.status}`);
+  console.log("PASS TECH_ADMIN reaches saas:view runtime API (200)");
+
+  const pmSaasDenied=await request("/api/vgroup/tech/saas",{cookie:techSessions["tech-pm"]});
+  assert(pmSaasDenied.status===403,`tech_pm_saas_expected_403_got_${pmSaasDenied.status}`);
+  console.log("PASS PROJECT_MANAGER cannot bypass saas:view permission (403)");
+
+  const financePaymentValidation=await request("/api/vgroup/tech/installments/not-a-uuid/pay",{cookie:techSessions["tech-finance"],method:"POST",body:{amount:10}});
+  assert([400,409].includes(financePaymentValidation.status),`tech_finance_billing_expected_validation_after_auth_got_${financePaymentValidation.status}`);
+  console.log("PASS TECH_FINANCE passes billing:update and reaches installment validation");
+
+  const clientPaymentDenied=await request("/api/vgroup/tech/installments/not-a-uuid/pay",{cookie:techSessions["tech-client"],method:"POST",body:{amount:10}});
+  assert(clientPaymentDenied.status===403,`tech_client_billing_expected_403_got_${clientPaymentDenied.status}`);
+  console.log("PASS TECH_CLIENT cannot bypass billing:update permission (403)");
+
+  const adminChangeRequestValidation=await request("/api/vgroup/tech/change-requests/not-a-uuid/price",{cookie:techSessions["tech-admin"],method:"POST",body:{price:100,extraDays:1}});
+  assert(adminChangeRequestValidation.status===400,`tech_admin_cr_update_expected_400_after_auth_got_${adminChangeRequestValidation.status}`);
+  console.log("PASS TECH_ADMIN passes change_requests:update and reaches route validation (400)");
+
+  const financeChangeRequestDenied=await request("/api/vgroup/tech/change-requests/not-a-uuid/price",{cookie:techSessions["tech-finance"],method:"POST",body:{price:100,extraDays:1}});
+  assert(financeChangeRequestDenied.status===403,`tech_finance_cr_update_expected_403_got_${financeChangeRequestDenied.status}`);
+  console.log("PASS TECH_FINANCE cannot bypass change_requests:update permission (403)");
+
+  const techClientPortal=await request("/api/vgroup/tech/client-portal",{cookie:techSessions["tech-client"]});
+  assert(techClientPortal.status===200,`tech_client_portal_expected_200_got_${techClientPortal.status}`);
+  console.log("PASS TECH_CLIENT reaches isolated Tech client portal API (200)");
+
   console.log("FOUR_WORKSPACE_ENTRY_E2E: PASS (GROUP / MARKETING NATIVE BOUNDARY / HOSPITALITY / TECH)");
   console.log("AUTHENTICATED_ROLE_BY_ROLE_E2E: PASS (OWNER / PROPERTY_MANAGER / HOSPITALITY_ADMIN)");
+  console.log("AUTHENTICATED_TECH_ROLE_E2E: PASS (TECH_ADMIN / PROJECT_MANAGER / TECH_FINANCE / TECH_CLIENT)");
 }
 
 try{

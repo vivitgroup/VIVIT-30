@@ -8,11 +8,11 @@ const uuid=/^[0-9a-f-]{36}$/i;
 
 export async function POST(request:Request){
   try{
-    await requireApiPermission("hospitality","reservations:create");
+    const session=await requireApiPermission("hospitality","reservations:create");
     const body=await request.json().catch(()=>null) as {channelId?:string}|null;
     const channelId=String(body?.channelId??"");
     if(!uuid.test(channelId))return NextResponse.json({error:"Invalid channel id"},{status:400,headers:NO_STORE});
-    try{return NextResponse.json(await syncAirbnbChannel(channelId),{headers:NO_STORE})}
+    try{return NextResponse.json(await syncAirbnbChannel(channelId,session.userId),{headers:NO_STORE})}
     catch(error){return NextResponse.json({error:error instanceof Error?error.message:"Airbnb calendar sync failed"},{status:502,headers:NO_STORE})}
   }catch(error){return apiErrorResponse(error)}
 }

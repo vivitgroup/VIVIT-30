@@ -18,7 +18,8 @@ begin
   select module,action,v_bu
   from (values
     ('properties','view'),('properties','create'),('properties','update'),('properties','delete'),
-    ('reservations','view'),('reservations','create'),('reservations','update'),('reservations','delete')
+    ('reservations','view'),('reservations','create'),('reservations','update'),('reservations','delete'),
+    ('maintenance','approve'),('purchase_orders','approve')
   ) as required(module,action)
   on conflict(module,action,business_unit_id) do nothing;
 
@@ -26,8 +27,10 @@ begin
   select v_admin,p.id
   from vgroup.permissions p
   where p.business_unit_id=v_bu
-    and p.module in ('properties','reservations')
-    and p.action in ('view','create','update','delete')
+    and (
+      (p.module in ('properties','reservations') and p.action in ('view','create','update','delete'))
+      or (p.module in ('maintenance','purchase_orders') and p.action='approve')
+    )
   on conflict(role_id,permission_id) do nothing;
 
   insert into vgroup.role_permissions(role_id,permission_id)

@@ -84,6 +84,13 @@ async function bootstrapVGroupAuthContract(){
       updated_at timestamptz not null default now(),
       unique(user_id,business_unit_id,role_id)
     );
+
+    create table if not exists vgroup.auth_rate_limits (
+      key_hash text primary key,
+      window_start timestamptz not null default now(),
+      attempt_count integer not null default 0 check (attempt_count >= 0),
+      updated_at timestamptz not null default now()
+    );
   `);
   console.log("PASS isolated VGroup auth/RBAC contract bootstrapped");
 }

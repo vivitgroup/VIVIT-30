@@ -21,6 +21,73 @@ const personas=[
 
 function assert(condition,message){if(!condition)throw new Error(message)}
 
+async function bootstrapVGroupAuthContract(){
+  await sql.unsafe(`
+    create schema if not exists vgroup;
+
+    create table if not exists vgroup.business_units (
+      id uuid primary key default gen_random_uuid(),
+      code text not null unique,
+      display_name_ar text not null,
+      display_name_en text not null,
+      status text not null default 'active',
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    );
+
+    create table if not exists vgroup.users (
+      id uuid primary key default gen_random_uuid(),
+      external_auth_id text unique,
+      email text not null unique,
+      full_name text not null,
+      phone text,
+      preferred_language text not null default 'en',
+      status text not null default 'active',
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    );
+
+    create table if not exists vgroup.roles (
+      id uuid primary key default gen_random_uuid(),
+      code text not null,
+      business_unit_id uuid references vgroup.business_units(id),
+      description text,
+      is_system boolean not null default true,
+      created_at timestamptz not null default now(),
+      unique(code,business_unit_id)
+    );
+
+    create table if not exists vgroup.permissions (
+      id uuid primary key default gen_random_uuid(),
+      module text not null,
+      action text not null,
+      business_unit_id uuid references vgroup.business_units(id),
+      created_at timestamptz not null default now(),
+      unique(module,action,business_unit_id)
+    );
+
+    create table if not exists vgroup.role_permissions (
+      id uuid primary key default gen_random_uuid(),
+      role_id uuid not null references vgroup.roles(id) on delete cascade,
+      permission_id uuid not null references vgroup.permissions(id) on delete cascade,
+      created_at timestamptz not null default now(),
+      unique(role_id,permission_id)
+    );
+
+    create table if not exists vgroup.user_business_unit_roles (
+      id uuid primary key default gen_random_uuid(),
+      user_id uuid not null references vgroup.users(id) on delete cascade,
+      business_unit_id uuid not null references vgroup.business_units(id) on delete cascade,
+      role_id uuid not null references vgroup.roles(id) on delete cascade,
+      status text not null default 'active',
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now(),
+      unique(user_id,business_unit_id,role_id)
+    );
+  `);
+  console.log("PASS isolated VGroup auth/RBAC contract bootstrapped");
+}
+
 async function createAuthUser(persona){
   const email=`qa-vgroup-${runId}-${persona.name}@example.com`;
   const password=`Qa!${randomUUID()}aA1`;
@@ -99,6 +166,8 @@ async function main(){
   const unauthenticated=await request("/api/vgroup/hospitality/owner-portal?propertyId=not-a-uuid");
   assert(unauthenticated.status===401,`unauthenticated_gate_expected_401_got_${unauthenticated.status}`);
   console.log("PASS unauthenticated hospitality API is rejected (401)");
+
+  await bootstrapVGroupAuthContract();
 
   const businessUnitId=await ensureBusinessUnit();
   const roleIds={};

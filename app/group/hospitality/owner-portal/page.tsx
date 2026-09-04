@@ -3,14 +3,17 @@ import {notFound} from "next/navigation";
 import {requireBusinessUnitAccess} from "@/lib/vgroup/access";
 import {OwnerPortalPanel} from "@/components/vgroup/owner-portal-panel";
 import {getVGroupSql} from "@/lib/vgroup/db";
+import {getHospitalityOwnerScope,ownerCanAccessProperty} from "@/lib/vgroup/hospitality-owner-scope";
 const uuid=/^[0-9a-f-]{36}$/i;
 export default async function Page({searchParams}:{searchParams:Promise<{propertyId?:string}>}){
-  await requireBusinessUnitAccess("hospitality");
+  const session=await requireBusinessUnitAccess("hospitality");
   const {propertyId:rawPropertyId}=await searchParams;
   if(rawPropertyId&&!uuid.test(rawPropertyId))notFound();
   const propertyId=rawPropertyId||"";
   let propertyName="";
   if(propertyId){
+    const ownerScope=await getHospitalityOwnerScope(session);
+    if(!ownerCanAccessProperty(ownerScope,propertyId))notFound();
     const sql=getVGroupSql();
     const [property]=await sql<{name:string}[]>`select name from hospitality.properties where id=${propertyId}::uuid and archived_at is null limit 1`;
     if(!property)notFound();

@@ -15,6 +15,37 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  lock-repair-artifact:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact candidate SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Use Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Regenerate package lock from manifest
+        shell: bash
+        run: |
+          rm -rf node_modules package-lock.json
+          npm install --package-lock-only --ignore-scripts
+      - name: Verify regenerated lock
+        shell: bash
+        run: |
+          npm ci
+          npm audit --omit=dev --audit-level=high
+          npm ls --all
+      - name: Upload repaired lock
+        uses: actions/upload-artifact@v4
+        with:
+          name: repaired-package-lock
+          path: package-lock.json
+          if-no-files-found: error
+          retention-days: 1
+
   release-gate:
     runs-on: ubuntu-24.04
     timeout-minutes: 25

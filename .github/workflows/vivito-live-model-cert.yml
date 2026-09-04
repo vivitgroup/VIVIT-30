@@ -39,6 +39,8 @@ jobs:
           grep -F 'canonicalModelIdentity' app/api/vivito/openrouter/certify/route.ts
           grep -F 'canonicalModelIdentity' scripts/qa-vivito-live-model-cert.ts
           grep -F 'replace(/:free$/i' app/api/vivito/openrouter/certify/route.ts
+          grep -F 'qwen/qwen3.6-27b' lib/vivito/groq-free-mesh-v1.ts
+          grep -F 'qwen/qwen3.8-27b' lib/vivito/groq-free-mesh-v1.ts
       - name: Run full multi-provider live certification when both free-provider credentials exist
         if: ${{ env.OPENROUTER_API_KEY != '' && env.GROQ_API_KEY != '' }}
         run: npx tsx scripts/qa-vivito-live-model-cert.ts

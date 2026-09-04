@@ -11,6 +11,7 @@ type Sql=ReturnType<typeof getVGroupSql>;
 async function techBu(sql:Sql){const [bu]=await sql<{id:string}[]>`select id::text from vgroup.business_units where code='tech' and status='active' limit 1`;if(!bu)throw new Error("TECH_BUSINESS_UNIT_UNAVAILABLE");return bu.id}
 async function requireProject(sql:Sql,buId:string,projectId:string){const [row]=await sql`select id from tech.projects where id=${projectId}::uuid and business_unit_id=${buId}::uuid and archived_at is null`;return Boolean(row)}
 async function requireClient(sql:Sql,buId:string,clientId:string){const [row]=await sql`select id from tech.clients where id=${clientId}::uuid and business_unit_id=${buId}::uuid and archived_at is null`;return Boolean(row)}
+async function requireTechUser(sql:Sql,buId:string,userId:string){const [row]=await sql`select u.id from vgroup.users u join vgroup.user_business_unit_roles ubr on ubr.user_id=u.id and ubr.business_unit_id=${buId}::uuid and ubr.status='active' where u.id=${userId}::uuid and u.status='active' limit 1`;return Boolean(row)}
 
 export async function GET(){
   const auth=await apiPermissionOrResponse("tech","projects:view"); if(auth instanceof NextResponse)return auth;
@@ -49,6 +50,7 @@ export async function POST(request:NextRequest){
         const userId=str(body.userId),projectId=str(body.projectId),start=str(body.periodStart),end=str(body.periodEnd),allocation=num(body.allocationPercent),capacity=num(body.capacityHours??0),allocated=num(body.allocatedHours??0);
         if(!userId||!projectId||!start||!end||!Number.isFinite(allocation)||allocation<0||allocation>100)return bad("INVALID_CAPACITY","Capacity fields are incomplete or invalid");
         if(!await requireProject(sql,buId,projectId))return bad("PROJECT_NOT_FOUND","Tech project not found",404);
+        if(!await requireTechUser(sql,buId,userId))return bad("TECH_USER_NOT_FOUND","Capacity user is not an active Tech member",404);
         const [row]=await sql`insert into tech.resource_capacity(user_id,project_id,period_start,period_end,capacity_hours,allocated_hours,allocation_percent,status) values(${userId}::uuid,${projectId}::uuid,${start}::date,${end}::date,${capacity},${allocated},${allocation},'planned') returning id::text`;
         return ok(row,201);
       }
@@ -68,11 +70,12 @@ export async function POST(request:NextRequest){
         return ok(row,201);
       }
       case "issue": {
-        const projectId=str(body.projectId),title=str(body.title),severity=str(body.severity)||"medium",uatCycleId=str(body.uatCycleId),deliverableId=str(body.deliverableId); if(!projectId||!title)return bad("INVALID_ISSUE","projectId and title are required");
+        const projectId=str(body.projectId),title=str(body.title),severity=str(body.severity)||"medium",uatCycleId=str(body.uatCycleId),deliverableId=str(body.deliverableId),ownerId=str(body.ownerId); if(!projectId||!title)return bad("INVALID_ISSUE","projectId and title are required");
         if(!await requireProject(sql,buId,projectId))return bad("PROJECT_NOT_FOUND","Tech project not found",404);
         if(uatCycleId){const [uat]=await sql`select id from tech.uat_cycles where id=${uatCycleId}::uuid and project_id=${projectId}::uuid`;if(!uat)return bad("UAT_NOT_FOUND","UAT cycle does not belong to Tech project",404)}
         if(deliverableId){const [deliverable]=await sql`select id from tech.deliverables where id=${deliverableId}::uuid and project_id=${projectId}::uuid`;if(!deliverable)return bad("DELIVERABLE_NOT_FOUND","Deliverable does not belong to Tech project",404)}
-        const [row]=await sql`insert into tech.issues(project_id,uat_cycle_id,deliverable_id,issue_type,title,description,severity,status,owner_id,due_at) values(${projectId}::uuid,${uatCycleId||null}::uuid,${deliverableId||null}::uuid,${str(body.issueType)||"bug"},${title},${str(body.description)||null},${severity},'open',${str(body.ownerId)||null}::uuid,${str(body.dueAt)||null}::timestamptz) returning id::text,status`;
+        if(ownerId&&!await requireTechUser(sql,buId,ownerId))return bad("TECH_USER_NOT_FOUND","Issue owner is not an active Tech member",404);
+        const [row]=await sql`insert into tech.issues(project_id,uat_cycle_id,deliverable_id,issue_type,title,description,severity,status,owner_id,due_at) values(${projectId}::uuid,${uatCycleId||null}::uuid,${deliverableId||null}::uuid,${str(body.issueType)||"bug"},${title},${str(body.description)||null},${severity},'open',${ownerId||null}::uuid,${str(body.dueAt)||null}::timestamptz) returning id::text,status`;
         return ok(row,201);
       }
       case "release": {

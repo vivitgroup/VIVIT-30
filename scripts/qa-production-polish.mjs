@@ -16,7 +16,7 @@ check("Health verifies database instead of static green",health.includes("db.sel
 check("Public health response is minimal disclosure",!health.includes('database:"connected"')&&!health.includes('database:"error"')&&!health.includes("pkg.version")&&!health.includes('version:'));
 check("Public health response does not expose user counts",!health.includes("users:Number")&&!health.includes("count(*)"));
 check("Health failure logging avoids raw exception detail",health.includes('error instanceof Error?error.name:"health_failure"')&&!health.includes('console.error("Health check failed",error)'));
-check("Production build runs high-severity dependency audit",String(pkg.scripts.build).includes("npm audit --audit-level=high"));
+check("Production build runs production dependency security gate",String(pkg.scripts.build).includes("node scripts/qa-production-dependency-security.mjs"));
 check("Project pins supported Node major",pkg.engines?.node==="22.x");
 check("Production build performs TypeScript check",String(pkg.scripts.build).includes("npm run type-check"));
 check("Production build ends in optimized Next build",String(pkg.scripts.build).includes("next build"));

@@ -94,6 +94,7 @@ jobs:
       - name: Built runtime smoke + authenticated role-by-role E2E
         shell: bash
         run: |
+          set -o pipefail
           npm start > /tmp/vivit-next.log 2>&1 &
           SERVER_PID=$!
           cleanup() { kill "$SERVER_PID" >/dev/null 2>&1 || true; }
@@ -111,7 +112,18 @@ jobs:
             exit 1
           fi
           BASE_URL=http://127.0.0.1:3000 npm run qa:runtime-smoke || { cat /tmp/vivit-next.log; exit 1; }
-          BASE_URL=http://127.0.0.1:3000 node scripts/qa-authenticated-role-e2e.mjs || { cat /tmp/vivit-next.log; exit 1; }
+          BASE_URL=http://127.0.0.1:3000 node scripts/qa-authenticated-role-e2e.mjs 2>&1 | tee /tmp/vivit-auth-e2e.log || { cat /tmp/vivit-next.log; exit 1; }
+
+      - name: Upload authenticated E2E diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: authenticated-role-e2e-diagnostics
+          path: |
+            /tmp/vivit-auth-e2e.log
+            /tmp/vivit-next.log
+          if-no-files-found: ignore
+          retention-days: 1
 
       - name: Stop ephemeral Supabase
         if: always()

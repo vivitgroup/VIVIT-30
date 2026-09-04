@@ -1,0 +1,63 @@
+name: One-shot lint remediation
+
+on:
+  push:
+    branches: [audit/pre-release-system-sync]
+
+permissions:
+  contents: write
+
+jobs:
+  remediate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: audit/pre-release-system-sync
+          fetch-depth: 0
+      - name: Apply exact lint remediations
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          assistant = Path('app/api/assistant/route.ts')
+          text = assistant.read_text()
+          updated, count = re.subn(
+              r'\nfunction taskAnswer\(question:string,tasks:TaskRow\[\]\)\{.*?\}\nfunction buildOperations',
+              '\nfunction buildOperations',
+              text,
+              count=1,
+              flags=re.S,
+          )
+          if count != 1:
+              raise SystemExit(f'taskAnswer replacement count={count}')
+          assistant.write_text(updated)
+
+          client = Path('app/dashboard/clients/[id]/page.tsx')
+          text = client.read_text()
+          text, c1 = re.subn(r'^const asRecord=.*?;\n', '', text, count=1, flags=re.M)
+          text, c2 = re.subn(r'^const numeric=.*?;\n', '', text, count=1, flags=re.M)
+          if c1 != 1 or c2 != 1:
+              raise SystemExit(f'client helper replacement counts={c1},{c2}')
+          client.write_text(text)
+
+          dashboard = Path('app/dashboard/page.tsx')
+          text = dashboard.read_text()
+          old = '  mediaMetrics, companyExpenses, notifications,'
+          new = '  companyExpenses, notifications,'
+          if text.count(old) != 1:
+              raise SystemExit(f'mediaMetrics import replacement count={text.count(old)}')
+          dashboard.write_text(text.replace(old, new, 1))
+      - name: Commit remediation
+        run: |
+          if git diff --quiet; then
+            echo 'No remediation changes needed.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/api/assistant/route.ts app/dashboard/clients/'[id]'/page.tsx app/dashboard/page.tsx
+          git commit -m 'fix(lint): remove remaining zero-warning blockers'
+          git push origin HEAD:audit/pre-release-system-sync

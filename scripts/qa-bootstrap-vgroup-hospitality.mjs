@@ -134,6 +134,20 @@ async function relationExists(name){
   return Boolean(row?.relation);
 }
 
+async function ensureCentralActionSchema(){
+  if(await relationExists("vgroup.approval_requests"))return;
+  const source=await readFile(new URL("../db/migrations/20260902_vgroup_business_logic_hardening_round_v1.sql",import.meta.url),"utf8");
+  const startMarker="create table if not exists vgroup.approval_requests (";
+  const endMarker="create table if not exists vgroup.permission_delegations (";
+  const start=source.indexOf(startMarker);
+  const end=source.indexOf(endMarker);
+  if(start<0||end<=start)throw new Error("canonical_vgroup_approval_requests_boundary_missing");
+  const contract=source.slice(start,end);
+  await sql.unsafe(contract);
+  if(!await relationExists("vgroup.approval_requests"))throw new Error("canonical_vgroup_approval_requests_missing");
+  console.log("PASS canonical VGroup approval-request action table applied to isolated QA database");
+}
+
 async function applyMigration(file){
   const source=await readFile(new URL(`../db/migrations/${file}`,import.meta.url),"utf8");
   await sql.unsafe(source);
@@ -159,6 +173,7 @@ async function ensureHospitalitySchema(){
     "vgroup.employees",
     "vgroup.employee_permissions",
     "vgroup.audit_logs",
+    "vgroup.approval_requests",
     "hospitality.properties",
     "hospitality.reservations",
     "hospitality.invoices",
@@ -172,6 +187,7 @@ async function ensureHospitalitySchema(){
 try{
   await ensurePgRoles();
   await ensureVGroupContract();
+  await ensureCentralActionSchema();
   await ensureHospitalitySchema();
   console.log("PASS VGroup Hospitality QA contract bootstrapped");
 }finally{

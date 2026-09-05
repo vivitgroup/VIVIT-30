@@ -1,6 +1,6 @@
 import {redirect} from "next/navigation";
 import {canAccessBusinessUnit} from "@/lib/vgroup/contracts";
-import {requireVGroupSession} from "@/lib/vgroup/session";
+import {getVGroupSession} from "@/lib/vgroup/session";
 
 type Workspace="group"|"marketing"|"tech"|"hospitality";
 const valid=new Set<Workspace>(["group","marketing","tech","hospitality"]);
@@ -16,7 +16,12 @@ export default async function WorkspaceEntry({params}:{params:Promise<{workspace
   // unfinished Group shell/integration adapter; use its native auth and app.
   if(workspace==="marketing")redirect('/login?workspace=marketing');
 
-  const session=await requireVGroupSession();
+  // Preserve the selected destination through Group authentication. Previously
+  // requireVGroupSession() redirected to /group/login without the workspace,
+  // causing Hospitality/Tech selections to fall back to Group after sign-in.
+  const session=await getVGroupSession();
+  if(!session)redirect(`/group/login?workspace=${workspace}`);
+
   if(workspace==="group"){
     const board=session.memberships.some(item=>item.role==="GROUP_SUPER_ADMIN");
     if(board)redirect('/group/overview');

@@ -17,7 +17,7 @@ export async function POST(request:NextRequest){
   }
   const [existing]=await sql<{id:string}[]>`select id::text from vgroup.approval_requests where entity_type='workspace_access' and entity_id=${session.userId}::uuid and requested_by=${session.userId}::uuid and action=${`request_${workspace}_access`} and status='pending' limit 1`;
   if(!existing){
-    await sql`insert into vgroup.approval_requests(business_unit_id,entity_type,entity_id,action,requested_by,status,metadata) values(${businessUnitId}::uuid,'workspace_access',${session.userId}::uuid,${`request_${workspace}_access`},${session.userId}::uuid,'pending',jsonb_build_object('workspace',${workspace}))`;
+    await sql`insert into vgroup.approval_requests(business_unit_id,entity_type,entity_id,action,requested_by,status,metadata) values(${businessUnitId}::uuid,'workspace_access',${session.userId}::uuid,${`request_${workspace}_access`},${session.userId}::uuid,'pending',jsonb_build_object('workspace',${workspace}::text))`;
   }
   const url=new URL(`/group/access?workspace=${encodeURIComponent(workspace)}&reason=permission&requested=1`,request.url);
   const response=NextResponse.redirect(url,303);

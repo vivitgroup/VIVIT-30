@@ -75,7 +75,7 @@
     "qa:database-security": "node scripts/qa-database-security.mjs",
     "qa:production-polish": "node scripts/qa-production-polish.mjs",
     "qa:release-operations": "node scripts/qa-release-operations.mjs",
-    "qa:runtime-smoke": "node scripts/qa-runtime-smoke.mjs",
+    "qa:runtime-smoke": "node scripts/qa-runtime-smoke.mjs && node scripts/qa-hospitality-action-e2e.mjs",
     "qa": "npm run build"
   },
   "dependencies": {"@auth/drizzle-adapter":"^1.7.4","bcryptjs":"^2.4.3","drizzle-orm":"0.45.2","next":"16.3.2","next-auth":"5.0.0-beta.32","postgres":"^3.4.5","react":"^19.2.0","react-dom":"^19.2.0"},

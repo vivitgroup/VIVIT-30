@@ -4,6 +4,7 @@ import {executeVivitoOperatorAction,isVivitoOperatorAction} from "../lib/vivito/
 
 async function main(){
  fs.mkdirSync('.vivito',{recursive:true});
+ const workspaceId='default';
  const roles=['SUPER_ADMIN','ACCOUNT_MANAGER','MEDIA_BUYER','CREATOR','SALES','ACCOUNTANT','CLIENT'];
  const ops=(Object.keys(VIVITO_ACTION_CATALOG) as VivitoActionOp[]).filter(isVivitoOperatorAction);
  let cases=0,blocked=0,criticalFailures=0;const failures:unknown[]=[];
@@ -13,7 +14,7 @@ async function main(){
      if(allowed.has(role))continue;
      cases++;
      try{
-       const out=await executeVivitoOperatorAction(op,{},role,`rbac-${role.toLowerCase()}`);
+       const out=await executeVivitoOperatorAction(op,{},role,`rbac-${role.toLowerCase()}`,workspaceId);
        criticalFailures++;failures.push({op,role,reason:'unauthorized action returned success/result',out});
      }catch(error){
        const status=Number(error?.status||error?.statusCode||0);
@@ -31,7 +32,7 @@ async function main(){
      if(allowed.has(role))continue;
      if(cases>=120)break;
      cases++;
-     try{await executeVivitoOperatorAction(op,hostile,role,`attack-${role.toLowerCase()}`);criticalFailures++;failures.push({op,role,reason:'hostile unauthorized action was not blocked'});}
+     try{await executeVivitoOperatorAction(op,hostile,role,`attack-${role.toLowerCase()}`,workspaceId);criticalFailures++;failures.push({op,role,reason:'hostile unauthorized action was not blocked'});}
      catch(error){const status=Number(error?.status||error?.statusCode||0),msg=String(error?.message||error);if(status===403||/permission|forbidden/i.test(msg))blocked++;else{criticalFailures++;failures.push({op,role,reason:`hostile payload reached deeper layer: ${msg}`,status});}}
    }
    if(cases>=120)break;

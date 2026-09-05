@@ -220,6 +220,7 @@ jobs:
           BASE_URL=http://127.0.0.1:3000 npm run qa:runtime-smoke || { cat /tmp/vivit-next.log; exit 1; }
           BASE_URL=http://127.0.0.1:3000 node scripts/qa-authenticated-role-e2e.mjs 2>&1 | tee /tmp/vivit-auth-e2e.log || { cat /tmp/vivit-next.log; exit 1; }
           BASE_URL=http://127.0.0.1:3000 node scripts/qa-marketing-action-e2e.mjs 2>&1 | tee /tmp/vivit-marketing-action-e2e.log || { cat /tmp/vivit-next.log; exit 1; }
+          BASE_URL=http://127.0.0.1:3000 node scripts/qa-tech-action-e2e.mjs 2>&1 | tee /tmp/vivit-tech-action-e2e.log || { cat /tmp/vivit-next.log; exit 1; }
 
       - name: Upload authenticated E2E diagnostics
         if: failure()
@@ -229,6 +230,7 @@ jobs:
           path: |
             /tmp/vivit-auth-e2e.log
             /tmp/vivit-marketing-action-e2e.log
+            /tmp/vivit-tech-action-e2e.log
             /tmp/vivit-next.log
             /tmp/vivit-marketing-postgrest.cid
             /tmp/vivit-marketing-rest-proxy.log

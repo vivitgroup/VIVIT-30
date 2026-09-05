@@ -91,21 +91,110 @@ jobs:
           test -n "${API_URL:-}"
           test -n "$AUTH_PUBLIC_KEY"
           test -n "${SERVICE_ROLE_KEY:-}"
-          test -n "${DB_URL:-}"
           MARKETING_HANDOFF_SECRET="$(openssl rand -hex 32)"
           {
             echo "VGROUP_SUPABASE_URL=$API_URL"
             echo "VGROUP_SUPABASE_PUBLISHABLE_KEY=$AUTH_PUBLIC_KEY"
             echo "VGROUP_SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY"
             echo "VGROUP_SUPABASE_SERVICE_KEY=$SERVICE_ROLE_KEY"
-            echo "SUPABASE_URL=$API_URL"
-            echo "SUPABASE_SERVICE_KEY=$SERVICE_ROLE_KEY"
-            echo "QA_SUPABASE_DB_URL=$DB_URL"
             echo "VGROUP_MARKETING_INTEGRATION_ENABLED=true"
             echo "VGROUP_MARKETING_CANDIDATE_SHA=9817ec42750b17104c5292eb2ec4d02358b53290"
             echo "VGROUP_MARKETING_HANDOFF_SECRET=$MARKETING_HANDOFF_SECRET"
           } >> "$GITHUB_ENV"
-          echo "Ephemeral Supabase Auth and Marketing handoff receiver are ready; local credentials are not persisted."
+          echo "Ephemeral VGroup Supabase Auth is ready; local credentials are not persisted."
+
+      - name: Start isolated Marketing handoff receiver
+        shell: bash
+        run: |
+          set -euo pipefail
+          PGPASSWORD=vivito psql -h 127.0.0.1 -U vivito -d postgres -v ON_ERROR_STOP=1 -c "create database vivito_marketing_receiver"
+          PGPASSWORD=vivito psql -h 127.0.0.1 -U vivito -d vivito_marketing_receiver -v ON_ERROR_STOP=1 <<'SQL'
+          create role marketing_authenticator login password 'marketing-qa';
+          create role marketing_service_role nologin;
+          grant marketing_service_role to marketing_authenticator;
+          create table public.workspaces (
+            id text primary key,
+            is_active boolean not null default true
+          );
+          create table public.users (
+            id text primary key,
+            name text not null,
+            email text not null unique,
+            role text not null,
+            workspace_id text not null,
+            is_active boolean not null default true,
+            approval_status text not null default 'APPROVED'
+          );
+          create table public.group_handoff_nonces (
+            nonce_hash text primary key,
+            group_user_id text not null,
+            email text not null,
+            expires_at timestamptz not null
+          );
+          grant usage on schema public to marketing_service_role;
+          grant select,insert,update,delete on public.workspaces,public.users,public.group_handoff_nonces to marketing_service_role;
+          SQL
+
+          POSTGREST_IMAGE="$(docker ps --format '{{.Image}}' | grep -m1 -E 'postgrest|supabase/postgrest')"
+          test -n "$POSTGREST_IMAGE"
+          MARKETING_JWT_SECRET="$(openssl rand -hex 32)"
+          MARKETING_SERVICE_KEY="$(MARKETING_JWT_SECRET="$MARKETING_JWT_SECRET" node - <<'NODE'
+          const {createHmac}=require('node:crypto');
+          const enc=value=>Buffer.from(JSON.stringify(value)).toString('base64url');
+          const now=Math.floor(Date.now()/1000);
+          const head=enc({alg:'HS256',typ:'JWT'});
+          const body=enc({role:'marketing_service_role',iat:now,exp:now+3600});
+          const sig=createHmac('sha256',process.env.MARKETING_JWT_SECRET).update(`${head}.${body}`).digest('base64url');
+          process.stdout.write(`${head}.${body}.${sig}`);
+          NODE
+          )"
+
+          docker run -d --name vivit-marketing-postgrest \
+            -p 3001:3000 \
+            --add-host=host.docker.internal:host-gateway \
+            -e PGRST_DB_URI="postgres://marketing_authenticator:marketing-qa@host.docker.internal:5432/vivito_marketing_receiver" \
+            -e PGRST_DB_SCHEMAS=public \
+            -e PGRST_DB_ANON_ROLE=marketing_service_role \
+            -e PGRST_JWT_SECRET="$MARKETING_JWT_SECRET" \
+            "$POSTGREST_IMAGE" >/tmp/vivit-marketing-postgrest.cid
+
+          cat > /tmp/vivit-marketing-rest-proxy.cjs <<'NODE'
+          const http=require('node:http');
+          const server=http.createServer((req,res)=>{
+            const prefix='/rest/v1';
+            const upstreamPath=req.url.startsWith(prefix)?(req.url.slice(prefix.length)||'/'):req.url;
+            const upstream=http.request({hostname:'127.0.0.1',port:3001,path:upstreamPath,method:req.method,headers:{...req.headers,host:'127.0.0.1:3001'}},response=>{
+              res.writeHead(response.statusCode||502,response.headers);
+              response.pipe(res);
+            });
+            upstream.on('error',error=>{res.statusCode=502;res.end(error.message);});
+            req.pipe(upstream);
+          });
+          server.listen(3002,'127.0.0.1');
+          NODE
+          node /tmp/vivit-marketing-rest-proxy.cjs >/tmp/vivit-marketing-rest-proxy.log 2>&1 &
+          echo "$!" > /tmp/vivit-marketing-rest-proxy.pid
+
+          READY=0
+          for i in {1..30}; do
+            if curl -fsS \
+              -H "Authorization: Bearer $MARKETING_SERVICE_KEY" \
+              "http://127.0.0.1:3002/rest/v1/workspaces?select=id&limit=1" >/dev/null; then
+              READY=1
+              break
+            fi
+            sleep 1
+          done
+          if [ "$READY" -ne 1 ]; then
+            docker logs vivit-marketing-postgrest || true
+            cat /tmp/vivit-marketing-rest-proxy.log || true
+            exit 1
+          fi
+          {
+            echo "SUPABASE_URL=http://127.0.0.1:3002"
+            echo "SUPABASE_SERVICE_KEY=$MARKETING_SERVICE_KEY"
+          } >> "$GITHUB_ENV"
+          echo "Isolated Marketing handoff receiver is ready on separate DB and credentials."
 
       - name: Built runtime smoke + authenticated role-by-role E2E
         shell: bash
@@ -140,10 +229,17 @@ jobs:
             /tmp/vivit-auth-e2e.log
             /tmp/vivit-marketing-action-e2e.log
             /tmp/vivit-next.log
+            /tmp/vivit-marketing-postgrest.cid
+            /tmp/vivit-marketing-rest-proxy.log
           if-no-files-found: ignore
           retention-days: 1
 
-      - name: Stop ephemeral Supabase
+      - name: Stop ephemeral services
         if: always()
         shell: bash
-        run: supabase stop --no-backup || true
+        run: |
+          if [ -f /tmp/vivit-marketing-rest-proxy.pid ]; then
+            kill "$(cat /tmp/vivit-marketing-rest-proxy.pid)" >/dev/null 2>&1 || true
+          fi
+          docker rm -f vivit-marketing-postgrest >/dev/null 2>&1 || true
+          supabase stop --no-backup || true

@@ -4,14 +4,14 @@ import postgres from "postgres";
 const baseUrl=process.env.BASE_URL||"http://127.0.0.1:3000";
 const databaseUrl=process.env.DATABASE_URL;
 const vgroupDatabaseUrl=process.env.VGROUP_DATABASE_URL;
-const supabaseUrl=process.env.VGROUP_SUPABASE_URL;
-const serviceRoleKey=process.env.VGROUP_SUPABASE_SERVICE_ROLE_KEY;
-const receiverDatabaseUrl=process.env.QA_SUPABASE_DB_URL;
-for(const [name,value] of Object.entries({DATABASE_URL:databaseUrl,VGROUP_DATABASE_URL:vgroupDatabaseUrl,VGROUP_SUPABASE_URL:supabaseUrl,VGROUP_SUPABASE_SERVICE_ROLE_KEY:serviceRoleKey,QA_SUPABASE_DB_URL:receiverDatabaseUrl}))if(!value)throw new Error(`missing_required_env:${name}`);
+const vgroupSupabaseUrl=process.env.VGROUP_SUPABASE_URL;
+const vgroupServiceRoleKey=process.env.VGROUP_SUPABASE_SERVICE_ROLE_KEY;
+const marketingReceiverUrl=process.env.SUPABASE_URL;
+const marketingServiceKey=process.env.SUPABASE_SERVICE_KEY;
+for(const [name,value] of Object.entries({DATABASE_URL:databaseUrl,VGROUP_DATABASE_URL:vgroupDatabaseUrl,VGROUP_SUPABASE_URL:vgroupSupabaseUrl,VGROUP_SUPABASE_SERVICE_ROLE_KEY:vgroupServiceRoleKey,SUPABASE_URL:marketingReceiverUrl,SUPABASE_SERVICE_KEY:marketingServiceKey}))if(!value)throw new Error(`missing_required_env:${name}`);
 
 const primarySql=postgres(databaseUrl,{ssl:false,max:1,prepare:false});
 const groupSql=postgres(vgroupDatabaseUrl,{ssl:false,max:1,prepare:false});
-const receiverSql=postgres(receiverDatabaseUrl,{ssl:false,max:1,prepare:false});
 const runId=String(process.env.GITHUB_RUN_ID||Date.now());
 const suffix=randomUUID().slice(0,8);
 const email=`qa-marketing-actions-${runId}-${suffix}@example.com`;
@@ -22,7 +22,8 @@ const companyName=`QA Marketing Client ${runId} ${suffix}`;
 const taskId=`qa-marketing-create-client-${runId}-${suffix}`;
 const receiptId=`vivito:vgroup:${taskId}`;
 const created={externalAuthId:null,groupUserId:null,clientId:null};
-const authHeaders={apikey:serviceRoleKey,Authorization:`Bearer ${serviceRoleKey}`};
+const vgroupAuthHeaders={apikey:vgroupServiceRoleKey,Authorization:`Bearer ${vgroupServiceRoleKey}`};
+const marketingHeaders={apikey:marketingServiceKey,Authorization:`Bearer ${marketingServiceKey}`};
 function assert(condition,message){if(!condition)throw new Error(message)}
 
 async function request(path,{cookie,method="GET",body,headers={}}={}){
@@ -32,23 +33,24 @@ async function request(path,{cookie,method="GET",body,headers={}}={}){
   return fetch(`${baseUrl}${path}`,options);
 }
 
-async function prepareReceiverSchema(){
-  await receiverSql`create table if not exists public.workspaces (id text primary key,is_active boolean not null default true)`;
-  await receiverSql`create table if not exists public.users (id text primary key,name text not null,email text not null unique,role text not null,workspace_id text not null,is_active boolean not null default true,approval_status text not null default 'APPROVED')`;
-  await receiverSql`create table if not exists public.group_handoff_nonces (nonce_hash text primary key,group_user_id text not null,email text not null,expires_at timestamptz not null)`;
-  await receiverSql.unsafe("grant usage on schema public to service_role");
-  await receiverSql.unsafe("grant select,insert,update,delete on public.workspaces,public.users,public.group_handoff_nonces to service_role");
-  await receiverSql.unsafe("notify pgrst, 'reload schema'");
-  for(let attempt=0;attempt<20;attempt++){
-    const response=await fetch(`${supabaseUrl}/rest/v1/workspaces?select=id&limit=1`,{headers:authHeaders});
-    if(response.ok)return;
+async function receiverRequest(path,{method="GET",body}={}){
+  const headers={...marketingHeaders};
+  const options={method,headers,cache:"no-store"};
+  if(body!==undefined){headers["Content-Type"]="application/json";headers.Prefer="return=minimal";options.body=JSON.stringify(body);}
+  return fetch(`${marketingReceiverUrl}/rest/v1/${path}`,options);
+}
+
+async function waitForReceiver(){
+  for(let attempt=0;attempt<30;attempt++){
+    const response=await receiverRequest("workspaces?select=id&limit=1").catch(()=>null);
+    if(response?.ok)return;
     await new Promise(resolve=>setTimeout(resolve,250));
   }
-  throw new Error("marketing_receiver_schema_not_ready");
+  throw new Error("marketing_receiver_not_ready");
 }
 
 async function createSupabaseUser(){
-  const response=await fetch(`${supabaseUrl}/auth/v1/admin/users`,{method:"POST",headers:{...authHeaders,"Content-Type":"application/json"},body:JSON.stringify({email,password,email_confirm:true,user_metadata:{qa:true,scope:"marketing-actions"}})});
+  const response=await fetch(`${vgroupSupabaseUrl}/auth/v1/admin/users`,{method:"POST",headers:{...vgroupAuthHeaders,"Content-Type":"application/json"},body:JSON.stringify({email,password,email_confirm:true,user_metadata:{qa:true,scope:"marketing-actions"}})});
   const body=await response.json().catch(()=>({}));
   assert(response.ok,`supabase_admin_create_failed:${response.status}:${JSON.stringify(body)}`);
   created.externalAuthId=body.id||body.user?.id;
@@ -68,8 +70,10 @@ async function seedGroupIdentity(){
 async function seedMarketingIdentity(){
   await primarySql`insert into workspaces(id,name,slug,plan,is_active) values(${workspaceId},${`QA Marketing ${runId} ${suffix}`},${`qa-marketing-${runId}-${suffix}`},'FREE',true)`;
   await primarySql`insert into users(id,workspace_id,name,email,password,role,is_active,approval_status,is_workspace_owner) values(${legacyUserId},${workspaceId},'QA Marketing Actions',${email},'qa-not-used','SUPER_ADMIN',true,'APPROVED',true)`;
-  await receiverSql`insert into public.workspaces(id,is_active) values(${workspaceId},true)`;
-  await receiverSql`insert into public.users(id,name,email,role,workspace_id,is_active,approval_status) values(${legacyUserId},'QA Marketing Actions',${email},'SUPER_ADMIN',${workspaceId},true,'APPROVED')`;
+  const workspaceResponse=await receiverRequest("workspaces",{method:"POST",body:{id:workspaceId,is_active:true}});
+  assert(workspaceResponse.status===201,`marketing_receiver_workspace_seed_failed:${workspaceResponse.status}`);
+  const userResponse=await receiverRequest("users",{method:"POST",body:{id:legacyUserId,name:"QA Marketing Actions",email,role:"SUPER_ADMIN",workspace_id:workspaceId,is_active:true,approval_status:"APPROVED"}});
+  assert(userResponse.status===201,`marketing_receiver_user_seed_failed:${userResponse.status}`);
 }
 
 async function login(){
@@ -112,17 +116,17 @@ async function cleanup(){
     if(created.clientId)await primarySql`delete from clients where id=${created.clientId}`;
     await primarySql`delete from users where id=${legacyUserId}`;
     await primarySql`delete from workspaces where id=${workspaceId}`;
-    await receiverSql`delete from public.group_handoff_nonces where email=${email}`;
-    await receiverSql`delete from public.users where id=${legacyUserId}`;
-    await receiverSql`delete from public.workspaces where id=${workspaceId}`;
+    await receiverRequest(`group_handoff_nonces?email=eq.${encodeURIComponent(email)}`,{method:"DELETE"}).catch(()=>undefined);
+    await receiverRequest(`users?id=eq.${encodeURIComponent(legacyUserId)}`,{method:"DELETE"}).catch(()=>undefined);
+    await receiverRequest(`workspaces?id=eq.${encodeURIComponent(workspaceId)}`,{method:"DELETE"}).catch(()=>undefined);
     if(created.groupUserId)await groupSql`delete from vgroup.users where id=${created.groupUserId}::uuid`;
-    if(created.externalAuthId)await fetch(`${supabaseUrl}/auth/v1/admin/users/${created.externalAuthId}`,{method:"DELETE",headers:authHeaders}).catch(()=>undefined);
+    if(created.externalAuthId)await fetch(`${vgroupSupabaseUrl}/auth/v1/admin/users/${created.externalAuthId}`,{method:"DELETE",headers:vgroupAuthHeaders}).catch(()=>undefined);
   }catch(error){console.warn("WARN Marketing action E2E cleanup was incomplete; databases are ephemeral",error instanceof Error?error.message:String(error));}
 }
 
 let cookie="";
 try{
-  await prepareReceiverSchema();
+  await waitForReceiver();
   await createSupabaseUser();
   await seedGroupIdentity();
   await seedMarketingIdentity();
@@ -131,5 +135,5 @@ try{
   console.log("PASS Marketing action-level authenticated E2E complete");
 }finally{
   await cleanup();
-  await Promise.all([primarySql.end({timeout:1}),groupSql.end({timeout:1}),receiverSql.end({timeout:1})]);
+  await Promise.all([primarySql.end({timeout:1}),groupSql.end({timeout:1})]);
 }

@@ -50,7 +50,7 @@ export async function POST(request:Request,{params}:{params:Promise<{id:string}>
       [connection]=await sql<{id:string;external_listing_id:string;status:string}[]>`
         insert into hospitality.channel_connections(property_id,channel,external_listing_id,status,token_ref) values(${id}::uuid,'airbnb',${externalListingId},'pending',${icalUrl}) returning id::text,external_listing_id,status`;
     }
-    await sql`insert into vgroup.audit_logs(business_unit_id,user_id,action,entity_type,entity_id,new_value) values(${property.business_unit_id}::uuid,${session.userId}::uuid,'property.airbnb.connection.save','property',${id}::uuid,jsonb_build_object('connection_id',${connection.id},'external_listing_id',${externalListingId},'feed_replaced',${Boolean(icalUrl)}))`;
+    await sql`insert into vgroup.audit_logs(business_unit_id,user_id,action,entity_type,entity_id,new_value) values(${property.business_unit_id}::uuid,${session.userId}::uuid,'property.airbnb.connection.save','property',${id}::uuid,jsonb_build_object('connection_id',${connection.id}::text,'external_listing_id',${externalListingId}::text,'feed_replaced',${Boolean(icalUrl)}::boolean))`;
     return NextResponse.json({connection},{status:existing?200:201,headers:NO_STORE});
   }catch(error){return apiErrorResponse(error)}
 }
@@ -68,7 +68,7 @@ export async function DELETE(_request:Request,{params}:{params:Promise<{id:strin
     await sql.begin(async tx=>{
       await tx`update hospitality.channel_connections set status='disabled',token_ref=null,last_error=null,updated_at=now() where id=${connection.id}::uuid`;
       await tx`update hospitality.calendar_blocks set archived_at=now(),updated_at=now() where channel_connection_id=${connection.id}::uuid and archived_at is null and ends_on>=current_date`;
-      await tx`insert into vgroup.audit_logs(business_unit_id,user_id,action,entity_type,entity_id,new_value) values(${property.business_unit_id}::uuid,${session.userId}::uuid,'property.airbnb.connection.disable','property',${id}::uuid,jsonb_build_object('connection_id',${connection.id}))`;
+      await tx`insert into vgroup.audit_logs(business_unit_id,user_id,action,entity_type,entity_id,new_value) values(${property.business_unit_id}::uuid,${session.userId}::uuid,'property.airbnb.connection.disable','property',${id}::uuid,jsonb_build_object('connection_id',${connection.id}::text))`;
     });
     return NextResponse.json({ok:true},{headers:NO_STORE});
   }catch(error){return apiErrorResponse(error)}

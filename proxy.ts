@@ -57,7 +57,7 @@ export default auth((req)=>{
   // handlers perform their own session and permission checks rather than
   // coupling them to the legacy Marketing NextAuth session. The global
   // same-origin mutation CSRF gate above still applies to Group writes.
-  if(pathname==="/group"||pathname.startsWith("/group/")||pathname==="/api/vgroup"||pathname.startsWith("/api/vgroup/")){
+  if(pathname==="/group"||pathname.startsWith("/group/")||pathname==="/api/vgroup"||pathname.startsWith("/api/vgroup/")||pathname==="/api/integrations/vgroup-vivito-marketing"){
     return secHeaders(NextResponse.next());
   }
 

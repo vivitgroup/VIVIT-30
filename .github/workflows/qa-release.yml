@@ -95,6 +95,7 @@ jobs:
             echo "VGROUP_SUPABASE_URL=$API_URL"
             echo "VGROUP_SUPABASE_PUBLISHABLE_KEY=$AUTH_PUBLIC_KEY"
             echo "VGROUP_SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY"
+            echo "VGROUP_SUPABASE_SERVICE_KEY=$SERVICE_ROLE_KEY"
           } >> "$GITHUB_ENV"
           echo "Ephemeral Supabase Auth is ready; local credentials are not persisted."
 

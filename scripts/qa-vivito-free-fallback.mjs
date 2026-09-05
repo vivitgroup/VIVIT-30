@@ -16,7 +16,7 @@ for(const model of [
 ])requireText("gateway",gateway,model);
 requireText("gateway",gateway,"AI_GATEWAY_MODELS_URL");
 requireText("gateway",gateway,"zeroPrice(pricing.input)&&zeroPrice(pricing.output)");
-requireText("gateway",gateway,"gateway-returned-model-outside-free-pool");
+requireText("gateway",gateway,"gateway-returned-model-outside-verified-free-pool");
 requireText("gateway",gateway,"EXPLICIT_FREE_MODEL_FALLBACK");
 forbidText("gateway",gateway,"Array.from({length:10}");
 

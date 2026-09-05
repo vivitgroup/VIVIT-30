@@ -32,11 +32,12 @@ export default async function ClientDetailGuard({children,params}:{children:Reac
   if(role===Role.MEDIA_BUYER&&client.mediaBuyerId!==userId)redirect("/dashboard/clients");
 
   const canEdit=[Role.SUPER_ADMIN,Role.ACCOUNT_MANAGER,Role.MEDIA_BUYER].includes(role);
+  const canManageExpenses=[Role.SUPER_ADMIN,Role.ACCOUNTANT].includes(role);
   return <div style={{display:"flex",flexDirection:"column",gap:12}}>
-    {canEdit&&<div style={{display:"flex",justifyContent:"flex-end",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-      <ClientProfilePhotoButton clientId={id}/>
-      <Link href={`/dashboard/clients/${id}/edit`} className="btn btn-secondary btn-sm" style={{textDecoration:"none"}}>Edit client</Link>
-    </div>}
+    <div style={{display:"flex",justifyContent:"flex-end",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+      {canManageExpenses&&<Link href={`/dashboard/clients/${id}/expenses`} className="btn btn-primary btn-sm" style={{textDecoration:"none"}}>+ Add expense</Link>}
+      {canEdit&&<><ClientProfilePhotoButton clientId={id}/><Link href={`/dashboard/clients/${id}/edit`} className="btn btn-secondary btn-sm" style={{textDecoration:"none"}}>Edit client</Link></>}
+    </div>
     {children}
   </div>;
 }

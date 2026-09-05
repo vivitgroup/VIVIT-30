@@ -217,7 +217,7 @@ jobs:
             cat /tmp/vivit-next.log
             exit 1
           fi
-          BASE_URL=http://127.0.0.1:3000 npm run qa:runtime-smoke || { cat /tmp/vivit-next.log; exit 1; }
+          BASE_URL=http://127.0.0.1:3000 npm run qa:runtime-smoke 2>&1 | tee /tmp/vivit-runtime-smoke.log || { cat /tmp/vivit-next.log; exit 1; }
           BASE_URL=http://127.0.0.1:3000 node scripts/qa-authenticated-role-e2e.mjs 2>&1 | tee /tmp/vivit-auth-e2e.log || { cat /tmp/vivit-next.log; exit 1; }
           BASE_URL=http://127.0.0.1:3000 node scripts/qa-marketing-action-e2e.mjs 2>&1 | tee /tmp/vivit-marketing-action-e2e.log || { cat /tmp/vivit-next.log; exit 1; }
           BASE_URL=http://127.0.0.1:3000 node scripts/qa-tech-action-e2e.mjs 2>&1 | tee /tmp/vivit-tech-action-e2e.log || { cat /tmp/vivit-next.log; exit 1; }
@@ -228,6 +228,7 @@ jobs:
         with:
           name: authenticated-role-e2e-diagnostics
           path: |
+            /tmp/vivit-runtime-smoke.log
             /tmp/vivit-auth-e2e.log
             /tmp/vivit-marketing-action-e2e.log
             /tmp/vivit-tech-action-e2e.log

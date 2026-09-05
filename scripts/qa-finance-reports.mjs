@@ -44,7 +44,7 @@ check("Mark paid uses database transaction", finance.includes("db.transaction(as
 check("Mark paid invoice is workspace scoped", finance.includes("eq(financeRecords.id,id),eq(financeRecords.workspaceId,workspaceId)"));
 check("Mark paid serializes concurrent settlement", finance.includes('lockKey=`payment:${workspaceId}:${id}`') && finance.includes("pg_advisory_xact_lock(hashtext(${lockKey}))"));
 check("Mark paid accepts manual bank and cash only", finance.includes('!["bank","cash"].includes(method)') && !finance.includes('<option value="stripe">') && !finance.includes('<option value="paymob">') && !finance.includes('<option value="paytabs">'));
-check("Manual settlement does not masquerade as provider confirmation", finance.includes('verification:"manual"') && finance.includes("Provider-confirmed online payments require a verified provider flow"));
+check("Manual settlement does not masquerade as provider confirmation", finance.includes('verification:"manual"') && finance.includes("Only verified manual payment methods are supported here") && !finance.includes('<option value="stripe">') && !finance.includes('<option value="paymob">') && !finance.includes('<option value="paytabs">'));
 check("Mark paid is idempotent for settled invoices", finance.includes('remaining<=0||r.invoiceStatus==="PAID"'));
 check("Mark paid creates payment history row", finance.includes("tx.insert(paymentRecords).values"));
 check("Payment history records invoice and client", finance.includes("invoiceId:r.id,clientId:r.clientId"));

@@ -42,7 +42,7 @@ export async function POST(request:Request){
       returning id::text,name,status,owner_id::text`;
     if(!row)return NextResponse.json({error:"Owner unavailable"},{status:404,headers:NO_STORE});
     await sql`select hospitality.set_property_owner(${row.id}::uuid,${ownerId}::uuid,${session.userId}::uuid,'property creation')`;
-    await sql`insert into vgroup.audit_logs(business_unit_id,user_id,action,entity_type,entity_id,new_value) select id,${session.userId}::uuid,'property.create','property',${row.id}::uuid,jsonb_build_object('owner_id',${ownerId},'name',${name}) from vgroup.business_units where code='hospitality'`;
+    await sql`insert into vgroup.audit_logs(business_unit_id,user_id,action,entity_type,entity_id,new_value) select id,${session.userId}::uuid,'property.create','property',${row.id}::uuid,jsonb_build_object('owner_id',${ownerId}::text,'name',${name}::text) from vgroup.business_units where code='hospitality'`;
     return NextResponse.json({property:row},{status:201,headers:NO_STORE});
   }catch(error){return apiErrorResponse(error)}
 }

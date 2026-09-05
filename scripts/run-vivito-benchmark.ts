@@ -104,6 +104,7 @@ async function runCase(test:VivitoBenchmarkCase){
 }
 
 type BenchmarkOutput=Awaited<ReturnType<typeof runCase>>&{error?:string};
+type BenchmarkRejection={caseId:string;dimension:string;provider:string;missing:string[];forbidden:string[];answerExcerpt:string};
 
 function readCheckpoint(selected:VivitoBenchmarkCase[]){
   try{
@@ -139,6 +140,7 @@ async function main(){
   const pending=selected.filter(test=>!outputsById[test.id]);
   const batch=pending.slice(0,batchSize);
   let providerFailuresInRun=0;
+  const rejections:BenchmarkRejection[]=[];
   console.log(`Checkpoint: ${Object.keys(outputsById).length}/${selected.length} passed. Running up to ${batch.length} pending/retry case(s).`);
 
   for(let i=0;i<batch.length;i++){
@@ -152,6 +154,7 @@ async function main(){
         console.log("PASS + checkpointed");
       }else{
         delete outputsById[test.id];
+        rejections.push({caseId:test.id,dimension:test.dimension,provider:out.provider,missing:caseScore.requiredMissing,forbidden:caseScore.forbiddenFound,answerExcerpt:(out.answer||"").replace(/\s+/g," ").slice(0,500)});
         console.log(`RETRY NEEDED (missing [${caseScore.requiredMissing.join(", ")}] forbidden [${caseScore.forbiddenFound.join(", ")}])`);
       }
       writeCheckpoint(selected,outputsById);
@@ -166,11 +169,12 @@ async function main(){
   const scored=scoreVivitoBenchmark(outputs.map(x=>({test:x.test,answer:x.answer||""})));
   const completedCases=outputs.length;
   const remainingCases=selected.length-completedCases;
-  const report={version:VIVITO_BENCHMARK_VERSION,createdAt:new Date().toISOString(),providers,selectedCases:selected.length,completedCases,remainingCases,batchSize,score:scored.score,maxScore:scored.maxScore,percent:scored.percent,passed:scored.passed,failed:scored.failed,providerFailuresInRun,benchmarkPaceMs:paceMs,criticEnabled:process.env.VIVITO_BENCHMARK_CRITIC!=="0",checkpointed:true,dimensions:scored.dimensions,cases:outputs.map((x,i)=>({...scored.cases[i],role:x.role,provider:x.provider,criticApplied:x.criticApplied,criticProvider:x.criticProvider,error:x.error,answer:x.answer}))};
+  const report={version:VIVITO_BENCHMARK_VERSION,createdAt:new Date().toISOString(),providers,selectedCases:selected.length,completedCases,remainingCases,batchSize,score:scored.score,maxScore:scored.maxScore,percent:scored.percent,passed:scored.passed,failed:scored.failed,providerFailuresInRun,benchmarkPaceMs:paceMs,criticEnabled:process.env.VIVITO_BENCHMARK_CRITIC!=="0",checkpointed:true,rejections,dimensions:scored.dimensions,cases:outputs.map((x,i)=>({...scored.cases[i],role:x.role,provider:x.provider,criticApplied:x.criticApplied,criticProvider:x.criticProvider,error:x.error,answer:x.answer}))};
   const dir=path.join(process.cwd(),".vivito");fs.mkdirSync(dir,{recursive:true});const file=path.join(dir,"benchmark-latest.json");fs.writeFileSync(file,JSON.stringify(report,null,2));
   console.log(`\nVIVITO checkpoint progress: ${completedCases}/${selected.length}; remaining ${remainingCases}`);
   console.log(`Current passed-case score: ${scored.score}/${scored.maxScore} (${scored.percent}%)`);
   console.log(`Provider transient failures in this run: ${providerFailuresInRun}`);
+  if(rejections.length)console.log(`Captured ${rejections.length} benchmark rejection diagnostic(s) in ${file}`);
   for(const [name,d] of Object.entries(scored.dimensions))console.log(`${name.padEnd(16)} ${d.score.toFixed(2)}/${d.maxScore}  ${d.percent}%`);
   console.log(`Report: ${file}`);
   const threshold=Number(process.env.VIVITO_BENCHMARK_THRESHOLD||100);

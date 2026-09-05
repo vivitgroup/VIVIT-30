@@ -7,9 +7,9 @@ type AuditCountRow={count:number|string};
 
 async function main(){
  fs.mkdirSync('.vivito',{recursive:true});
- const userId='cert-admin',role='SUPER_ADMIN';
+ const userId='cert-admin',role='SUPER_ADMIN',workspaceId='default';
  type OperatorCall=Parameters<typeof executeVivitoOperatorAction>;
- const executeStep=(op:OperatorCall[0],args:OperatorCall[1],r:OperatorCall[2],u:OperatorCall[3])=>executeVivitoOperatorAction(op,args,r,u);
+ const executeStep=(op:OperatorCall[0],args:OperatorCall[1],r:OperatorCall[2],u:OperatorCall[3])=>executeVivitoOperatorAction(op,args,r,u,workspaceId);
  let multiStepCases=0,replayCases=0,idempotencyPassed=true,rollbackRecoveryPassed=false,knownCriticalDefects=0;
  const failures:unknown[]=[];
  for(let i=0;i<50;i++){
@@ -20,10 +20,10 @@ async function main(){
    ];
    const decisions=steps.map(()=>({approval:{mode:'SUPER_ADMIN_CONFIRM',requiresConfirmation:true}}));
    const requestId=`cert-reliability-${i}`;
-   const first=await executeVivitoPlanRuntime({steps,decisions,role,userId,requestId,executeStep});
+   const first=await executeVivitoPlanRuntime({steps,decisions,role,userId,workspaceId,requestId,executeStep});
    if(!first.success){knownCriticalDefects++;failures.push({case:i,phase:'first',first});continue}
    multiStepCases++;
-   const replay=await executeVivitoPlanRuntime({steps,decisions,role,userId,requestId,executeStep});
+   const replay=await executeVivitoPlanRuntime({steps,decisions,role,userId,workspaceId,requestId,executeStep});
    if(!replay.success||replay.duplicateSteps!==2){idempotencyPassed=false;knownCriticalDefects++;failures.push({case:i,phase:'replay',replay});}
    else replayCases++;
  }
@@ -33,12 +33,12 @@ async function main(){
    {op:'update_user',args:{userName:'Definitely Missing User',phone:'+201399999992'},summary:'Intentional failure'}
  ];
  const badDecisions=badSteps.map(()=>({approval:{mode:'SUPER_ADMIN_CONFIRM',requiresConfirmation:true}}));
- const stopped=await executeVivitoPlanRuntime({steps:badSteps,decisions:badDecisions,role,userId,requestId:failureId,executeStep});
+ const stopped=await executeVivitoPlanRuntime({steps:badSteps,decisions:badDecisions,role,userId,workspaceId,requestId:failureId,executeStep});
  if(stopped.success||stopped.stoppedAt!==1||stopped.completedSteps.length!==1){knownCriticalDefects++;failures.push({phase:'stop-safe',stopped});}
  else {
    const fixedSteps:VivitoPlanStep[]=[badSteps[0],{op:'update_user',args:{userName:'Cert User 2',phone:'+201399999992'},summary:'Recovered second step'}];
    const fixedDecisions=fixedSteps.map(()=>({approval:{mode:'SUPER_ADMIN_CONFIRM',requiresConfirmation:true}}));
-   const resumed=await executeVivitoPlanRuntime({steps:fixedSteps,decisions:fixedDecisions,role,userId,requestId:failureId,executeStep});
+   const resumed=await executeVivitoPlanRuntime({steps:fixedSteps,decisions:fixedDecisions,role,userId,workspaceId,requestId:failureId,executeStep});
    rollbackRecoveryPassed=!!resumed.success&&resumed.duplicateSteps===1;
    if(!rollbackRecoveryPassed){knownCriticalDefects++;failures.push({phase:'resume',resumed});}
  }

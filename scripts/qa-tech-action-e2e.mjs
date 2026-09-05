@@ -182,11 +182,14 @@ async function main(){
 
 async function cleanup(){
   try{
-    if(projectId){
+    if(clientId){
+      await sql`delete from vgroup.audit_logs where action='project.create' and entity_id in (select id from tech.projects where client_id=${clientId}::uuid)`;
+      await sql`delete from tech.projects where client_id=${clientId}::uuid`;
+      await sql`delete from tech.clients where id=${clientId}::uuid`;
+    }else if(projectId){
       await sql`delete from vgroup.audit_logs where action='project.create' and entity_id=${projectId}::uuid`;
       await sql`delete from tech.projects where id=${projectId}::uuid`;
     }
-    if(clientId)await sql`delete from tech.clients where id=${clientId}::uuid`;
     if(groupUserId){
       await sql`delete from vgroup.user_business_unit_roles where user_id=${groupUserId}::uuid`;
       await sql`delete from vgroup.users where id=${groupUserId}::uuid`;

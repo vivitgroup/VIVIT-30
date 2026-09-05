@@ -27,6 +27,7 @@ jobs:
       DATABASE_URL: postgres://vivito:vivito@127.0.0.1:5432/vivito_cert
       DRIZZLE_DATABASE_URL: postgres://vivito:vivito@127.0.0.1:5432/vivito_cert
       DATABASE_SSL_DISABLED: '1'
+      VIVITO_CERT_REQUIRED_PROVIDERS: 'meta,snapchat'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -50,31 +51,17 @@ jobs:
       - name: Collect live public competitive snapshot
         continue-on-error: true
         run: npx tsx scripts/certify-vivito-competitive-live.ts
-      - name: Run live ad-provider certification when test credentials exist
+      - name: Run live ad-provider certification for launch providers
         continue-on-error: true
         env:
           VIVITO_CERT_META_TOKEN: ${{ secrets.VIVITO_CERT_META_TOKEN }}
           VIVITO_CERT_META_CAMPAIGN_ID: ${{ secrets.VIVITO_CERT_META_CAMPAIGN_ID }}
           VIVITO_CERT_META_ACCOUNT_ID: ${{ secrets.VIVITO_CERT_META_ACCOUNT_ID }}
           VIVITO_CERT_META_CURRENT_STATUS: ${{ secrets.VIVITO_CERT_META_CURRENT_STATUS }}
-          VIVITO_CERT_GOOGLE_TOKEN: ${{ secrets.VIVITO_CERT_GOOGLE_TOKEN }}
-          VIVITO_CERT_GOOGLE_CAMPAIGN_ID: ${{ secrets.VIVITO_CERT_GOOGLE_CAMPAIGN_ID }}
-          VIVITO_CERT_GOOGLE_ACCOUNT_ID: ${{ secrets.VIVITO_CERT_GOOGLE_ACCOUNT_ID }}
-          VIVITO_CERT_GOOGLE_CURRENT_STATUS: ${{ secrets.VIVITO_CERT_GOOGLE_CURRENT_STATUS }}
-          GOOGLE_ADS_DEVELOPER_TOKEN: ${{ secrets.GOOGLE_ADS_DEVELOPER_TOKEN }}
-          GOOGLE_ADS_LOGIN_CUSTOMER_ID: ${{ secrets.GOOGLE_ADS_LOGIN_CUSTOMER_ID }}
-          VIVITO_CERT_TIKTOK_TOKEN: ${{ secrets.VIVITO_CERT_TIKTOK_TOKEN }}
-          VIVITO_CERT_TIKTOK_CAMPAIGN_ID: ${{ secrets.VIVITO_CERT_TIKTOK_CAMPAIGN_ID }}
-          VIVITO_CERT_TIKTOK_ACCOUNT_ID: ${{ secrets.VIVITO_CERT_TIKTOK_ACCOUNT_ID }}
-          VIVITO_CERT_TIKTOK_CURRENT_STATUS: ${{ secrets.VIVITO_CERT_TIKTOK_CURRENT_STATUS }}
           VIVITO_CERT_SNAPCHAT_TOKEN: ${{ secrets.VIVITO_CERT_SNAPCHAT_TOKEN }}
           VIVITO_CERT_SNAPCHAT_CAMPAIGN_ID: ${{ secrets.VIVITO_CERT_SNAPCHAT_CAMPAIGN_ID }}
           VIVITO_CERT_SNAPCHAT_ACCOUNT_ID: ${{ secrets.VIVITO_CERT_SNAPCHAT_ACCOUNT_ID }}
           VIVITO_CERT_SNAPCHAT_CURRENT_STATUS: ${{ secrets.VIVITO_CERT_SNAPCHAT_CURRENT_STATUS }}
-          VIVITO_CERT_LINKEDIN_TOKEN: ${{ secrets.VIVITO_CERT_LINKEDIN_TOKEN }}
-          VIVITO_CERT_LINKEDIN_CAMPAIGN_ID: ${{ secrets.VIVITO_CERT_LINKEDIN_CAMPAIGN_ID }}
-          VIVITO_CERT_LINKEDIN_ACCOUNT_ID: ${{ secrets.VIVITO_CERT_LINKEDIN_ACCOUNT_ID }}
-          VIVITO_CERT_LINKEDIN_CURRENT_STATUS: ${{ secrets.VIVITO_CERT_LINKEDIN_CURRENT_STATUS }}
         run: npx tsx scripts/certify-vivito-provider-live.ts
       - name: Restore free-tier intelligence checkpoint
         uses: actions/cache/restore@v4

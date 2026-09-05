@@ -94,7 +94,7 @@ async function main(){
   console.log("PASS Central VGroup access-request action returned the expected redirect");
 
   const [row]=await sql`
-    select id::text,business_unit_id::text,entity_type,entity_id::text,action,requested_by::text,status,metadata
+    select id::text,business_unit_id::text,entity_type,entity_id::text,action,requested_by::text,status,metadata->>'workspace' as metadata_workspace
     from vgroup.approval_requests
     where requested_by=${groupUserId}::uuid and entity_type='workspace_access' and action='request_marketing_access'
     order by requested_at desc limit 1`;
@@ -104,7 +104,7 @@ async function main(){
   assert(row.entity_id===groupUserId,"central_access_request_entity_mismatch");
   assert(row.requested_by===groupUserId,"central_access_request_actor_mismatch");
   assert(row.status==="pending","central_access_request_status_mismatch");
-  assert(row.metadata?.workspace==="marketing","central_access_request_metadata_mismatch");
+  assert(row.metadata_workspace==="marketing","central_access_request_metadata_mismatch");
   console.log("PASS Central VGroup action persisted a pending approval request with correct actor and business-unit scope");
 
   const second=await requestMarketingAccess(cookie);

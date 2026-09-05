@@ -102,10 +102,10 @@ jobs:
           VIVITO_BENCHMARK_CHECKPOINT: '.vivito/benchmark-checkpoint.json'
         run: |
           mkdir -p .vivito
-          if [ -n "$AI_GATEWAY_API_KEY" ] || [ -n "$OPENROUTER_API_KEY" ] || [ -n "$GROQ_API_KEY" ]; then
+          if [ -n "$AI_GATEWAY_API_KEY" ] || [ -n "$OPENROUTER_API_KEY" ] || [ -n "$GROQ_API_KEY" ] || [ -n "$GEMINI_API_KEY" ] || [ -n "$ANTHROPIC_API_KEY" ]; then
             npm run eval:vivito
           else
-            echo '{"blocked":true,"reason":"No AI_GATEWAY_API_KEY, OPENROUTER_API_KEY, or GROQ_API_KEY in GitHub Actions"}' > .vivito/benchmark-blocked.json
+            echo '{"blocked":true,"reason":"No supported Vivito benchmark provider credential is configured in GitHub Actions"}' > .vivito/benchmark-blocked.json
           fi
       - name: Save free-tier intelligence checkpoint
         if: always()

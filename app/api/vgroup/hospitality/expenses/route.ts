@@ -92,7 +92,7 @@ export async function POST(request:Request){
         receipt={...row,url:await signedUrl(objectPath)} as {id:string;file_name:string;url:string|null};
       }catch(error){await fetch(`${config.supabaseUrl}/storage/v1/object/${BUCKET}/${objectPath}`,{method:"DELETE",headers:headers(config.serviceKey)}).catch(()=>undefined);await sql`delete from hospitality.invoices where id=${invoice.id}::uuid`;throw error}
     }
-    await sql`insert into vgroup.audit_logs(business_unit_id,user_id,action,entity_type,entity_id,new_value) values(${property.business_unit_id}::uuid,${session.userId}::uuid,'hospitality.expense.create','hospitality_invoice',${invoice.id}::uuid,jsonb_build_object('property_id',${propertyId},'total',${total},'currency',${currency},'receipt_attached',${receipt!==null}))`;
+    await sql`insert into vgroup.audit_logs(business_unit_id,user_id,action,entity_type,entity_id,new_value) values(${property.business_unit_id}::uuid,${session.userId}::uuid,'hospitality.expense.create','hospitality_invoice',${invoice.id}::uuid,jsonb_build_object('property_id',${propertyId}::text,'total',${total}::numeric,'currency',${currency}::text,'receipt_attached',${receipt!==null}::boolean))`;
     return NextResponse.json({expense:invoice,receipt},{status:201,headers:{"Cache-Control":"no-store"}});
   }catch(error){return apiErrorResponse(error)}
 }

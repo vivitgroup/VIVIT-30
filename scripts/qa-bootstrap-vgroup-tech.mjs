@@ -56,10 +56,35 @@ async function applyCanonicalTechCore() {
   console.log("PASS canonical Tech core migration applied to isolated VGroup QA database");
 }
 
+async function bootstrapTechSaasReadContract() {
+  await sql.unsafe(`
+    create table if not exists tech.sla_incidents (
+      id uuid primary key default gen_random_uuid(),
+      project_id uuid references tech.projects(id) on delete cascade,
+      subscription_id uuid references tech.subscriptions(id) on delete cascade,
+      sla_rule_id uuid,
+      title text not null,
+      status text not null default 'open',
+      opened_at timestamptz not null default now(),
+      first_response_at timestamptz,
+      resolved_at timestamptz
+    );
+    create index if not exists qa_sla_incidents_project_idx on tech.sla_incidents(project_id, opened_at);
+    create index if not exists qa_sla_incidents_subscription_idx on tech.sla_incidents(subscription_id, opened_at);
+    alter table tech.sla_incidents enable row level security;
+    revoke all on tech.sla_incidents from anon, authenticated;
+    grant all on tech.sla_incidents to service_role;
+  `);
+  const [proof] = await sql`select to_regclass('tech.sla_incidents')::text as sla_incidents`;
+  if (proof?.sla_incidents !== "tech.sla_incidents") throw new Error("qa_tech_saas_read_contract_incomplete");
+  console.log("PASS Tech SaaS read relation bootstrapped in isolated VGroup QA database");
+}
+
 try {
   await ensureSupabaseRoles();
   await bootstrapVGroupFoundation();
   await applyCanonicalTechCore();
+  await bootstrapTechSaasReadContract();
 } finally {
   await sql.end({ timeout: 2 });
 }

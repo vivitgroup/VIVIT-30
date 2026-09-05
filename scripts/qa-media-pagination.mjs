@@ -22,10 +22,13 @@ check('Hierarchy uses account attribution and conversion reporting',hier.include
 check('Hierarchy upserts Ad Sets and Ads',hier.includes('insert into ad_sets')&&hier.includes('insert into ads'));
 check('Hierarchy persists Ad Set and Ad entity rows',hier.includes("'ENTITY','AD_SET'")&&hier.includes("'ENTITY','AD'"));
 check('Hierarchy persists ATC purchases revenue',hier.includes('${m.purchases},${m.addToCart},${m.revenue}'));
-check('Active intelligence UI runs hierarchy after campaign sync',ui.includes('fetch(`/api/media-hierarchy/${id}`'));
-check('Active intelligence UI passes selected range to hierarchy sync',ui.includes('body:JSON.stringify({from,to})'));
-check('Active intelligence UI surfaces hierarchy failure',ui.includes('if(!hr.ok)throw new Error(h.error||"Hierarchy sync failed")'));
-check('Active intelligence UI reports hierarchy row counts',ui.includes('h.rows'));
+check('Campaign sync owns Meta hierarchy refresh',api.includes('syncMetaHierarchy(')&&api.includes('op==="sync_campaign"'));
+check('Campaign sync passes selected range into Meta hierarchy',api.includes('syncMetaHierarchy')&&api.includes('r.start')&&api.includes('r.end'));
+check(
+  'Active intelligence UI avoids duplicate hierarchy request',
+  !ui.includes('fetch(`/api/media-hierarchy/${id}`'),
+);
+check('Active intelligence UI reports backend hierarchy counts',ui.includes('d.hierarchy')&&ui.includes('h.adSets')&&ui.includes('h.ads'));
 check('Control GET prevents campaign double counting',api.includes('!p.adSetId&&!p.adId'));
 check('Control GET nests Ad Sets and Ads',api.includes('adSets:hierarchy')&&api.includes('ads:adRows.filter'));
 const failed=checks.filter(x=>!x.o);for(const x of checks)console.log(`${x.o?'PASS':'FAIL'}  ${x.n}`);console.log(`\n${checks.length-failed.length}/${checks.length} media pagination/hierarchy checks passed.`);if(failed.length)process.exit(1);

@@ -43,19 +43,28 @@ export async function POST(request:Request){
       if(!claimed.length){
         const [prior]=Array.from(await db.execute<{action:string;new_values:string|null}>(sql`select action,new_values from audit_logs where id=${receiptId} and workspace_id=${marketingUser.workspaceId} and user_id=${marketingUser.id} limit 1`));
         if(prior?.action==="vivito_group_action_executed")return NextResponse.json({success:true,duplicate:true,result:prior.new_values?JSON.parse(prior.new_values):null},{headers:noStore});
+        if(prior?.action==="vivito_group_action_failed")return responseError("MARKETING_TASK_RECONCILIATION_REQUIRED","This Marketing task previously failed or has an uncertain external result. Reconcile it and use a new task id before any retry.",409);
         return responseError("MARKETING_TASK_ALREADY_CLAIMED","This Marketing task was already claimed and will not execute twice",409);
       }
     }
+    let result:unknown;
     try{
-      const result=await execute(opRaw,args,marketingUser.role,marketingUser.id,marketingUser.workspaceId);
-      const successValues=JSON.stringify({taskId:taskId||null,op:opRaw,result,source:"vgroup"});
-      if(receiptId)await db.execute(sql`update audit_logs set action='vivito_group_action_executed',new_values=${successValues} where id=${receiptId} and workspace_id=${marketingUser.workspaceId} and user_id=${marketingUser.id} and action='vivito_group_action_started'`);
-      return NextResponse.json({success:true,action:opRaw,result},{headers:noStore});
+      result=await execute(opRaw,args,marketingUser.role,marketingUser.id,marketingUser.workspaceId);
     }catch(error){
       const message=error instanceof Error?error.message:"Marketing Vivito action failed";
-      if(receiptId)await db.execute(sql`update audit_logs set action='vivito_group_action_failed',new_values=${JSON.stringify({taskId,op:opRaw,message,source:"vgroup"})} where id=${receiptId} and workspace_id=${marketingUser.workspaceId} and user_id=${marketingUser.id} and action='vivito_group_action_started'`).catch(()=>{});
+      if(receiptId)await db.execute(sql`update audit_logs set action='vivito_group_action_failed',new_values=${JSON.stringify({taskId,op:opRaw,message,source:"vgroup",state:"FAILED_REQUIRES_RECONCILIATION"})} where id=${receiptId} and workspace_id=${marketingUser.workspaceId} and user_id=${marketingUser.id} and action='vivito_group_action_started'`).catch(()=>{});
       return responseError("MARKETING_EXECUTION_FAILED",message,502);
     }
+    const successValues=JSON.stringify({taskId:taskId||null,op:opRaw,result,source:"vgroup"});
+    if(receiptId){
+      try{
+        const finalized=Array.from(await db.execute<{id:string}>(sql`update audit_logs set action='vivito_group_action_executed',new_values=${successValues} where id=${receiptId} and workspace_id=${marketingUser.workspaceId} and user_id=${marketingUser.id} and action='vivito_group_action_started' returning id`));
+        if(!finalized.length)return responseError("MARKETING_TASK_RECONCILIATION_REQUIRED","Marketing action returned but its execution receipt could not be finalized. Do not retry this task id until reconciled.",503);
+      }catch{
+        return responseError("MARKETING_TASK_RECONCILIATION_REQUIRED","Marketing action returned but its execution receipt could not be persisted. Do not retry this task id until reconciled.",503);
+      }
+    }
+    return NextResponse.json({success:true,action:opRaw,result},{headers:noStore});
   }catch(error){
     const code=error instanceof Error?error.message:"MARKETING_BRIDGE_FAILED";
     return responseError("MARKETING_BRIDGE_FAILED",code,503);

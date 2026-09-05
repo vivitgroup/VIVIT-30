@@ -1,0 +1,51 @@
+name: VIVITO Model Certification Contract
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vivito-model-cert-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  model-cert-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Verify router failover and manual pinning contracts
+        run: |
+          npx tsx scripts/qa-vivito-model-mesh-v1.ts
+          npx tsx scripts/qa-vivito-groq-free.ts
+      - name: Verify runtime certification wiring
+        run: |
+          grep -F '/api/vivito/openrouter/certify' app/group/vivito/page.tsx
+          grep -F 'OPENROUTER_KEY_COOKIE' app/api/vivito/openrouter/callback/route.ts
+          grep -F 'groqConfigured' app/api/vivito/openrouter/certify/route.ts
+          grep -F 'GROQ_API_KEY' lib/vivito/groq-free-mesh-v1.ts
+          grep -F 'canonicalModelIdentity' app/api/vivito/openrouter/certify/route.ts
+          grep -F 'canonicalModelIdentity' scripts/qa-vivito-live-model-cert.ts
+          grep -F 'replace(/:free$/i' app/api/vivito/openrouter/certify/route.ts
+          grep -F 'qwen/qwen3.6-27b' lib/vivito/groq-free-mesh-v1.ts
+          grep -F 'qwen/qwen3.8-27b' lib/vivito/groq-free-mesh-v1.ts
+      - name: Certify live read-only Exa research
+        run: npx tsx scripts/qa-vivito-live-research.ts
+      - name: Run full live certification when OpenRouter credential exists
+        if: ${{ env.OPENROUTER_API_KEY != '' }}
+        run: npx tsx scripts/qa-vivito-live-model-cert.ts
+      - name: Declare post-deploy proof source otherwise
+        if: ${{ env.OPENROUTER_API_KEY == '' }}
+        run: echo 'Final >=20 proof uses distinct underlying canonical free models with exact-pinned calls. OpenRouter OAuth is sufficient when >=20 canonical models pass; Groq is optional additional diversity/failover.'

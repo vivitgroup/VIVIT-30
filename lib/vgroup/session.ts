@@ -35,16 +35,20 @@ async function fetchSupabaseUser(accessToken:string):Promise<SupabaseUser|null>{
 }
 
 export async function getVGroupSession():Promise<VGroupSession|null>{
-  const sql=getVGroupSql();
   const jar=await cookies();
   const accessToken=jar.get(ACCESS_COOKIE)?.value;
+  let sql:ReturnType<typeof getVGroupSql>|undefined;
   let user:GroupUserRow|undefined;
   let bridgedFromMarketing=false;
 
+  // Authenticate before opening the isolated Group database. Anonymous or
+  // invalid sessions must be able to fail closed to /group/login even when a
+  // preview environment intentionally has no VGROUP_DATABASE_URL attached.
   if(accessToken){
     try{
       const authUser=await fetchSupabaseUser(accessToken);
       if(authUser?.id){
+        sql=getVGroupSql();
         [user]=await sql<GroupUserRow[]>`
           select id::text,email,full_name,status from vgroup.users
           where external_auth_id=${authUser.id} and status='active' limit 1
@@ -60,6 +64,7 @@ export async function getVGroupSession():Promise<VGroupSession|null>{
     const marketingUser=marketingSession?.user as {email?:string|null;role?:string;authValid?:boolean}|undefined;
     const email=String(marketingUser?.email||"").trim().toLowerCase();
     if(marketingUser?.authValid!==true||marketingUser?.role!=="SUPER_ADMIN"||!email)return null;
+    sql??=getVGroupSql();
     [user]=await sql<GroupUserRow[]>`
       select id::text,email,full_name,status from vgroup.users
       where lower(email)=lower(${email}) and status='active' limit 1
@@ -68,6 +73,7 @@ export async function getVGroupSession():Promise<VGroupSession|null>{
     bridgedFromMarketing=true;
   }
 
+  sql??=getVGroupSql();
   const memberships=await sql<MembershipRow[]>`
     select bu.code as business_unit,
            r.code as role,

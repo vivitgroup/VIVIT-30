@@ -16,18 +16,20 @@ export default async function HospitalityLayout({children}:{children:ReactNode})
   const canFinance=hasPermission(session,"hospitality","finance:view");
   return <div className="vgroup-hospitality-brand">
     <style>{`
-      .vgroup-hospitality-brand{min-height:100vh;background:#FFFDF8;color:#241E16;--vh-ink:#241E16;--vh-gold:#C99A3D;--vh-gold-dark:#9A6D17;--vh-cream:#FFFDF8;--vh-muted:#746650;--vh-line:rgba(201,154,61,.24)}
-      .vgroup-hospitality-brand main{background:radial-gradient(circle at 86% 2%,rgba(201,154,61,.13),transparent 29%),linear-gradient(180deg,#FFFDF8 0%,#FFFFFF 48%,#FBF6EA 100%)!important;color:#241E16!important}
-      .vgroup-hospitality-brand main article,.vgroup-hospitality-brand main form{border-color:var(--vh-line)!important;background:rgba(255,255,255,.94)!important;box-shadow:0 18px 52px rgba(81,58,16,.08)}
-      .vgroup-hospitality-brand main a{color:#9A6D17}
-      .vgroup-hospitality-brand main input,.vgroup-hospitality-brand main select,.vgroup-hospitality-brand main textarea{border-color:rgba(201,154,61,.30)!important;background:#FFFFFF!important;color:#241E16!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.5)}
-      .vgroup-hospitality-brand main input::placeholder,.vgroup-hospitality-brand main textarea::placeholder{color:#9A8B72!important}
-      .vgroup-hospitality-brand main button:not([data-danger="true"]){background:linear-gradient(135deg,#D9B35F,#B98222)!important;color:#1F170B!important;font-weight:900;box-shadow:0 10px 24px rgba(185,130,34,.18)}
-      .vgroup-hospitality-brand ::selection{background:#D9B35F;color:#1F170B}
-      .vgroup-hospitality-nav{position:sticky;top:0;z-index:45;display:flex;gap:9px;align-items:center;overflow-x:auto;padding:10px 16px;background:rgba(255,253,248,.94);backdrop-filter:blur(18px);border-bottom:1px solid var(--vh-line);box-shadow:0 8px 30px rgba(81,58,16,.05)}
-      .vgroup-hospitality-nav a{white-space:nowrap;text-decoration:none;color:#665435;padding:8px 11px;border-radius:10px;border:1px solid rgba(201,154,61,.20);font:800 12px/1 Inter,system-ui,sans-serif;background:rgba(255,255,255,.8)}
-      .vgroup-hospitality-nav a:hover{border-color:rgba(201,154,61,.48);color:#8A6217}
-      .vgroup-hospitality-nav a[data-primary="true"]{background:linear-gradient(135deg,#D9B35F,#B98222);color:#1F170B;border-color:transparent}
+      .vgroup-hospitality-brand{min-height:100vh;background:#FFFFFF;color:#101828;--vh-ink:#101828;--vh-accent:#344054;--vh-muted:#667085;--vh-line:#E4E7EC;--vh-soft:#F9FAFB}
+      .vgroup-hospitality-brand main{background:#FFFFFF!important;color:#101828!important}
+      .vgroup-hospitality-brand main article,.vgroup-hospitality-brand main form{border-color:#E4E7EC!important;background:#FFFFFF!important;box-shadow:0 10px 30px rgba(16,24,40,.06)!important;color:#101828!important}
+      .vgroup-hospitality-brand main h1,.vgroup-hospitality-brand main h2,.vgroup-hospitality-brand main h3,.vgroup-hospitality-brand main h4,.vgroup-hospitality-brand main strong,.vgroup-hospitality-brand main b{color:#101828!important}
+      .vgroup-hospitality-brand main p,.vgroup-hospitality-brand main small,.vgroup-hospitality-brand main label,.vgroup-hospitality-brand main span{color:inherit}
+      .vgroup-hospitality-brand main a{color:#344054}
+      .vgroup-hospitality-brand main input,.vgroup-hospitality-brand main select,.vgroup-hospitality-brand main textarea{border-color:#D0D5DD!important;background:#FFFFFF!important;color:#101828!important;box-shadow:none!important}
+      .vgroup-hospitality-brand main input::placeholder,.vgroup-hospitality-brand main textarea::placeholder{color:#98A2B3!important}
+      .vgroup-hospitality-brand main button:not([data-danger="true"]){background:#101828!important;color:#FFFFFF!important;font-weight:800;box-shadow:none!important;border-color:#101828!important}
+      .vgroup-hospitality-brand ::selection{background:#E4E7EC;color:#101828}
+      .vgroup-hospitality-nav{position:sticky;top:0;z-index:45;display:flex;gap:8px;align-items:center;overflow-x:auto;padding:10px 16px;background:rgba(255,255,255,.96);backdrop-filter:blur(18px);border-bottom:1px solid #E4E7EC;box-shadow:0 4px 16px rgba(16,24,40,.04)}
+      .vgroup-hospitality-nav a{white-space:nowrap;text-decoration:none;color:#475467;padding:8px 11px;border-radius:999px;border:1px solid #E4E7EC;font:800 12px/1 Inter,system-ui,sans-serif;background:#FFFFFF}
+      .vgroup-hospitality-nav a:hover{border-color:#98A2B3;color:#101828}
+      .vgroup-hospitality-nav a[data-primary="true"]{background:#101828;color:#FFFFFF;border-color:#101828}
     `}</style>
     <nav className="vgroup-hospitality-nav" aria-label="Hospitality navigation">
       <Link href={isOwner?"/group/hospitality/owner-portal":"/group/hospitality"}>Hospitality</Link>

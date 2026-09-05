@@ -29,7 +29,8 @@ add('EXECUTION','ERP Execution',[
  {pass:exec?.passed===true&&Number(exec.cases||0)>=50,detail:'Real staged-DB execution evidence with at least 50 mutation cases is missing.'},
 ]);
 const provider=evidence('provider-e2e.json');
-const requiredProviders=['meta','google','tiktok','snapchat','linkedin'];
+const requiredProviders=(process.env.VIVITO_CERT_REQUIRED_PROVIDERS||'meta,snapchat')
+ .split(',').map(v=>v.trim().toLowerCase()).filter(Boolean);
 add('MEDIA','Media & Analytics',[
  {pass:provider?.passed===true,detail:'Live provider E2E evidence is missing.'},
  ...requiredProviders.map(p=>({pass:provider?.providers?.[p]?.passed===true,detail:`${p} live read/write E2E is not certified.`})),

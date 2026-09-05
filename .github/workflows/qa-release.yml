@@ -91,13 +91,21 @@ jobs:
           test -n "${API_URL:-}"
           test -n "$AUTH_PUBLIC_KEY"
           test -n "${SERVICE_ROLE_KEY:-}"
+          test -n "${DB_URL:-}"
+          MARKETING_HANDOFF_SECRET="$(openssl rand -hex 32)"
           {
             echo "VGROUP_SUPABASE_URL=$API_URL"
             echo "VGROUP_SUPABASE_PUBLISHABLE_KEY=$AUTH_PUBLIC_KEY"
             echo "VGROUP_SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY"
             echo "VGROUP_SUPABASE_SERVICE_KEY=$SERVICE_ROLE_KEY"
+            echo "SUPABASE_URL=$API_URL"
+            echo "SUPABASE_SERVICE_KEY=$SERVICE_ROLE_KEY"
+            echo "QA_SUPABASE_DB_URL=$DB_URL"
+            echo "VGROUP_MARKETING_INTEGRATION_ENABLED=true"
+            echo "VGROUP_MARKETING_CANDIDATE_SHA=9817ec42750b17104c5292eb2ec4d02358b53290"
+            echo "VGROUP_MARKETING_HANDOFF_SECRET=$MARKETING_HANDOFF_SECRET"
           } >> "$GITHUB_ENV"
-          echo "Ephemeral Supabase Auth is ready; local credentials are not persisted."
+          echo "Ephemeral Supabase Auth and Marketing handoff receiver are ready; local credentials are not persisted."
 
       - name: Built runtime smoke + authenticated role-by-role E2E
         shell: bash
@@ -121,6 +129,7 @@ jobs:
           fi
           BASE_URL=http://127.0.0.1:3000 npm run qa:runtime-smoke || { cat /tmp/vivit-next.log; exit 1; }
           BASE_URL=http://127.0.0.1:3000 node scripts/qa-authenticated-role-e2e.mjs 2>&1 | tee /tmp/vivit-auth-e2e.log || { cat /tmp/vivit-next.log; exit 1; }
+          BASE_URL=http://127.0.0.1:3000 node scripts/qa-marketing-action-e2e.mjs 2>&1 | tee /tmp/vivit-marketing-action-e2e.log || { cat /tmp/vivit-next.log; exit 1; }
 
       - name: Upload authenticated E2E diagnostics
         if: failure()
@@ -129,6 +138,7 @@ jobs:
           name: authenticated-role-e2e-diagnostics
           path: |
             /tmp/vivit-auth-e2e.log
+            /tmp/vivit-marketing-action-e2e.log
             /tmp/vivit-next.log
           if-no-files-found: ignore
           retention-days: 1

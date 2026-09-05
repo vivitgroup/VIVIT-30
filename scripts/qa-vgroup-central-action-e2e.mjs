@@ -1,7 +1,12 @@
 import {randomUUID} from "node:crypto";
 import postgres from "postgres";
 
-const baseUrl=process.env.BASE_URL||"http://127.0.0.1:3000";
+const configuredBaseUrl=process.env.BASE_URL||"http://127.0.0.1:3000";
+const baseUrl=(()=>{
+  const url=new URL(configuredBaseUrl);
+  if(url.hostname==="127.0.0.1")url.hostname="localhost";
+  return url.origin;
+})();
 const databaseUrl=process.env.VGROUP_DATABASE_URL;
 const supabaseUrl=process.env.VGROUP_SUPABASE_URL;
 const serviceRoleKey=process.env.VGROUP_SUPABASE_SERVICE_ROLE_KEY;

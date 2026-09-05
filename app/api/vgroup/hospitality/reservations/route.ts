@@ -4,6 +4,7 @@ import {apiErrorResponse,requireApiPermission} from "@/lib/vgroup/api-access";
 
 export const dynamic="force-dynamic";
 const uuid=/^[0-9a-f-]{36}$/i;
+const VIVIT_COMMISSION_RATE=0.15;
 const transitions:Record<string,readonly string[]>={pending:["confirmed","cancelled"],confirmed:["checked_in","cancelled","no_show"],checked_in:["checked_out"],checked_out:[],cancelled:[],no_show:[]};
 
 export async function GET(){
@@ -34,10 +35,10 @@ export async function POST(request:Request){
     const guests=Number(body.guests??1);
     const grossAmount=Number(body.grossAmount??0);
     const platformFee=Number(body.platformFee??0);
-    const companyCommission=Number(body.companyCommission??0);
+    const companyCommission=Math.round(grossAmount*VIVIT_COMMISSION_RATE*100)/100;
     if(!uuid.test(propertyId)||guestName.length<2||guestName.length>200||!/^\d{4}-\d{2}-\d{2}$/.test(checkIn)||!/^\d{4}-\d{2}-\d{2}$/.test(checkOut)||checkOut<=checkIn||!Number.isFinite(guests)||guests<1||!Number.isInteger(guests)||source.length<2||source.length>80)
       return NextResponse.json({error:"Invalid reservation payload"},{status:400,headers:{"Cache-Control":"no-store"}});
-    if([grossAmount,platformFee,companyCommission].some(v=>!Number.isFinite(v)||v<0)||platformFee+companyCommission>grossAmount)
+    if([grossAmount,platformFee].some(v=>!Number.isFinite(v)||v<0)||platformFee+companyCommission>grossAmount)
       return NextResponse.json({error:"Invalid financial values"},{status:400,headers:{"Cache-Control":"no-store"}});
     const sql=getVGroupSql();
     const [property]=await sql<{id:string;max_guests:number;status:string}[]>`select id::text,max_guests,status from hospitality.properties where id=${propertyId}::uuid and archived_at is null limit 1`;
@@ -59,11 +60,11 @@ export async function POST(request:Request){
       from vgroup.business_units bu
       join hospitality.properties p on p.id=${propertyId}::uuid and p.business_unit_id=bu.id and p.archived_at is null and p.status='active'
       where bu.code='hospitality'
-      returning id::text,net_owner_amount
+      returning id::text,gross_amount,company_commission,net_owner_amount
     `;
     if(!row)return NextResponse.json({error:"Property unavailable"},{status:404,headers:{"Cache-Control":"no-store"}});
     await sql`insert into vgroup.audit_logs(business_unit_id,user_id,action,entity_type,entity_id,new_value)
-      select id,${session.userId}::uuid,'reservation.create','reservation',${row.id}::uuid,jsonb_build_object('property_id',${propertyId},'guest_name',${guestName},'check_in',${checkIn},'check_out',${checkOut})
+      select id,${session.userId}::uuid,'reservation.create','reservation',${row.id}::uuid,jsonb_build_object('property_id',${propertyId},'guest_name',${guestName},'check_in',${checkIn},'check_out',${checkOut},'vivit_commission_rate',15,'vivit_commission',${companyCommission})
       from vgroup.business_units where code='hospitality'`;
     return NextResponse.json({reservation:row},{status:201,headers:{"Cache-Control":"no-store"}});
   }catch(error){

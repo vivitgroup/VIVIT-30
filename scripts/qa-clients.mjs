@@ -19,6 +19,7 @@ const actions=read("lib/actions/index.ts");
 const taskAction=read("lib/actions/create-task-role-safe.ts");
 const taskPage=read("app/dashboard/creative/new/page.tsx");
 const taskInbox=read("app/dashboard/tasks-inbox/page.tsx");
+const competitorMigration=read("drizzle/20260905_client_competitor_onboarding_candidate.sql");
 
 check("Clients list requires authenticated role",list.includes("if (!session?.user) redirect")&&list.includes("Role.SUPER_ADMIN")&&list.includes("Role.ACCOUNT_MANAGER"));
 check("Account Manager list is ownership scoped",list.includes("eq(clients.accountManagerId,userId)"));
@@ -38,6 +39,10 @@ check("Client create validates active portal user and one-client ownership",api.
 check("Client create validates approved AM/Media Buyer assignments",clientPost.includes('eq(users.role,"ACCOUNT_MANAGER")')&&clientPost.includes('eq(users.role,"MEDIA_BUYER")')&&clientPost.match(/eq\(users\.approvalStatus,"APPROVED"\)/g)?.length>=2&&clientPost.includes("valid active approved account manager")&&clientPost.includes("valid active approved media buyer"));
 check("Client create validates contract date order",api.includes("Contract end date must be on or after the start date"));
 check("Client form exposes real error and saving states",form.includes("setError")&&form.includes("Creating client…")&&form.includes("role=\"alert\""));
+check("Client onboarding migration creates all competitor tables",["competitor_watchlists","competitor_social_profiles","competitive_report_preferences"].every(name=>competitorMigration.includes(`CREATE TABLE IF NOT EXISTS ${name}`)));
+check("Client onboarding migration cascades client-owned competitor data",competitorMigration.includes("client_id text NOT NULL REFERENCES clients(id) ON DELETE CASCADE")&&competitorMigration.includes("watchlist_id text NOT NULL REFERENCES competitor_watchlists(id) ON DELETE CASCADE"));
+check("Client onboarding migration supports API conflict contracts",competitorMigration.includes("UNIQUE (watchlist_id, platform, profile_url)")&&competitorMigration.includes("PRIMARY KEY (workspace_id, client_id)"));
+check("Client POST persists competitor onboarding atomically",clientPost.includes("insert into competitor_watchlists")&&clientPost.includes("insert into competitor_social_profiles")&&clientPost.includes("insert into competitive_report_preferences")&&clientPost.includes("db.transaction(async tx=>"));
 check("Task create allows Super Admin, Account Manager and Media Buyer",taskAction.includes('"SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"'));
 check("Task create scopes Account Manager ownership",taskAction.includes('role==="ACCOUNT_MANAGER"&&client.accountManagerId!==userId'));
 check("Task create scopes Media Buyer ownership",taskAction.includes('role==="MEDIA_BUYER"&&client.mediaBuyerId!==userId'));

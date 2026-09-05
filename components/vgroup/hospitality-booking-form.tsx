@@ -1,7 +1,7 @@
 "use client";
 import {FormEvent,useMemo,useState} from "react";
 
-type PropertyOption={id:string;name:string;maxGuests:number;commissionPercent:number|null;hasActiveContract:boolean};
+type PropertyOption={id:string;name:string;maxGuests:number};
 
 export function HospitalityBookingForm({properties,defaultPropertyId}:{properties:PropertyOption[];defaultPropertyId?:string}){
   const [propertyId,setPropertyId]=useState(defaultPropertyId||properties[0]?.id||"");
@@ -11,7 +11,6 @@ export function HospitalityBookingForm({properties,defaultPropertyId}:{propertie
 
   async function submit(e:FormEvent<HTMLFormElement>){
     e.preventDefault();
-    if(!selected?.hasActiveContract){setMessage("Finance setup required for this property before a financially complete booking can be created.");return}
     setBusy(true);setMessage("");
     const form=new FormData(e.currentTarget);
     const payload={
@@ -36,7 +35,7 @@ export function HospitalityBookingForm({properties,defaultPropertyId}:{propertie
   }
 
   return <form onSubmit={submit} style={{padding:20,border:"1px solid #E4E7EC",borderRadius:20,background:"#fff",display:"grid",gap:16,marginBottom:22}}>
-    <div><h2 style={{margin:"0 0 4px",fontSize:22,color:"#101828"}}>New booking</h2><p style={{margin:0,color:"#667085",fontSize:13}}>Only the details needed to operate the stay. VIVIT calculates its commission from the active property contract.</p></div>
+    <div><h2 style={{margin:"0 0 4px",fontSize:22,color:"#101828"}}>New booking</h2><p style={{margin:0,color:"#667085",fontSize:13}}>Enter the stay details only. VIVIT commission is calculated automatically at 15% of total revenue.</p></div>
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:12}}>
       <label style={{display:"grid",gap:6,fontSize:12,fontWeight:800,color:"#344054"}}>Property<select value={propertyId} onChange={e=>{setPropertyId(e.target.value);setMessage("")}} required style={{padding:"12px",borderRadius:12,border:"1px solid #D0D5DD",background:"#fff",color:"#101828"}}>{properties.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
       <label style={{display:"grid",gap:6,fontSize:12,fontWeight:800,color:"#344054"}}>Guest name<input name="guestName" required style={input}/></label>
@@ -45,11 +44,11 @@ export function HospitalityBookingForm({properties,defaultPropertyId}:{propertie
       <label style={{display:"grid",gap:6,fontSize:12,fontWeight:800,color:"#344054"}}>Check-in<input name="checkIn" type="date" required style={input}/></label>
       <label style={{display:"grid",gap:6,fontSize:12,fontWeight:800,color:"#344054"}}>Check-out<input name="checkOut" type="date" required style={input}/></label>
       <label style={{display:"grid",gap:6,fontSize:12,fontWeight:800,color:"#344054"}}>Guests<input name="guests" type="number" min={1} max={selected?.maxGuests||99} defaultValue={1} required style={input}/></label>
-      <label style={{display:"grid",gap:6,fontSize:12,fontWeight:800,color:"#344054"}}>Total amount (EGP)<input name="grossAmount" type="number" min={0} step="0.01" required style={input}/></label>
+      <label style={{display:"grid",gap:6,fontSize:12,fontWeight:800,color:"#344054"}}>Total revenue (EGP)<input name="grossAmount" type="number" min={0} step="0.01" required style={input}/></label>
     </div>
     <div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"center",flexWrap:"wrap"}}>
-      <div style={{fontSize:12,fontWeight:800,color:selected?.hasActiveContract?"#027A48":"#B54708"}}>{selected?.hasActiveContract?`Finance ready · VIVIT commission ${selected.commissionPercent??0}% from active contract`:"Finance setup required · no active property contract"}</div>
-      <button disabled={busy||!selected?.hasActiveContract} style={{padding:"12px 18px",borderRadius:999,border:0,background:"#101828",color:"#fff",fontWeight:900,cursor:"pointer",opacity:busy||!selected?.hasActiveContract?.55:1}}>{busy?"Creating…":"Create booking"}</button>
+      <div style={{fontSize:12,fontWeight:800,color:"#475467"}}>VIVIT commission: 15% · calculated automatically</div>
+      <button disabled={busy||!selected} style={{padding:"12px 18px",borderRadius:999,border:0,background:"#101828",color:"#fff",fontWeight:900,cursor:"pointer",opacity:busy||!selected?.55:1}}>{busy?"Creating…":"Create booking"}</button>
     </div>
     {message?<div role="status" style={{fontSize:12,fontWeight:800,color:message.includes("successfully")?"#027A48":"#B42318"}}>{message}</div>:null}
   </form>

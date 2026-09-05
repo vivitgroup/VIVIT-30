@@ -51,7 +51,7 @@ export async function POST(request:Request,{params}:{params:Promise<{id:string}>
     if(isCover)await sql`update hospitality.property_images set is_cover=false,updated_at=now() where property_id=${id}::uuid and archived_at is null and is_cover`;
     try{
       const [image]=await sql`insert into hospitality.property_images(business_unit_id,property_id,object_path,file_name,mime_type,byte_size,caption,alt_text,sort_order,is_cover,created_by) values(${property.business_unit_id}::uuid,${id}::uuid,${objectPath},${file.name.slice(0,250)},${file.type},${file.size},${form.get('caption')?String(form.get('caption')).slice(0,500):null},${form.get('altText')?String(form.get('altText')).slice(0,500):null},${Number(form.get('sortOrder')??count?.n??0)},${isCover},${session.userId}::uuid) returning id::text,file_name,mime_type,byte_size,sort_order,is_cover,object_path`;
-      await sql`insert into vgroup.audit_logs(business_unit_id,user_id,action,entity_type,entity_id,new_value) values(${property.business_unit_id}::uuid,${session.userId}::uuid,'property.image.upload','property',${id}::uuid,jsonb_build_object('image_id',${image.id},'is_cover',${isCover},'file_name',${file.name.slice(0,250)}))`;
+      await sql`insert into vgroup.audit_logs(business_unit_id,user_id,action,entity_type,entity_id,new_value) values(${property.business_unit_id}::uuid,${session.userId}::uuid,'property.image.upload','property',${id}::uuid,jsonb_build_object('image_id',${image.id}::text,'is_cover',${isCover}::boolean,'file_name',${file.name.slice(0,250)}::text))`;
       return NextResponse.json({image:{...image,url:await signedUrl(objectPath)}},{status:201});
     }catch(error){
       await fetch(`${config.supabaseUrl}/storage/v1/object/${BUCKET}/${objectPath}`,{method:"DELETE",headers:headers(config.serviceKey)}).catch(()=>undefined);
@@ -77,7 +77,7 @@ export async function PATCH(request:Request,{params}:{params:Promise<{id:string}
     await sql.begin(async tx=>{
       if(body.setCover){await tx`update hospitality.property_images set is_cover=false,updated_at=now() where property_id=${id}::uuid and archived_at is null`;await tx`update hospitality.property_images set is_cover=true,updated_at=now() where id=${body.imageId}::uuid`}
       if(caption!==undefined||altText!==undefined||sortOrder!==undefined)await tx`update hospitality.property_images set caption=case when ${caption!==undefined} then ${caption??null} else caption end,alt_text=case when ${altText!==undefined} then ${altText??null} else alt_text end,sort_order=case when ${sortOrder!==undefined} then ${sortOrder??0} else sort_order end,updated_at=now() where id=${body.imageId}::uuid`;
-      await tx`insert into vgroup.audit_logs(business_unit_id,user_id,action,entity_type,entity_id,new_value) values(${image.business_unit_id}::uuid,${session.userId}::uuid,'property.image.update','property',${id}::uuid,jsonb_build_object('image_id',${body.imageId},'set_cover',${Boolean(body.setCover)},'caption_changed',${caption!==undefined},'alt_changed',${altText!==undefined},'sort_order',${sortOrder??null}))`;
+      await tx`insert into vgroup.audit_logs(business_unit_id,user_id,action,entity_type,entity_id,new_value) values(${image.business_unit_id}::uuid,${session.userId}::uuid,'property.image.update','property',${id}::uuid,jsonb_build_object('image_id',${body.imageId}::text,'set_cover',${Boolean(body.setCover)}::boolean,'caption_changed',${caption!==undefined}::boolean,'alt_changed',${altText!==undefined}::boolean,'sort_order',${sortOrder??null}::int))`;
     });
     return NextResponse.json({ok:true});
   }catch(error){return apiErrorResponse(error)}
@@ -98,7 +98,7 @@ export async function DELETE(request:Request,{params}:{params:Promise<{id:string
     if(!removed.ok&&removed.status!==404)return NextResponse.json({error:"Property image delete failed"},{status:502});
     await sql`update hospitality.property_images set archived_at=now(),is_cover=false,updated_at=now() where id=${body.imageId}::uuid`;
     if(image.is_cover)await sql`update hospitality.property_images set is_cover=true,updated_at=now() where id=(select id from hospitality.property_images where property_id=${id}::uuid and archived_at is null order by sort_order,created_at limit 1)`;
-    await sql`insert into vgroup.audit_logs(business_unit_id,user_id,action,entity_type,entity_id,new_value) values(${image.business_unit_id}::uuid,${session.userId}::uuid,'property.image.delete','property',${id}::uuid,jsonb_build_object('image_id',${body.imageId}))`;
+    await sql`insert into vgroup.audit_logs(business_unit_id,user_id,action,entity_type,entity_id,new_value) values(${image.business_unit_id}::uuid,${session.userId}::uuid,'property.image.delete','property',${id}::uuid,jsonb_build_object('image_id',${body.imageId}::text))`;
     return NextResponse.json({ok:true});
   }catch(error){return apiErrorResponse(error)}
 }

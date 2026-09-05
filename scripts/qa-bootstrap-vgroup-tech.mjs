@@ -56,6 +56,23 @@ async function applyCanonicalTechCore() {
   console.log("PASS canonical Tech core migration applied to isolated VGroup QA database");
 }
 
+async function applyCanonicalTechActionTables() {
+  const migrationUrl = new URL("../db/migrations/20260902_tech_business_operating_system_v2.sql", import.meta.url);
+  const migration = await readFile(migrationUrl, "utf8");
+  const firstDeferredDependency = "create table if not exists tech.support_contracts (";
+  const boundary = migration.indexOf(firstDeferredDependency);
+  if (boundary < 0) throw new Error("canonical_tech_operating_system_action_boundary_missing");
+  const actionTables = migration.slice(0, boundary);
+  if (!actionTables.includes("create table if not exists tech.resource_capacity")) throw new Error("canonical_tech_operating_system_missing_resource_capacity");
+  if (!actionTables.includes("create table if not exists tech.timesheets")) throw new Error("canonical_tech_operating_system_missing_timesheets");
+  await sql.unsafe(actionTables);
+  const [proof] = await sql`select to_regclass('tech.resource_capacity')::text as resource_capacity, to_regclass('tech.timesheets')::text as timesheets`;
+  if (proof?.resource_capacity !== "tech.resource_capacity" || proof?.timesheets !== "tech.timesheets") {
+    throw new Error(`canonical_tech_action_tables_incomplete:${JSON.stringify(proof ?? {})}`);
+  }
+  console.log("PASS canonical Tech operating-system action tables applied to isolated VGroup QA database");
+}
+
 async function bootstrapTechSaasReadContract() {
   await sql.unsafe(`
     create table if not exists tech.sla_incidents (
@@ -84,6 +101,7 @@ try {
   await ensureSupabaseRoles();
   await bootstrapVGroupFoundation();
   await applyCanonicalTechCore();
+  await applyCanonicalTechActionTables();
   await bootstrapTechSaasReadContract();
 } finally {
   await sql.end({ timeout: 2 });

@@ -8,10 +8,10 @@ type CertifiedAuditRow={id:string};
 
 async function main(){
  fs.mkdirSync('.vivito',{recursive:true});
- const adminId='cert-admin';
+ const adminId='cert-admin',workspaceId='default';
  let cases=0;
  type OperatorOp=Parameters<typeof executeVivitoOperatorAction>[0];type OperatorArgs=Parameters<typeof executeVivitoOperatorAction>[1];
- const run=async(op:OperatorOp,args:OperatorArgs)=>{const out=await executeVivitoOperatorAction(op,args,'SUPER_ADMIN',adminId);if(!out?.success)throw new Error(`${op} did not return success`);cases++;return out};
+ const run=async(op:OperatorOp,args:OperatorArgs)=>{const out=await executeVivitoOperatorAction(op,args,'SUPER_ADMIN',adminId,workspaceId);if(!out?.success)throw new Error(`${op} did not return success`);cases++;return out};
  try{
   await db.execute(sql`insert into workspaces(id,name,slug,plan,currency,max_clients,max_users,is_active,created_at,updated_at) values('default','VIVITO Certification','vivito-certification','ENTERPRISE','EGP',500,500,true,now(),now()) on conflict (id) do nothing`);
   await db.execute(sql`insert into users(id,workspace_id,name,email,password,role,is_active,approval_status,is_workspace_owner,created_at,updated_at) values(${adminId},'default','Certification Admin','cert-admin@vivito.test','not-used','SUPER_ADMIN',true,'APPROVED',true,now(),now()) on conflict (id) do nothing`);

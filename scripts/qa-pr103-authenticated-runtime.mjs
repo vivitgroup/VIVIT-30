@@ -79,21 +79,22 @@ try{
   response=await fetch(`${base}/api/auth/session`,{headers:{Cookie:legacyCookie}});body=await response.json();
   assert(response.status===200&&body?.user?.email===legacyEmail&&body?.user?.role==='SUPER_ADMIN'&&body?.user?.workspaceId===workspace&&body?.user?.authValid===true,`legacy_session_invalid_${response.status}_${JSON.stringify(body)}_callback_${callbackUrl}`);
   console.log('PASS PR103 authenticated SUPER_ADMIN session contract');
-  const legacyMutationHeaders={Cookie:legacyCookie,'Content-Type':'application/json',Origin:base};
+  const mutationBase='http://localhost:3000';
+  const legacyMutationHeaders={Cookie:legacyCookie,'Content-Type':'application/json',Origin:mutationBase,Host:'localhost:3000','X-Forwarded-Host':'localhost:3000','X-Forwarded-Proto':'http'};
 
   phase('avatar');
   const avatar1='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Z0V8AAAAASUVORK5CYII=';
-  const avatar2='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
-  response=await fetch(`${base}/api/profile-avatar`,{method:'POST',headers:legacyMutationHeaders,body:JSON.stringify({avatar:avatar1})});let avatarBody=await response.json();assert(response.status===200&&avatarBody.avatar===avatar1&&Number(avatarBody.version)>0,'avatar_first_replace_failed');assert(/no-store/.test(response.headers.get('cache-control')||''),'avatar_cache_header_missing');
+  const avatar2='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+  response=await fetch(`${mutationBase}/api/profile-avatar`,{method:'POST',headers:legacyMutationHeaders,body:JSON.stringify({avatar:avatar1})});let avatarBody=await response.json();assert(response.status===200&&avatarBody.avatar===avatar1&&Number(avatarBody.version)>0,'avatar_first_replace_failed');assert(/no-store/.test(response.headers.get('cache-control')||''),'avatar_cache_header_missing');
   await new Promise(resolve=>setTimeout(resolve,5));
-  response=await fetch(`${base}/api/profile-avatar`,{method:'POST',headers:legacyMutationHeaders,body:JSON.stringify({avatar:avatar2})});avatarBody=await response.json();assert(response.status===200&&avatarBody.avatar===avatar2,'avatar_second_replace_failed');
-  response=await fetch(`${base}/api/profile-avatar`,{method:'DELETE',headers:{Cookie:legacyCookie,Origin:base}});body=await response.json();assert(response.status===200&&body.avatar===null,'avatar_delete_failed');
+  response=await fetch(`${mutationBase}/api/profile-avatar`,{method:'POST',headers:legacyMutationHeaders,body:JSON.stringify({avatar:avatar2})});avatarBody=await response.json();assert(response.status===200&&avatarBody.avatar===avatar2,'avatar_second_replace_failed');
+  response=await fetch(`${mutationBase}/api/profile-avatar`,{method:'DELETE',headers:{Cookie:legacyCookie,Origin:mutationBase,Host:'localhost:3000','X-Forwarded-Host':'localhost:3000','X-Forwarded-Proto':'http'}});body=await response.json();assert(response.status===200&&body.avatar===null,'avatar_delete_failed');
   console.log('PASS PR103 Avatar immediate replace/delete + no-store/versioning');
 
   phase('marketing');
   await psql`insert into clients(id,workspace_id,company_name,is_active,currency) values(${clientId},${workspace},${`PR103 Client ${suffix}`},true,'EGP')`;
   await psql`insert into ad_campaigns(id,workspace_id,client_id,platform,external_id,name,objective,status,created_by) values(${campaignA},${workspace},${clientId},'META',${`ext-a-${suffix}`},'PR103 disposable','LEADS','ACTIVE',${legacyUser})`;
-  const lifecycle=async(id,action)=>{const result=await fetch(`${base}/api/campaign-lifecycle`,{method:'POST',headers:legacyMutationHeaders,body:JSON.stringify({id,action})});return{response:result,body:await result.json()}};
+  const lifecycle=async(id,action)=>{const result=await fetch(`${mutationBase}/api/campaign-lifecycle`,{method:'POST',headers:legacyMutationHeaders,body:JSON.stringify({id,action})});return{response:result,body:await result.json()}};
   let result=await lifecycle(campaignA,'archive');assert(result.response.status===200&&result.body.state==='archived','campaign_archive_failed');
   result=await lifecycle(campaignA,'restore');assert(result.response.status===200&&result.body.state==='active','campaign_restore_failed');
   result=await lifecycle(campaignA,'archive');assert(result.response.status===200,'campaign_rearchive_failed');

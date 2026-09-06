@@ -31,7 +31,8 @@ try{
   phase('tech_permissions');
   for(const [module,action] of [['clients','view'],['clients','create'],['projects','view'],['projects','create'],['projects','update']]){
     let [perm]=await gsql`select id::text from vgroup.permissions where module=${module} and action=${action} and business_unit_id=${bu.id}::uuid limit 1`;
-    if(!perm)[perm]=await gsql`insert into vgroup.permissions(module,action,business_unit_id) values(${role.id}::uuid,${perm.id}::uuid) on conflict do nothing`;
+    if(!perm)[perm]=await gsql`insert into vgroup.permissions(module,action,business_unit_id) values(${module},${action},${bu.id}::uuid) returning id::text`;
+    await gsql`insert into vgroup.role_permissions(role_id,permission_id) values(${role.id}::uuid,${perm.id}::uuid) on conflict do nothing`;
   }
   const techEmail=`qa-pr103-tech-${suffix}@example.com`,techPassword=`Qa!${randomUUID()}A1`;
   phase('tech_auth_seed');

@@ -1,3 +1,4 @@
+// Release retrigger marker: no runtime behavior change.
 import { NextResponse } from "next/server";
 import { db, users } from "@/lib/db";
 import { sql } from "drizzle-orm";

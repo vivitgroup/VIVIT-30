@@ -135,7 +135,8 @@ jobs:
         id: regression
         continue-on-error: true
         run: |
-          node --input-type=module <<'NODE'
+          set -o pipefail
+          node --input-type=module <<'NODE' 2>&1 | tee /tmp/pr103-runtime.log
           import postgres from 'postgres';
           import bcrypt from 'bcryptjs';
           import {randomUUID} from 'node:crypto';
@@ -186,6 +187,14 @@ jobs:
         id: phase
         if: steps.regression.outcome == 'failure'
         run: echo "value=$(cat /tmp/pr103-phase 2>/dev/null || echo unknown)" >> "$GITHUB_OUTPUT"
+      - name: Upload PR103 runtime failure log
+        if: steps.regression.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr103-runtime-log-${{ github.event.pull_request.head.sha || github.sha }}
+          path: /tmp/pr103-runtime.log
+          if-no-files-found: error
+          retention-days: 3
       - name: Fail with exact runtime phase
         if: steps.regression.outcome == 'failure'
         run: |

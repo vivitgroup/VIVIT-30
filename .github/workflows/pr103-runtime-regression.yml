@@ -54,6 +54,7 @@ jobs:
       - name: Build isolated databases
         run: |
           npx drizzle-kit push --force
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/20260906_campaign_lifecycle_archive.sql
           PGPASSWORD=vivito psql -h 127.0.0.1 -U vivito -d postgres -v ON_ERROR_STOP=1 -c "create database vivito_pr103_vgroup"
           DRIZZLE_DATABASE_URL="$VGROUP_DATABASE_URL" DATABASE_URL="$VGROUP_DATABASE_URL" npx drizzle-kit push --force
           node scripts/qa-bootstrap-vgroup-tech.mjs

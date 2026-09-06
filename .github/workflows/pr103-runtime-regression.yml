@@ -108,7 +108,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: pr103-runtime-log-${{ github.event.pull_request.head.sha || github.sha }}
-          path: /tmp/pr103-runtime.log
+          path: |
+            /tmp/pr103-runtime.log
+            /tmp/pr103-next.log
+            /tmp/pr103-auth-mock.log
           if-no-files-found: error
           retention-days: 3
       - name: Fail with exact runtime phase

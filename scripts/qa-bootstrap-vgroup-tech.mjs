@@ -107,6 +107,13 @@ async function bootstrapVGroupFoundation() {
       new_value jsonb,
       created_at timestamptz not null default now()
     );
+    insert into vgroup.business_units(code, display_name_ar, display_name_en, status)
+    values ('tech', 'فيفيت تك', 'Vivit Tech', 'active')
+    on conflict (code) do update
+      set display_name_ar = excluded.display_name_ar,
+          display_name_en = excluded.display_name_en,
+          status = 'active',
+          updated_at = now();
   `);
   const [proof] = await sql`
     select
@@ -116,7 +123,8 @@ async function bootstrapVGroupFoundation() {
       to_regclass('vgroup.user_business_unit_roles')::text as memberships,
       to_regclass('vgroup.employees')::text as employees,
       to_regclass('vgroup.employee_permissions')::text as employee_permissions,
-      to_regclass('vgroup.audit_logs')::text as audit_logs
+      to_regclass('vgroup.audit_logs')::text as audit_logs,
+      exists(select 1 from vgroup.business_units where code='tech' and status='active') as tech_unit
   `;
   if (
     proof?.roles !== "vgroup.roles" ||
@@ -125,9 +133,10 @@ async function bootstrapVGroupFoundation() {
     proof?.memberships !== "vgroup.user_business_unit_roles" ||
     proof?.employees !== "vgroup.employees" ||
     proof?.employee_permissions !== "vgroup.employee_permissions" ||
-    proof?.audit_logs !== "vgroup.audit_logs"
+    proof?.audit_logs !== "vgroup.audit_logs" ||
+    proof?.tech_unit !== true
   ) throw new Error(`qa_vgroup_rbac_foundation_incomplete:${JSON.stringify(proof ?? {})}`);
-  console.log("PASS VGroup RBAC foundation bootstrapped in isolated QA database");
+  console.log("PASS VGroup RBAC foundation + active Tech unit bootstrapped in isolated QA database");
 }
 
 async function applyCanonicalTechCore() {

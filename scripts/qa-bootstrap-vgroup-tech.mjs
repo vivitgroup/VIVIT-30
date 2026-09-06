@@ -41,7 +41,93 @@ async function bootstrapVGroupFoundation() {
       created_at timestamptz not null default now(),
       updated_at timestamptz not null default now()
     );
+    create table if not exists vgroup.roles (
+      id uuid primary key default gen_random_uuid(),
+      code text not null,
+      business_unit_id uuid references vgroup.business_units(id) on delete cascade,
+      description text,
+      is_system boolean not null default false,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    );
+    create unique index if not exists qa_vgroup_roles_scope_code
+      on vgroup.roles ((coalesce(business_unit_id, '00000000-0000-0000-0000-000000000000'::uuid)), code);
+    create table if not exists vgroup.permissions (
+      id uuid primary key default gen_random_uuid(),
+      module text not null,
+      action text not null,
+      business_unit_id uuid references vgroup.business_units(id) on delete cascade,
+      created_at timestamptz not null default now()
+    );
+    create unique index if not exists qa_vgroup_permissions_scope_module_action
+      on vgroup.permissions ((coalesce(business_unit_id, '00000000-0000-0000-0000-000000000000'::uuid)), module, action);
+    create table if not exists vgroup.role_permissions (
+      id uuid primary key default gen_random_uuid(),
+      role_id uuid not null references vgroup.roles(id) on delete cascade,
+      permission_id uuid not null references vgroup.permissions(id) on delete cascade,
+      created_at timestamptz not null default now(),
+      unique(role_id, permission_id)
+    );
+    create table if not exists vgroup.user_business_unit_roles (
+      id uuid primary key default gen_random_uuid(),
+      user_id uuid not null references vgroup.users(id) on delete cascade,
+      business_unit_id uuid not null references vgroup.business_units(id) on delete cascade,
+      role_id uuid not null references vgroup.roles(id) on delete cascade,
+      status text not null default 'active',
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now(),
+      unique(user_id, business_unit_id, role_id)
+    );
+    create table if not exists vgroup.employees (
+      id uuid primary key default gen_random_uuid(),
+      user_id uuid not null references vgroup.users(id) on delete cascade,
+      business_unit_id uuid not null references vgroup.business_units(id) on delete cascade,
+      status text not null default 'active',
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now(),
+      unique(user_id, business_unit_id)
+    );
+    create table if not exists vgroup.employee_permissions (
+      id uuid primary key default gen_random_uuid(),
+      employee_id uuid not null references vgroup.employees(id) on delete cascade,
+      permission_id uuid not null references vgroup.permissions(id) on delete cascade,
+      effect text not null check (effect in ('allow','deny')),
+      granted_by uuid references vgroup.users(id),
+      created_at timestamptz not null default now(),
+      unique(employee_id, permission_id)
+    );
+    create table if not exists vgroup.audit_logs (
+      id uuid primary key default gen_random_uuid(),
+      business_unit_id uuid references vgroup.business_units(id),
+      user_id uuid references vgroup.users(id),
+      action text not null,
+      entity_type text not null,
+      entity_id uuid,
+      old_value jsonb,
+      new_value jsonb,
+      created_at timestamptz not null default now()
+    );
   `);
+  const [proof] = await sql`
+    select
+      to_regclass('vgroup.roles')::text as roles,
+      to_regclass('vgroup.permissions')::text as permissions,
+      to_regclass('vgroup.role_permissions')::text as role_permissions,
+      to_regclass('vgroup.user_business_unit_roles')::text as memberships,
+      to_regclass('vgroup.employees')::text as employees,
+      to_regclass('vgroup.employee_permissions')::text as employee_permissions,
+      to_regclass('vgroup.audit_logs')::text as audit_logs
+  `;
+  if (
+    proof?.roles !== "vgroup.roles" ||
+    proof?.permissions !== "vgroup.permissions" ||
+    proof?.role_permissions !== "vgroup.role_permissions" ||
+    proof?.memberships !== "vgroup.user_business_unit_roles" ||
+    proof?.employees !== "vgroup.employees" ||
+    proof?.employee_permissions !== "vgroup.employee_permissions" ||
+    proof?.audit_logs !== "vgroup.audit_logs"
+  ) throw new Error(`qa_vgroup_rbac_foundation_incomplete:${JSON.stringify(proof ?? {})}`);
+  console.log("PASS VGroup RBAC foundation bootstrapped in isolated QA database");
 }
 
 async function applyCanonicalTechCore() {

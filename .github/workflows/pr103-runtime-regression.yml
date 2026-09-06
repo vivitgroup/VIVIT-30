@@ -57,7 +57,7 @@ jobs:
           node scripts/qa-bootstrap-vgroup-tech.mjs
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.116.0
       - name: Start ephemeral Supabase Auth
         run: |
           supabase init

@@ -1,7 +1,10 @@
 import postgres from 'postgres';
 import bcrypt from 'bcryptjs';
 import {randomUUID} from 'node:crypto';
-import {writeFileSync} from 'node:fs';
+import {writeFileSync,readFileSync,mkdtempSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {execFileSync} from 'node:child_process';
 
 const base=process.env.PR103_BASE_URL||'http://127.0.0.1:3000';
 const psql=postgres(process.env.DATABASE_URL,{ssl:false,max:1,prepare:false});
@@ -11,6 +14,8 @@ const assert=(value,message)=>{if(!value)throw new Error(message)};
 const cookiesFrom=response=>(typeof response.headers.getSetCookie==='function'?response.headers.getSetCookie():[response.headers.get('set-cookie')].filter(Boolean)).map(value=>value.split(';',1)[0]);
 const mergeCookies=(...sets)=>[...new Set(sets.flat().filter(Boolean))].join('; ');
 const phase=value=>writeFileSync('/tmp/pr103-phase',value);
+const curl=(args)=>execFileSync('curl',['--fail-with-body','--silent','--show-error',...args],{encoding:'utf8'});
+const cookieHeaderFromJar=path=>readFileSync(path,'utf8').split('\n').filter(line=>line&&!line.startsWith('#')).map(line=>{const parts=line.split('\t');return parts.length>=7?`${parts[5]}=${parts[6]}`:''}).filter(Boolean).join('; ');
 
 let extId='',gUser='',techClient='',projectId='';
 const legacyUser=`qa-pr103-${suffix}`;
@@ -64,16 +69,14 @@ try{
   const authHeaders={apikey:process.env.SUPABASE_SERVICE_KEY,Authorization:`Bearer ${process.env.SUPABASE_SERVICE_KEY}`,'Content-Type':'application/json',Prefer:'return=minimal'};
   response=await fetch(`${process.env.SUPABASE_URL}/rest/v1/workspaces`,{method:'POST',headers:authHeaders,body:JSON.stringify({id:workspace,is_active:true})});assert(response.status===201,`legacy_workspace_seed_${response.status}`);
   response=await fetch(`${process.env.SUPABASE_URL}/rest/v1/users`,{method:'POST',headers:authHeaders,body:JSON.stringify({id:legacyUser,name:'PR103 Super Admin',email:legacyEmail,password:hash,role:'SUPER_ADMIN',workspace_id:workspace,is_active:true,approval_status:'APPROVED'})});assert(response.status===201,`legacy_user_seed_${response.status}`);
-  let csrf=await fetch(`${base}/api/auth/csrf`),csrfBody=await csrf.json(),legacyCookies=cookiesFrom(csrf);assert(csrfBody.csrfToken,'csrf_missing');
-  const form=new URLSearchParams({csrfToken:csrfBody.csrfToken,email:legacyEmail,password:legacyPassword,callbackUrl:`${base}/dashboard`});
-  response=await fetch(`${base}/api/auth/callback/credentials`,{method:'POST',headers:{Cookie:mergeCookies(legacyCookies),'Content-Type':'application/x-www-form-urlencoded','X-Auth-Return-Redirect':'1','x-forwarded-for':'127.0.0.232'},body:form,redirect:'manual'});
-  const callbackText=await response.text();
+  const authTmp=mkdtempSync(join(tmpdir(),'pr103-auth-')),cookieJar=join(authTmp,'cookies.txt');
+  const csrfBody=JSON.parse(curl(['-c',cookieJar,'-b',cookieJar,`${base}/api/auth/csrf`]));assert(csrfBody.csrfToken,'csrf_missing');
+  const csrfJar=readFileSync(cookieJar,'utf8');assert(/authjs\.csrf-token/.test(csrfJar),'csrf_cookie_missing');
+  const callbackText=curl(['-c',cookieJar,'-b',cookieJar,'-H','Content-Type: application/x-www-form-urlencoded','-H','X-Auth-Return-Redirect: 1','--data-urlencode',`csrfToken=${csrfBody.csrfToken}`,'--data-urlencode',`email=${legacyEmail}`,'--data-urlencode',`password=${legacyPassword}`,'--data-urlencode',`callbackUrl=${base}/dashboard`,`${base}/api/auth/callback/credentials`]);
   let callbackBody=null;try{callbackBody=callbackText?JSON.parse(callbackText):null}catch{}
-  const callbackUrl=String(callbackBody?.url||response.headers.get('location')||'');
-  assert(response.ok||response.status===302,`legacy_auth_callback_${response.status}_${callbackText.slice(0,300)}`);
-  assert(!/CredentialsSignin|error=/i.test(callbackUrl),`legacy_credentials_rejected_${response.status}_${callbackUrl}`);
-  legacyCookies=[...legacyCookies,...cookiesFrom(response)];const legacyCookie=mergeCookies(legacyCookies);assert(legacyCookie,'legacy_auth_cookie_missing');
-  response=await fetch(`${base}/api/auth/session`,{headers:{Cookie:legacyCookie,'x-forwarded-for':'127.0.0.232'}});body=await response.json();
+  const callbackUrl=String(callbackBody?.url||'');assert(!/CredentialsSignin|MissingCSRF|error=/i.test(callbackUrl),`legacy_credentials_rejected_${callbackUrl}`);
+  const legacyCookie=cookieHeaderFromJar(cookieJar);assert(/authjs\.session-token=/.test(legacyCookie),'legacy_session_cookie_missing');
+  response=await fetch(`${base}/api/auth/session`,{headers:{Cookie:legacyCookie}});body=await response.json();
   assert(response.status===200&&body?.user?.email===legacyEmail&&body?.user?.role==='SUPER_ADMIN'&&body?.user?.workspaceId===workspace&&body?.user?.authValid===true,`legacy_session_invalid_${response.status}_${JSON.stringify(body)}_callback_${callbackUrl}`);
   console.log('PASS PR103 authenticated SUPER_ADMIN session contract');
 

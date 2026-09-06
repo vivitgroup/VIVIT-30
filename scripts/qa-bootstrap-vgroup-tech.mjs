@@ -107,6 +107,12 @@ async function bootstrapVGroupFoundation() {
       new_value jsonb,
       created_at timestamptz not null default now()
     );
+    create table if not exists vgroup.auth_rate_limits (
+      key_hash text primary key,
+      window_start timestamptz not null default now(),
+      attempt_count integer not null default 0,
+      updated_at timestamptz not null default now()
+    );
     insert into vgroup.business_units(code, display_name_ar, display_name_en, status)
     values ('tech', 'فيفيت تك', 'Vivit Tech', 'active')
     on conflict (code) do update
@@ -124,6 +130,7 @@ async function bootstrapVGroupFoundation() {
       to_regclass('vgroup.employees')::text as employees,
       to_regclass('vgroup.employee_permissions')::text as employee_permissions,
       to_regclass('vgroup.audit_logs')::text as audit_logs,
+      to_regclass('vgroup.auth_rate_limits')::text as auth_rate_limits,
       exists(select 1 from vgroup.business_units where code='tech' and status='active') as tech_unit
   `;
   if (
@@ -134,9 +141,10 @@ async function bootstrapVGroupFoundation() {
     proof?.employees !== "vgroup.employees" ||
     proof?.employee_permissions !== "vgroup.employee_permissions" ||
     proof?.audit_logs !== "vgroup.audit_logs" ||
+    proof?.auth_rate_limits !== "vgroup.auth_rate_limits" ||
     proof?.tech_unit !== true
   ) throw new Error(`qa_vgroup_rbac_foundation_incomplete:${JSON.stringify(proof ?? {})}`);
-  console.log("PASS VGroup RBAC foundation + active Tech unit bootstrapped in isolated QA database");
+  console.log("PASS VGroup RBAC foundation + auth rate-limit contract + active Tech unit bootstrapped in isolated QA database");
 }
 
 async function applyCanonicalTechCore() {

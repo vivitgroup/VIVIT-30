@@ -31,8 +31,7 @@ try{
   phase('tech_permissions');
   for(const [module,action] of [['clients','view'],['clients','create'],['projects','view'],['projects','create'],['projects','update']]){
     let [perm]=await gsql`select id::text from vgroup.permissions where module=${module} and action=${action} and business_unit_id=${bu.id}::uuid limit 1`;
-    if(!perm)[perm]=await gsql`insert into vgroup.permissions(module,action,business_unit_id) values(${module},${action},${bu.id}::uuid) returning id::text`;
-    await gsql`insert into vgroup.role_permissions(role_id,permission_id) values(${role.id}::uuid,${perm.id}::uuid) on conflict do nothing`;
+    if(!perm)[perm]=await gsql`insert into vgroup.permissions(module,action,business_unit_id) values(${role.id}::uuid,${perm.id}::uuid) on conflict do nothing`;
   }
   const techEmail=`qa-pr103-tech-${suffix}@example.com`,techPassword=`Qa!${randomUUID()}A1`;
   phase('tech_auth_seed');
@@ -66,10 +65,15 @@ try{
   response=await fetch(`${process.env.SUPABASE_URL}/rest/v1/users`,{method:'POST',headers:authHeaders,body:JSON.stringify({id:legacyUser,name:'PR103 Super Admin',email:legacyEmail,password:hash,role:'SUPER_ADMIN',workspace_id:workspace,is_active:true,approval_status:'APPROVED'})});assert(response.status===201,`legacy_user_seed_${response.status}`);
   let csrf=await fetch(`${base}/api/auth/csrf`),csrfBody=await csrf.json(),legacyCookies=cookiesFrom(csrf);assert(csrfBody.csrfToken,'csrf_missing');
   const form=new URLSearchParams({csrfToken:csrfBody.csrfToken,email:legacyEmail,password:legacyPassword,callbackUrl:`${base}/dashboard`});
-  response=await fetch(`${base}/api/auth/callback/credentials`,{method:'POST',headers:{Cookie:mergeCookies(legacyCookies),'Content-Type':'application/x-www-form-urlencoded'},body:form,redirect:'manual'});
+  response=await fetch(`${base}/api/auth/callback/credentials`,{method:'POST',headers:{Cookie:mergeCookies(legacyCookies),'Content-Type':'application/x-www-form-urlencoded','X-Auth-Return-Redirect':'1','x-forwarded-for':'127.0.0.232'},body:form,redirect:'manual'});
+  const callbackText=await response.text();
+  let callbackBody=null;try{callbackBody=callbackText?JSON.parse(callbackText):null}catch{}
+  const callbackUrl=String(callbackBody?.url||response.headers.get('location')||'');
+  assert(response.ok||response.status===302,`legacy_auth_callback_${response.status}_${callbackText.slice(0,300)}`);
+  assert(!/CredentialsSignin|error=/i.test(callbackUrl),`legacy_credentials_rejected_${response.status}_${callbackUrl}`);
   legacyCookies=[...legacyCookies,...cookiesFrom(response)];const legacyCookie=mergeCookies(legacyCookies);assert(legacyCookie,'legacy_auth_cookie_missing');
-  response=await fetch(`${base}/api/auth/session`,{headers:{Cookie:legacyCookie}});body=await response.json();
-  assert(response.status===200&&body?.user?.email===legacyEmail&&body?.user?.role==='SUPER_ADMIN'&&body?.user?.workspaceId===workspace&&body?.user?.authValid===true,`legacy_session_invalid_${response.status}_${JSON.stringify(body)}`);
+  response=await fetch(`${base}/api/auth/session`,{headers:{Cookie:legacyCookie,'x-forwarded-for':'127.0.0.232'}});body=await response.json();
+  assert(response.status===200&&body?.user?.email===legacyEmail&&body?.user?.role==='SUPER_ADMIN'&&body?.user?.workspaceId===workspace&&body?.user?.authValid===true,`legacy_session_invalid_${response.status}_${JSON.stringify(body)}_callback_${callbackUrl}`);
   console.log('PASS PR103 authenticated SUPER_ADMIN session contract');
 
   phase('avatar');

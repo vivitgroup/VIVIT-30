@@ -15,7 +15,7 @@ const cookiesFrom=response=>(typeof response.headers.getSetCookie==='function'?r
 const mergeCookies=(...sets)=>[...new Set(sets.flat().filter(Boolean))].join('; ');
 const phase=value=>writeFileSync('/tmp/pr103-phase',value);
 const curl=(args)=>execFileSync('curl',['--fail-with-body','--silent','--show-error',...args],{encoding:'utf8'});
-const cookieHeaderFromJar=path=>readFileSync(path,'utf8').split('\n').filter(line=>line&&!line.startsWith('#')).map(line=>{const parts=line.split('\t');return parts.length>=7?`${parts[5]}=${parts[6]}`:''}).filter(Boolean).join('; ');
+const cookieHeaderFromJar=path=>readFileSync(path,'utf8').split('\n').filter(line=>line&&(!line.startsWith('#')||line.startsWith('#HttpOnly_'))).map(line=>{const parts=line.split('\t');return parts.length>=7?`${parts[5]}=${parts[6]}`:''}).filter(Boolean).join('; ');
 
 let extId='',gUser='',techClient='',projectId='';
 const legacyUser=`qa-pr103-${suffix}`;

@@ -1,0 +1,138 @@
+name: PR103 Authenticated Runtime Regression
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr103-runtime-${{ github.event.pull_request.head.sha || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  pr103-runtime:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: vivito
+          POSTGRES_PASSWORD: vivito
+          POSTGRES_DB: vivito_pr103
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U vivito -d vivito_pr103"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://vivito:vivito@127.0.0.1:5432/vivito_pr103
+      DRIZZLE_DATABASE_URL: postgresql://vivito:vivito@127.0.0.1:5432/vivito_pr103
+      VGROUP_DATABASE_URL: postgresql://vivito:vivito@127.0.0.1:5432/vivito_pr103_vgroup
+      DATABASE_SSL_DISABLED: "1"
+      VGROUP_DATABASE_SSL_DISABLED: "1"
+      AUTH_SECRET: pr103-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+      NEXTAUTH_SECRET: pr103-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+      NEXTAUTH_URL: http://127.0.0.1:3000
+      AUTH_URL: http://127.0.0.1:3000
+      SUPABASE_URL: http://127.0.0.1:3002
+      SUPABASE_SERVICE_KEY: local-pr103-runtime-key
+    steps:
+      - name: Checkout exact candidate SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Assert exact candidate SHA
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Build isolated databases
+        run: |
+          npx drizzle-kit push --force
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/20260906_campaign_lifecycle_archive.sql
+          PGPASSWORD=vivito psql -h 127.0.0.1 -U vivito -d postgres -v ON_ERROR_STOP=1 -c "create database vivito_pr103_vgroup"
+          DRIZZLE_DATABASE_URL="$VGROUP_DATABASE_URL" DATABASE_URL="$VGROUP_DATABASE_URL" npx drizzle-kit push --force
+          node scripts/qa-bootstrap-vgroup-tech.mjs
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.116.0
+      - name: Start ephemeral VGROUP Supabase Auth
+        run: |
+          supabase init
+          supabase start
+          supabase status -o env > /tmp/pr103-supabase.env
+          set -a; source /tmp/pr103-supabase.env; set +a
+          AUTH_PUBLIC_KEY="${PUBLISHABLE_KEY:-${ANON_KEY:-}}"
+          test -n "${API_URL:-}" && test -n "$AUTH_PUBLIC_KEY" && test -n "${SERVICE_ROLE_KEY:-}"
+          {
+            echo "VGROUP_SUPABASE_URL=$API_URL"
+            echo "VGROUP_SUPABASE_PUBLISHABLE_KEY=$AUTH_PUBLIC_KEY"
+            echo "VGROUP_SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY"
+            echo "VGROUP_SUPABASE_SERVICE_KEY=$SERVICE_ROLE_KEY"
+          } >> "$GITHUB_ENV"
+      - name: Start deterministic legacy Auth mock
+        run: |
+          node scripts/qa-pr103-legacy-auth-mock.mjs > /tmp/pr103-auth-mock.log 2>&1 &
+          echo $! > /tmp/pr103-auth-mock.pid
+          for i in {1..20}; do
+            if curl -fsS http://127.0.0.1:3002/rest/v1/workspaces >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/pr103-auth-mock.log
+          exit 1
+      - name: Build and start exact candidate
+        run: |
+          npm run build
+          npm start > /tmp/pr103-next.log 2>&1 &
+          echo $! > /tmp/pr103-next.pid
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:3000/login >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/pr103-next.log
+          exit 1
+      - name: Run PR103 authenticated HTTP regressions
+        id: regression
+        continue-on-error: true
+        run: set -o pipefail; node scripts/qa-pr103-authenticated-runtime.mjs 2>&1 | tee /tmp/pr103-runtime.log
+      - name: Detect failed runtime phase
+        id: phase
+        if: steps.regression.outcome == 'failure'
+        run: echo "value=$(cat /tmp/pr103-phase 2>/dev/null || echo unknown)" >> "$GITHUB_OUTPUT"
+      - name: Upload PR103 runtime failure log
+        if: steps.regression.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr103-runtime-log-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            /tmp/pr103-runtime.log
+            /tmp/pr103-next.log
+            /tmp/pr103-auth-mock.log
+          if-no-files-found: error
+          retention-days: 3
+      - name: Fail with exact runtime phase
+        if: steps.regression.outcome == 'failure'
+        run: |
+          echo "PR103_RUNTIME_FAILED_PHASE=${{ steps.phase.outputs.value }}"
+          exit 1
+      - name: Confirm PR103 runtime success
+        if: steps.regression.outcome == 'success'
+        run: |
+          test "$(cat /tmp/pr103-phase 2>/dev/null)" = "complete"
+          echo "PR103_AUTHENTICATED_RUNTIME_REGRESSION: PASS"
+      - name: Show runtime logs on failure
+        if: failure()
+        run: |
+          cat /tmp/pr103-next.log || true
+          cat /tmp/pr103-auth-mock.log || true
+      - name: Stop ephemeral services
+        if: always()
+        run: |
+          if [ -f /tmp/pr103-next.pid ]; then kill "$(cat /tmp/pr103-next.pid)" >/dev/null 2>&1 || true; fi
+          if [ -f /tmp/pr103-auth-mock.pid ]; then kill "$(cat /tmp/pr103-auth-mock.pid)" >/dev/null 2>&1 || true; fi
+          supabase stop --no-backup || true

@@ -36,6 +36,7 @@ import "./genz-professional-ui-v3.css";
 import "./system-ui-consistency-v4.css";
 import "./release-corrections-v5.css";
 import "./uiux-micro-fixes.css";
+import "./live-mobile-light-v3.css";
 
 function PageSkeleton(){return <div className="dashboard-skeleton" style={{padding:"28px",display:"grid",gap:"16px",minWidth:0,maxWidth:"100%",overflow:"hidden"}}><div className="dashboard-skeleton-kpis" style={{display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gap:"16px"}}>{[1,2,3,4].map(i=><div key={i} className="skeleton" style={{height:"110px",borderRadius:"16px",minWidth:0}}/>)}</div><div className="dashboard-skeleton-main" style={{display:"grid",gridTemplateColumns:"minmax(0,2fr) minmax(0,1fr)",gap:"16px"}}><div className="skeleton" style={{height:"300px",borderRadius:"16px",minWidth:0}}/><div className="skeleton" style={{height:"300px",borderRadius:"16px",minWidth:0}}/></div></div>}
 

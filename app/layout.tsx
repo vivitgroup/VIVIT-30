@@ -11,8 +11,8 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#C52A31",
-  colorScheme: "light dark",
+  themeColor: "#F7F8FB",
+  colorScheme: "light",
 };
 
 export default function RootLayout({ children }: { children:React.ReactNode }) {
@@ -23,12 +23,18 @@ export default function RootLayout({ children }: { children:React.ReactNode }) {
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous"/>
       </head>
       <body>
-        {/* Anti-flash theme script */}
+        {/* Mobile must visually match the light desktop system. Desktop keeps the saved preference. */}
         <script dangerouslySetInnerHTML={{__html:`
           (function(){
             try {
-              var t=localStorage.getItem('vivit-theme')||'light';
-              if(t==='dark') document.documentElement.classList.add('dark');
+              var mobile=window.matchMedia('(max-width: 900px)').matches;
+              var root=document.documentElement;
+              root.classList.remove('dark');
+              if(!mobile){
+                var t=localStorage.getItem('vivit-theme')||'light';
+                if(t==='dark') root.classList.add('dark');
+              }
+              root.dataset.mobileTheme=mobile?'light':'desktop';
             } catch(e){}
           })();
         `}}/>

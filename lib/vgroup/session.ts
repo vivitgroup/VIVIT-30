@@ -17,6 +17,7 @@ type SupabaseUser={id:string;email?:string};
 type GroupUserRow={id:string;email:string;full_name:string;status:string};
 type MembershipRow={business_unit:BusinessUnitCode;role:GroupRoleCode;permissions:string[]|null};
 type OverrideRow={business_unit:BusinessUnitCode;permission:string;effect:"allow"|"deny"};
+type MarketingBridgeRow={role:string;is_active:boolean;approval_status:string};
 
 function requirePublicAuthConfig(){
   const url=process.env.VGROUP_SUPABASE_URL;
@@ -32,6 +33,20 @@ async function fetchSupabaseUser(accessToken:string):Promise<SupabaseUser|null>{
   const response=await fetch(`${url}/auth/v1/user`,{headers:{apikey:key,Authorization:`Bearer ${accessToken}`},cache:"no-store",signal:AbortSignal.timeout(5000)});
   if(!response.ok)return null;
   return await response.json() as SupabaseUser;
+}
+
+async function isLiveMarketingSuperAdmin(email:string):Promise<boolean>{
+  const url=String(process.env.SUPABASE_URL||"").replace(/\/$/,"");
+  const key=String(process.env.SUPABASE_SERVICE_KEY||"");
+  if(!url||!key||!email)return false;
+  try{
+    const response=await fetch(`${url}/rest/v1/users?email=eq.${encodeURIComponent(email)}&select=role,is_active,approval_status&limit=1`,{
+      headers:{apikey:key,Authorization:`Bearer ${key}`},cache:"no-store",signal:AbortSignal.timeout(4000),
+    });
+    if(!response.ok)return false;
+    const [row]=await response.json() as MarketingBridgeRow[];
+    return row?.role==="SUPER_ADMIN"&&row.is_active===true&&row.approval_status==="APPROVED";
+  }catch{return false}
 }
 
 export async function getVGroupSession():Promise<VGroupSession|null>{
@@ -57,13 +72,16 @@ export async function getVGroupSession():Promise<VGroupSession|null>{
     }catch{user=undefined}
   }
 
-  // Reuse an already-authenticated Marketing SUPER_ADMIN identity only when
-  // the same active identity exists in Group. Group RBAC remains authoritative.
+  // Reuse an already-authenticated Marketing SUPER_ADMIN identity when the
+  // same identity is still active/approved in the live Marketing database and
+  // exists as an active Group user. Group RBAC remains authoritative.
   if(!user){
     const marketingSession=await auth();
     const marketingUser=marketingSession?.user as {email?:string|null;role?:string;authValid?:boolean}|undefined;
     const email=String(marketingUser?.email||"").trim().toLowerCase();
-    if(marketingUser?.authValid!==true||marketingUser?.role!=="SUPER_ADMIN"||!email)return null;
+    if(!email||marketingUser?.role!=="SUPER_ADMIN")return null;
+    const liveMarketingAdmin=marketingUser.authValid===true||await isLiveMarketingSuperAdmin(email);
+    if(!liveMarketingAdmin)return null;
     sql??=getVGroupSql();
     [user]=await sql<GroupUserRow[]>`
       select id::text,email,full_name,status from vgroup.users

@@ -21,12 +21,8 @@ export default function RootPage() {
 
         <div className={styles.hero}>
           <div className={styles.logoWrap}>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:18,width:"100%"}}>
-              <Image src="/vivit-mark.png" alt="VIVIT Group mark" width={120} height={120} priority style={{width:"clamp(64px,9vw,104px)",height:"auto",objectFit:"contain"}} />
-              <div aria-label="VIVIT Group" style={{textAlign:"left",lineHeight:.88,letterSpacing:"-.055em"}}>
-                <div style={{fontSize:"clamp(42px,8vw,86px)",fontWeight:950,color:"#101828"}}>VIVIT</div>
-                <div style={{fontSize:"clamp(23px,4.2vw,45px)",fontWeight:900,letterSpacing:".13em",color:"#1669a9",marginTop:10}}>GROUP</div>
-              </div>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"center",width:"100%"}}>
+              <Image src="/vivit-logo.png" alt="VIVIT Group" width={420} height={190} priority style={{width:"min(78vw,430px)",height:"auto",objectFit:"contain"}} />
             </div>
           </div>
           <p className={styles.tagline}>DIFFERENT EXPERTISE<br />A STRONGER TOMORROW</p>

@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 import type { CSSProperties } from "react";
 import styles from "./page.module.css";
@@ -21,8 +20,9 @@ export default function RootPage() {
 
         <div className={styles.hero}>
           <div className={styles.logoWrap}>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"center",width:"100%"}}>
-              <Image src="/vivit-logo.png" alt="VIVIT Group" width={420} height={190} priority style={{width:"min(78vw,430px)",height:"auto",objectFit:"contain"}} />
+            <div className={styles.brandBlock} style={{"--accent":"#1669a9"} as CSSProperties} aria-label="VIVIT GROUP">
+              <div className={styles.mark} aria-hidden="true" />
+              <h1 className={styles.title} style={{fontSize:"clamp(34px,6vw,64px)"}}><span>VIVIT</span><span className={styles.titleAccent}>GROUP</span></h1>
             </div>
           </div>
           <p className={styles.tagline}>DIFFERENT EXPERTISE<br />A STRONGER TOMORROW</p>

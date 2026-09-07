@@ -66,6 +66,12 @@
 .revision-form input { min-height: 44px !important; font-size: 11px !important; }
 .review-actions :where(button,a),.portal-shell .btn { min-height: 44px; }
 
+/* Compact non-blocking task reminder */
+.task-reminder-toast{position:fixed;right:18px;top:84px;z-index:930;width:min(330px,calc(100vw - 28px));padding:12px 13px;border-radius:14px;background:#fff;color:#132033;border:1px solid #f0c9cc;box-shadow:0 16px 38px rgba(42,55,75,.16);animation:reminderIn .25s ease-out}
+.task-reminder-toast.is-overdue{background:#fff6f6;border-color:#efb5ba}
+.task-reminder-row{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.task-reminder-row b{font-size:12px;color:#9d1f2b}.task-reminder-row p{font-size:12px;font-weight:800;margin-top:4px;color:#132033}.task-reminder-row small{display:block;font-size:10.5px;color:#6f8197;margin-top:2px}.task-reminder-row button{border:0;background:transparent;color:#6f8197;font-size:19px;cursor:pointer;height:24px;width:24px}.task-reminder-toast>a{display:inline-block;margin-top:8px;padding:6px 9px;border-radius:8px;background:#f7e7e9;color:#9d1f2b;text-decoration:none;font-size:10.5px;font-weight:800}
+@keyframes reminderIn{from{opacity:0;transform:translateY(-8px) scale(.98)}to{opacity:1;transform:none}}
+
 /* Loading skeleton should not force desktop columns onto small screens. */
 @media (max-width: 768px) {
   .app-header .header-search {
@@ -86,6 +92,7 @@
   .vivit-lang-switch { right: 14px !important; bottom: calc(82px + env(safe-area-inset-bottom)) !important; z-index: 861 !important; }
   .vx-apps-btn { min-height: 44px !important; height: 44px !important; }
   .realtime-toast-stack { bottom: calc(88px + env(safe-area-inset-bottom)) !important; }
+  .task-reminder-toast{top:78px;right:12px;width:calc(100vw - 24px);padding:10px 12px}
 }
 
 /* Final mobile parity: desktop light palette wins over legacy navy module overrides. */
@@ -105,15 +112,18 @@
     --bg-hover:#edf3f8 !important;
     --surface:#ffffff !important;
     --surface-2:#f5f8fb !important;
+    --bg-tertiary:#f1f5f9 !important;
     background:#f6f8fc !important;
     color:#132033 !important;
   }
   .app-content,
   .vx-world,
   .vx-client-universe,
-  .vx-media-cockpit { background:#f6f8fc !important; color:#132033 !important; }
+  .vx-media-cockpit,
+  .dashboard-home { background:#f6f8fc !important; color:#132033 !important; }
   .vx-world-hero,
   .card,
+  .kpi-card,
   .mcf-account,
   .mcf-campaign,
   .mcf-status,
@@ -121,12 +131,26 @@
   .vx-focus-strip,
   .modal,
   .modal-content,
-  .drawer-content {
+  .drawer-content,
+  .dashboard-home .card,
+  .dashboard-home .kpi-card {
     background:#fff !important;
     color:#132033 !important;
     border-color:#dce4ee !important;
     box-shadow:0 12px 34px rgba(35,55,80,.08) !important;
   }
+  .dashboard-home .kpi-card :where(.kpi-label,.kpi-value,span,p,b,strong){color:#132033 !important}
+  .dashboard-home .kpi-card .kpi-change.down{color:#b4232d !important}.dashboard-home .kpi-card .kpi-change.up{color:#14835f !important}
+  .dashboard-home .vone-command-hero{background:linear-gradient(135deg,#ffffff 0%,#f4f7fb 60%,#fbf1f3 100%) !important;color:#132033 !important;border:1px solid #dce4ee !important;box-shadow:0 18px 42px rgba(35,55,80,.08) !important}
+  .dashboard-home .vone-command-hero:before,.dashboard-home .vone-command-hero:after{opacity:.08 !important}
+  .dashboard-home .vone-hero-copy h1,.dashboard-home .vone-hero-copy h1 em{color:#132033 !important;background:none !important;-webkit-text-fill-color:#132033 !important}
+  .dashboard-home .vone-hero-copy>p,.dashboard-home .vone-command-bar{color:#60748d !important}
+  .dashboard-home .vone-command-bar{background:#fff !important;border-color:#dce4ee !important;box-shadow:none !important}
+  .dashboard-home .vone-command-bar kbd{background:#f2f5f9 !important;color:#40536b !important;border-color:#dce4ee !important}
+  .dashboard-home .vone-mode-nav a.is-active,.dashboard-home .vone-mode-nav a:hover{background:#f8e9eb !important;color:#a51f2b !important;box-shadow:none !important}
+  .dashboard-home > div[style*="linear-gradient"]{background:#fff !important;border:1px solid #dce4ee !important;box-shadow:0 12px 34px rgba(35,55,80,.08) !important}
+  .dashboard-home > div[style*="linear-gradient"] :where(p,b,strong,span){color:#132033 !important}
+  .dashboard-home > div[style*="linear-gradient"] > div:last-child > div{background:#f3f6fa !important;border:1px solid #e0e7ef !important}
   .mcf-campaign { background:#f7f9fc !important; }
   .mcf-metric,
   .metric-card,
@@ -136,7 +160,7 @@
   .mcf-campaign :where(h3,b) { color:#132033 !important; }
   .vx-world :where(p,small,span),
   .mcf-account small,
-  .mcf-campaign small { color:#60748d; }
+  .mcf-campaign small { color:#60748d !important; }
   .vx-world .eyebrow,
   .mcf-account .eyebrow,
   .mcf-campaign .eyebrow { color:#6d36c7 !important; }
@@ -149,6 +173,19 @@
   .vx-apps-menu,
   .vivit-lang-switch { background:#fff !important; color:#20324a !important; border-color:#dce4ee !important; }
   .vx-apps-menu a { color:#20324a !important; }
+
+  /* VIVITO mobile panel uses the same light visual system as desktop workspace cards. */
+  .va-panel{background:#fff !important;color:#132033 !important;border-color:#dce4ee !important;box-shadow:0 24px 60px rgba(35,55,80,.18) !important}
+  .va-head,.va-context,.va-quick,.va-chat,.va-input,.va-foot{border-color:#e3e9f0 !important}
+  .va-head,.va-context,.va-chat,.va-input{background:#fff !important;color:#132033 !important}
+  .va-head b,.va-head small,.va-speaker,.va-empty strong,.va-empty span,.va-msg,.va-foot{color:#132033 !important}
+  .va-context{color:#52657c !important}
+  .va-quick button{background:#f5f7fa !important;color:#20324a !important;border-color:#dde5ee !important;box-shadow:none !important}
+  .va-msg.ai{background:#f4f6f9 !important;color:#20324a !important;border-color:#dde5ee !important}
+  .va-msg.you{background:linear-gradient(135deg,#c4263a,#9d1f7e) !important;color:#fff !important}
+  .va-input{background:#f8fafc !important}.va-input textarea{background:#fff !important;color:#132033 !important;border-color:#dce4ee !important}.va-input textarea::placeholder{color:#7c8da1 !important}
+  .va-head>button,.va-input>button:not(:last-child){background:#f3f6fa !important;color:#20324a !important;border-color:#dce4ee !important}
+  .va-foot{background:#fff !important;color:#6f8197 !important}
 }
 
 @media (max-width: 420px) {

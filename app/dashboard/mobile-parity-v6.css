@@ -1,28 +1,35 @@
-/* Mobile parity v6: source-agnostic light UI. Loaded last from dashboard layout. */
+/* Mobile parity v6: deterministic light UI. Loaded last from dashboard layout. */
 @media (max-width: 900px) {
+  html, html.dark, body,
   .app-main-shell,
   .app-main-shell main,
   .app-main-shell .app-content {
     background: #f6f7fb !important;
+    background-image: none !important;
     color: #111827 !important;
+    color-scheme: light !important;
   }
 
-  /* Core dashboard surfaces: do not depend on page-specific wrapper classes. */
+  /* Core dashboard surfaces. Use background shorthand so old gradients cannot survive. */
   .app-main-shell .app-content .card,
   .app-main-shell .app-content .kpi-card,
   .app-main-shell .app-content .vcu-card,
   .app-main-shell .app-content .mcf-account,
   .app-main-shell .app-content .mcf-card,
-  .app-main-shell .app-content .vx-world-hero,
   .app-main-shell .app-content .responsive-table,
   .app-main-shell .app-content .data-table,
   .app-main-shell .app-content [class*="signal"],
   .app-main-shell .app-content [class*="pulse"],
-  .app-main-shell .app-content [class*="calendar"] {
-    background-color: #ffffff !important;
+  .app-main-shell .app-content [class*="calendar"],
+  html.dark .app-main-shell .app-content .card,
+  html.dark .app-main-shell .app-content .kpi-card,
+  html.dark .app-main-shell .app-content [class*="signal"],
+  html.dark .app-main-shell .app-content [class*="calendar"] {
+    background: #ffffff !important;
+    background-image: none !important;
     color: #111827 !important;
-    border-color: #e5e7eb !important;
-    box-shadow: 0 10px 28px rgba(15,23,42,.055) !important;
+    border-color: #d9e0e9 !important;
+    box-shadow: 0 8px 22px rgba(15,23,42,.055) !important;
   }
 
   .app-main-shell .app-content .kpi-card *,
@@ -32,7 +39,7 @@
   .app-main-shell .app-content .mcf-card *,
   .app-main-shell .app-content [class*="signal"] *,
   .app-main-shell .app-content [class*="calendar"] * {
-    color: #172033;
+    color: #172033 !important;
   }
 
   .app-main-shell .app-content .page-subtitle,
@@ -59,6 +66,7 @@
   .app-main-shell .app-content .mcf-account-metrics > div,
   .app-main-shell .app-content .vcu-meta > div {
     background: #f8fafc !important;
+    background-image: none !important;
     border-color: #e5e7eb !important;
     color: #172033 !important;
   }
@@ -70,56 +78,43 @@
   .app-main-shell .app-content .vcu-body,
   .app-main-shell .app-content .vcu-actions {
     background: #ffffff !important;
+    background-image: none !important;
     border-color: #e5e7eb !important;
   }
 
-  /* Calendar grids and dark client-signal bands. */
   .app-main-shell .app-content table,
   .app-main-shell .app-content thead,
   .app-main-shell .app-content tbody,
   .app-main-shell .app-content tr,
   .app-main-shell .app-content td,
   .app-main-shell .app-content th {
-    background-color: #ffffff !important;
+    background: #ffffff !important;
+    background-image: none !important;
     color: #172033 !important;
     border-color: #e5e7eb !important;
   }
 
-  /* Keep branded/destructive status surfaces as accents, not whole navy panels. */
   .app-main-shell .app-content .btn-danger { color: #b42318 !important; }
   .app-main-shell .app-content .badge-red { color: #b42318 !important; }
   .app-main-shell .app-content .badge-green { color: #067647 !important; }
 
-  /* Floating controls: one row, no content overlap. */
+  /* The task inbox/Alerts already exposes overdue tasks. Do not cover mobile work with a second toast. */
+  .task-reminder-toast { display: none !important; }
+
+  /* One compact utility tray immediately above the mobile nav. */
   .vx-apps {
     position: fixed !important;
     left: auto !important;
-    right: 206px !important;
-    bottom: calc(92px + env(safe-area-inset-bottom)) !important;
+    right: 202px !important;
+    bottom: calc(88px + env(safe-area-inset-bottom)) !important;
     z-index: 960 !important;
   }
   .vivit-lang-switch {
     position: fixed !important;
-    right: 14px !important;
-    bottom: calc(92px + env(safe-area-inset-bottom)) !important;
+    right: 12px !important;
+    bottom: calc(88px + env(safe-area-inset-bottom)) !important;
     z-index: 960 !important;
   }
 
-  /* Reminder must never cover the center of the screen. */
-  .task-reminder-toast,
-  [class*="task-reminder"] {
-    position: fixed !important;
-    left: 14px !important;
-    right: 14px !important;
-    top: auto !important;
-    bottom: calc(160px + env(safe-area-inset-bottom)) !important;
-    width: auto !important;
-    max-width: 520px !important;
-    margin: 0 auto !important;
-    z-index: 950 !important;
-    background: #fff7f7 !important;
-    color: #172033 !important;
-  }
-
-  .app-main-shell .app-content { padding-bottom: 170px !important; }
+  .app-main-shell .app-content { padding-bottom: 190px !important; }
 }

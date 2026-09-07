@@ -1,0 +1,111 @@
+/* Live mobile parity pass: loaded last so legacy dark module rules cannot win. */
+@media (max-width: 900px) {
+  html, body, #app-main, .app-main-shell, .app-content, .dashboard-home,
+  .vx-world, .vx-client-universe, .vx-media-cockpit, .media-control-center {
+    background: #f6f8fc !important;
+    color: #132033 !important;
+  }
+
+  /* Home/KPI surfaces */
+  .dashboard-home .kpi-card,
+  .dashboard-home .card,
+  .dashboard-home .metric-card,
+  .dashboard-home .stat-card,
+  .dashboard-home .attention,
+  .dashboard-home .cw-section,
+  .dashboard-home .campaign-card,
+  .dashboard-home .creative-card {
+    background: #ffffff !important;
+    color: #132033 !important;
+    border: 1px solid #dce4ee !important;
+    box-shadow: 0 10px 28px rgba(35,55,80,.07) !important;
+  }
+  .dashboard-home .kpi-card :where(.kpi-label,.kpi-value,span,p,b,strong),
+  .dashboard-home .card :where(h1,h2,h3,h4,p,span,b,strong,small) {
+    color: #20324a !important;
+  }
+  .dashboard-home .kpi-card .kpi-label,
+  .dashboard-home .kpi-card span[style*="text-muted"] { color:#6f8197 !important; }
+  .dashboard-home .kpi-change.down { color:#b4232d !important; background:#fff0f1 !important; }
+  .dashboard-home .kpi-change.up { color:#087a52 !important; background:#edf9f4 !important; }
+
+  /* Keep the hero premium but light, not navy. */
+  .dashboard-home .vone-command-hero,
+  .vx-world-hero,
+  .cw-hero,
+  .portal-hero,
+  .vx-war-room .vx-world-hero {
+    background: linear-gradient(135deg,#ffffff 0%,#f5f2ff 55%,#fff4f5 100%) !important;
+    color:#132033 !important;
+    border:1px solid #e0e6ef !important;
+    box-shadow:0 16px 38px rgba(35,55,80,.08) !important;
+  }
+  .dashboard-home .vone-command-hero :where(h1,h2,h3,p,span,small,b,strong),
+  .vx-world-hero :where(h1,h2,h3,p,span,small,b,strong),
+  .cw-hero :where(h1,h2,h3,p,span,small,b,strong),
+  .portal-hero :where(h1,h2,h3,p,span,small,b,strong) { color:#20324a !important; }
+  .dashboard-home .vone-command-bar { background:#fff !important; border-color:#dce4ee !important; color:#40536b !important; box-shadow:none !important; }
+
+  /* Media/account cards */
+  .mcf-account,
+  .mcf-campaign,
+  .mcf-status,
+  .media-account-card,
+  .media-campaign-card,
+  .meta-account-card,
+  .vx-media-cockpit article,
+  .vx-media-cockpit section,
+  .media-control-center article,
+  .media-control-center section {
+    background:#fff !important;
+    color:#132033 !important;
+    border-color:#dce4ee !important;
+    box-shadow:0 10px 28px rgba(35,55,80,.06) !important;
+  }
+  .mcf-campaign { background:#f7f9fc !important; }
+  .mcf-account :where(h1,h2,h3,h4,p,span,small,b,strong),
+  .mcf-campaign :where(h1,h2,h3,h4,p,span,small,b,strong),
+  .media-control-center :where(h1,h2,h3,h4,p,span,small,b,strong) { color:#20324a !important; }
+
+  /* VIVITO becomes the same light language as desktop. */
+  .va-panel,
+  .va-head,
+  .va-context,
+  .va-quick,
+  .va-chat,
+  .va-input,
+  .va-foot {
+    background:#ffffff !important;
+    color:#132033 !important;
+    border-color:#dce4ee !important;
+  }
+  .va-panel { box-shadow:0 22px 60px rgba(35,55,80,.18) !important; }
+  .va-head :where(b,small), .va-context, .va-speaker, .va-foot { color:#40536b !important; }
+  .va-quick button,
+  .va-msg.ai,
+  .va-empty,
+  .va-action,
+  .va-attachments span {
+    background:#f5f7fb !important;
+    color:#20324a !important;
+    border-color:#dce4ee !important;
+  }
+  .va-msg.you { color:#fff !important; }
+  .va-input textarea { background:#f7f9fc !important; color:#132033 !important; border-color:#dce4ee !important; }
+  .va-input textarea::placeholder { color:#7b8ba0 !important; }
+
+  /* Floating controls stay on one compact row and never cover content. */
+  .vx-apps { right:222px !important; bottom:calc(92px + env(safe-area-inset-bottom)) !important; }
+  .vivit-lang-switch { right:14px !important; bottom:calc(92px + env(safe-area-inset-bottom)) !important; }
+  .vx-apps-btn, .vivit-lang-switch button { min-height:44px !important; height:44px !important; }
+  .mobile-nav { background:rgba(255,255,255,.97) !important; border-color:#dce4ee !important; box-shadow:0 -8px 26px rgba(35,55,80,.10) !important; }
+  .mobile-nav :where(a,button,small,span) { color:#40536b !important; }
+  .mobile-nav .active :where(small,span) { color:#b42332 !important; }
+}
+
+@media (max-width: 480px) {
+  .dashboard-home .kpi-grid { gap:10px !important; }
+  .dashboard-home .kpi-card { min-height:128px !important; padding:14px !important; border-radius:16px !important; }
+  .va-panel { left:10px !important; right:10px !important; width:auto !important; max-width:none !important; }
+  .vx-apps { right:218px !important; }
+}

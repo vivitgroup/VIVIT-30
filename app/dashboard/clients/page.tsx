@@ -10,7 +10,7 @@ import {ClientLifecycleButtons} from "@/components/marketing/client-lifecycle-bu
 const money=(n:number)=>new Intl.NumberFormat("en-EG",{style:"currency",currency:"EGP",maximumFractionDigits:0}).format(Number(n||0));
 
 export default async function ClientsPage({searchParams}:{searchParams?:Promise<Record<string,string|undefined>>}) {
- const session=await auth();if(!session?.user)redirect("/login");
+ const session=await auth();if (!session?.user) redirect("/login");
  const role=session.user.role,userId=session.user.id,workspaceId=session.user.workspaceId||"";if(!role||!workspaceId)redirect("/login?reason=workspace_missing");
  if(![Role.SUPER_ADMIN,Role.ACCOUNT_MANAGER,Role.MEDIA_BUYER,Role.ACCOUNTANT].includes(role))redirect("/dashboard");
  const canAdd=[Role.SUPER_ADMIN,Role.ACCOUNT_MANAGER,Role.MEDIA_BUYER,Role.ACCOUNTANT].includes(role),canManage=[Role.SUPER_ADMIN,Role.ACCOUNT_MANAGER,Role.MEDIA_BUYER].includes(role),canDelete=role===Role.SUPER_ADMIN,params=(await searchParams)||{},q=String(params.q||"").trim().toLowerCase();

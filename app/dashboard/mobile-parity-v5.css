@@ -1,0 +1,118 @@
+/* Final mobile parity layer: loaded last on dashboard. */
+@media (max-width: 900px) {
+  html body .app-main-shell,
+  html body .app-content,
+  html body .dashboard-home,
+  html body .vx-client-universe,
+  html body .vx-media-cockpit,
+  html body .mcf-shell {
+    background:#f6f7fb !important;
+    color:#111827 !important;
+  }
+
+  html body .dashboard-home .kpi-card,
+  html body .dashboard-home .card,
+  html body .vx-client-universe .vcu-card,
+  html body .vx-client-universe .vcu-body,
+  html body .vx-media-cockpit > .card,
+  html body .mcf-shell .mcf-account,
+  html body .mcf-shell .mcf-card,
+  html body .mcf-shell .mcf-status {
+    background:#fff !important;
+    color:#111827 !important;
+    border-color:#e1e6ee !important;
+    box-shadow:0 10px 28px rgba(15,23,42,.06) !important;
+  }
+
+  html body .vx-client-universe .vcu-visual,
+  html body .vx-client-universe .vcu-meta > div,
+  html body .mcf-shell .mcf-account-metrics > div,
+  html body .mcf-shell .mcf-metric,
+  html body .mcf-shell .mcf-card,
+  html body .vx-media-cockpit > .card > div > div {
+    background:#f8fafc !important;
+    color:#111827 !important;
+    border-color:#e5e9f0 !important;
+  }
+
+  html body .dashboard-home .kpi-label,
+  html body .dashboard-home .kpi-value,
+  html body .dashboard-home .card-title,
+  html body .vx-client-universe h1,
+  html body .vx-client-universe h2,
+  html body .vx-client-universe h3,
+  html body .vx-client-universe b,
+  html body .vx-media-cockpit h1,
+  html body .vx-media-cockpit h2,
+  html body .vx-media-cockpit h3,
+  html body .vx-media-cockpit h4,
+  html body .vx-media-cockpit b,
+  html body .mcf-shell h2,
+  html body .mcf-shell h3,
+  html body .mcf-shell h4,
+  html body .mcf-shell b {
+    color:#111827 !important;
+  }
+
+  html body .dashboard-home .page-subtitle,
+  html body .dashboard-home .kpi-card span,
+  html body .vx-client-universe small,
+  html body .vx-client-universe .page-subtitle,
+  html body .vx-media-cockpit .page-subtitle,
+  html body .mcf-shell small,
+  html body .mcf-shell p,
+  html body .mcf-shell span:not(.badge):not(.eyebrow) {
+    color:#667085 !important;
+  }
+
+  html body .vx-client-universe .vcu-actions,
+  html body .mcf-shell .mcf-account-head {
+    border-color:#e5e9f0 !important;
+  }
+
+  html body .vx-media-cockpit .vx-world-hero,
+  html body .vx-client-universe .vx-world-hero {
+    background:#fff !important;
+    color:#111827 !important;
+    border:1px solid #e1e6ee !important;
+    box-shadow:0 10px 28px rgba(15,23,42,.05) !important;
+  }
+
+  html body .task-reminder-toast {
+    position:fixed !important;
+    left:14px !important;
+    right:14px !important;
+    top:calc(96px + env(safe-area-inset-top)) !important;
+    bottom:auto !important;
+    max-width:520px !important;
+    margin:0 auto !important;
+    padding:12px 14px !important;
+    border-radius:16px !important;
+    background:#fff7f7 !important;
+    color:#182033 !important;
+    border:1px solid #f0b9bd !important;
+    box-shadow:0 12px 30px rgba(80,20,30,.12) !important;
+    z-index:1200 !important;
+  }
+  html body .task-reminder-toast p{margin:4px 0 !important;font-size:15px !important;color:#182033 !important}
+  html body .task-reminder-toast small{font-size:12px !important;color:#718096 !important}
+  html body .task-reminder-toast a{display:inline-flex !important;margin-top:8px !important;padding:8px 11px !important;border-radius:10px !important}
+
+  html body .vx-apps,
+  html body .vivit-lang-switch {
+    bottom:calc(90px + env(safe-area-inset-bottom)) !important;
+    z-index:1100 !important;
+    box-shadow:0 8px 22px rgba(15,23,42,.10) !important;
+  }
+  html body .vx-apps{right:188px !important}
+  html body .vivit-lang-switch{right:14px !important}
+
+  html body .dashboard-home,
+  html body .vx-client-universe,
+  html body .vx-media-cockpit,
+  html body .mcf-shell {padding-bottom:190px !important}
+
+  /* Keep only deliberate branded surfaces dark. */
+  html body .dashboard-home .vone-command-hero,
+  html body .dashboard-home .vone-command-hero * {color:inherit}
+}

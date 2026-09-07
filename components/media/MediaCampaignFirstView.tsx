@@ -1,0 +1,31 @@
+"use client";
+import {useEffect,useState} from "react";
+import {MediaIntelligenceWorkspaceV2} from "@/components/media/MediaIntelligenceWorkspaceV2";
+
+type Campaign={id:string;name:string;clientName?:string;platform?:string;status?:string;currency?:string;metrics?:{spend?:number;results?:number;ctr?:number;roas?:number;costPerResult?:number;resultLabel?:string};externalId?:string};
+const money=(v:unknown,c="EGP")=>new Intl.NumberFormat("en-EG",{style:"currency",currency:c||"EGP",maximumFractionDigits:0}).format(Number(v||0));
+const cairoDate=()=>new Intl.DateTimeFormat("en-CA",{timeZone:"Africa/Cairo",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
+
+export function MediaCampaignFirstView(){
+ const today=cairoDate(),from=`${today.slice(0,7)}-01`;
+ const[campaigns,setCampaigns]=useState<Campaign[]>([]),[loading,setLoading]=useState(true),[message,setMessage]=useState(""),[showFull,setShowFull]=useState(false),[busy,setBusy]=useState("");
+ async function load(){setLoading(true);setMessage("");try{const r=await fetch(`/api/media-control-v2?from=${from}&to=${today}`,{cache:"no-store"});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||"Could not load campaigns");setCampaigns(Array.isArray(d.campaigns)?d.campaigns:[])}catch(e){setMessage(e instanceof Error?e.message:"Could not load campaigns")}finally{setLoading(false)}}
+ useEffect(()=>{void load()},[]);
+ async function lifecycle(c:Campaign,action:"archive"|"delete"){
+  if(!confirm(action==="archive"?`Archive “${c.name}”?`:`Delete “${c.name}”? If it has reporting history it will remain archived.`))return;
+  setBusy(`${c.id}:${action}`);setMessage("");
+  try{
+   const request=async(a:"archive"|"delete")=>{const r=await fetch("/api/campaign-lifecycle",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:c.id,action:a})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||`Could not ${a} campaign`)};
+   if(action==="delete"){try{await request("archive")}catch(e){if(!/already archived/i.test(e instanceof Error?e.message:""))throw e}await request("delete")}else await request("archive");
+   setMessage(action==="archive"?"Campaign archived.":"Campaign delete completed.");await load();
+  }catch(e){setMessage(e instanceof Error?e.message:"Campaign action failed")}finally{setBusy("")}
+ }
+ return <div className="mcf-shell"><style>{`
+ .mcf-shell{display:grid;gap:14px;min-width:0}.mcf-toolbar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}.mcf-toolbar h2{margin:0;font-size:20px;color:var(--text-primary)}.mcf-toolbar p{margin:3px 0 0;color:var(--text-muted);font-size:12px}.mcf-actions{display:flex;gap:8px;flex-wrap:wrap}.mcf-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.mcf-card{background:var(--card-bg);border:1px solid var(--card-border);border-radius:18px;padding:16px;min-width:0;box-shadow:var(--shadow-sm)}.mcf-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.mcf-name{min-width:0}.mcf-name h3{margin:4px 0;font-size:17px;line-height:1.25;color:var(--text-primary);overflow-wrap:anywhere}.mcf-name small{color:var(--text-muted);font-size:11px}.mcf-card-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.mcf-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:14px}.mcf-metric{background:var(--bg-secondary);border-radius:12px;padding:10px;min-width:0}.mcf-metric span{display:block;color:var(--text-muted);font-size:10px}.mcf-metric b{display:block;margin-top:4px;color:var(--text-primary);font-size:14px;overflow-wrap:anywhere}.mcf-status{padding:10px 12px;border-radius:12px;background:var(--bg-secondary);color:var(--text-muted);font-size:12px}.mcf-full{min-width:0;overflow:hidden}@media(max-width:900px){.mcf-grid{grid-template-columns:1fr}.mcf-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.mcf-head{flex-direction:column}.mcf-card-actions{width:100%;display:grid;grid-template-columns:1fr 1fr}.mcf-card-actions button{width:100%}}@media(max-width:560px){.mcf-shell{gap:10px}.mcf-card{padding:13px;border-radius:15px}.mcf-toolbar{align-items:stretch}.mcf-actions{display:grid;grid-template-columns:1fr 1fr;width:100%}.mcf-actions button{width:100%}.mcf-name h3{font-size:15px}.mcf-metric b{font-size:13px}}
+ `}</style>
+ <div className="mcf-toolbar"><div><h2>Campaigns</h2><p>Campaigns load first. Full intelligence is optional and no longer blocks this view.</p></div><div className="mcf-actions"><button className="btn btn-secondary" onClick={()=>void load()} disabled={loading}>{loading?"Loading…":"Refresh"}</button><button className="btn btn-primary" onClick={()=>setShowFull(v=>!v)}>{showFull?"Hide full intelligence":"Open full intelligence"}</button></div></div>
+ {message&&<div className="mcf-status">{message}</div>}
+ {loading&&!campaigns.length?<div className="mcf-status">Loading campaigns…</div>:<div className="mcf-grid">{campaigns.map(c=>{const m=c.metrics||{},label=m.resultLabel||"Results";return <article className="mcf-card" key={c.id}><div className="mcf-head"><div className="mcf-name"><span className="eyebrow">{c.platform||"MEDIA"} · {c.status||"ACTIVE"}</span><h3>{c.name}</h3><small>{c.clientName||"Client"}{c.externalId?` · ${c.externalId}`:""}</small></div><div className="mcf-card-actions"><button className="btn btn-secondary btn-sm" disabled={Boolean(busy)} onClick={()=>void lifecycle(c,"archive")}>Archive</button><button className="btn btn-danger btn-sm" disabled={Boolean(busy)} onClick={()=>void lifecycle(c,"delete")}>Delete</button></div></div><div className="mcf-metrics"><div className="mcf-metric"><span>Spend</span><b>{money(m.spend,c.currency||"EGP")}</b></div><div className="mcf-metric"><span>{label}</span><b>{Number(m.results||0).toLocaleString()}</b></div><div className="mcf-metric"><span>CTR</span><b>{Number(m.ctr||0).toFixed(2)}%</b></div><div className="mcf-metric"><span>ROAS</span><b>{Number(m.roas||0).toFixed(2)}×</b></div></div></article>})}{!loading&&!campaigns.length&&<div className="mcf-status">No campaigns for the selected month.</div>}</div>}
+ {showFull&&<div className="mcf-full"><MediaIntelligenceWorkspaceV2/></div>}
+ </div>
+}

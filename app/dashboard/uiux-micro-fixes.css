@@ -82,9 +82,73 @@
   .mobile-menu-drawer section > a { min-height: 48px !important; }
   .dashboard-skeleton-kpis { grid-template-columns: repeat(2,minmax(0,1fr)) !important; }
   .dashboard-skeleton-main { grid-template-columns: minmax(0,1fr) !important; }
-  .vx-apps { right: 86px !important; bottom: calc(82px + env(safe-area-inset-bottom)) !important; }
+  .vx-apps { right: 132px !important; bottom: calc(82px + env(safe-area-inset-bottom)) !important; }
+  .vivit-lang-switch { right: 14px !important; bottom: calc(82px + env(safe-area-inset-bottom)) !important; z-index: 861 !important; }
   .vx-apps-btn { min-height: 44px !important; height: 44px !important; }
   .realtime-toast-stack { bottom: calc(88px + env(safe-area-inset-bottom)) !important; }
+}
+
+/* Final mobile parity: desktop light palette wins over legacy navy module overrides. */
+@media (max-width: 900px) {
+  :root,
+  html,
+  body,
+  #app-main,
+  .app-main-shell {
+    --bg-primary:#f6f8fc !important;
+    --bg-secondary:#eef3f8 !important;
+    --card-bg:#ffffff !important;
+    --card-border:#dce4ee !important;
+    --text-primary:#132033 !important;
+    --text-secondary:#40536b !important;
+    --text-muted:#6f8197 !important;
+    --bg-hover:#edf3f8 !important;
+    --surface:#ffffff !important;
+    --surface-2:#f5f8fb !important;
+    background:#f6f8fc !important;
+    color:#132033 !important;
+  }
+  .app-content,
+  .vx-world,
+  .vx-client-universe,
+  .vx-media-cockpit { background:#f6f8fc !important; color:#132033 !important; }
+  .vx-world-hero,
+  .card,
+  .mcf-account,
+  .mcf-campaign,
+  .mcf-status,
+  .vx-universe-grid article,
+  .vx-focus-strip,
+  .modal,
+  .modal-content,
+  .drawer-content {
+    background:#fff !important;
+    color:#132033 !important;
+    border-color:#dce4ee !important;
+    box-shadow:0 12px 34px rgba(35,55,80,.08) !important;
+  }
+  .mcf-campaign { background:#f7f9fc !important; }
+  .mcf-metric,
+  .metric-card,
+  .stat-card { background:#f1f5f9 !important; color:#132033 !important; }
+  .vx-world :where(h1,h2,h3,h4,b,strong),
+  .mcf-account :where(h2,h3,b),
+  .mcf-campaign :where(h3,b) { color:#132033 !important; }
+  .vx-world :where(p,small,span),
+  .mcf-account small,
+  .mcf-campaign small { color:#60748d; }
+  .vx-world .eyebrow,
+  .mcf-account .eyebrow,
+  .mcf-campaign .eyebrow { color:#6d36c7 !important; }
+  .btn.btn-secondary,
+  .btn.btn-ghost { background:#f3f6fa !important; color:#20324a !important; border-color:#d6e0ea !important; }
+  .mobile-menu-drawer { background:#fff !important; color:#132033 !important; }
+  .mobile-menu-drawer a { color:#20324a !important; }
+  .mobile-menu-drawer a.active { background:#edf3f8 !important; color:#b41f2d !important; }
+  .vx-apps-btn,
+  .vx-apps-menu,
+  .vivit-lang-switch { background:#fff !important; color:#20324a !important; border-color:#dce4ee !important; }
+  .vx-apps-menu a { color:#20324a !important; }
 }
 
 @media (max-width: 420px) {

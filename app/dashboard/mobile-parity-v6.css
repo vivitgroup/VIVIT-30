@@ -1,0 +1,125 @@
+/* Mobile parity v6: source-agnostic light UI. Loaded last from dashboard layout. */
+@media (max-width: 900px) {
+  .app-main-shell,
+  .app-main-shell main,
+  .app-main-shell .app-content {
+    background: #f6f7fb !important;
+    color: #111827 !important;
+  }
+
+  /* Core dashboard surfaces: do not depend on page-specific wrapper classes. */
+  .app-main-shell .app-content .card,
+  .app-main-shell .app-content .kpi-card,
+  .app-main-shell .app-content .vcu-card,
+  .app-main-shell .app-content .mcf-account,
+  .app-main-shell .app-content .mcf-card,
+  .app-main-shell .app-content .vx-world-hero,
+  .app-main-shell .app-content .responsive-table,
+  .app-main-shell .app-content .data-table,
+  .app-main-shell .app-content [class*="signal"],
+  .app-main-shell .app-content [class*="pulse"],
+  .app-main-shell .app-content [class*="calendar"] {
+    background-color: #ffffff !important;
+    color: #111827 !important;
+    border-color: #e5e7eb !important;
+    box-shadow: 0 10px 28px rgba(15,23,42,.055) !important;
+  }
+
+  .app-main-shell .app-content .kpi-card *,
+  .app-main-shell .app-content .card *,
+  .app-main-shell .app-content .vcu-card *,
+  .app-main-shell .app-content .mcf-account *,
+  .app-main-shell .app-content .mcf-card *,
+  .app-main-shell .app-content [class*="signal"] *,
+  .app-main-shell .app-content [class*="calendar"] * {
+    color: #172033;
+  }
+
+  .app-main-shell .app-content .page-subtitle,
+  .app-main-shell .app-content small,
+  .app-main-shell .app-content .kpi-label,
+  .app-main-shell .app-content .mcf-metric span,
+  .app-main-shell .app-content .mcf-account-metrics span {
+    color: #667085 !important;
+  }
+
+  .app-main-shell .app-content .kpi-value,
+  .app-main-shell .app-content .card-title,
+  .app-main-shell .app-content h1,
+  .app-main-shell .app-content h2,
+  .app-main-shell .app-content h3,
+  .app-main-shell .app-content h4,
+  .app-main-shell .app-content b,
+  .app-main-shell .app-content strong {
+    color: #101828 !important;
+  }
+
+  .app-main-shell .app-content .kpi-icon,
+  .app-main-shell .app-content .mcf-metric,
+  .app-main-shell .app-content .mcf-account-metrics > div,
+  .app-main-shell .app-content .vcu-meta > div {
+    background: #f8fafc !important;
+    border-color: #e5e7eb !important;
+    color: #172033 !important;
+  }
+
+  .app-main-shell .app-content .card-header,
+  .app-main-shell .app-content .card-body,
+  .app-main-shell .app-content .card-body-flush,
+  .app-main-shell .app-content .mcf-account-head,
+  .app-main-shell .app-content .vcu-body,
+  .app-main-shell .app-content .vcu-actions {
+    background: #ffffff !important;
+    border-color: #e5e7eb !important;
+  }
+
+  /* Calendar grids and dark client-signal bands. */
+  .app-main-shell .app-content table,
+  .app-main-shell .app-content thead,
+  .app-main-shell .app-content tbody,
+  .app-main-shell .app-content tr,
+  .app-main-shell .app-content td,
+  .app-main-shell .app-content th {
+    background-color: #ffffff !important;
+    color: #172033 !important;
+    border-color: #e5e7eb !important;
+  }
+
+  /* Keep branded/destructive status surfaces as accents, not whole navy panels. */
+  .app-main-shell .app-content .btn-danger { color: #b42318 !important; }
+  .app-main-shell .app-content .badge-red { color: #b42318 !important; }
+  .app-main-shell .app-content .badge-green { color: #067647 !important; }
+
+  /* Floating controls: one row, no content overlap. */
+  .vx-apps {
+    position: fixed !important;
+    left: auto !important;
+    right: 206px !important;
+    bottom: calc(92px + env(safe-area-inset-bottom)) !important;
+    z-index: 960 !important;
+  }
+  .vivit-lang-switch {
+    position: fixed !important;
+    right: 14px !important;
+    bottom: calc(92px + env(safe-area-inset-bottom)) !important;
+    z-index: 960 !important;
+  }
+
+  /* Reminder must never cover the center of the screen. */
+  .task-reminder-toast,
+  [class*="task-reminder"] {
+    position: fixed !important;
+    left: 14px !important;
+    right: 14px !important;
+    top: auto !important;
+    bottom: calc(160px + env(safe-area-inset-bottom)) !important;
+    width: auto !important;
+    max-width: 520px !important;
+    margin: 0 auto !important;
+    z-index: 950 !important;
+    background: #fff7f7 !important;
+    color: #172033 !important;
+  }
+
+  .app-main-shell .app-content { padding-bottom: 170px !important; }
+}

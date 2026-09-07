@@ -54,7 +54,7 @@ function transparentAdvisorFailure(prompt:string,attempted:VivitoProviderName[],
   let text:string;
   if(greeting)text=arabic?"أهلًا! VIVITO شغال. أقدر أراجع معاك العملاء، الحملات، المهام، المبيعات والمالية حسب صلاحياتك. قولّي عايز نبدأ بإيه؟":"Hi! VIVITO is online. I can work with your authorized clients, campaigns, tasks, sales and finance context. What would you like to do?";
   else text=arabic?"VIVITO شغال بوضع الاستمرارية الآمن. بيانات الـERP المصرح بها ما زالت متاحة داخليًا حسب صلاحياتك، لكن لن أعرض السياق الداخلي أو JSON أو حقول النظام الخام. مزودات الـAI الخارجية المجانية غير متاحة مؤقتًا؛ أعد المحاولة أو اكتب أمر ERP مباشر.":"VIVITO is online in secure continuity mode: external free AI providers are temporarily unavailable. Authorized ERP context remains available internally for your role, but internal context, JSON, and raw system fields are never exposed. Retry or send a direct ERP command.";
-  console.warn("VIVITO contextual continuity fallback",{attempted,errors:errors.slice(-6),secure:true});
+  console.warn("VIVITO secure continuity fallback · contextual continuity fallback",{attempted,errors:errors.slice(-6),secure:true});
   return{text,provider:"local",attempted:[...attempted,"local"],errors,latencyMs:Date.now()-started,modelId:"vivito-secure-continuity-v3"};
 }
 function overrideProvider(options:GenerateOptions):ExternalProvider|undefined{if(!options.modelId)return undefined;if(options.modelProvider)return options.modelProvider;if(GROQ_FREE_MODEL_IDS.includes(options.modelId as (typeof GROQ_FREE_MODEL_IDS)[number]))return"groq-free";return options.modelId.endsWith(":free")?"openrouter-free":"gateway"}

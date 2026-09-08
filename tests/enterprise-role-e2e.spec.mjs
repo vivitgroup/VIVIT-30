@@ -20,6 +20,10 @@ async function login(page,email){
  await page.waitForURL(url=>url.pathname.startsWith("/apps")||url.pathname.startsWith("/dashboard"),{timeout:15000});
  await expect(page).not.toHaveURL(/\/login/);
 }
+async function switchIdentity(page,email){
+ await page.context().clearCookies();
+ await login(page,email);
+}
 async function certifyPage(page,route){
  const response=await page.goto(`${base}${route}`,{waitUntil:"domcontentloaded",timeout:20000});
  expect(response?.status()??200,`${route} should not return 5xx`).toBeLessThan(500);
@@ -98,6 +102,36 @@ test("Sales creates updates advances and archives a lead",async({page},testInfo)
  card=page.locator(".lead-card").filter({hasText:company});
  await card.getByRole("button",{name:"Archive Lead"}).click();
  await expect(page.locator(".lead-card").filter({hasText:company})).toHaveCount(0,{timeout:10000});
+});
+
+test("Creative delivery moves from creator through manager to client approval",async({page},testInfo)=>{
+ const project=testInfo.project.name;
+ const taskId=`e2e-task-${project}`;
+ const title=`E2E Enterprise Creative ${project}`;
+ await login(page,"e2e.creator@vivit.local");
+ await certifyPage(page,`/dashboard/creative/${taskId}`);
+ const delivery=page.locator(".ct-submit");
+ await delivery.locator('input[name="url"]').fill(`https://example.com/${taskId}.mp4`);
+ await delivery.locator('input[name="notes"]').fill("Enterprise E2E delivery");
+ await delivery.getByRole("button",{name:"Save delivery link"}).click();
+ await expect(page.getByRole("button",{name:"Submit for review"})).toBeVisible({timeout:10000});
+ await page.getByRole("button",{name:"Submit for review"}).click();
+ await expect(page.locator(".ct-stats")).toContainText("REVIEW",{timeout:10000});
+
+ await switchIdentity(page,"e2e.account@vivit.local");
+ await certifyPage(page,`/dashboard/creative/${taskId}`);
+ await expect(page.getByRole("button",{name:"Approve"})).toBeVisible();
+ await page.getByRole("button",{name:"Approve"}).click();
+ await expect(page.locator(".ct-stats")).toContainText("APPROVED",{timeout:10000});
+
+ await switchIdentity(page,"e2e.client@vivit.local");
+ await certifyPage(page,"/dashboard/portal");
+ const reviewCard=page.locator(".creative-card").filter({hasText:title});
+ await expect(reviewCard).toBeVisible({timeout:10000});
+ await reviewCard.getByRole("button",{name:"Approve"}).click();
+ await expect(page.locator(".creative-card").filter({hasText:title})).toHaveCount(0,{timeout:10000});
+ await certifyPage(page,`/dashboard/creative/${taskId}`);
+ await expect(page.locator(".ct-stats")).toContainText("APPROVED");
 });
 
 test("mobile authenticated shell keeps navigation usable",async({browser})=>{

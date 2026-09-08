@@ -9,6 +9,8 @@ const check=(name,ok)=>checks.push({name,ok:Boolean(ok)});
 const api=read("app/api/files/route.ts");
 const signer=read("app/api/files/upload-sign-v2/route.ts");
 const ui=read("app/dashboard/files/page.tsx");
+const creativeUi=read("components/creative/TaskMediaPanel.tsx");
+const secureUpload=read("lib/secure-file-upload.ts");
 const tus=read("lib/tus-browser.ts");
 const ensureStart=api.indexOf("async function ensureBucket");
 const ensureEnd=api.indexOf("async function scopeFor");
@@ -23,7 +25,7 @@ check("Legacy bucket creation happens only after explicit 404",ensure.includes("
 check("Runtime never writes Supabase storage metadata directly",!api.includes("insert into storage.buckets")&&!api.includes("update storage.buckets")&&!signer.includes("insert into storage.buckets")&&!signer.includes("update storage.buckets"));
 check("Production signer enforces private bucket policy",signer.includes("ensureBucketPolicy")&&signer.includes("public:false"));
 check("Production signer repairs MIME policy drift",signer.includes("allowed_mime_types:desired")&&signer.includes("current.allowed_mime_types")&&signer.includes("policyMatches"));
-check("Upload limit supports 500 MB",api.includes("500 * 1024 * 1024")&&signer.includes("500*1024*1024")&&ui.includes("500*1024*1024"));
+check("Upload limit supports 500 MB",api.includes("500 * 1024 * 1024")&&signer.includes("500*1024*1024")&&ui.includes("500*1024*1024")&&creativeUi.includes("500*1024*1024"));
 check("Image upload MIME types remain enabled",signer.includes('"image/jpeg"')&&signer.includes('"image/png"')&&signer.includes('"image/webp"'));
 check("Video upload MIME types remain enabled",signer.includes('"video/mp4"')&&signer.includes('"video/quicktime"')&&signer.includes('"video/webm"'));
 check("Dangerous executable and active-content extensions remain blocked",signer.includes("DANGEROUS_EXT")&&signer.includes("exe|dll|msi")&&signer.includes("svg|svgz"));
@@ -31,6 +33,9 @@ check("Production upload uses a signed Supabase object URL",signer.includes('/st
 check("Signer returns complete resumable contract",signer.includes("resumableEndpoint:resumableEndpoint()")&&signer.includes("token,path,bucket:BUCKET")&&signer.includes("chunkSize:6*1024*1024")&&signer.includes("resumableThreshold:6*1024*1024"));
 check("Large files select resumable upload path",ui.includes("file.size>RESUMABLE_THRESHOLD")&&ui.includes("uploadTus({file,contract,onProgress:setProgress})"));
 check("Small files retain signed standard upload fallback",ui.includes("uploadStandard(file,signed.uploadUrl,setProgress)")&&ui.includes('xhr.open("PUT",url)'));
+check("Shared secure upload helper selects resumable TUS for large files",secureUpload.includes("file.size<=threshold")&&secureUpload.includes("uploadTus({file,contract")&&secureUpload.includes("resumableThreshold"));
+check("Creative task media uses shared resumable upload helper",creativeUi.includes('import {uploadSecureFile} from "@/lib/secure-file-upload"')&&creativeUi.includes("uploadSecureFile(file,setProgress)")&&!creativeUi.includes('body:JSON.stringify({op:"sign"'));
+check("Creative task upload still completes metadata through scoped File API",creativeUi.includes('op:"complete"')&&creativeUi.includes("clientId,taskId")&&creativeUi.includes('category:"CREATIVE"'));
 check("Resumable client creates TUS upload",tus.includes('method:"POST"')&&tus.includes('"Tus-Resumable":TUS_VERSION')&&tus.includes('"Upload-Length":String(file.size)'));
 check("Resumable client resumes from remote offset",tus.includes('method:"HEAD"')&&tus.includes('r.headers.get("Upload-Offset")'));
 check("Resumable client uploads offset chunks",tus.includes('xhr.open("PATCH",uploadUrl)')&&tus.includes('"application/offset+octet-stream"')&&tus.includes('"Upload-Offset",String(offset)'));

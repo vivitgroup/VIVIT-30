@@ -5,6 +5,8 @@
 ALTER TABLE creative_tasks ADD COLUMN IF NOT EXISTS archived_at timestamp;
 ALTER TABLE creative_tasks ADD COLUMN IF NOT EXISTS deleted_at timestamp;
 ALTER TABLE ad_campaigns ADD COLUMN IF NOT EXISTS archived_at timestamp;
+ALTER TABLE ad_campaigns ADD COLUMN IF NOT EXISTS reported_result_label text;
+ALTER TABLE ad_campaigns ADD COLUMN IF NOT EXISTS reported_result_type text;
 ALTER TABLE sales_leads ADD COLUMN IF NOT EXISTS archived_at timestamp;
 ALTER TABLE sales_leads ADD COLUMN IF NOT EXISTS archived_by text;
 ALTER TABLE file_documents ADD COLUMN IF NOT EXISTS archived_at timestamp;

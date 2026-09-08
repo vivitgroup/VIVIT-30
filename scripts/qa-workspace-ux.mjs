@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import {execFileSync} from "node:child_process";
 const read=p=>fs.readFileSync(p,"utf8"),checks=[],check=(name,ok)=>checks.push({name,ok:Boolean(ok)});
-const calendar=read("app/dashboard/calendar/page.tsx"),portal=read("app/dashboard/portal/page.tsx"),settings=read("components/settings/PreferencePanel.tsx"),header=read("components/layout/Header.tsx"),language=read("components/i18n/DashboardLanguage.tsx"),calendarSafe=read("lib/actions/calendar-safe.ts"),barrel=read("lib/actions.ts");
+const calendar=read("app/dashboard/calendar/page.tsx"),portal=read("app/dashboard/portal/page.tsx"),settings=read("components/settings/PreferencePanel.tsx"),header=read("components/layout/Header.tsx"),language=read("components/i18n/DashboardLanguage.tsx"),layout=read("app/dashboard/layout.tsx"),calendarSafe=read("lib/actions/calendar-safe.ts"),barrel=read("lib/actions.ts");
 check("Calendar only loads active workspace clients",calendar.includes("eq(clients.workspaceId,workspaceId)")&&calendar.includes("eq(clients.isActive,true)"));
 check("Calendar Super Admin and Sales events are client scoped, not true scoped",!calendar.includes("?sql`true`")&&calendar.includes("inArray(calendarEvents.clientId,allowedClientIds)"));
 check("Creator calendar requires workspace active client and unarchived task",calendar.includes("t.workspace_id=${workspaceId}")&&calendar.includes("c.workspace_id=${workspaceId}")&&calendar.includes("c.is_active=true")&&calendar.includes("t.archived_at is null"));
@@ -19,8 +19,10 @@ check("Portal has no fake calendar schedule",!portal.includes("Demo schedule")&&
 check("Portal empty states explicitly show no real data",portal.includes("No synced campaign delivery for this month yet.")&&portal.includes("Nothing is waiting for your approval")&&portal.includes("No upcoming deadlines."));
 check("Portal client writes are tenant scoped",portal.includes("where id=${taskId} and client_id=${client.id} and workspace_id=${workspaceId} and archived_at is null"));
 check("Header preserves selected language instead of forcing English",!header.includes('localStorage.setItem("vivit-lang","en")')&&!header.includes('document.documentElement.dir="ltr"'));
+check("Dashboard shell does not hard-force LTR before language runtime",!layout.includes('dir="ltr" data-ui-language="en"'));
 check("Dashboard language runtime supports persistent English and Arabic with RTL",language.includes('localStorage.getItem("vivit-lang")')&&language.includes('current==="ar"?"rtl":"ltr"')&&language.includes("document.documentElement.lang=current")&&language.includes("document.documentElement.dir=current")&&language.includes('localStorage.setItem("vivit-lang",current)'));
-check("Settings exposes persistent English Arabic language control",settings.includes('localStorage.getItem("vivit-lang")')&&settings.includes('localStorage.setItem("vivit-lang",v)')&&settings.includes('new CustomEvent("vivit-language",{detail:v})')&&settings.includes('<option value="en">English</option>')&&settings.includes('<option value="ar">العربية</option>'));
+check("Dashboard language runtime applies direction to main shell",language.includes('document.querySelector<HTMLElement>(".app-main-shell")')&&language.includes('root.dir=current==="ar"?"rtl":"ltr"'));
+check("Settings exposes persistent English Arabic language control",settings.includes('localStorage.getItem("vivit-lang")&&settings.includes')?false:settings.includes('localStorage.getItem("vivit-lang")')&&settings.includes('localStorage.setItem("vivit-lang",v)')&&settings.includes('new CustomEvent("vivit-language",{detail:v})')&&settings.includes('<option value="en">English</option>')&&settings.includes('<option value="ar">العربية</option>'));
 check("Settings theme persists across reloads on device",settings.includes('vivit-theme')&&settings.includes('localStorage.getItem')&&settings.includes('localStorage.setItem'));
 check("Settings reminder preferences persist across reloads on device",settings.includes('vivit-task-reminder-minutes')&&settings.includes('vivit-reminder-enabled'));
 check("Settings are explicitly device-scoped for reminder behavior",settings.includes("on this device"));

@@ -1,0 +1,16 @@
+import fs from "node:fs";
+const read=f=>fs.readFileSync(f,"utf8"),checks=[],check=(name,ok)=>checks.push({name,ok:Boolean(ok)});
+const api=read("app/api/workspace-region/route.ts"),panel=read("components/settings/WorkspaceRegionalPanel.tsx"),page=read("app/dashboard/settings/page.tsx");
+check("Regional API requires authenticated live user",api.includes("await auth()")&&api.includes("eq(users.isActive,true)")&&api.includes('eq(users.approvalStatus,"APPROVED")'));
+check("Regional writes are SUPER_ADMIN only",api.includes('s.role!=="SUPER_ADMIN"')&&api.includes('status:403'));
+check("Currency is validated as ISO-like code",api.includes('/^[A-Z]{3}$/')&&api.includes('Intl.NumberFormat'));
+check("Timezone is validated as IANA timezone",api.includes('Intl.DateTimeFormat')&&api.includes('timeZone:value'));
+check("Regional update is workspace-scoped",api.includes('eq(workspaces.id,s.workspaceId)')&&api.includes('eq(workspaces.isActive,true)'));
+check("Regional update writes audit evidence",api.includes('workspace_region_updated')&&api.includes('oldValues:JSON.stringify(before)')&&api.includes('newValues:JSON.stringify({currency,timezone})'));
+check("Regional API is private no-store",api.includes('private, no-store'));
+check("Settings page surfaces regional panel",page.includes('WorkspaceRegionalPanel')&&page.includes('<WorkspaceRegionalPanel/>'));
+check("Regional UI is read-only for non-admins",panel.includes('disabled={!canEdit||saving}')&&panel.includes('canEdit?"Admin controlled":"Workspace policy"'));
+check("Regional UI exposes currency and timezone accessibility labels",panel.includes('aria-label="Workspace currency"')&&panel.includes('aria-label="Workspace timezone"'));
+check("Regional UI supports broad browser currency/timezone catalogs",panel.includes('supportedValuesOf')&&panel.includes('"currency"')&&panel.includes('"timeZone"'));
+check("Regional UI has explicit loading, error and save states",panel.includes('Loading regional policy')&&panel.includes('role="alert"')&&panel.includes('role="status"')&&panel.includes('Saving…'));
+const failed=checks.filter(c=>!c.ok);for(const c of checks)console.log(`${c.ok?"PASS":"FAIL"}  ${c.name}`);console.log(`\n${checks.length-failed.length}/${checks.length} regional settings checks passed.`);if(failed.length)process.exit(1);

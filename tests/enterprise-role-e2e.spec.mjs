@@ -71,6 +71,35 @@ test("global search keyboard lifecycle traps and restores focus",async({page})=>
  await expect(trigger).toBeFocused();
 });
 
+test("Sales creates updates advances and archives a lead",async({page},testInfo)=>{
+ await login(page,"e2e.sales@vivit.local");
+ await certifyPage(page,"/dashboard/sales");
+ const company=`E2E ${testInfo.project.name} Prospect`;
+ const add=page.locator("#add form");
+ await add.locator('input[name="companyName"]').fill(company);
+ await add.locator('input[name="contactPerson"]').fill("Enterprise Buyer");
+ await add.locator('input[name="phone"]').fill("+201000000001");
+ await add.locator('input[name="email"]').fill(`buyer-${testInfo.project.name}@example.test`);
+ await add.locator('input[name="estimatedValue"]').fill("42000");
+ await add.locator('select[name="source"]').selectOption("REFERRAL");
+ await add.locator('input[name="industry"]').fill("Technology");
+ await add.locator('textarea[name="notes"]').fill("Created by isolated enterprise browser certification");
+ await add.getByRole("button",{name:"Add to Pipeline"}).click();
+ let card=page.locator(".lead-card").filter({hasText:company});
+ await expect(card).toBeVisible({timeout:10000});
+ await card.getByRole("button",{name:/Contacted/}).click();
+ const contacted=page.locator(".stage").filter({hasText:"Contacted"}).locator(".lead-card").filter({hasText:company});
+ await expect(contacted).toBeVisible({timeout:10000});
+ card=contacted;
+ await card.locator('input[name="phone"]').fill("+201000000099");
+ await card.locator('textarea[name="notes"]').fill("E2E contact updated");
+ await card.getByRole("button",{name:"Save Contact & Notes"}).click();
+ await expect(page.locator(".lead-card").filter({hasText:company}).locator('input[name="phone"]')).toHaveValue("+201000000099");
+ card=page.locator(".lead-card").filter({hasText:company});
+ await card.getByRole("button",{name:"Archive Lead"}).click();
+ await expect(page.locator(".lead-card").filter({hasText:company})).toHaveCount(0,{timeout:10000});
+});
+
 test("mobile authenticated shell keeps navigation usable",async({browser})=>{
  const context=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
  const page=await context.newPage();

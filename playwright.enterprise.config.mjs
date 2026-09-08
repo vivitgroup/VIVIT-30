@@ -9,5 +9,9 @@ export default defineConfig({
  reporter:[["line"]],
  outputDir:"test-results/enterprise-e2e",
  use:{baseURL:process.env.E2E_BASE_URL||"http://127.0.0.1:3000",trace:"retain-on-failure",screenshot:"only-on-failure",video:"retain-on-failure"},
- projects:[{name:"chromium",use:{...devices["Desktop Chrome"]}}],
+ projects:[
+  {name:"chromium",use:{...devices["Desktop Chrome"]}},
+  {name:"webkit",use:{...devices["Desktop Safari"]}},
+  {name:"mobile-webkit",use:{...devices["iPhone 13"]}},
+ ],
 });

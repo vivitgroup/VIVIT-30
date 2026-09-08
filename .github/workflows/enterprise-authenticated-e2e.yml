@@ -115,6 +115,7 @@ jobs:
         run: npx playwright test -c playwright.enterprise.config.mjs tests/enterprise-role-e2e.spec.mjs
 
       - name: Enforce zero database runtime errors
+        if: always()
         shell: bash
         run: |
           set -euo pipefail

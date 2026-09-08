@@ -3,7 +3,7 @@ import {useCallback,useEffect,useRef,useState} from "react";
 import {useRouter} from "next/navigation";
 
 type WindowWithWebkitAudio=Window&{webkitAudioContext?:typeof AudioContext};
-const NOTIFICATION_POLL_MS=60000;
+const NOTIFICATION_POLL_MS=2000;
 
 export function useOnlinePresence(userId:string,userName:string,role:string){
  useEffect(()=>{const report=()=>{const page=window.location.pathname.split("/").pop()??"dashboard";fetch("/api/quick-action",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"heartbeat",userId,userName,role,page})}).catch(()=>{})};report();const interval=setInterval(report,30000);return()=>clearInterval(interval)},[userId,userName,role]);

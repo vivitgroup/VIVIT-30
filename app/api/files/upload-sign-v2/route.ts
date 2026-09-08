@@ -17,7 +17,7 @@ const clean=(v:unknown,n=255)=>String(v||"").trim().slice(0,n);
 const safeName=(name:string)=>name.normalize("NFKD").replace(/[^a-zA-Z0-9._-]/g,"-").replace(/-+/g,"-").slice(-140)||"file";
 const base=()=>String(process.env.SUPABASE_URL||"").replace(/\/$/,"");
 const storageHeaders=()=>({apikey:process.env.SUPABASE_SERVICE_KEY!,Authorization:`Bearer ${process.env.SUPABASE_SERVICE_KEY!}`});
-const resumableEndpoint=()=>{try{const u=new URL(base()),projectRef=u.hostname.split(".")[0];return projectRef?`https://${projectRef}.storage.supabase.co/storage/v1/upload/resumable`:null}catch{return null}};
+const resumableEndpoint=()=>{try{const u=new URL(base()),projectRef=u.hostname.split(".")[0];return projectRef?`https://${projectRef}.storage.supabase.co/storage/v1/upload/resumable/sign`:null}catch{return null}};
 
 async function ensureBucketPolicy(){
  const get=await fetch(`${base()}/storage/v1/bucket/${BUCKET}`,{headers:storageHeaders(),cache:"no-store"});

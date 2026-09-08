@@ -33,6 +33,12 @@ function hasSessionCookie(req:NextRequest){
 function mutationCsrfValid(req:NextRequest){
   const site=String(req.headers.get("sec-fetch-site")||"").toLowerCase();
   if(site==="cross-site")return false;
+  // Next Server Actions are browser-generated POSTs carrying an opaque
+  // `next-action` id. Trust them only when Fetch Metadata proves the request
+  // is same-origin. This avoids false CSRF failures when the framework's
+  // internal request URL differs from the browser-facing host behind a proxy,
+  // while cross-site action attempts remain rejected above.
+  if(site==="same-origin"&&Boolean(req.headers.get("next-action")))return true;
   const origin=req.headers.get("origin");
   if(origin)return sameOrigin(origin,req.url);
   if(hasSessionCookie(req))return false;

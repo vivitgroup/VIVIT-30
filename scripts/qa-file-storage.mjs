@@ -7,6 +7,7 @@ const checks=[];
 const check=(name,ok)=>checks.push({name,ok:Boolean(ok)});
 
 const api=read("app/api/files/route.ts");
+const multipartApi=read("app/api/files/multipart/route.ts");
 const signer=read("app/api/files/upload-sign-v2/route.ts");
 const ui=read("app/dashboard/files/page.tsx");
 const creativeUi=read("components/creative/TaskMediaPanel.tsx");
@@ -34,9 +35,15 @@ check("Signer returns complete resumable contract",signer.includes("resumableEnd
 check("Signed resumable uploads use Supabase signed TUS endpoint",signer.includes("/storage/v1/upload/resumable/sign"));
 check("Large files select resumable upload path",ui.includes("file.size>RESUMABLE_THRESHOLD")&&ui.includes("uploadTus({file,contract,onProgress:setProgress})"));
 check("Small files retain signed standard upload fallback",ui.includes("uploadStandard(file,signed.uploadUrl,setProgress)")&&ui.includes('xhr.open("PUT",url)'));
-check("Shared secure upload helper selects resumable TUS for large files",secureUpload.includes("file.size<=threshold")&&secureUpload.includes("uploadTus({file,contract")&&secureUpload.includes("resumableThreshold"));
-check("Creative task media uses shared resumable upload helper",creativeUi.includes('import {uploadSecureFile} from "@/lib/secure-file-upload"')&&creativeUi.includes("uploadSecureFile(file,setProgress)")&&!creativeUi.includes('body:JSON.stringify({op:"sign"'));
-check("Creative task upload still completes metadata through scoped File API",creativeUi.includes('op:"complete"')&&creativeUi.includes("clientId,taskId")&&creativeUi.includes('category:"CREATIVE"'));
+check("Shared secure upload helper selects resumable TUS for ordinary large files",secureUpload.includes("file.size<=threshold")&&secureUpload.includes("uploadTus({file,contract"));
+check("Supabase Free workaround caps individual stored parts below 50 MB",secureUpload.includes("FREE_TIER_PART_MAX=45*1024*1024")&&secureUpload.includes("file.size>FREE_TIER_PART_MAX")&&secureUpload.includes("uploadMultipart"));
+check("Multipart adapter requires auth and uploader-scoped part paths",multipartApi.includes("sessionScope")&&multipartApi.includes('p.path.startsWith(`${s.workspaceId}/`)')&&multipartApi.includes('p.path.includes(`/${s.userId}/`)'));
+check("Multipart adapter verifies every stored part before metadata insert",multipartApi.includes("objectInfo(part.path)")&&multipartApi.indexOf("objectInfo(part.path)")<multipartApi.indexOf("db.insert(fileDocuments)"));
+check("Multipart adapter signs private parts for authorized playback",multipartApi.includes("signRead")&&multipartApi.includes("canAccess")&&multipartApi.includes("Promise.all(manifest.parts.map"));
+check("Creative task media uses shared upload helper",creativeUi.includes('import {uploadSecureFile} from "@/lib/secure-file-upload"')&&creativeUi.includes("uploadSecureFile(file,setProgress)")&&!creativeUi.includes('body:JSON.stringify({op:"sign"'));
+check("Creative task routes multipart completion through scoped adapter",creativeUi.includes('isMulti?"/api/files/multipart":"/api/files"')&&creativeUi.includes("parts:uploaded.parts")&&creativeUi.includes("clientId,taskId"));
+check("Creative multipart playback reconstructs private parts only on demand",creativeUi.includes('/api/files/multipart?id=')&&creativeUi.includes("new Blob(chunks")&&creativeUi.includes("URL.createObjectURL"));
+check("Creative task upload still completes standard metadata through scoped File API",creativeUi.includes('op:"complete"')&&creativeUi.includes('category:"CREATIVE"'));
 check("Resumable client creates TUS upload",tus.includes('method:"POST"')&&tus.includes('"Tus-Resumable":TUS_VERSION')&&tus.includes('"Upload-Length":String(file.size)'));
 check("Resumable client resumes from remote offset",tus.includes('method:"HEAD"')&&tus.includes('r.headers.get("Upload-Offset")'));
 check("Resumable client uploads offset chunks",tus.includes('xhr.open("PATCH",uploadUrl)')&&tus.includes('"application/offset+octet-stream"')&&tus.includes('"Upload-Offset",String(offset)'));
@@ -49,6 +56,7 @@ check("File list applies role/workspace scope",api.includes("async function scop
 check("Client/task links are authorization validated",api.includes("async function validateLinks")&&api.includes("You cannot attach this file to the selected client or task"));
 check("Private files use signed read URLs",api.includes('/storage/v1/object/sign/${BUCKET}/${path}'));
 check("Delete removes storage object before DB record",api.includes('method: "DELETE"')&&api.indexOf('/storage/v1/object/${BUCKET}/${row.storagePath}')<api.lastIndexOf("tx.delete(fileDocuments)"));
+check("Multipart delete removes all physical parts",multipartApi.includes("for(const p of manifest.parts)")&&multipartApi.includes('method:"DELETE"'));
 
 const failed=checks.filter(c=>!c.ok);
 for(const c of checks)console.log(`${c.ok?"PASS":"FAIL"}  ${c.name}`);

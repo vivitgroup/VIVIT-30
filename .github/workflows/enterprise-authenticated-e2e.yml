@@ -15,7 +15,7 @@ concurrency:
 jobs:
   seven-role-browser:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 40
     services:
       postgres:
         image: postgres:17
@@ -70,6 +70,9 @@ jobs:
       - name: Create isolated database schema
         run: npx drizzle-kit push --force
 
+      - name: Apply runtime parity migrations
+        run: node scripts/apply-enterprise-runtime-parity.mjs
+
       - name: Seed seven isolated roles
         run: npx tsx scripts/seed-enterprise-e2e.ts
 
@@ -111,6 +114,18 @@ jobs:
       - name: Run authenticated seven-role browser matrix
         run: npx playwright test -c playwright.enterprise.config.mjs tests/enterprise-role-e2e.spec.mjs
 
+      - name: Enforce zero database runtime errors
+        shell: bash
+        run: |
+          set -euo pipefail
+          CONTAINER_ID="$(docker ps --filter ancestor=postgres:17 --format '{{.ID}}' | head -1)"
+          test -n "$CONTAINER_ID"
+          docker logs "$CONTAINER_ID" 2>&1 > /tmp/vivit-e2e-postgres.log || true
+          if grep -E 'ERROR:|FATAL:|PANIC:' /tmp/vivit-e2e-postgres.log; then
+            echo 'Database runtime errors detected during authenticated E2E.'
+            exit 1
+          fi
+
       - name: Upload browser evidence on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -127,3 +142,5 @@ jobs:
           cat /tmp/vivit-enterprise-e2e.log || true
           echo '--- auth mock ---'
           cat /tmp/vivit-e2e-supabase.log || true
+          echo '--- postgres ---'
+          cat /tmp/vivit-e2e-postgres.log || true

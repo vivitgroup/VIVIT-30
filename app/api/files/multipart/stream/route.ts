@@ -85,7 +85,6 @@ export async function GET(req:NextRequest){
  const located=locate(manifest.parts,start);if(!located)return new NextResponse(null,{status:416});
  const maxWithinPart=located.part.size-located.localOffset;
  const length=Math.min(MAX_RESPONSE,maxWithinPart,manifest.size-start);
- const end=start+length-1;
  const localEnd=located.localOffset+length-1;
  const upstream=await fetch(`${base()}/storage/v1/object/authenticated/${BUCKET}/${located.part.path}`,{
   headers:{...storageHeaders(),Range:`bytes=${located.localOffset}-${localEnd}`},cache:"no-store"

@@ -29,3 +29,5 @@ jobs:
         run: node scripts/qa-vivito-voice-free.mjs
       - name: Mobile UX static audit
         run: node scripts/qa-mobile-ux.mjs
+      - name: Workspace regional settings audit
+        run: node scripts/qa-regional-settings.mjs

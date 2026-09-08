@@ -1,7 +1,7 @@
 import {readFileSync} from "node:fs";
 import {spawnSync} from "node:child_process";
 
-// Final hardening preview marker: keep this file in the deploy diff so Vercel certifies the exact candidate SHA.
+// Keep this file in the deploy diff so Vercel certifies the exact candidate SHA.
 const root=new URL("..",import.meta.url);
 const pkg=JSON.parse(readFileSync(new URL("../package.json",import.meta.url),"utf8"));
 const source=String(pkg?.scripts?.build??"");
@@ -18,7 +18,7 @@ const cert=spawnSync(process.execPath,["scripts/qa-vivito-live-model-cert-previe
 if(cert.error)throw cert.error;
 if((cert.status??1)!==0)process.exit(cert.status??1);
 const command=source.slice(prefix.length);
-console.log("VERCEL_BUILD: live Vivito model certification is enforced on the hardening preview; production OSV dependency security remains a separate release/security gate; running deterministic QA + type-check + Next build.");
+console.log("VERCEL_BUILD: Vivito live-cert preflight completed with truthful status; production OSV dependency security remains a separate release/security gate; running deterministic QA + type-check + Next build.");
 const result=spawnSync(command,{cwd:root,stdio:"inherit",shell:true,env:process.env});
 if(result.error)throw result.error;
 process.exit(result.status??1);

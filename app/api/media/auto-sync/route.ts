@@ -6,7 +6,7 @@ import {GET as runMediaCron} from "@/app/api/cron/media-sync/route";
 export const dynamic="force-dynamic";
 export const maxDuration=300;
 
-const STAFF_ROLES=new Set(["SUPER_ADMIN","MEDIA_BUYER","ACCOUNT_MANAGER","ACCOUNTANT","CREATOR","SALES"]);
+const MEDIA_SYNC_ROLES=new Set(["SUPER_ADMIN","MEDIA_BUYER","ACCOUNT_MANAGER"]);
 const NO_STORE={"Cache-Control":"private, no-store"};
 
 type ExistsRow={stale:boolean};
@@ -16,7 +16,7 @@ export async function POST(req:NextRequest){
   const session=await auth();
   if(!session?.user)return NextResponse.json({error:"Unauthorized"},{status:401,headers:NO_STORE});
   const role=String(session.user.role||"");
-  if(!STAFF_ROLES.has(role))return NextResponse.json({error:"Forbidden"},{status:403,headers:NO_STORE});
+  if(!MEDIA_SYNC_ROLES.has(role))return NextResponse.json({error:"Forbidden"},{status:403,headers:NO_STORE});
 
   const [staleRow]=Array.from(await db.execute<ExistsRow>(sql`
     select exists(

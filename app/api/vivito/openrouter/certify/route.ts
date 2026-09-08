@@ -10,7 +10,9 @@ type Candidate={provider:"openrouter-free"|"groq-free";modelId:string;identity:s
 const canonicalModelIdentity=(id:string)=>String(id||"").trim().toLowerCase().replace(/:free$/i,"");
 export async function POST(req:NextRequest){
   const session=await getVGroupSession();if(!session)return NextResponse.json({error:"Unauthorized"},{status:401});
-  const openRouterKey=unsealOpenRouterSecret(req.cookies.get(OPENROUTER_KEY_COOKIE)?.value||"");if(!openRouterKey)return NextResponse.json({error:"OpenRouter is not connected"},{status:409});
+  const isGroupSuperAdmin=session.memberships.some(m=>String(m.role)==="GROUP_SUPER_ADMIN");
+  if(!isGroupSuperAdmin)return NextResponse.json({error:"Forbidden"},{status:403,headers:{"Cache-Control":"private, no-store"}});
+  const openRouterKey=unsealOpenRouterSecret(req.cookies.get(OPENROUTER_KEY_COOKIE)?.value||"");if(!openRouterKey)return NextResponse.json({error:"OpenRouter is not connected"},{status:409,headers:{"Cache-Control":"private, no-store"}});
   const groqKey=String(process.env.GROQ_API_KEY||"").trim();
   const openRouterModels=await discoverOpenRouterFreeModels(true);
   const groqModels=groqKey?await discoverGroqFreeModels(true,groqKey):[];
@@ -19,5 +21,5 @@ export async function POST(req:NextRequest){
   resetOpenRouterFreeHealth();resetGroqFreeHealth();let cursor=0;
   async function worker(){while(cursor<candidates.length&&certifiedIdentities.size<MIN){const candidate=candidates[cursor++];try{const out=candidate.provider==="openrouter-free"?await generateViaOpenRouterFreeMesh("Reply with exactly: VIVITO_MODEL_OK","You are a health probe. Return only the requested token.",{task:"general",modelId:candidate.modelId,maxTokens:16,timeoutMs:10000,apiKey:openRouterKey}):await generateViaGroqFreeMesh("Reply with exactly: VIVITO_MODEL_OK","You are a health probe. Return only the requested token.",{task:"general",modelId:candidate.modelId,maxTokens:16,timeoutMs:10000,apiKey:groqKey});if(out.modelId===candidate.modelId&&out.text.trim()){if(!certifiedIdentities.has(candidate.identity)){certifiedIdentities.add(candidate.identity);certified.push(candidate)}}else failed.push({...candidate,error:"pin-or-empty"})}catch(error:unknown){failed.push({...candidate,error:(error instanceof Error?error.message:String(error)).slice(0,120)})}}}
   await Promise.all(Array.from({length:WORKERS},()=>worker()));const ok=certifiedIdentities.size>=MIN&&certified.some(c=>c.provider==="openrouter-free");
-  return NextResponse.json({ok,catalogModels:catalogIdentities.size,providerCatalogs:{"openrouter-free":openRouterModels.length,"groq-free":groqModels.length},groqConfigured:Boolean(groqKey),certified:certifiedIdentities.size,certifiedModels:certified,failed:failed.slice(0,12),proof:"exact-pinned-canonical-free-runtime"},{status:ok?200:503,headers:{"Cache-Control":"no-store"}})
+  return NextResponse.json({ok,catalogModels:catalogIdentities.size,providerCatalogs:{"openrouter-free":openRouterModels.length,"groq-free":groqModels.length},groqConfigured:Boolean(groqKey),certified:certifiedIdentities.size,certifiedModels:certified,failed:failed.slice(0,12),proof:"exact-pinned-canonical-free-runtime"},{status:ok?200:503,headers:{"Cache-Control":"private, no-store"}})
 }

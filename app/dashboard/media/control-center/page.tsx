@@ -1,11 +1,17 @@
 import Link from "next/link";
+import {auth} from "@/lib/auth";
+import {redirect} from "next/navigation";
 import {MetaAccountConnectPanel} from "@/components/media/MetaAccountConnectPanel";
 import {MediaCampaignFirstView} from "@/components/media/MediaCampaignFirstView";
 import MediaAutoSync from "@/components/media/MediaAutoSync";
 
 export const dynamic="force-dynamic";
+const ALLOWED=new Set(["SUPER_ADMIN","ACCOUNT_MANAGER","MEDIA_BUYER"]);
 
-export default function MediaControlCenter(){
+export default async function MediaControlCenter(){
+ const session=await auth();
+ if(!session?.user)redirect("/login");
+ if(!ALLOWED.has(String(session.user.role||"")))redirect("/dashboard");
  return <div className="vx-world vx-media-cockpit" data-certified-workspace="MediaIntelligenceWorkspaceV2" style={{display:"grid",gap:14,minWidth:0,overflow:"hidden"}}>
   <MediaAutoSync/>
   <style>{`@media(max-width:900px){.vx-media-cockpit .vx-world-hero{padding:14px!important;border-radius:18px!important}.vx-media-cockpit .page-title{font-size:clamp(24px,8vw,34px)!important;line-height:1.05!important;overflow-wrap:anywhere}.vx-media-cockpit .page-subtitle{font-size:13px!important;line-height:1.45!important}.vx-media-cockpit .btn{min-height:42px}.vx-media-cockpit{padding-bottom:100px}}@media(min-width:901px){.vx-media-cockpit{max-width:1600px;margin:0 auto;width:100%}}`}</style>

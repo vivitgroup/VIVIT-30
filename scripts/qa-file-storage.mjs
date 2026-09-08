@@ -8,6 +8,7 @@ const check=(name,ok)=>checks.push({name,ok:Boolean(ok)});
 
 const api=read("app/api/files/route.ts");
 const multipartApi=read("app/api/files/multipart/route.ts");
+const streamApi=read("app/api/files/multipart/stream/route.ts");
 const signer=read("app/api/files/upload-sign-v2/route.ts");
 const ui=read("app/dashboard/files/page.tsx");
 const creativeUi=read("components/creative/TaskMediaPanel.tsx");
@@ -39,10 +40,11 @@ check("Shared secure upload helper selects resumable TUS for ordinary large file
 check("Supabase Free workaround caps individual stored parts below 50 MB",secureUpload.includes("FREE_TIER_PART_MAX=45*1024*1024")&&secureUpload.includes("file.size>FREE_TIER_PART_MAX")&&secureUpload.includes("uploadMultipart"));
 check("Multipart adapter requires auth and uploader-scoped part paths",multipartApi.includes("sessionScope")&&multipartApi.includes('p.path.startsWith(`${s.workspaceId}/`)')&&multipartApi.includes('p.path.includes(`/${s.userId}/`)'));
 check("Multipart adapter verifies every stored part before metadata insert",multipartApi.includes("objectInfo(part.path)")&&multipartApi.indexOf("objectInfo(part.path)")<multipartApi.indexOf("db.insert(fileDocuments)"));
-check("Multipart adapter signs private parts for authorized playback",multipartApi.includes("signRead")&&multipartApi.includes("canAccess")&&multipartApi.includes("Promise.all(manifest.parts.map"));
+check("Multipart stream is authenticated and supports HTTP byte ranges",streamApi.includes("sessionScope")&&streamApi.includes("canAccess")&&streamApi.includes('req.headers.get("range")')&&streamApi.includes('"Content-Range"')&&streamApi.includes('"Accept-Ranges":"bytes"'));
+check("Multipart stream limits each server response below Vercel response ceiling",streamApi.includes("MAX_RESPONSE=4*1024*1024")&&streamApi.includes("Math.min(MAX_RESPONSE"));
 check("Creative task media uses shared upload helper",creativeUi.includes('import {uploadSecureFile} from "@/lib/secure-file-upload"')&&creativeUi.includes("uploadSecureFile(file,setProgress)")&&!creativeUi.includes('body:JSON.stringify({op:"sign"'));
 check("Creative task routes multipart completion through scoped adapter",creativeUi.includes('isMulti?"/api/files/multipart":"/api/files"')&&creativeUi.includes("parts:uploaded.parts")&&creativeUi.includes("clientId,taskId"));
-check("Creative multipart playback reconstructs private parts only on demand",creativeUi.includes('/api/files/multipart?id=')&&creativeUi.includes("new Blob(chunks")&&creativeUi.includes("URL.createObjectURL"));
+check("Creative multipart playback uses same-origin range stream instead of Blob reconstruction",creativeUi.includes('/api/files/multipart/stream?id=')&&!creativeUi.includes("URL.createObjectURL")&&!creativeUi.includes("new Blob(chunks"));
 check("Creative task upload still completes standard metadata through scoped File API",creativeUi.includes('op:"complete"')&&creativeUi.includes('category:"CREATIVE"'));
 check("Resumable client creates TUS upload",tus.includes('method:"POST"')&&tus.includes('"Tus-Resumable":TUS_VERSION')&&tus.includes('"Upload-Length":String(file.size)'));
 check("Resumable client resumes from remote offset",tus.includes('method:"HEAD"')&&tus.includes('r.headers.get("Upload-Offset")'));

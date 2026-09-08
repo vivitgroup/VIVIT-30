@@ -4,6 +4,7 @@ import {db,sql} from "@/lib/db";
 
 export const dynamic="force-dynamic";
 
+const MEDIA_MAINTENANCE_ROLES=new Set(["SUPER_ADMIN","MEDIA_BUYER","ACCOUNT_MANAGER","ACCOUNTANT","CREATOR","SALES"]);
 type RevisionRow={revision:number|string;updated_at:string|Date|null};
 
 export async function GET(){
@@ -22,5 +23,6 @@ export async function GET(){
   return NextResponse.json({
     revision:String(row?.revision??0),
     updatedAt:row?.updated_at?new Date(row.updated_at).toISOString():null,
+    mayMaintainMedia:MEDIA_MAINTENANCE_ROLES.has(String(session.user.role||"")),
   },{headers:{"Cache-Control":"private, no-store"}});
 }

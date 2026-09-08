@@ -10,6 +10,10 @@ if(!source.startsWith(prefix)){
   console.error("VERCEL_BUILD_GUARD: expected production OSV security prefix was not found in package.json build script");
   process.exit(1);
 }
+if(process.env.VERCEL_ENV==="production"&&!String(process.env.CRON_SECRET||"").trim()){
+  console.error("VERCEL_BUILD_GUARD: CRON_SECRET is required for production cron authentication");
+  process.exit(1);
+}
 const cert=spawnSync(process.execPath,["scripts/qa-vivito-live-model-cert-preview.mjs"],{cwd:root,stdio:"inherit",env:process.env});
 if(cert.error)throw cert.error;
 if((cert.status??1)!==0)process.exit(cert.status??1);

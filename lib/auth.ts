@@ -20,6 +20,16 @@ const dummyPasswordHash=bcrypt.hash("VIVIT_AUTH_TIMING_SENTINEL_DO_NOT_USE",12);
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
+  logger:{
+    error(error){
+      const type=error&&typeof error==="object"&&"type" in error?String((error as {type?:unknown}).type||""):"";
+      if(type==="CredentialsSignin"){
+        console.warn("[auth][reject] Credentials sign-in rejected");
+        return;
+      }
+      console.error("[auth][error]",error);
+    },
+  },
   providers: [
     Credentials({
       credentials: {

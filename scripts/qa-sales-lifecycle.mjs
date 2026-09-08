@@ -7,10 +7,14 @@ check("Sales lead access rejects archived rows",s.includes("workspace_id=${works
 check("Sales role only accesses owned leads",s.includes("lead.salesRepId!==userId")&&s.includes("eq(salesLeads.salesRepId,userId)"));
 check("Sales lifecycle uses explicit ordered transition map",s.includes("const TRANSITIONS:Record<string,string[]>")&&s.includes('NEW_LEAD:["CONTACTED","LOST"]')&&s.includes('NEGOTIATION:["WON","LOST"]'));
 check("Forged sales stage jumps are rejected",s.includes("Invalid sales transition"));
+check("Lead close serializes concurrent transitions",s.includes("sales-lead:${workspaceId}:${id}")&&s.includes("pg_advisory_xact_lock"));
+check("Lead close re-reads state inside transaction",s.includes("const [current]=await tx.select().from(salesLeads)")&&s.includes("Lead state changed concurrently"));
 check("WON transition performs client conversion",s.includes('stage==="WON"&&!clientId')&&s.includes("tx.insert(clients)"));
-check("Conversion reuses active same-workspace client when present",s.includes("eq(clients.workspaceId,workspaceId)")&&s.includes("ilike(clients.companyName,lead.companyName)")&&s.includes("eq(clients.isActive,true)"));
-check("New converted client stores workspace and active state",s.includes("values({workspaceId,companyName:lead.companyName")&&s.includes("isActive:true"));
-check("Converted lead stores clientId",s.includes("clientId}).where(and(eq(salesLeads.id,id),eq(salesLeads.workspaceId,workspaceId)))"));
+check("Conversion serializes same-company client creation",s.includes("sales-client:${workspaceId}:${companyKey}")&&s.includes("pg_advisory_xact_lock"));
+check("Conversion reuses exact active same-workspace company",s.includes("eq(clients.workspaceId,workspaceId)")&&s.includes("eq(clients.isActive,true)")&&s.includes("lower(trim(${clients.companyName}))=lower(trim(${current.companyName}))"));
+check("New converted client stores workspace and active state",s.includes("values({workspaceId,companyName:current.companyName")&&s.includes("isActive:true"));
+check("Converted lead stores clientId atomically",s.includes("lostReason:stage===\"LOST\"?lostReason:null,clientId")&&s.includes("eq(salesLeads.stage,current.stage)")&&s.includes("returning({id:salesLeads.id})"));
+check("LOST requires an explicit business reason",s.includes('stage==="LOST"&&!lostReason')&&s.includes("Lost reason is required")&&s.includes('lostReason:stage==="LOST"?lostReason:null'));
 check("WON conversion creates primary contact",s.includes("tx.insert(contacts)")&&s.includes("isPrimary:true"));
 check("Stage transition writes sales activity history",s.includes('type:"stage_change"'));
 check("Stage transition is audited",s.includes('action:stage==="WON"?"lead_converted":"lead_stage_changed"')&&s.includes("values({workspaceId,userId"));

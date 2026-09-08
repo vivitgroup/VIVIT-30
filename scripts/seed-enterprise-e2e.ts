@@ -20,17 +20,18 @@ const accounts=[
  {id:ids.sales,name:"E2E Sales",email:"e2e.sales@vivit.local",role:"SALES" as const,isWorkspaceOwner:false},
  {id:ids.client,name:"E2E Client",email:"e2e.client@vivit.local",role:"CLIENT" as const,isWorkspaceOwner:false},
 ];
+const browserProjects=["chromium","webkit","mobile-webkit"] as const;
 
 async function main(){
  const hash=await bcrypt.hash(password!,10);
  await db.insert(workspaces).values({id:workspaceId,name:"VIVIT Enterprise E2E",slug:"vivit-enterprise-e2e",plan:"ENTERPRISE",currency:"USD",timezone:"Africa/Cairo",maxClients:50,maxUsers:50}).onConflictDoNothing();
  for(const account of accounts)await db.insert(users).values({...account,password:hash,workspaceId,isActive:true,approvalStatus:"APPROVED"}).onConflictDoNothing();
  await db.insert(clients).values({id:"e2e-client",workspaceId,companyName:"E2E Global Client",industry:"Technology",currency:"USD",monthlyRetainer:10000,mediaBudget:30000,contractValue:120000,userId:ids.client,accountManagerId:ids.accountManager,mediaBuyerId:ids.mediaBuyer,isActive:true}).onConflictDoNothing();
- await db.insert(creativeTasks).values({id:"e2e-task",workspaceId,clientId:"e2e-client",createdById:ids.accountManager,assignedToId:ids.creator,title:"E2E Enterprise Creative",type:"REEL",status:"IN_PROGRESS",priority:"HIGH",brief:"Isolated browser certification task",deadline:new Date(Date.now()+86400000)}).onConflictDoNothing();
+ for(const project of browserProjects)await db.insert(creativeTasks).values({id:`e2e-task-${project}`,workspaceId,clientId:"e2e-client",createdById:ids.accountManager,assignedToId:ids.creator,title:`E2E Enterprise Creative ${project}`,type:"REEL",status:"IN_PROGRESS",priority:"HIGH",brief:`Isolated ${project} browser certification task`,deadline:new Date(Date.now()+86400000)}).onConflictDoNothing();
  await db.insert(salesLeads).values({id:"e2e-lead",workspaceId,companyName:"E2E Prospect",contactPerson:"Global Buyer",email:"buyer@example.test",stage:"QUALIFIED",estimatedValue:25000,probability:40,salesRepId:ids.sales}).onConflictDoNothing();
  await db.insert(financeRecords).values({id:"e2e-finance",workspaceId,clientId:"e2e-client",month:9,year:2026,retainer:10000,totalRevenue:10000,paid:5000,outstanding:5000,invoiceStatus:"SENT",invoiceNumber:"E2E-INV-001"}).onConflictDoNothing();
  const fixture=accounts.map(a=>({id:a.id,name:a.name,email:a.email,password:hash,role:a.role,workspace_id:workspaceId,is_active:true,approval_status:"APPROVED"}));
  await import("node:fs/promises").then(fs=>fs.writeFile(process.env.E2E_USERS_FILE||"/tmp/vivit-e2e-users.json",JSON.stringify(fixture),"utf8"));
- console.log(`Seeded ${accounts.length} isolated E2E roles in ${workspaceId}`);
+ console.log(`Seeded ${accounts.length} isolated E2E roles and ${browserProjects.length} creative workflow tasks in ${workspaceId}`);
 }
 main().finally(()=>sql.end());

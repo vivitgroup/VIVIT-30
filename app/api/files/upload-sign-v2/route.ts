@@ -17,6 +17,7 @@ const clean=(v:unknown,n=255)=>String(v||"").trim().slice(0,n);
 const safeName=(name:string)=>name.normalize("NFKD").replace(/[^a-zA-Z0-9._-]/g,"-").replace(/-+/g,"-").slice(-140)||"file";
 const base=()=>String(process.env.SUPABASE_URL||"").replace(/\/$/,"");
 const storageHeaders=()=>({apikey:process.env.SUPABASE_SERVICE_KEY!,Authorization:`Bearer ${process.env.SUPABASE_SERVICE_KEY!}`});
+const resumableEndpoint=()=>{try{const u=new URL(base()),projectRef=u.hostname.split(".")[0];return projectRef?`https://${projectRef}.storage.supabase.co/storage/v1/upload/resumable`:null}catch{return null}};
 
 async function ensureBucketPolicy(){
  const get=await fetch(`${base()}/storage/v1/bucket/${BUCKET}`,{headers:storageHeaders(),cache:"no-store"});
@@ -58,6 +59,6 @@ export async function POST(req:NextRequest){
  if(!signed.ok)return NextResponse.json({error:String(data.message||data.error||"Could not prepare the upload.")},{status:502});
  const relative=String(data.url||data.signedURL||data.signedUrl||"");
  const token=String(data.token||"");
- if(!relative)return NextResponse.json({error:"Storage did not return an upload URL."},{status:502});
- return NextResponse.json({uploadUrl:relative.startsWith("http")?relative:`${base()}/storage/v1${relative}`,token:token||null,path,maxSize:MAX_SIZE,expectedMimeType:mime},{headers:{"Cache-Control":"private, no-store"}});
+ if(!relative||!token)return NextResponse.json({error:"Storage did not return a complete signed upload contract."},{status:502});
+ return NextResponse.json({uploadUrl:relative.startsWith("http")?relative:`${base()}/storage/v1${relative}`,resumableEndpoint:resumableEndpoint(),token,path,bucket:BUCKET,maxSize:MAX_SIZE,resumableThreshold:6*1024*1024,chunkSize:6*1024*1024,expectedMimeType:mime},{headers:{"Cache-Control":"private, no-store"}});
 }

@@ -71,9 +71,10 @@ check("Client creation notifies Accountant and Super Admin of finance handoff", 
 
 check("Invoice API derives workspace from authenticated session", derivesWorkspace(invoice));
 check("Invoice API is workspace scoped", invoice.includes("eq(financeRecords.workspaceId,workspaceId)"));
-check("Invoice API validates finance client access", invoice.includes("canAccessClient(session,record.clientId,{finance:true})"));
+check("Invoice API validates finance client access", invoice.includes("canAccessClient(session,data.record.clientId,{finance:true})") || invoice.includes("canAccessClient(session,record.clientId,{finance:true})"));
 check("Invoice API returns stored media fee", invoice.includes("record.mediaBuyingFee"));
 check("Invoice API reports dynamic fee percent", invoice.includes("workspaces.agencyFeePercent"));
+check("Invoice API uses immutable invoice currency snapshot", invoice.includes("select currency from finance_records") && invoice.includes("invoiceCurrency") && invoice.includes("currency:invoiceCurrency"));
 check("Invoice API returns no-store response", invoice.includes('"Cache-Control":"private, no-store"'));
 check("PDF report requires client access", pdf.includes("canAccessClient(session,clientId)"));
 check("PDF report derives workspace from authenticated session", derivesWorkspace(pdf));

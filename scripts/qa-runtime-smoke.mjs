@@ -21,6 +21,26 @@ try{
  const search=await req("/api/search?q=test"),searchJson=await search.json().catch(()=>({}));
  check("Protected app API rejects anonymous users",search.status===401&&searchJson.error==="Unauthorized",`status=${search.status}`);
  check("Protected app API auth failure is private no-store",String(search.headers.get("cache-control")||"").includes("no-store")&&!String(search.headers.get("cache-control")||"").includes("public"),String(search.headers.get("cache-control")||""));
+
+ const criticalAnonymousSurfaces=[
+  ["Legacy media control","/api/media-control"],
+  ["Media control v2","/api/media-control-v2"],
+  ["Media discovery","/api/media-discover"],
+  ["Media link","/api/media-link"],
+  ["Media hierarchy","/api/media-hierarchy/00000000-0000-0000-0000-000000000000"]
+ ];
+ for(const [name,path] of criticalAnonymousSurfaces){
+  const response=await req(path),json=await response.json().catch(()=>({}));
+  const cache=String(response.headers.get("cache-control")||"");
+  check(`${name} rejects anonymous access`,response.status===401&&json.error==="Unauthorized",`status=${response.status}`);
+  check(`${name} anonymous rejection is private no-store`,cache.includes("no-store")&&!cache.includes("public"),cache);
+ }
+ const uploadSigner=await req("/api/files/upload-sign-v2",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:"runtime-smoke.png",size:1,mimeType:"image/png"})});
+ const uploadSignerJson=await uploadSigner.json().catch(()=>({}));
+ const uploadSignerCache=String(uploadSigner.headers.get("cache-control")||"");
+ check("Upload signer rejects anonymous contract creation",uploadSigner.status===401&&uploadSignerJson.error==="Unauthorized",`status=${uploadSigner.status}`);
+ check("Upload signer anonymous rejection is private no-store",uploadSignerCache.includes("no-store")&&!uploadSignerCache.includes("public"),uploadSignerCache);
+
  const publicV1=await req("/api/v1/clients"),v1Json=await publicV1.json().catch(()=>({}));
  check("Public v1 rejects missing API key",publicV1.status===401&&/api key/i.test(String(v1Json.error||"")),`status=${publicV1.status}`);
  check("Public v1 auth failure is private no-store",String(publicV1.headers.get("cache-control")||"").includes("no-store")&&!String(publicV1.headers.get("cache-control")||"").includes("public"),String(publicV1.headers.get("cache-control")||""));

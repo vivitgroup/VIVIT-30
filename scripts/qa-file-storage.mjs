@@ -31,6 +31,7 @@ check("Video upload MIME types remain enabled",signer.includes('"video/mp4"')&&s
 check("Dangerous executable and active-content extensions remain blocked",signer.includes("DANGEROUS_EXT")&&signer.includes("exe|dll|msi")&&signer.includes("svg|svgz"));
 check("Production upload uses a signed Supabase object URL",signer.includes('/storage/v1/object/upload/sign/${BUCKET}/${path}'));
 check("Signer returns complete resumable contract",signer.includes("resumableEndpoint:resumableEndpoint()")&&signer.includes("token,path,bucket:BUCKET")&&signer.includes("chunkSize:6*1024*1024")&&signer.includes("resumableThreshold:6*1024*1024"));
+check("Signed resumable uploads use Supabase signed TUS endpoint",signer.includes("/storage/v1/upload/resumable/sign"));
 check("Large files select resumable upload path",ui.includes("file.size>RESUMABLE_THRESHOLD")&&ui.includes("uploadTus({file,contract,onProgress:setProgress})"));
 check("Small files retain signed standard upload fallback",ui.includes("uploadStandard(file,signed.uploadUrl,setProgress)")&&ui.includes('xhr.open("PUT",url)'));
 check("Shared secure upload helper selects resumable TUS for large files",secureUpload.includes("file.size<=threshold")&&secureUpload.includes("uploadTus({file,contract")&&secureUpload.includes("resumableThreshold"));

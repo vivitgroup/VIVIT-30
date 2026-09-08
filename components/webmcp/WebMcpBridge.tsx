@@ -75,6 +75,21 @@ export default function WebMcpBridge(){
     });
 
     register({
+      name:"run_media_sync_now",
+      title:"Run media sync now",
+      description:"Start the VIVIT Media sync immediately for stale connected ad campaigns. This may call external ad-provider APIs and update campaign performance data. Server-side RBAC, stale checks, and global DB throttling remain authoritative.",
+      inputSchema:{type:"object",properties:{},additionalProperties:false},
+      annotations:{readOnlyHint:false,untrustedContentHint:false},
+      execute:async()=>{
+        const response=await fetch("/api/media/auto-sync",{method:"POST",cache:"no-store",credentials:"same-origin"});
+        let data:unknown=null;
+        try{data=await response.json();}catch{}
+        if(!response.ok)throw new Error(`Media sync rejected (${response.status})`);
+        return {status:response.status,result:data};
+      },
+    });
+
+    register({
       name:"navigate_erp_area",
       title:"Navigate ERP area",
       description:"Navigate to a safe allowlisted VIVIT ERP area. Existing server-side authentication and RBAC remain authoritative and may redirect or deny access for the current user role.",

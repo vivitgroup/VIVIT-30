@@ -1,23 +1,38 @@
 "use server";
+import {revalidatePath} from "next/cache";
 import {auth} from "@/lib/auth";
-import {db,sql} from "@/lib/db";
+import {db,sql,auditLogs,notifications,creativeTasks} from "@/lib/db";
+import {and,eq} from "drizzle-orm";
 import {updateTaskStatus as baseUpdateTaskStatus,submitTaskFile as baseSubmitTaskFile,updateTaskCaption as baseUpdateTaskCaption} from "@/lib/actions";
 
-type TaskContextRow={id:string;status:string;file_url:string|null;assigned_to_id:string|null;client_id:string;account_manager_id:string|null;client_active:boolean};
+type TaskContextRow={id:string;title:string;status:string;file_url:string|null;assigned_to_id:string|null;client_id:string;account_manager_id:string|null;client_active:boolean};
 async function context(taskId:string){
   const session=await auth();if(!session?.user)throw new Error("Unauthorized");
   const role=String(session.user.role),userId=String(session.user.id),workspaceId=String(session.user.workspaceId||"");if(!workspaceId)throw new Error("Workspace unavailable");
-  const rows=Array.from(await db.execute<TaskContextRow>(sql`select t.id,t.status,t.file_url,t.assigned_to_id,t.client_id,c.account_manager_id,c.is_active client_active from creative_tasks t join clients c on c.id=t.client_id and c.workspace_id=${workspaceId} where t.id=${taskId} and t.workspace_id=${workspaceId} and t.archived_at is null and t.deleted_at is null limit 1`)),task=rows[0];
+  const rows=Array.from(await db.execute<TaskContextRow>(sql`select t.id,t.title,t.status,t.file_url,t.assigned_to_id,t.client_id,c.account_manager_id,c.is_active client_active from creative_tasks t join clients c on c.id=t.client_id and c.workspace_id=${workspaceId} where t.id=${taskId} and t.workspace_id=${workspaceId} and t.archived_at is null and t.deleted_at is null limit 1`)),task=rows[0];
   if(!task)throw new Error("Task is archived or unavailable.");
   if(task.client_active===false)throw new Error("The client is inactive.");
   const allowed=role==="SUPER_ADMIN"||(role==="ACCOUNT_MANAGER"&&task.account_manager_id===userId)||(role==="CREATOR"&&task.assigned_to_id===userId);
   if(!allowed)throw new Error("Forbidden");
-  return{role,task};
+  return{role,userId,workspaceId,task};
 }
 export async function safeUpdateTaskStatus(taskId:string,status:string,revisionNotes?:string){
-  const {task}=await context(taskId);
+  const {role,userId,workspaceId,task}=await context(taskId);
+  const notes=String(revisionNotes||"").trim();
+  if(status==="REVISION"&&!notes)throw new Error("Revision notes are required.");
   if(status==="APPROVED"&&!String(task.file_url||"").trim())throw new Error("Upload or save a valid delivery file before sending this creative to the client for approval.");
-  return baseUpdateTaskStatus(taskId,status,revisionNotes);
+  if(status==="COMPLETED"){
+    if(!["SUPER_ADMIN","ACCOUNT_MANAGER"].includes(role)||task.status!=="APPROVED")throw new Error("Only an approved task can be completed by its manager.");
+    await db.transaction(async tx=>{
+      const [changed]=await tx.update(creativeTasks).set({status:"COMPLETED",completedAt:new Date(),updatedAt:new Date()}).where(and(eq(creativeTasks.id,taskId),eq(creativeTasks.workspaceId,workspaceId),eq(creativeTasks.status,"APPROVED"))).returning({id:creativeTasks.id,assignedToId:creativeTasks.assignedToId,title:creativeTasks.title});
+      if(!changed)throw new Error("Task status changed concurrently; refresh and try again");
+      if(changed.assignedToId&&changed.assignedToId!==userId)await tx.insert(notifications).values({userId:changed.assignedToId,type:"GENERAL",title:`✅ \"${changed.title}\" was marked complete.`,message:"Status: COMPLETED",link:`/dashboard/creative/${taskId}`});
+      await tx.insert(auditLogs).values({workspaceId,userId,action:"task_completed",entity:"CreativeTask",entityId:taskId,oldValues:JSON.stringify({status:task.status}),newValues:JSON.stringify({status:"COMPLETED",completedAt:true})});
+    });
+    for(const p of [`/dashboard/creative/${taskId}`,"/dashboard/creative","/dashboard/tasks-inbox","/dashboard/portal","/dashboard/today"])revalidatePath(p);
+    return;
+  }
+  return baseUpdateTaskStatus(taskId,status,notes||undefined);
 }
 export async function safeSubmitTaskFile(taskId:string,fileName:string,fileUrl:string,notes=""){
   await context(taskId);

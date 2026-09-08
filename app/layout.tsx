@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import VivitoOutputGuard from "@/components/assistant/VivitoOutputGuard";
+import LiveWorkspaceRefresh from "@/components/live/LiveWorkspaceRefresh";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -40,6 +41,7 @@ export default function RootLayout({ children }: { children:React.ReactNode }) {
           })();
         `}}/>
         {children}
+        <LiveWorkspaceRefresh/>
         <VivitoOutputGuard/>
       </body>
     </html>

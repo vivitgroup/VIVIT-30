@@ -1,5 +1,5 @@
 "use client";
-import {useEffect,useMemo,useState} from "react";
+import {useCallback,useEffect,useMemo,useState} from "react";
 import {MediaIntelligenceWorkspaceV2} from "@/components/media/MediaIntelligenceWorkspaceV2";
 
 type Campaign={id:string;name:string;clientName?:string;platform?:string;status?:string;currency?:string;metrics?:{spend?:number;results?:number;ctr?:number;roas?:number;costPerResult?:number;resultLabel?:string};externalId?:string};
@@ -10,8 +10,8 @@ const cairoDate=()=>new Intl.DateTimeFormat("en-CA",{timeZone:"Africa/Cairo",yea
 export function MediaCampaignFirstView(){
  const today=cairoDate(),from=`${today.slice(0,7)}-01`;
  const[campaigns,setCampaigns]=useState<Campaign[]>([]),[accounts,setAccounts]=useState<AccountGroup[]>([]),[loading,setLoading]=useState(true),[message,setMessage]=useState(""),[showFull,setShowFull]=useState(false),[busy,setBusy]=useState("");
- async function load(){setLoading(true);setMessage("");try{const r=await fetch(`/api/media-control-v2?from=${from}&to=${today}`,{cache:"no-store"});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||"Could not load campaigns");setCampaigns(Array.isArray(d.campaigns)?d.campaigns:[]);setAccounts(Array.isArray(d.accountGroups)?d.accountGroups:[])}catch(e){setMessage(e instanceof Error?e.message:"Could not load campaigns")}finally{setLoading(false)}}
- useEffect(()=>{void load()},[]);
+ const load=useCallback(async()=>{setLoading(true);setMessage("");try{const r=await fetch(`/api/media-control-v2?from=${from}&to=${today}`,{cache:"no-store"});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||"Could not load campaigns");setCampaigns(Array.isArray(d.campaigns)?d.campaigns:[]);setAccounts(Array.isArray(d.accountGroups)?d.accountGroups:[])}catch(e){setMessage(e instanceof Error?e.message:"Could not load campaigns")}finally{setLoading(false)}},[from,today]);
+ useEffect(()=>{const timer=window.setTimeout(()=>{void load()},0);return()=>window.clearTimeout(timer)},[load]);
  const fallbackAccounts=useMemo(()=>{if(accounts.length)return accounts;const map=new Map<string,AccountGroup>();for(const c of campaigns){const key=c.clientName||"Client";const a=map.get(key)||{id:key,clientName:key,accountName:key,campaigns:[],currency:c.currency||"EGP"};a.campaigns=[...(a.campaigns||[]),c];map.set(key,a)}return [...map.values()]},[accounts,campaigns]);
  async function lifecycle(c:Campaign,action:"archive"|"delete"){
   if(!confirm(action==="archive"?`Archive “${c.name}”?`:`Delete “${c.name}”? If it has reporting history it will remain archived.`))return;

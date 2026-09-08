@@ -15,7 +15,7 @@ concurrency:
 jobs:
   seven-role-browser:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 50
     services:
       postgres:
         image: postgres:17
@@ -97,7 +97,7 @@ jobs:
       - name: Install Playwright only inside E2E job
         run: |
           npm install --no-save --package-lock=false @playwright/test@1.55.0
-          npx playwright install --with-deps chromium
+          npx playwright install --with-deps chromium webkit
 
       - name: Start built application
         shell: bash
@@ -111,7 +111,7 @@ jobs:
           cat /tmp/vivit-enterprise-e2e.log
           exit 1
 
-      - name: Run authenticated seven-role browser matrix
+      - name: Run authenticated cross-browser role matrix
         run: npx playwright test -c playwright.enterprise.config.mjs tests/enterprise-role-e2e.spec.mjs
 
       - name: Enforce zero database runtime errors

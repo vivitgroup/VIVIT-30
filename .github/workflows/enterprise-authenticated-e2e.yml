@@ -127,6 +127,21 @@ jobs:
             exit 1
           fi
 
+      - name: Stage failure diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          mkdir -p test-results/enterprise-e2e/runtime-diagnostics
+          cp /tmp/vivit-enterprise-e2e.log test-results/enterprise-e2e/runtime-diagnostics/app.log 2>/dev/null || true
+          cp /tmp/vivit-e2e-supabase.log test-results/enterprise-e2e/runtime-diagnostics/auth-mock.log 2>/dev/null || true
+          cp /tmp/vivit-e2e-postgres.log test-results/enterprise-e2e/runtime-diagnostics/postgres.log 2>/dev/null || true
+          {
+            echo '=== APP ERROR EXCERPT ==='
+            grep -En 'Error|ERROR|Exception|Failed|failed|does not exist|undefined column|relation .* does not exist' /tmp/vivit-enterprise-e2e.log | tail -120 || true
+            echo '=== POSTGRES ERROR EXCERPT ==='
+            grep -En 'ERROR:|FATAL:|PANIC:|STATEMENT:' /tmp/vivit-e2e-postgres.log | tail -160 || true
+          } > test-results/enterprise-e2e/runtime-diagnostics/failure-excerpt.txt
+
       - name: Upload browser evidence on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -139,6 +154,8 @@ jobs:
       - name: Show runtime logs on failure
         if: failure()
         run: |
+          echo '--- concise failure excerpt ---'
+          cat test-results/enterprise-e2e/runtime-diagnostics/failure-excerpt.txt || true
           echo '--- app ---'
           cat /tmp/vivit-enterprise-e2e.log || true
           echo '--- auth mock ---'

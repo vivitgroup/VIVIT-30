@@ -38,6 +38,39 @@ for(const entry of matrix){
  });
 }
 
+test("settings persist Arabic RTL and return cleanly to English",async({page})=>{
+ await login(page,"e2e.super@vivit.local");
+ await certifyPage(page,"/dashboard/settings");
+ const language=page.getByLabel("Language");
+ await language.selectOption("ar");
+ await expect(page.locator("html")).toHaveAttribute("dir","rtl");
+ await expect(page.locator(".app-main-shell")).toHaveAttribute("dir","rtl");
+ expect(await page.evaluate(()=>localStorage.getItem("vivit-lang"))).toBe("ar");
+ await page.reload({waitUntil:"domcontentloaded"});
+ await expect(page.locator("html")).toHaveAttribute("dir","rtl");
+ expect(await page.evaluate(()=>localStorage.getItem("vivit-lang"))).toBe("ar");
+ await page.locator('select').filter({has:page.locator('option[value="ar"]')}).first().selectOption("en");
+ await expect(page.locator("html")).toHaveAttribute("dir","ltr");
+ expect(await page.evaluate(()=>localStorage.getItem("vivit-lang"))).toBe("en");
+});
+
+test("global search keyboard lifecycle traps and restores focus",async({page})=>{
+ await login(page,"e2e.super@vivit.local");
+ await certifyPage(page,"/dashboard");
+ const trigger=page.getByRole("button",{name:"Open global search"});
+ await trigger.focus();
+ await page.keyboard.press("Control+k");
+ const dialog=page.getByRole("dialog",{name:"Global search"});
+ await expect(dialog).toBeVisible();
+ await expect(page.getByLabel("Search clients, tasks, leads and more")).toBeFocused();
+ await page.keyboard.press("Tab");
+ await page.keyboard.press("Shift+Tab");
+ await expect(page.getByLabel("Search clients, tasks, leads and more")).toBeFocused();
+ await page.keyboard.press("Escape");
+ await expect(dialog).not.toBeVisible();
+ await expect(trigger).toBeFocused();
+});
+
 test("mobile authenticated shell keeps navigation usable",async({browser})=>{
  const context=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
  const page=await context.newPage();
@@ -45,8 +78,14 @@ test("mobile authenticated shell keeps navigation usable",async({browser})=>{
  await certifyPage(page,"/dashboard/creative");
  const menu=page.getByRole("button",{name:/Open full menu/i});
  await expect(menu).toBeVisible();await menu.click();
- await expect(page.getByRole("dialog",{name:"Full navigation"})).toBeVisible();
+ const drawer=page.getByRole("dialog",{name:"Full navigation"});
+ await expect(drawer).toBeVisible();
  await page.keyboard.press("Escape");
- await expect(page.getByRole("dialog",{name:"Full navigation"})).not.toBeVisible();
+ await expect(drawer).not.toBeVisible();
+ await menu.click();
+ await drawer.getByRole("link",{name:/Files/i}).click();
+ await page.waitForURL(/\/dashboard\/files/);
+ await expect(drawer).not.toBeVisible();
+ await certifyPage(page,"/dashboard/files");
  await context.close();
 });

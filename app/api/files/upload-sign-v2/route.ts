@@ -18,22 +18,24 @@ const safeName=(name:string)=>name.normalize("NFKD").replace(/[^a-zA-Z0-9._-]/g,
 const base=()=>String(process.env.SUPABASE_URL||"").replace(/\/$/,"");
 const storageHeaders=()=>({apikey:process.env.SUPABASE_SERVICE_KEY!,Authorization:`Bearer ${process.env.SUPABASE_SERVICE_KEY!}`});
 
-async function ensureBucketLimit(){
+async function ensureBucketPolicy(){
  const get=await fetch(`${base()}/storage/v1/bucket/${BUCKET}`,{headers:storageHeaders(),cache:"no-store"});
  const current=await get.json().catch(()=>({})) as Record<string,unknown>;
+ const desired=[...ALLOWED_MIME].sort();
  if(get.status===404){
-  const create=await fetch(`${base()}/storage/v1/bucket`,{method:"POST",headers:{...storageHeaders(),"Content-Type":"application/json"},body:JSON.stringify({id:BUCKET,name:BUCKET,public:false,file_size_limit:MAX_SIZE,allowed_mime_types:[...ALLOWED_MIME]})});
+  const create=await fetch(`${base()}/storage/v1/bucket`,{method:"POST",headers:{...storageHeaders(),"Content-Type":"application/json"},body:JSON.stringify({id:BUCKET,name:BUCKET,public:false,file_size_limit:MAX_SIZE,allowed_mime_types:desired})});
   if(!create.ok)throw new Error("Storage bucket could not be created.");
   return;
  }
  if(!get.ok)throw new Error("Storage bucket is unavailable.");
  const currentLimit=Number(current.file_size_limit||current.fileSizeLimit||0);
- if(currentLimit>=MAX_SIZE)return;
- const update=await fetch(`${base()}/storage/v1/bucket/${BUCKET}`,{method:"PUT",headers:{...storageHeaders(),"Content-Type":"application/json"},body:JSON.stringify({id:BUCKET,name:BUCKET,public:false,file_size_limit:MAX_SIZE,allowed_mime_types:[...ALLOWED_MIME]})});
- if(!update.ok){
-  const d=await update.json().catch(()=>({})) as Record<string,unknown>;
-  throw new Error(String(d.message||d.error||"Storage rejected the requested file-size limit."));
- }
+ const currentPublic=Boolean(current.public);
+ const rawMime=Array.isArray(current.allowed_mime_types)?current.allowed_mime_types:Array.isArray(current.allowedMimeTypes)?current.allowedMimeTypes:[];
+ const currentMime=rawMime.map(x=>String(x)).sort();
+ const policyMatches=currentLimit>=MAX_SIZE&&!currentPublic&&currentMime.length===desired.length&&desired.every((m,i)=>currentMime[i]===m);
+ if(policyMatches)return;
+ const update=await fetch(`${base()}/storage/v1/bucket/${BUCKET}`,{method:"PUT",headers:{...storageHeaders(),"Content-Type":"application/json"},body:JSON.stringify({id:BUCKET,name:BUCKET,public:false,file_size_limit:Math.max(currentLimit,MAX_SIZE),allowed_mime_types:desired})});
+ if(!update.ok){const d=await update.json().catch(()=>({})) as Record<string,unknown>;throw new Error(String(d.message||d.error||"Storage rejected the required bucket policy."))}
 }
 
 export async function POST(req:NextRequest){
@@ -49,12 +51,13 @@ export async function POST(req:NextRequest){
  if(!name||!Number.isFinite(size)||size<=0)return NextResponse.json({error:"Choose a valid file."},{status:400});
  if(size>MAX_SIZE)return NextResponse.json({error:"Maximum file size is 500 MB."},{status:413});
  if(DANGEROUS_EXT.test(name)||!ALLOWED_MIME.has(mime))return NextResponse.json({error:"This file type is not allowed."},{status:415});
- try{await ensureBucketLimit()}catch(e){return NextResponse.json({error:e instanceof Error?e.message:"Storage bucket is unavailable."},{status:503})}
+ try{await ensureBucketPolicy()}catch(e){return NextResponse.json({error:e instanceof Error?e.message:"Storage bucket is unavailable."},{status:503})}
  const path=`${workspaceId}/${new Date().getFullYear()}/${userId}/${crypto.randomUUID()}-${safeName(name)}`;
  const signed=await fetch(`${base()}/storage/v1/object/upload/sign/${BUCKET}/${path}`,{method:"POST",headers:{...storageHeaders(),"Content-Type":"application/json"},body:"{}"});
  const data=await signed.json().catch(()=>({})) as Record<string,unknown>;
  if(!signed.ok)return NextResponse.json({error:String(data.message||data.error||"Could not prepare the upload.")},{status:502});
  const relative=String(data.url||data.signedURL||data.signedUrl||"");
+ const token=String(data.token||"");
  if(!relative)return NextResponse.json({error:"Storage did not return an upload URL."},{status:502});
- return NextResponse.json({uploadUrl:relative.startsWith("http")?relative:`${base()}/storage/v1${relative}`,path,maxSize:MAX_SIZE,expectedMimeType:mime},{headers:{"Cache-Control":"private, no-store"}});
+ return NextResponse.json({uploadUrl:relative.startsWith("http")?relative:`${base()}/storage/v1${relative}`,token:token||null,path,maxSize:MAX_SIZE,expectedMimeType:mime},{headers:{"Cache-Control":"private, no-store"}});
 }

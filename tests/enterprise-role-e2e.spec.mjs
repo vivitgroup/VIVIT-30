@@ -13,13 +13,23 @@ const matrix=[
 ];
 
 async function login(page,email){
- await page.goto(`${base}/login`,{waitUntil:"domcontentloaded",timeout:20000});
- await page.getByLabel("Email address").fill(email);
- await page.getByLabel("Password").fill(password);
- const authResponse=page.waitForResponse(response=>response.url().includes("/api/auth/callback/credentials")&&response.request().method()==="POST",{timeout:20000}).catch(()=>null);
- await page.getByRole("button",{name:/Enter Marketing/i}).click();
- const response=await authResponse;
- if(response)expect(response.status(),`credentials callback should not fail for ${email}`).toBeLessThan(500);
+ await page.goto(`${base}/login`,{waitUntil:"load",timeout:20000});
+ const emailInput=page.getByLabel("Email address");
+ const passwordInput=page.getByLabel("Password");
+ const signInButton=page.getByRole("button",{name:/Enter Marketing/i});
+ await expect(emailInput).toBeVisible();
+ await expect(passwordInput).toBeVisible();
+ await expect(signInButton).toBeEnabled();
+ await page.waitForFunction(()=>document.readyState==="complete");
+ await emailInput.fill(email);
+ await passwordInput.fill(password);
+ await expect(emailInput).toHaveValue(email);
+ await expect(passwordInput).toHaveValue(password);
+ const authOrNavigation=Promise.race([
+  page.waitForResponse(response=>response.url().includes("/api/auth/callback/credentials")&&response.request().method()==="POST"&&response.status()>=200&&response.status()<400,{timeout:20000}),
+  page.waitForURL(url=>url.pathname.startsWith("/apps")||url.pathname.startsWith("/dashboard"),{timeout:20000}),
+ ]);
+ await Promise.all([authOrNavigation,signInButton.click()]);
  try{
   await page.waitForURL(url=>url.pathname.startsWith("/apps")||url.pathname.startsWith("/dashboard"),{timeout:20000});
  }catch(error){
@@ -33,7 +43,7 @@ async function switchIdentity(page,email){await page.context().clearCookies();aw
 async function certifyPage(page,route){const response=await page.goto(`${base}${route}`,{waitUntil:"domcontentloaded",timeout:20000});expect(response?.status()??200,`${route} should not return 5xx`).toBeLessThan(500);await expect(page).not.toHaveURL(/\/login/);await expect(page.locator("body")).not.toContainText(/Application error|Internal Server Error/i);await expect(page.locator("main")).toBeVisible();const overflow=await page.evaluate(()=>document.documentElement.scrollWidth-window.innerWidth);expect(overflow,`${route} must not cause page-level horizontal overflow`).toBeLessThanOrEqual(4)}
 async function expectDenied(page,route,heading){await page.goto(`${base}${route}`,{waitUntil:"domcontentloaded",timeout:20000});await page.waitForFunction(r=>location.pathname!==r,route,{timeout:10000});await expect(page).not.toHaveURL(new RegExp(`${route.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")}$`));if(heading)await expect(page.getByRole("heading",{name:heading,exact:true})).toHaveCount(0)}
 function languageSelect(page){return page.locator("select").filter({has:page.locator('option[value="ar"]')}).first()}
-async function submitServerAction(page,route,submit){const pending=page.waitForResponse(response=>response.request().method()==="POST"&&new URL(response.url()).pathname===route&&Boolean(response.request().headers()["next-action"]),{timeout:20000});await submit();const response=await pending;expect(response.status(),`${route} server action should return 2xx`).toBeGreaterThanOrEqual(200);expect(response.status(),`${route} server action should return 2xx`).toBeLessThan(300);await response.finished()}
+async function submitServerAction(page,route,submit){const pending=page.waitForResponse(response=>response.request().method()==="POST"&&new URL(response.url()).pathname===route&&Boolean(response.request().headers()["next-action"]),{timeout:20000});await submit();const response=await pending;expect(response.status(),`${route} server action should return 2xx`).toBeGreaterThanOrEqual(200);expect(response.status(),`${route} server action should return 2xx`).toBeLessThan(300)}
 
 test.describe.configure({mode:"serial"});
 for(const entry of matrix)test(`${entry.role} authenticates and renders its core workspace`,async({page})=>{await login(page,entry.email);for(const route of entry.routes)await certifyPage(page,route)});

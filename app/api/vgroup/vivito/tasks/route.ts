@@ -4,7 +4,7 @@ import {getVGroupSql} from "@/lib/vgroup/db";
 import {canUseVivitoCapability,findVivitoCapability,redactVivito} from "@/lib/vgroup/vivito-cross-workspace";
 import {executeVivitoTask} from "@/lib/vgroup/vivito-execution";
 import {publicVivitoToolRegistry} from "@/lib/vgroup/vivito-tool-registry";
-import {validVivitoIdempotencyKey,vivitoSafetyDecision} from "@/lib/vgroup/vivito-safety";
+import {validVivitoIdempotencyKey,validateVivitoCapabilityPayload,vivitoSafetyDecision} from "@/lib/vgroup/vivito-safety";
 
 export const dynamic="force-dynamic";
 const NO_STORE={"Cache-Control":"private, no-store"};
@@ -32,7 +32,9 @@ export async function POST(request:Request){
   if(!safety.allowed)return NextResponse.json({error:{code:"INTEGRATION_REQUIRED",message:"This capability is fail-closed until its controlled integration is enabled"}},{status:409,headers:NO_STORE});
   if(!canUseVivitoCapability(session,cap))return NextResponse.json({error:{code:"CAPABILITY_FORBIDDEN",message:"Current user cannot execute this capability"}},{status:403,headers:NO_STORE});
   if(!validVivitoIdempotencyKey(idempotencyKey))return NextResponse.json({error:{code:"INVALID_IDEMPOTENCY_KEY",message:"A stable 8-128 character idempotency key is required"}},{status:400,headers:NO_STORE});
-  const payload=redactVivito(body?.payload??{});
+  const validation=validateVivitoCapabilityPayload(cap,body?.payload??{});
+  if(!validation.ok)return NextResponse.json({error:{code:validation.code,message:validation.message}},{status:400,headers:NO_STORE});
+  const payload=redactVivito(validation.payload);
   if(body?.dryRun===true)return NextResponse.json({ok:true,dryRun:true,capability:{key:cap.key,workspace:cap.workspace,risk:cap.risk,approvalRequired:safety.approvalRequired},payload},{headers:NO_STORE});
   const sql=getVGroupSql();
   const initialStatus=safety.approvalRequired?"waiting_approval":"queued";
@@ -48,6 +50,6 @@ export async function POST(request:Request){
   }
   try{
     const execution=await executeVivitoTask(request,created);
-    return NextResponse.json({ok:execution.ok,taskId:created.id,status:execution.ok?"succeeded":"failed",result:execution.result},{status:execution.ok?200:502,headers:NO_STORE});
+    return NextResponse.json({ok:execution.ok,taskId:created.id,status:execution.ok?"succeeded":"failed",result:execution.result,verification:execution.verification??null},{status:execution.ok?200:502,headers:NO_STORE});
   }catch{return NextResponse.json({error:{code:"EXECUTION_FAILED",message:"Vivito task execution failed"},taskId:created.id},{status:502,headers:NO_STORE})}
 }

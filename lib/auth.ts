@@ -17,6 +17,7 @@ import {authorizeGroupHandoff} from "@/lib/group-handoff";
 type AuthUserRow={id:string;name:string;email:string;password:string;role:string;workspace_id:string;is_active:boolean;approval_status:string};
 const isRole=(value:string):value is Role=>Object.values(Role).some(role=>role===value);
 const dummyPasswordHash=bcrypt.hash("VIVIT_AUTH_TIMING_SENTINEL_DO_NOT_USE",12);
+const isolatedE2EAuth=process.env.E2E_AUTH_RATE_LIMIT_MODE==="isolated-ci"&&[process.env.AUTH_URL,process.env.NEXTAUTH_URL].some(value=>String(value||"").startsWith("http://127.0.0.1:"));
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
@@ -40,7 +41,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         try {
           if (!credentials?.email || !credentials?.password) return null;
           const normalizedEmail=String(credentials.email).trim().toLowerCase();
-          const allowed=await consumeAuthRateLimit({action:"security_login_attempt",headers:request.headers,email:normalizedEmail,windowMs:15*60_000,maxPerIp:30,maxPerEmail:10});
+          const allowed=await consumeAuthRateLimit({action:"security_login_attempt",headers:request.headers,email:normalizedEmail,windowMs:15*60_000,maxPerIp:isolatedE2EAuth?500:30,maxPerEmail:isolatedE2EAuth?100:10});
           if(!allowed)return null;
           const url=process.env.SUPABASE_URL,key=process.env.SUPABASE_SERVICE_KEY;
           if(!url||!key)return null;

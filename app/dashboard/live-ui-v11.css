@@ -1,0 +1,72 @@
+/* VIVIT LIVE UI V11 — final density, cards, reporting scale and safe utility dock */
+
+/* Global bottom utility dock — keep it clear of page content and each other. */
+body .vx-apps,body .vivit-lang-switch,body .va-fab{position:fixed!important}
+body .vx-apps{right:176px!important;bottom:22px!important}
+body .vivit-lang-switch{right:82px!important;bottom:22px!important}
+body .va-fab{right:18px!important;bottom:18px!important}
+.app-content{padding-bottom:132px!important}
+
+/* Today / operating queue: compact, premium cards instead of long white bands. */
+main .today-ops{gap:16px!important}
+main .today-ops>.grid.grid-4>.card{min-height:136px!important;padding:18px 19px!important}
+main .today-ops>.grid.grid-4>.card h2{font-size:clamp(27px,2.2vw,36px)!important;margin-top:12px!important}
+main .today-ops>.grid.grid-4>.card p{margin-top:10px!important}
+main .today-ops>.grid.grid-2>.card{padding:20px!important}
+main .today-ops>.grid.grid-2>.card>div[style*="display:grid"]{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:9px!important}
+main .today-ops>.grid.grid-2>.card>div[style*="display:grid"]>*{min-height:78px!important;padding:12px 13px!important;border:1px solid var(--card-border)!important;border-radius:15px!important;background:linear-gradient(145deg,var(--bg-secondary),var(--card-bg))!important;box-shadow:0 6px 18px rgba(15,23,42,.035)!important}
+main .today-ops>.grid.grid-2>.card>div[style*="display:grid"]>*:hover{box-shadow:0 10px 24px rgba(15,23,42,.07)!important}
+
+/* Executive sonar and decisions: denser modules with less empty canvas. */
+main .vx-war-room>.vx-world-hero{min-height:205px!important;padding:27px 30px!important}
+main .vx-war-room>.grid.grid-4>.card{min-height:132px!important;padding:18px!important}
+main .vx-war-room>.grid.grid-2>.card{padding:20px!important}
+main .vx-war-room>.grid.grid-2>.card:nth-child(2)>div[style*="display:grid"]{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:9px!important}
+main .vx-war-room>.grid.grid-2>.card:nth-child(2)>div[style*="display:grid"]>div{min-height:84px!important;padding:12px!important;border-radius:15px!important;background:linear-gradient(145deg,var(--bg-secondary),var(--card-bg))!important;box-shadow:0 6px 18px rgba(15,23,42,.035)!important}
+main .vx-war-room .vx-decision-stack{grid-template-columns:1fr!important;gap:9px!important}
+main .vx-war-room .vx-decision{min-height:76px!important}
+
+/* Reports: make category icons unmistakably large and visual. */
+main .reports-ui .entity-btn{min-height:108px!important}
+main .reports-ui .entity-btn>div:first-child{font-size:44px!important;line-height:1!important}
+main .reports-ui .entity-btn>div:last-child{font-size:13.5px!important}
+main .reports-ui .quick-btn{min-height:94px!important}
+main .reports-ui .quick-btn>span:first-child{width:58px!important;height:58px!important;flex-basis:58px!important;font-size:34px!important;border-radius:17px!important}
+main .reports-ui .quick-btn b{font-size:14px!important}
+
+/* Media Control: stronger hierarchy and fully coherent dark surfaces. */
+main .vx-media-cockpit .mcf-toolbar{padding:4px 2px!important}
+main .vx-media-cockpit .mcf-account{padding:19px!important}
+main .vx-media-cockpit .mcf-account-head{padding-bottom:15px!important}
+main .vx-media-cockpit .mcf-account-head h3{font-size:20px!important}
+main .vx-media-cockpit .mcf-total{font-size:20px!important}
+main .vx-media-cockpit .mcf-account-metrics{gap:9px!important;margin:14px 0!important}
+main .vx-media-cockpit .mcf-account-metrics div{min-height:72px!important;padding:12px!important}
+main .vx-media-cockpit .mcf-card{padding:14px 15px!important}
+main .vx-media-cockpit .mcf-metrics{gap:8px!important}
+main .vx-media-cockpit .mcf-metric{min-height:68px!important;padding:11px!important}
+main .vx-media-cockpit .mcf-card-actions .btn{min-width:84px!important;min-height:40px!important}
+
+html.dark main .today-ops>.grid.grid-2>.card>div[style*="display:grid"]>*,
+html.dark main .vx-war-room>.grid.grid-2>.card:nth-child(2)>div[style*="display:grid"]>div{background:linear-gradient(145deg,#13243a,#0f1e31)!important;border-color:rgba(139,170,210,.12)!important;box-shadow:0 8px 22px rgba(0,0,0,.16)!important}
+html.dark main .vx-media-cockpit .mcf-account,html.dark main .vx-media-cockpit .mcf-card{color:#e8f0f8!important}
+html.dark main .vx-media-cockpit .mcf-account-head h3,html.dark main .vx-media-cockpit .mcf-total,html.dark main .vx-media-cockpit .mcf-name h4,html.dark main .vx-media-cockpit .mcf-metric b,html.dark main .vx-media-cockpit .mcf-account-metrics b{color:#f1f5f9!important}
+html.dark main .vx-media-cockpit .mcf-account-head small,html.dark main .vx-media-cockpit .mcf-name small,html.dark main .vx-media-cockpit .mcf-metric span,html.dark main .vx-media-cockpit .mcf-account-metrics span{color:#91a7bf!important}
+
+@media(max-width:1100px){
+ main .today-ops>.grid.grid-2>.card>div[style*="display:grid"],main .vx-war-room>.grid.grid-2>.card:nth-child(2)>div[style*="display:grid"]{grid-template-columns:1fr!important}
+}
+@media(max-width:760px){
+ body .vx-apps{right:146px!important;bottom:88px!important}
+ body .vivit-lang-switch{right:16px!important;bottom:88px!important}
+ body .va-fab{right:16px!important;bottom:18px!important}
+ .app-content{padding-bottom:162px!important}
+ main .reports-ui .entity-btn{min-height:96px!important}
+ main .reports-ui .entity-btn>div:first-child{font-size:38px!important}
+ main .reports-ui .quick-btn>span:first-child{width:52px!important;height:52px!important;flex-basis:52px!important;font-size:31px!important}
+}
+@media(max-width:480px){
+ main .today-ops>.grid.grid-4>.card,main .vx-war-room>.grid.grid-4>.card{min-height:120px!important}
+ main .reports-ui .entity-btn{min-height:88px!important}
+ main .reports-ui .entity-btn>div:first-child{font-size:34px!important}
+}

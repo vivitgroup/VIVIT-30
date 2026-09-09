@@ -90,8 +90,11 @@ async function main(){
     assert.equal(gatewayChatCalls,beforeGateway);
   });
 
-  await check("unapproved Groq model pin fails closed",async()=>{
-    await assert.rejects(()=>generateVivito("q","s",{modelProvider:"groq-free",modelId:"not/a-free-approved-model",timeoutMs:3000}),/requested-groq-model-not-free-plan-approved/);
+  await check("unapproved Groq model pin fails closed without cross-provider fallback",async()=>{
+    const beforeGateway=gatewayChatCalls,beforeGroq=groqChatCalls;
+    await assert.rejects(()=>generateVivito("q","s",{modelProvider:"groq-free",modelId:"not/a-free-approved-model",timeoutMs:3000}),/all-providers-failed:groq-free:provider-failure/);
+    assert.equal(gatewayChatCalls,beforeGateway);
+    assert.equal(groqChatCalls,beforeGroq);
   });
 
   console.log(`\n${passed}/6 VIVITO cross-provider routing contracts passed.`);

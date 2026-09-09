@@ -1,0 +1,51 @@
+name: One-shot Live UI V9
+
+on:
+  push:
+    paths:
+      - '.github/workflows/one-shot-live-ui-v9.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  activate:
+    if: github.event.head_commit.message == 'Add one-shot live UI v9 activator'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Activate page hooks and final stylesheet
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const today='app/dashboard/today/page.tsx';
+          let t=fs.readFileSync(today,'utf8');
+          const old='return <div style={{display:"flex",flexDirection:"column",gap:18}}>';
+          const next='return <div className="today-ops" style={{display:"flex",flexDirection:"column",gap:18}}>';
+          if(!t.includes(next)){
+            if(!t.includes(old)) throw new Error('Today root hook not found');
+            t=t.replace(old,next);
+            fs.writeFileSync(today,t);
+          }
+          const layout='app/dashboard/layout.tsx';
+          let l=fs.readFileSync(layout,'utf8');
+          const anchor='import "./enterprise-ui-baseline.css";';
+          const importLine='import "./live-ui-v9.css";';
+          if(!l.includes(importLine)){
+            if(!l.includes(anchor)) throw new Error('Dashboard CSS anchor not found');
+            l=l.replace(anchor,anchor+'\n'+importLine);
+            fs.writeFileSync(layout,l);
+          }
+          NODE
+      - name: Commit activation
+        run: |
+          git config user.name 'vivitgroup'
+          git config user.email 'groupvivit@gmail.com'
+          git add app/dashboard/today/page.tsx app/dashboard/layout.tsx
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Activate live UI v9 for operating pages'
+          git push origin HEAD:main

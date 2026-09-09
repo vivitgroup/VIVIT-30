@@ -1,6 +1,16 @@
 import {getVGroupSql} from "@/lib/vgroup/db";
 import {findVivitoCapability,redactVivito} from "@/lib/vgroup/vivito-cross-workspace";
 
+function toVivitoFormData(input:Record<string,unknown>){
+  const form=new FormData();
+  for(const [key,value] of Object.entries(input)){
+    if(value===null||value===undefined)continue;
+    if(typeof value==="object")form.append(key,JSON.stringify(value));
+    else form.append(key,String(value));
+  }
+  return form;
+}
+
 export async function executeVivitoTask(request:Request,task:{id:string;capability_key:string;payload_redacted:unknown}){
   const cap=findVivitoCapability(task.capability_key);
   if(!cap?.enabled||!cap.endpoint)throw new Error("CAPABILITY_NOT_EXECUTABLE");
@@ -12,7 +22,13 @@ export async function executeVivitoTask(request:Request,task:{id:string;capabili
   try{
     const target=new URL(cap.endpoint,request.url);
     if(target.origin!==new URL(request.url).origin)throw new Error("CROSS_ORIGIN_TARGET_BLOCKED");
-    const response=await fetch(target,{method:cap.method,headers:{"Content-Type":"application/json","Cookie":request.headers.get("cookie")??"","X-Vivito-Task-Id":task.id},body:cap.method==="POST"?JSON.stringify(outbound):undefined,cache:"no-store",redirect:"error",signal:AbortSignal.timeout(12000)});
+    const headers=new Headers({"Cookie":request.headers.get("cookie")??"","X-Vivito-Task-Id":task.id});
+    let body:BodyInit|undefined;
+    if(cap.method==="POST"){
+      if(cap.transport==="form")body=toVivitoFormData(outbound);
+      else{headers.set("Content-Type","application/json");body=JSON.stringify(outbound)}
+    }
+    const response=await fetch(target,{method:cap.method,headers,body,cache:"no-store",redirect:"error",signal:AbortSignal.timeout(12000)});
     const text=(await response.text()).slice(0,64_000);
     let parsed:unknown=text;try{parsed=JSON.parse(text)}catch{}
     const safe=redactVivito(parsed);

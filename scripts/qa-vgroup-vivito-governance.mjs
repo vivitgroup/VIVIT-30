@@ -8,8 +8,10 @@ const files={
   execution:read('lib/vgroup/vivito-execution.ts'),
   safety:read('lib/vgroup/vivito-safety.ts'),
   registry:read('lib/vgroup/vivito-tool-registry.ts'),
+  cross:read('lib/vgroup/vivito-cross-workspace.ts'),
   reads:read('lib/vgroup/vivito-read-tools.ts'),
   entities:read('lib/vgroup/vivito-entity-resolver.ts'),
+  verification:read('lib/vgroup/vivito-verification.ts'),
 };
 
 const checks=[
@@ -20,6 +22,10 @@ const checks=[
   ['same-origin API target guard',files.safety.includes('CROSS_ORIGIN_TARGET_BLOCKED')&&files.safety.includes('NON_API_TARGET_BLOCKED')],
   ['central approval policy',files.tasks.includes('vivitoSafetyDecision')&&files.safety.includes('cap.risk==="sensitive"')],
   ['stable idempotency required',files.tasks.includes('validVivitoIdempotencyKey')&&files.execution.includes('Idempotency-Key')],
+  ['strict payload contracts',files.cross.includes('allowedPayloadKeys')&&files.cross.includes('requiredPayloadKeys')&&files.tasks.includes('validateVivitoCapabilityPayload')],
+  ['update/delete capable execution transport',files.cross.includes('"PATCH"|"DELETE"')&&files.execution.includes('cap.method!=="GET"')],
+  ['business-state verification',files.execution.includes('verifyVivitoExecution')&&files.verification.includes('BUSINESS_STATE_VERIFIED')],
+  ['verification failure is non-retryable',files.execution.includes("'verification_failed'")&&files.execution.includes('retrySafe:false')],
   ['unified registry has reads+writes',files.registry.includes('VIVITO_READ_TOOLS.map')&&files.registry.includes('VIVITO_CAPABILITIES.map')],
   ['permission-aware registry',files.registry.includes('canUseVivitoUnifiedTool')&&files.tasks.includes('publicVivitoToolRegistry(session)')],
   ['entity resolver permission scoped',files.entities.includes('hasPermission')&&files.entities.includes('canAccessBusinessUnit')],

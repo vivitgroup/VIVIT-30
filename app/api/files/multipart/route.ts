@@ -64,6 +64,17 @@ async function objectInfo(path:string){
  const meta=(d.metadata||{}) as Record<string,unknown>;
  return {ok:r.ok,size:Number(meta.size??d.size??0),mime:safeMime(meta.mimetype??meta.contentType??d.mimetype??d.contentType)};
 }
+async function linkTaskDelivery(workspaceId:string,taskId:string,fileId:string){
+ const deliveryUrl=`/api/files/multipart/stream?id=${encodeURIComponent(fileId)}`;
+ await db.execute(sql`
+  update creative_tasks
+  set file_url=${deliveryUrl},updated_at=now()
+  where id=${taskId}
+    and workspace_id=${workspaceId}
+    and archived_at is null
+    and deleted_at is null
+ `);
+}
 
 export async function GET(req:NextRequest){
  const s=await sessionScope();if(!s)return NextResponse.json({error:"Unauthorized"},{status:401});
@@ -103,10 +114,14 @@ export async function POST(req:NextRequest){
   if(info.size&&info.size!==part.size)return NextResponse.json({error:"Stored multipart part size does not match."},{status:409});
  }
  const manifest:Manifest={v:1,parts,size,mime};const storagePath=encodeManifest(manifest);
- const existing=await db.select({id:fileDocuments.id}).from(fileDocuments).where(and(eq(fileDocuments.workspaceId,s.workspaceId),eq(fileDocuments.storagePath,storagePath))).limit(1);
- if(existing[0])return NextResponse.json({success:true,fileId:existing[0].id});
+ const existing=await db.select({id:fileDocuments.id,taskId:fileDocuments.taskId}).from(fileDocuments).where(and(eq(fileDocuments.workspaceId,s.workspaceId),eq(fileDocuments.storagePath,storagePath))).limit(1);
+ if(existing[0]){
+  if(taskId&&existing[0].taskId===taskId)await linkTaskDelivery(s.workspaceId,taskId,existing[0].id);
+  return NextResponse.json({success:true,fileId:existing[0].id});
+ }
  const [created]=await db.insert(fileDocuments).values({workspaceId:s.workspaceId,uploadedBy:s.userId,name,storagePath,mimeType:mime,sizeBytes:size,category,clientId,taskId}).returning();
  await db.insert(auditLogs).values({workspaceId:s.workspaceId,userId:s.userId,action:"file_uploaded_multipart",entity:"file_documents",entityId:created.id,newValues:JSON.stringify({name,size,mime,category,clientId,taskId,parts:parts.length})});
+ if(taskId)await linkTaskDelivery(s.workspaceId,taskId,created.id);
  return NextResponse.json({success:true,file:{...created,canEdit:true,isArchived:false}});
 }
 

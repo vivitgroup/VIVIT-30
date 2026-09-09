@@ -129,4 +129,11 @@
   .app-main-shell .app-content :is(button,[role="button"],input,textarea,select,a) {
     scroll-margin-bottom: calc(112px + env(safe-area-inset-bottom));
   }
+
+  /* Creative detail ends with actionable workflow controls. Give the final card
+     its own physical tail space so WebKit can scroll the last button fully above
+     the fixed mobile navigation instead of leaving it under the nav hit-area. */
+  .app-main-shell .app-content .ct-sticky {
+    padding-bottom: calc(132px + env(safe-area-inset-bottom)) !important;
+  }
 }

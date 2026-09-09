@@ -263,8 +263,10 @@ async function main(){
   }
 
   const groupHome=await request("/group",{cookie:sessions.staff});
-  assert(groupHome.status===200,`group_portal_expected_200_got_${groupHome.status}`);
-  console.log("PASS Group portal renders for an authenticated VGroup user (200)");
+  assertRedirect(groupHome,"/","group_portal");
+  const groupLauncher=await request("/",{cookie:sessions.staff});
+  assert(groupLauncher.status===200,`group_launcher_expected_200_got_${groupLauncher.status}`);
+  console.log("PASS authenticated /group canonicalizes to the Group launcher and the launcher renders (200)");
 
   const hospitalityEntry=await request("/group/enter/hospitality",{cookie:sessions.staff});
   assertRedirect(hospitalityEntry,"/group/hospitality","hospitality_entry");

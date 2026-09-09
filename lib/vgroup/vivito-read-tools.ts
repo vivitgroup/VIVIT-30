@@ -9,8 +9,12 @@ export type VivitoReadToolKey=
   |"group.executive_pulse"
   |"hospitality.overview"
   |"hospitality.operations_summary"
+  |"hospitality.properties_list"
+  |"hospitality.reservations_list"
   |"tech.overview"
-  |"tech.operations_summary";
+  |"tech.operations_summary"
+  |"tech.projects_list"
+  |"tech.issues_list";
 
 export type VivitoReadTool={
   key:VivitoReadToolKey;
@@ -41,6 +45,24 @@ async function hospitalityOperationsSummary(){
   return summary??{};
 }
 
+async function hospitalityPropertiesList(){
+  const sql=getVGroupSql();
+  const rows=await sql<Record<string,unknown>[]>`select p.id::text,p.owner_id::text,o.full_name owner_name,p.name,p.property_type,p.city,p.country,p.bedrooms,p.bathrooms,p.max_guests,p.status,
+    coalesce((select count(*)::int from hospitality.property_images i where i.property_id=p.id and i.archived_at is null),0) image_count
+    from hospitality.properties p left join hospitality.owners o on o.id=p.owner_id
+    where p.archived_at is null order by p.created_at desc limit 100`;
+  return {properties:Array.from(rows)};
+}
+
+async function hospitalityReservationsList(){
+  const sql=getVGroupSql();
+  const rows=await sql<Record<string,unknown>[]>`select r.id::text,r.property_id::text,p.name property_name,r.source,r.guest_name,r.check_in,r.check_out,
+    r.guests,r.currency,r.gross_amount,r.platform_fee,r.company_commission,r.net_owner_amount,r.status
+    from hospitality.reservations r join hospitality.properties p on p.id=r.property_id
+    where r.archived_at is null order by r.check_in desc,r.created_at desc limit 100`;
+  return {reservations:Array.from(rows)};
+}
+
 async function techOperationsSummary(){
   const sql=getVGroupSql();
   const [portfolio]=await sql<Record<string,unknown>[]>`select * from tech.portfolio_summary`;
@@ -58,11 +80,32 @@ async function techOperationsSummary(){
   return {portfolio:portfolio??{},operations:operations??{}};
 }
 
+async function techProjectsList(){
+  const sql=getVGroupSql();
+  const rows=await sql<Record<string,unknown>[]>`select p.id::text,p.client_id::text,c.company_name client_name,p.name,p.project_type,p.currency,p.current_price,p.progress_percent,p.current_phase,p.target_end,p.status
+    from tech.projects p join tech.clients c on c.id=p.client_id
+    where p.archived_at is null order by p.created_at desc limit 100`;
+  return {projects:Array.from(rows)};
+}
+
+async function techIssuesList(){
+  const sql=getVGroupSql();
+  const rows=await sql<Record<string,unknown>[]>`select i.id::text,i.project_id::text,p.name project_name,i.issue_type,i.title,i.severity,i.status,i.owner_id::text,i.due_at
+    from tech.issues i join tech.projects p on p.id=i.project_id
+    where p.archived_at is null and i.status not in ('closed','wont_fix')
+    order by case i.severity when 'critical' then 1 when 'high' then 2 when 'medium' then 3 else 4 end,i.due_at nulls last limit 100`;
+  return {issues:Array.from(rows)};
+}
+
 export const VIVITO_READ_TOOLS:readonly VivitoReadTool[]=[
   {key:"hospitality.overview",workspace:"hospitality",label:"Hospitality overview",permission:"properties:view",execute:async()=>getHospitalityDashboard()},
   {key:"hospitality.operations_summary",workspace:"hospitality",label:"Hospitality operations summary",permission:"properties:view",execute:async()=>hospitalityOperationsSummary()},
+  {key:"hospitality.properties_list",workspace:"hospitality",label:"Hospitality properties",permission:"properties:view",execute:async()=>hospitalityPropertiesList()},
+  {key:"hospitality.reservations_list",workspace:"hospitality",label:"Hospitality reservations",permission:"reservations:view",execute:async()=>hospitalityReservationsList()},
   {key:"tech.overview",workspace:"tech",label:"Tech overview",permission:"projects:view",execute:async()=>getTechDashboard()},
   {key:"tech.operations_summary",workspace:"tech",label:"Tech operations summary",permission:"projects:view",execute:async()=>techOperationsSummary()},
+  {key:"tech.projects_list",workspace:"tech",label:"Tech projects",permission:"projects:view",execute:async()=>techProjectsList()},
+  {key:"tech.issues_list",workspace:"tech",label:"Tech open issues",permission:"projects:view",execute:async()=>techIssuesList()},
   {key:"group.executive_pulse",workspace:"group",label:"Group executive pulse",execute:async(session)=>{
     const data:Record<string,unknown>={};
     if(canReadUnit(session,"hospitality","properties:view")){
@@ -82,12 +125,30 @@ export function canUseVivitoReadTool(session:VGroupSession,tool:VivitoReadTool){
   return canReadUnit(session,tool.workspace as BusinessUnitCode,tool.permission);
 }
 
-const OPERATIONS_INTENT=/(operation|operations|issue|issues|risk|risks|problem|problems|attention|today|housekeeping|maintenance|complaint|inbox|release|uat|capacity|timesheet|deliverable|تشغيل|عمليات|مشكلة|مشاكل|مخاطر|اليوم|هاوس كيبنج|صيانة|شكوى|شكاوى|اصدار|إصدار)/i;
+const OPERATIONS_INTENT=/(operation|operations|risk|risks|problem|problems|attention|today|housekeeping|maintenance|complaint|inbox|release|uat|capacity|timesheet|deliverable|تشغيل|عمليات|مشكلة|مشاكل|مخاطر|اليوم|هاوس كيبنج|صيانة|شكوى|شكاوى|اصدار|إصدار)/i;
+const PROPERTY_INTENT=/(property|properties|unit|units|villa|apartment|owner property|عقار|عقارات|وحدة|وحدات|فيلا|شقة|شقق)/i;
+const RESERVATION_INTENT=/(reservation|reservations|booking|bookings|guest|guests|check.?in|check.?out|حجز|حجوزات|ضيف|ضيوف|تشيك.?ان|تشيك.?اوت)/i;
+const PROJECT_INTENT=/(project|projects|portfolio|progress|phase|deadline|delivery|مشروع|مشاريع|بروجكت|بروجكتات|تقدم|مرحلة|تسليم)/i;
+const ISSUE_INTENT=/(issue|issues|bug|bugs|incident|incidents|defect|defects|problem|problems|مشكلة|مشاكل|باج|باجات|عطل|اعطال|أعطال)/i;
+
+function unique(keys:VivitoReadToolKey[]){return [...new Set(keys)]}
 
 export function selectVivitoReadTools(workspace:VivitoWorkspace,question:string):VivitoReadToolKey[]{
   if(workspace==="group")return ["group.executive_pulse"];
-  if(workspace==="hospitality")return OPERATIONS_INTENT.test(question)?["hospitality.overview","hospitality.operations_summary"]:["hospitality.overview"];
-  if(workspace==="tech")return OPERATIONS_INTENT.test(question)?["tech.overview","tech.operations_summary"]:["tech.overview"];
+  if(workspace==="hospitality"){
+    const keys:VivitoReadToolKey[]=["hospitality.overview"];
+    if(OPERATIONS_INTENT.test(question))keys.push("hospitality.operations_summary");
+    if(PROPERTY_INTENT.test(question))keys.push("hospitality.properties_list");
+    if(RESERVATION_INTENT.test(question))keys.push("hospitality.reservations_list");
+    return unique(keys);
+  }
+  if(workspace==="tech"){
+    const keys:VivitoReadToolKey[]=["tech.overview"];
+    if(OPERATIONS_INTENT.test(question))keys.push("tech.operations_summary");
+    if(PROJECT_INTENT.test(question))keys.push("tech.projects_list");
+    if(ISSUE_INTENT.test(question))keys.push("tech.issues_list");
+    return unique(keys);
+  }
   return [];
 }
 

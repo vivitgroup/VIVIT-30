@@ -43,6 +43,7 @@ import "./mobile-parity-v6.css";
 import "./enterprise-ui-baseline.css";
 import "./live-ui-v9.css";
 import "./live-ui-v10.css";
+import "./live-ui-v11.css";
 
 function PageSkeleton(){return <div className="dashboard-skeleton" style={{padding:"28px",display:"grid",gap:"16px",minWidth:0,maxWidth:"100%",overflow:"hidden"}} aria-hidden="true"><div className="dashboard-skeleton-kpis">{[1,2,3,4].map(i=><div key={i} className="skeleton" style={{height:"110px",borderRadius:"16px",minWidth:0}}/>)}</div><div className="dashboard-skeleton-main"><div className="skeleton" style={{height:"300px",borderRadius:"16px",minWidth:0}}/><div className="skeleton" style={{height:"300px",borderRadius:"16px",minWidth:0}}/></div></div>}
 

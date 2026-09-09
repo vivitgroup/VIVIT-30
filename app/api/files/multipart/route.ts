@@ -95,8 +95,8 @@ export async function POST(req:NextRequest){
  const body=await req.json().catch(()=>null) as Record<string,unknown>|null;if(!body)return NextResponse.json({error:"Invalid request."},{status:400});
  const parts=Array.isArray(body.parts)?body.parts.map(x=>({path:clean((x as Record<string,unknown>)?.path,700),size:Number((x as Record<string,unknown>)?.size||0)})):[];
  const size=Number(body.size||0),mime=safeMime(body.mimeType),name=clean(body.name,255)||"File",category=clean(body.category,40)||"GENERAL",clientId=body.clientId?clean(body.clientId,100):null,taskId=body.taskId?clean(body.taskId,100):null;
- if(size<=0||size>MAX_SIZE||!parts.length||parts.length>16)return NextResponse.json({error:"Invalid multipart upload."},{status:400});
- if(parts.some(p=>!p.path||p.size<=0||p.size>PART_MAX||!p.path.startsWith(`${s.workspaceId}/`)||!p.path.includes(`/${s.userId}/`)||p.path.includes("..")))return NextResponse.json({error:"Invalid multipart part."},{status:403});
+ if(!Number.isFinite(size)||size<=0||size>MAX_SIZE||!parts.length||parts.length>16)return NextResponse.json({error:"Invalid multipart upload."},{status:400});
+ if(parts.some(p=>!p.path||!Number.isFinite(p.size)||p.size<=0||p.size>PART_MAX||!p.path.startsWith(`${s.workspaceId}/`)||!p.path.includes(`/${s.userId}/`)||p.path.includes("..")))return NextResponse.json({error:"Invalid multipart part."},{status:403});
  if(parts.reduce((n,p)=>n+p.size,0)!==size)return NextResponse.json({error:"Multipart size does not match the original file."},{status:409});
  if(taskId||clientId){
   let allowed=false;
@@ -111,7 +111,7 @@ export async function POST(req:NextRequest){
  }
  for(const part of parts){
   const info=await objectInfo(part.path);if(!info.ok)return NextResponse.json({error:"One uploaded part could not be verified."},{status:409});
-  if(info.size&&info.size!==part.size)return NextResponse.json({error:"Stored multipart part size does not match."},{status:409});
+  if(!Number.isFinite(info.size)||info.size<=0||info.size!==part.size)return NextResponse.json({error:"Stored multipart part size does not match."},{status:409});
  }
  const manifest:Manifest={v:1,parts,size,mime};const storagePath=encodeManifest(manifest);
  const existing=await db.select({id:fileDocuments.id,taskId:fileDocuments.taskId}).from(fileDocuments).where(and(eq(fileDocuments.workspaceId,s.workspaceId),eq(fileDocuments.storagePath,storagePath))).limit(1);
@@ -119,9 +119,22 @@ export async function POST(req:NextRequest){
   if(taskId&&existing[0].taskId===taskId)await linkTaskDelivery(s.workspaceId,taskId,existing[0].id);
   return NextResponse.json({success:true,fileId:existing[0].id});
  }
- const [created]=await db.insert(fileDocuments).values({workspaceId:s.workspaceId,uploadedBy:s.userId,name,storagePath,mimeType:mime,sizeBytes:size,category,clientId,taskId}).returning();
- await db.insert(auditLogs).values({workspaceId:s.workspaceId,userId:s.userId,action:"file_uploaded_multipart",entity:"file_documents",entityId:created.id,newValues:JSON.stringify({name,size,mime,category,clientId,taskId,parts:parts.length})});
- if(taskId)await linkTaskDelivery(s.workspaceId,taskId,created.id);
+ const created=await db.transaction(async tx=>{
+  const [row]=await tx.insert(fileDocuments).values({workspaceId:s.workspaceId,uploadedBy:s.userId,name,storagePath,mimeType:mime,sizeBytes:size,category,clientId,taskId}).returning();
+  await tx.insert(auditLogs).values({workspaceId:s.workspaceId,userId:s.userId,action:"file_uploaded_multipart",entity:"file_documents",entityId:row.id,newValues:JSON.stringify({name,size,mime,category,clientId,taskId,parts:parts.length})});
+  if(taskId){
+   const deliveryUrl=`/api/files/multipart/stream?id=${encodeURIComponent(row.id)}`;
+   await tx.execute(sql`
+    update creative_tasks
+    set file_url=${deliveryUrl},updated_at=now()
+    where id=${taskId}
+      and workspace_id=${s.workspaceId}
+      and archived_at is null
+      and deleted_at is null
+   `);
+  }
+  return row;
+ });
  return NextResponse.json({success:true,file:{...created,canEdit:true,isArchived:false}});
 }
 
@@ -132,7 +145,9 @@ export async function DELETE(req:NextRequest){
  if(!(s.role==="SUPER_ADMIN"||row.uploadedBy===s.userId))return NextResponse.json({error:"You can only delete files you uploaded."},{status:403});
  const manifest=decodeManifest(row.storagePath);if(!manifest)return NextResponse.json({error:"File is not multipart."},{status:400});
  for(const p of manifest.parts){const r=await fetch(`${base()}/storage/v1/object/${BUCKET}/${p.path}`,{method:"DELETE",headers:headers()});if(!r.ok&&r.status!==404)return NextResponse.json({error:"Could not delete all stored file parts."},{status:502})}
- await db.delete(fileDocuments).where(and(eq(fileDocuments.id,id),eq(fileDocuments.workspaceId,s.workspaceId)));
- await db.insert(auditLogs).values({workspaceId:s.workspaceId,userId:s.userId,action:"file_deleted",entity:"file_documents",entityId:id,oldValues:JSON.stringify({name:row.name,size:row.sizeBytes,multipart:true})});
+ await db.transaction(async tx=>{
+  await tx.delete(fileDocuments).where(and(eq(fileDocuments.id,id),eq(fileDocuments.workspaceId,s.workspaceId)));
+  await tx.insert(auditLogs).values({workspaceId:s.workspaceId,userId:s.userId,action:"file_deleted",entity:"file_documents",entityId:id,oldValues:JSON.stringify({name:row.name,size:row.sizeBytes,multipart:true})});
+ });
  return NextResponse.json({success:true,state:"deleted"});
 }

@@ -197,13 +197,23 @@ async function editableFile(workspaceId: string, id: string, role: string, userI
 }
 
 async function signRead(path: string) {
-  const r = await fetch(`${base()}/storage/v1/object/sign/${BUCKET}/${path}`, {
-    method: "POST",
-    headers: { ...headers(), "Content-Type": "application/json" },
-    body: JSON.stringify({ expiresIn: 1800 }),
-  });
-  const d = await r.json().catch(() => ({}));
-  return d.signedURL ? `${base()}/storage/v1${d.signedURL}` : null;
+  if (path.startsWith("multipart:")) return null;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
+  try {
+    const r = await fetch(`${base()}/storage/v1/object/sign/${BUCKET}/${path}`, {
+      method: "POST",
+      headers: { ...headers(), "Content-Type": "application/json" },
+      body: JSON.stringify({ expiresIn: 1800 }),
+      signal: controller.signal,
+    });
+    const d = await r.json().catch(() => ({}));
+    return d.signedURL ? `${base()}/storage/v1${d.signedURL}` : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export async function GET(req: NextRequest) {

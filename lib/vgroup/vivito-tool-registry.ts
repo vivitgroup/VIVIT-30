@@ -1,8 +1,9 @@
 import type {PermissionKey} from "@/lib/vgroup/contracts";
+import type {VGroupSession} from "@/lib/vgroup/session";
 import type {VivitoCapability,VivitoWorkspace} from "@/lib/vgroup/vivito-cross-workspace";
-import {VIVITO_CAPABILITIES} from "@/lib/vgroup/vivito-cross-workspace";
+import {VIVITO_CAPABILITIES,canUseVivitoCapability,findVivitoCapability} from "@/lib/vgroup/vivito-cross-workspace";
 import type {VivitoReadTool} from "@/lib/vgroup/vivito-read-tools";
-import {VIVITO_READ_TOOLS} from "@/lib/vgroup/vivito-read-tools";
+import {VIVITO_READ_TOOLS,canUseVivitoReadTool,findVivitoReadTool} from "@/lib/vgroup/vivito-read-tools";
 
 export type VivitoToolMode="read"|"write";
 export type VivitoToolRisk="read"|"write"|"sensitive";
@@ -23,7 +24,7 @@ const fromRead=(tool:VivitoReadTool):VivitoUnifiedTool=>({
 });
 const fromWrite=(cap:VivitoCapability):VivitoUnifiedTool=>({
   key:cap.key,workspace:cap.workspace,label:cap.label,mode:"write",risk:cap.risk,
-  permission:cap.permission,approvalRequired:cap.approvalRequired,enabled:cap.enabled,
+  permission:cap.permission,approvalRequired:cap.approvalRequired||cap.risk==="sensitive",enabled:cap.enabled,
 });
 
 export const VIVITO_TOOL_REGISTRY:readonly VivitoUnifiedTool[]=[
@@ -32,4 +33,17 @@ export const VIVITO_TOOL_REGISTRY:readonly VivitoUnifiedTool[]=[
 ];
 
 export function findVivitoUnifiedTool(key:string){return VIVITO_TOOL_REGISTRY.find(tool=>tool.key===key)}
-export function publicVivitoToolRegistry(){return VIVITO_TOOL_REGISTRY.map(({key,workspace,label,mode,risk,permission,approvalRequired,enabled})=>({key,workspace,label,mode,risk,permission,approvalRequired,enabled}))}
+export function canUseVivitoUnifiedTool(session:VGroupSession,tool:VivitoUnifiedTool){
+  if(!tool.enabled)return false;
+  if(tool.mode==="read"){
+    const read=findVivitoReadTool(tool.key as Parameters<typeof findVivitoReadTool>[0]);
+    return Boolean(read&&canUseVivitoReadTool(session,read));
+  }
+  const capability=findVivitoCapability(tool.key);
+  return Boolean(capability&&canUseVivitoCapability(session,capability));
+}
+export function publicVivitoToolRegistry(session?:VGroupSession){
+  return VIVITO_TOOL_REGISTRY
+    .filter(tool=>!session||canUseVivitoUnifiedTool(session,tool))
+    .map(({key,workspace,label,mode,risk,permission,approvalRequired,enabled})=>({key,workspace,label,mode,risk,permission,approvalRequired,enabled}));
+}

@@ -39,6 +39,7 @@ jobs:
       NEXTAUTH_URL: http://127.0.0.1:3000
       AUTH_URL: http://127.0.0.1:3000
       E2E_BASE_URL: http://127.0.0.1:3000
+      E2E_AUTH_RATE_LIMIT_MODE: isolated-ci
       E2E_USERS_FILE: /tmp/vivit-e2e-users.json
       E2E_SUPABASE_PORT: "54321"
       SUPABASE_URL: http://127.0.0.1:54321

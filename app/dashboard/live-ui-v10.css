@@ -1,0 +1,90 @@
+/* VIVIT LIVE UI V10 — dense premium operating surfaces, report scale, media dark mode and floating dock */
+
+:root{--v10-card-radius:20px;--v10-soft-shadow:0 12px 34px rgba(15,23,42,.065);--v10-hover-shadow:0 18px 44px rgba(15,23,42,.11)}
+
+/* Floating utilities: one visual dock, never cover page actions. */
+body .vx-apps,body .vivit-lang-switch,body .va-fab{position:fixed!important;z-index:920!important}
+body .vx-apps{right:168px!important;bottom:24px!important}
+body .vivit-lang-switch{right:78px!important;bottom:24px!important}
+body .va-fab{right:18px!important;bottom:18px!important}
+body .vx-apps,body .vivit-lang-switch{filter:drop-shadow(0 12px 28px rgba(15,23,42,.13))}
+.app-content{padding-bottom:128px!important}
+
+/* TODAY — make every operating block a real module, not long white strips. */
+main .app-content .today-ops{display:grid!important;gap:18px!important;max-width:1600px!important;margin:0 auto!important;width:100%!important}
+main .app-content .today-ops>.grid.grid-4{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:14px!important;align-items:stretch!important}
+main .app-content .today-ops>.grid.grid-4>.card{min-width:0!important;min-height:154px!important;padding:20px!important;border:1px solid var(--card-border)!important;border-radius:20px!important;background:linear-gradient(150deg,var(--card-bg) 0%,var(--bg-secondary) 100%)!important;box-shadow:var(--v10-soft-shadow)!important;overflow:hidden!important;position:relative!important}
+main .app-content .today-ops>.grid.grid-4>.card::after{content:"";position:absolute;right:-26px;top:-32px;width:96px;height:96px;border-radius:999px;background:radial-gradient(circle,rgba(124,58,237,.10),transparent 68%);pointer-events:none}
+main .app-content .today-ops>.grid.grid-4>.card small{font-size:11px!important;font-weight:800!important;letter-spacing:.075em!important;text-transform:uppercase!important;color:var(--text-muted)!important}
+main .app-content .today-ops>.grid.grid-4>.card h2{font-size:clamp(28px,2.4vw,38px)!important;line-height:1!important;letter-spacing:-.045em!important;color:var(--text-primary)!important;margin:15px 0 0!important}
+main .app-content .today-ops>.grid.grid-4>.card p{font-size:12px!important;line-height:1.45!important;color:var(--text-muted)!important;margin-top:14px!important}
+main .app-content .today-ops>.card{padding:22px!important;border-radius:22px!important;box-shadow:var(--v10-soft-shadow)!important}
+main .app-content .today-ops>.grid.grid-2{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:16px!important;align-items:start!important}
+main .app-content .today-ops>.grid.grid-2>.card{padding:22px!important;border-radius:22px!important;box-shadow:var(--v10-soft-shadow)!important;overflow:hidden!important}
+main .app-content .today-ops>.grid.grid-2>.card>h2{font-size:21px!important;letter-spacing:-.03em!important;margin-bottom:2px!important;color:var(--text-primary)!important}
+main .app-content .today-ops>.grid.grid-2>.card>div[style*="display:grid"]{display:grid!important;gap:8px!important;margin-top:14px!important;border:0!important}
+main .app-content .today-ops>.grid.grid-2>.card>div[style*="display:grid"]>*{min-height:68px!important;padding:11px 12px!important;border:1px solid var(--card-border)!important;border-radius:14px!important;background:var(--bg-secondary)!important;align-items:center!important;transition:transform .16s ease,border-color .16s ease,background .16s ease!important}
+main .app-content .today-ops>.grid.grid-2>.card>div[style*="display:grid"]>*:hover{transform:translateY(-1px)!important;border-color:rgba(124,58,237,.24)!important;background:var(--bg-tertiary)!important}
+main .app-content .today-ops>.grid.grid-2>.card b{font-size:13px!important;color:var(--text-primary)!important}
+main .app-content .today-ops>.grid.grid-2>.card small{font-size:11px!important;line-height:1.35!important;color:var(--text-muted)!important}
+main .app-content .today-ops>.grid.grid-2>.card .badge{min-width:66px!important;justify-content:center!important}
+
+/* EXECUTIVE — sonar + decision modules. */
+main .app-content .vx-war-room>.grid.grid-4{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:14px!important}
+main .app-content .vx-war-room>.grid.grid-4>.card{min-height:146px!important;padding:20px!important;border-radius:20px!important;box-shadow:var(--v10-soft-shadow)!important;background:linear-gradient(150deg,var(--card-bg),var(--bg-secondary))!important}
+main .app-content .vx-war-room>.grid.grid-4>.card h2{font-size:clamp(28px,2.4vw,38px)!important;letter-spacing:-.045em!important;margin-top:15px!important}
+main .app-content .vx-war-room>.grid.grid-2{display:grid!important;grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr)!important;gap:16px!important;align-items:start!important}
+main .app-content .vx-war-room>.grid.grid-2>.card{padding:22px!important;border-radius:22px!important;box-shadow:var(--v10-soft-shadow)!important;overflow:hidden!important}
+main .app-content .vx-war-room>.grid.grid-2>.card>h2{font-size:22px!important;letter-spacing:-.035em!important;color:var(--text-primary)!important}
+main .app-content .vx-war-room>.grid.grid-2>.card:nth-child(2)>div[style*="display:grid"]{display:grid!important;gap:8px!important;margin-top:15px!important}
+main .app-content .vx-war-room>.grid.grid-2>.card:nth-child(2)>div[style*="display:grid"]>div{min-height:72px!important;padding:11px 12px!important;border:1px solid var(--card-border)!important;border-radius:14px!important;background:var(--bg-secondary)!important;align-items:center!important}
+main .app-content .vx-war-room>.grid.grid-2>.card:nth-child(2)>div[style*="display:grid"]>div b{font-size:13px!important;color:var(--text-primary)!important}
+main .app-content .vx-war-room>.grid.grid-2>.card:nth-child(2)>div[style*="display:grid"]>div small{font-size:11px!important;line-height:1.4!important}
+main .app-content .vx-war-room .vx-decision-stack{display:grid!important;gap:8px!important}
+main .app-content .vx-war-room .vx-decision{display:grid!important;grid-template-columns:38px minmax(0,1fr) auto!important;align-items:center!important;gap:12px!important;min-height:72px!important;padding:11px 12px!important;border:1px solid var(--card-border)!important;border-radius:14px!important;background:var(--bg-secondary)!important}
+main .app-content .vx-war-room .vx-decision-index{width:38px!important;height:38px!important;border-radius:12px!important;display:grid!important;place-items:center!important;font-size:11px!important;font-weight:900!important;background:var(--purple-bg)!important;color:var(--purple)!important}
+
+/* REPORTS — icons must read as modules, not emoji footnotes. */
+main .app-content .reports-ui{max-width:1600px!important;margin:0 auto!important;width:100%!important;gap:16px!important}
+main .app-content .reports-ui .report-card,main .app-content .reports-ui .result-card{border-radius:22px!important;box-shadow:var(--v10-soft-shadow)!important}
+main .app-content .reports-ui .report-card{padding:22px!important}
+main .app-content .reports-ui .report-title{font-size:18px!important;font-weight:850!important;letter-spacing:-.025em!important;margin-bottom:16px!important}
+main .app-content .reports-ui .entity-grid{gap:10px!important}
+main .app-content .reports-ui .entity-btn{min-height:98px!important;padding:12px!important;border-radius:17px!important;display:grid!important;place-items:center!important;align-content:center!important;gap:7px!important;box-shadow:0 8px 24px rgba(15,23,42,.035)!important}
+main .app-content .reports-ui .entity-btn>div:first-child{font-size:38px!important;line-height:1!important;transform:none!important}
+main .app-content .reports-ui .entity-btn>div:last-child{font-size:13px!important;font-weight:800!important}
+main .app-content .reports-ui .field-chip{min-height:42px!important;padding:9px 12px!important;font-size:12px!important;border-radius:12px!important}
+main .app-content .reports-ui .quick-grid{gap:10px!important}
+main .app-content .reports-ui .quick-btn{min-height:88px!important;padding:14px 16px!important;border-radius:16px!important;gap:14px!important;box-shadow:0 8px 24px rgba(15,23,42,.035)!important}
+main .app-content .reports-ui .quick-btn>span:first-child{width:50px!important;height:50px!important;flex:0 0 50px!important;border-radius:15px!important;display:grid!important;place-items:center!important;font-size:30px!important;background:linear-gradient(145deg,var(--purple-bg),var(--bg-tertiary))!important}
+main .app-content .reports-ui .quick-btn b{font-size:13.5px!important}.reports-ui .quick-btn small{font-size:11.5px!important}
+
+/* MEDIA CONTROL — coherent surfaces in both themes. */
+main .app-content .vx-media-cockpit{max-width:1600px!important;margin:0 auto!important;width:100%!important;overflow:visible!important;padding-bottom:30px!important}
+main .app-content .vx-media-cockpit>.vx-world-hero{padding:24px 26px!important;border-radius:24px!important;box-shadow:var(--v10-soft-shadow)!important}
+main .app-content .vx-media-cockpit .mcf-accounts{gap:16px!important}
+main .app-content .vx-media-cockpit .mcf-account{border-radius:22px!important}
+main .app-content .vx-media-cockpit .mcf-card{border-radius:16px!important}
+main .app-content .vx-media-cockpit .mcf-card-actions{gap:8px!important}
+main .app-content .vx-media-cockpit .mcf-card-actions .btn{min-height:40px!important;min-width:80px!important}
+
+html.dark body{background:#07111f!important}
+html.dark .app-main-shell{background:linear-gradient(180deg,#081321,#0a1525 42%,#07111f)!important}
+html.dark .app-header{background:rgba(7,17,31,.88)!important;border-bottom-color:rgba(139,170,210,.12)!important;backdrop-filter:blur(18px)!important}
+html.dark .app-sidebar{background:linear-gradient(180deg,#101a2b,#0b1524)!important;border-right-color:rgba(139,170,210,.13)!important}
+html.dark .card,html.dark .report-card,html.dark .result-card{border-color:rgba(139,170,210,.13)!important}
+html.dark main .app-content .today-ops>.grid.grid-4>.card,html.dark main .app-content .today-ops>.grid.grid-2>.card,html.dark main .app-content .vx-war-room>.grid.grid-4>.card,html.dark main .app-content .vx-war-room>.grid.grid-2>.card{background:linear-gradient(145deg,#101f33,#0b1728)!important;border-color:rgba(139,170,210,.14)!important;box-shadow:0 18px 48px rgba(0,0,0,.24)!important}
+html.dark main .app-content .today-ops>.grid.grid-2>.card>div[style*="display:grid"]>*,html.dark main .app-content .vx-war-room>.grid.grid-2>.card:nth-child(2)>div[style*="display:grid"]>div,html.dark main .app-content .vx-war-room .vx-decision{background:#13243a!important;border-color:rgba(139,170,210,.12)!important}
+html.dark main .app-content .reports-ui .report-card,html.dark main .app-content .reports-ui .result-card{background:linear-gradient(145deg,#101f33,#0b1728)!important;border-color:rgba(139,170,210,.14)!important;box-shadow:0 18px 48px rgba(0,0,0,.25)!important}
+html.dark main .app-content .reports-ui .entity-btn,html.dark main .app-content .reports-ui .field-chip,html.dark main .app-content .reports-ui .quick-btn,html.dark main .app-content .reports-ui .format-toggle button{background:#0f1d30!important;border-color:rgba(139,170,210,.14)!important;color:#d7e2ee!important}
+html.dark main .app-content .reports-ui .entity-btn:hover,html.dark main .app-content .reports-ui .quick-btn:hover{background:#162a43!important;border-color:rgba(218,185,93,.24)!important}
+html.dark main .app-content .vx-media-cockpit>.vx-world-hero{background:linear-gradient(120deg,#101b2d,#16243a 58%,#132a4a)!important;border-color:rgba(139,170,210,.14)!important;box-shadow:0 20px 52px rgba(0,0,0,.26)!important}
+html.dark main .app-content .vx-media-cockpit .mcf-account{background:linear-gradient(145deg,#101f33,#0b1728)!important;border-color:rgba(139,170,210,.15)!important;box-shadow:0 18px 48px rgba(0,0,0,.28)!important}
+html.dark main .app-content .vx-media-cockpit .mcf-card{background:linear-gradient(145deg,#0e1b2d,#0a1625)!important;border-color:rgba(139,170,210,.14)!important;box-shadow:0 10px 28px rgba(0,0,0,.18)!important}
+html.dark main .app-content .vx-media-cockpit .mcf-account-metrics div,html.dark main .app-content .vx-media-cockpit .mcf-metric{background:#13243a!important;border-color:rgba(139,170,210,.12)!important}
+html.dark main .app-content .vx-media-cockpit .btn-secondary{background:#15283f!important;color:#edf4fb!important;border-color:rgba(139,170,210,.20)!important}
+html.dark main .app-content .vx-media-cockpit .btn-danger{background:rgba(127,29,29,.22)!important;color:#fecaca!important;border-color:rgba(248,113,113,.34)!important}
+
+@media(max-width:1100px){main .app-content .today-ops>.grid.grid-4,main .app-content .vx-war-room>.grid.grid-4{grid-template-columns:repeat(2,minmax(0,1fr))!important}main .app-content .vx-war-room>.grid.grid-2{grid-template-columns:1fr!important}main .app-content .reports-ui .entity-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important}}
+@media(max-width:760px){body .vx-apps{right:142px!important;bottom:86px!important}body .vivit-lang-switch{right:16px!important;bottom:86px!important}body .va-fab{right:16px!important;bottom:18px!important}.app-content{padding-bottom:158px!important}main .app-content .today-ops>.grid.grid-4,main .app-content .vx-war-room>.grid.grid-4{grid-template-columns:repeat(2,minmax(0,1fr))!important}main .app-content .today-ops>.grid.grid-2{grid-template-columns:1fr!important}main .app-content .reports-ui .entity-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}main .app-content .reports-ui .quick-grid{grid-template-columns:1fr!important}}
+@media(max-width:480px){main .app-content .today-ops>.grid.grid-4,main .app-content .vx-war-room>.grid.grid-4{grid-template-columns:1fr!important}main .app-content .reports-ui .entity-btn{min-height:88px!important}main .app-content .reports-ui .entity-btn>div:first-child{font-size:34px!important}main .app-content .vx-media-cockpit .mcf-metrics{grid-template-columns:repeat(2,minmax(0,1fr))!important}}

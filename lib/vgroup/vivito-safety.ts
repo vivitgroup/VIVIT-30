@@ -8,6 +8,7 @@ export type VivitoSafetyDecision={
   approvalRequired:boolean;
   reason?:string;
 };
+export type VivitoPayloadValidation={ok:true;payload:Record<string,unknown>}|{ok:false;code:string;message:string};
 
 export function validVivitoIdempotencyKey(value:string){return idempotencyPattern.test(value)}
 
@@ -16,6 +17,22 @@ export function vivitoSafetyDecision(cap:VivitoCapability):VivitoSafetyDecision{
   const destructive=destructiveKey.test(cap.key);
   const approvalRequired=cap.approvalRequired||cap.risk==="sensitive"||destructive||cap.method==="DELETE";
   return {allowed:true,approvalRequired};
+}
+
+export function validateVivitoCapabilityPayload(cap:VivitoCapability,value:unknown):VivitoPayloadValidation{
+  if(value===null||value===undefined)value={};
+  if(typeof value!=="object"||Array.isArray(value))return {ok:false,code:"INVALID_PAYLOAD",message:"Capability payload must be an object"};
+  const payload=value as Record<string,unknown>;
+  if(cap.allowedPayloadKeys){
+    const allowed=new Set(cap.allowedPayloadKeys);
+    const unknown=Object.keys(payload).filter(key=>!allowed.has(key));
+    if(unknown.length)return {ok:false,code:"UNKNOWN_PAYLOAD_FIELD",message:`Unsupported payload field: ${unknown[0]}`};
+  }
+  for(const key of cap.requiredPayloadKeys??[]){
+    const item=payload[key];
+    if(item===undefined||item===null||(typeof item==="string"&&!item.trim()))return {ok:false,code:"MISSING_REQUIRED_FIELD",message:`Required payload field is missing: ${key}`};
+  }
+  return {ok:true,payload};
 }
 
 export function assertVivitoOutboundTarget(target:URL,requestUrl:string){

@@ -3,7 +3,9 @@
   "version": "41.0.0",
   "description": "VIVIT ERP — Enterprise Marketing Agency Platform",
   "private": true,
-  "engines": {"node": "22.x"},
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "node scripts/qa-production-dependency-security.mjs && npm ls --omit=optional --all && npm run qa:vivito-academy && npm run qa:vivito-mastery-13 && npm run qa:vivito-medical-marketing && npm run qa:vivito-real-estate-15 && npm run qa:vivito-omni-industry && npm run qa:vivito-decision-intelligence-v2 && npm run qa:vivito-reasoning-core-v3 && npm run qa:vivito-decision-doctrine-regression && npm run qa:vivito-autonomous-strategic-brain && npm run qa:vivito-memory-learning-intelligence && npm run qa:vivito-business-economics-capital-allocation && npm run qa:vivito-multi-agent-executive-brain && npm run qa:vivito-planning-under-uncertainty && npm run qa:vivito-human-behavior-psychology && npm run qa:vivito-negotiation-game-theory && npm run qa:vivito-self-improving-intelligence-loop && npm run qa:vivito-scientific-causal-intelligence && npm run qa:vivito-forecasting-world-models && npm run qa:vivito-creativity-invention-engine && npm run qa:vivito-chief-of-staff-ceo-intelligence && npm run qa:vivito-systems-complexity-intelligence && npm run qa:vivito-deliverables && npm run qa:vivito-pdf-mastery && npm run qa:vivito-creative-artifacts && npm run qa:vivito-artifacts-v2 && npm run qa:vivito-competitive-intelligence && npm run qa:vivito-intelligence && npm run qa:vivito-red-team-v2 && npm run qa:vivito-language && npm run qa:vivito-actions && npm run qa:vivito-full-operator && npm run qa:vivito-operator-control && npm run qa:vivito-autonomy && npm run qa:vivito-external-writes && npm run qa:static && npm run qa:clients && npm run qa:tasks-archive && npm run qa:client-portal-v2 && npm run qa:media-control && npm run qa:media-pagination && npm run qa:media-intelligence && npm run qa:media-intelligence-cases && npm run qa:finance-reports && npm run qa:finance-recurring && npm run qa:rbac-security && npm run qa:search-rbac && npm run qa:session-security && npm run qa:mobile-ux && npm run qa:data-integrity && npm run qa:operations-security && npm run qa:operating-system-v4 && npm run qa:workspace-ux && npm run qa:hr-payroll && npm run qa:sales-lifecycle && npm run qa:feature-reality && npm run qa:resilience-ux && npm run qa:public-identity && npm run qa:database-security && npm run qa:production-polish && npm run qa:release-operations && npm run type-check && next build",
@@ -78,6 +80,26 @@
     "qa:runtime-smoke": "node scripts/qa-runtime-smoke.mjs && node scripts/qa-bootstrap-vgroup-hospitality.mjs && node scripts/qa-hospitality-action-e2e.mjs && node scripts/qa-vgroup-central-action-e2e.mjs",
     "qa": "npm run build"
   },
-  "dependencies": {"@auth/drizzle-adapter":"^1.7.4","bcryptjs":"^2.4.3","drizzle-orm":"0.45.2","next":"16.3.2","next-auth":"5.0.0-beta.32","postgres":"^3.4.5","react":"^19.2.0","react-dom":"^19.2.0"},
-  "devDependencies": {"@types/bcryptjs":"^2.4.6","@types/node":"^22","@types/react":"^19","@types/react-dom":"^19","drizzle-kit":"^0.30.4","eslint":"^9.0.0","eslint-config-next":"16.3.2","tailwindcss":"^3.4.17","tsx":"^4.19.2","typescript":"^5"}
+  "dependencies": {
+    "@auth/drizzle-adapter": "^1.7.4",
+    "bcryptjs": "^2.4.3",
+    "drizzle-orm": "0.45.2",
+    "next": "16.3.3",
+    "next-auth": "5.0.0-beta.32",
+    "postgres": "^3.4.5",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^22",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "drizzle-kit": "^0.30.4",
+    "eslint": "^9.0.0",
+    "eslint-config-next": "16.3.3",
+    "tailwindcss": "^3.4.17",
+    "tsx": "^4.19.2",
+    "typescript": "^5"
+  }
 }

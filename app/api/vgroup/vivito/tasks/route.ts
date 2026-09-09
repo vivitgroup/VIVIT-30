@@ -33,7 +33,7 @@ export async function POST(request:Request){
   if(!canUseVivitoCapability(session,cap))return NextResponse.json({error:{code:"CAPABILITY_FORBIDDEN",message:"Current user cannot execute this capability"}},{status:403,headers:NO_STORE});
   if(!validVivitoIdempotencyKey(idempotencyKey))return NextResponse.json({error:{code:"INVALID_IDEMPOTENCY_KEY",message:"A stable 8-128 character idempotency key is required"}},{status:400,headers:NO_STORE});
   const validation=validateVivitoCapabilityPayload(cap,body?.payload??{});
-  if(!validation.ok)return NextResponse.json({error:{code:validation.code,message:validation.message}},{status:400,headers:NO_STORE});
+  if(validation.ok===false)return NextResponse.json({error:{code:validation.code,message:validation.message}},{status:400,headers:NO_STORE});
   const payload=redactVivito(validation.payload);
   if(body?.dryRun===true)return NextResponse.json({ok:true,dryRun:true,capability:{key:cap.key,workspace:cap.workspace,risk:cap.risk,approvalRequired:safety.approvalRequired},payload},{headers:NO_STORE});
   const sql=getVGroupSql();

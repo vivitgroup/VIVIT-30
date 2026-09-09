@@ -2,31 +2,42 @@ import {canAccessBusinessUnit,hasPermission} from "@/lib/vgroup/contracts";
 import type {BusinessUnitCode,PermissionKey} from "@/lib/vgroup/contracts";
 import {getHospitalityDashboard,getTechDashboard} from "@/lib/vgroup/dashboard";
 import {getVGroupSql} from "@/lib/vgroup/db";
+import {listHospitalityIncidents} from "@/lib/vgroup/operational-controls";
 import type {VGroupSession} from "@/lib/vgroup/session";
 import type {VivitoWorkspace} from "@/lib/vgroup/vivito-cross-workspace";
 
 export type VivitoReadToolKey=
   |"group.executive_pulse"
+  |"group.risk_digest"
   |"hospitality.overview"
   |"hospitality.operations_summary"
   |"hospitality.properties_list"
   |"hospitality.reservations_list"
+  |"hospitality.occupancy"
+  |"hospitality.incidents_list"
+  |"hospitality.owner_performance"
   |"tech.overview"
   |"tech.operations_summary"
   |"tech.projects_list"
-  |"tech.issues_list";
+  |"tech.issues_list"
+  |"tech.change_requests_list"
+  |"tech.billing_summary";
 
 export type VivitoReadTool={
   key:VivitoReadToolKey;
   workspace:VivitoWorkspace;
   label:string;
   permission?:PermissionKey;
+  denyRoles?:readonly string[];
   execute:(session:VGroupSession)=>Promise<unknown>;
 };
 
 function canReadUnit(session:VGroupSession,unit:BusinessUnitCode,permission?:PermissionKey){
   if(!canAccessBusinessUnit(session,unit))return false;
   return permission?hasPermission(session,unit,permission):true;
+}
+function hasDeniedRole(session:VGroupSession,workspace:VivitoWorkspace,roles:readonly string[]|undefined){
+  return Boolean(roles?.length&&session.memberships.some(m=>(workspace==="group"||m.businessUnit===workspace)&&roles.includes(String(m.role))));
 }
 
 async function hospitalityOperationsSummary(){
@@ -63,6 +74,30 @@ async function hospitalityReservationsList(){
   return {reservations:Array.from(rows)};
 }
 
+async function hospitalityOccupancy(){
+  const sql=getVGroupSql();
+  const [summary]=await sql<Record<string,unknown>[]>`select
+    (select count(*)::int from hospitality.properties where archived_at is null and status='active') active_properties,
+    (select count(distinct property_id)::int from hospitality.reservations where archived_at is null and status in ('confirmed','checked_in') and check_in<=current_date and check_out>current_date) occupied_today,
+    (select count(*)::int from hospitality.reservations where archived_at is null and status in ('confirmed','checked_in') and check_in>=current_date and check_in<current_date+7) arrivals_next_7d,
+    (select count(*)::int from hospitality.reservations where archived_at is null and status='checked_in' and check_out>=current_date and check_out<current_date+7) departures_next_7d`;
+  const active=Number(summary?.active_properties??0),occupied=Number(summary?.occupied_today??0);
+  return {...summary,occupancy_percent:active>0?Math.round((occupied/active)*10000)/100:0};
+}
+
+async function hospitalityOwnerPerformance(){
+  const sql=getVGroupSql();
+  const rows=await sql<Record<string,unknown>[]>`select o.id::text,o.full_name,
+    count(distinct p.id)::int properties,
+    count(r.id) filter (where r.archived_at is null and r.status not in ('cancelled','no_show'))::int reservations,
+    coalesce(sum(r.gross_amount) filter (where r.archived_at is null and r.status not in ('cancelled','no_show')),0) gross_revenue,
+    coalesce(sum(r.net_owner_amount) filter (where r.archived_at is null and r.status not in ('cancelled','no_show')),0) owner_net
+    from hospitality.owners o left join hospitality.properties p on p.owner_id=o.id and p.archived_at is null
+    left join hospitality.reservations r on r.property_id=p.id
+    where o.archived_at is null group by o.id,o.full_name order by gross_revenue desc limit 100`;
+  return {owners:Array.from(rows)};
+}
+
 async function techOperationsSummary(){
   const sql=getVGroupSql();
   const [portfolio]=await sql<Record<string,unknown>[]>`select * from tech.portfolio_summary`;
@@ -97,30 +132,60 @@ async function techIssuesList(){
   return {issues:Array.from(rows)};
 }
 
+async function techChangeRequestsList(){
+  const sql=getVGroupSql();
+  const rows=await sql<Record<string,unknown>[]>`select cr.id::text,cr.project_id::text,p.name project_name,cr.title,cr.status,cr.price,cr.extra_days,cr.created_at
+    from tech.change_requests cr join tech.projects p on p.id=cr.project_id
+    where p.archived_at is null order by cr.created_at desc limit 100`;
+  return {changeRequests:Array.from(rows)};
+}
+
+async function techBillingSummary(){
+  const sql=getVGroupSql();
+  const [summary]=await sql<Record<string,unknown>[]>`select
+    count(*)::int installments,
+    count(*) filter (where status in ('pending','partial','overdue'))::int outstanding_installments,
+    count(*) filter (where status='overdue')::int overdue_installments,
+    coalesce(sum(amount) filter (where status in ('pending','partial','overdue')),0) outstanding_amount,
+    coalesce(sum(paid_amount),0) paid_amount
+    from tech.payment_installments`;
+  return summary??{};
+}
+
+async function groupRiskDigest(session:VGroupSession){
+  const risks:Record<string,unknown>={};
+  if(canReadUnit(session,"hospitality","properties:view"))risks.hospitality={overview:await getHospitalityDashboard(),operations:await hospitalityOperationsSummary(),occupancy:await hospitalityOccupancy()};
+  if(canReadUnit(session,"tech","projects:view"))risks.tech={overview:await getTechDashboard(),operations:await techOperationsSummary(),issues:await techIssuesList()};
+  return risks;
+}
+
 export const VIVITO_READ_TOOLS:readonly VivitoReadTool[]=[
   {key:"hospitality.overview",workspace:"hospitality",label:"Hospitality overview",permission:"properties:view",execute:async()=>getHospitalityDashboard()},
   {key:"hospitality.operations_summary",workspace:"hospitality",label:"Hospitality operations summary",permission:"properties:view",execute:async()=>hospitalityOperationsSummary()},
   {key:"hospitality.properties_list",workspace:"hospitality",label:"Hospitality properties",permission:"properties:view",execute:async()=>hospitalityPropertiesList()},
   {key:"hospitality.reservations_list",workspace:"hospitality",label:"Hospitality reservations",permission:"reservations:view",execute:async()=>hospitalityReservationsList()},
+  {key:"hospitality.occupancy",workspace:"hospitality",label:"Hospitality occupancy",permission:"reservations:view",execute:async()=>hospitalityOccupancy()},
+  {key:"hospitality.incidents_list",workspace:"hospitality",label:"Hospitality incidents",permission:"maintenance:view",execute:async()=>({incidents:Array.from(await listHospitalityIncidents(100))})},
+  {key:"hospitality.owner_performance",workspace:"hospitality",label:"Hospitality owner performance",permission:"finance:view",denyRoles:["OWNER"],execute:async()=>hospitalityOwnerPerformance()},
   {key:"tech.overview",workspace:"tech",label:"Tech overview",permission:"projects:view",execute:async()=>getTechDashboard()},
   {key:"tech.operations_summary",workspace:"tech",label:"Tech operations summary",permission:"projects:view",execute:async()=>techOperationsSummary()},
   {key:"tech.projects_list",workspace:"tech",label:"Tech projects",permission:"projects:view",execute:async()=>techProjectsList()},
   {key:"tech.issues_list",workspace:"tech",label:"Tech open issues",permission:"projects:view",execute:async()=>techIssuesList()},
+  {key:"tech.change_requests_list",workspace:"tech",label:"Tech change requests",permission:"change_requests:view",execute:async()=>techChangeRequestsList()},
+  {key:"tech.billing_summary",workspace:"tech",label:"Tech billing summary",permission:"finance:view",execute:async()=>techBillingSummary()},
   {key:"group.executive_pulse",workspace:"group",label:"Group executive pulse",execute:async(session)=>{
     const data:Record<string,unknown>={};
-    if(canReadUnit(session,"hospitality","properties:view")){
-      data.hospitality={overview:await getHospitalityDashboard(),operations:await hospitalityOperationsSummary()};
-    }
-    if(canReadUnit(session,"tech","projects:view")){
-      data.tech={overview:await getTechDashboard(),operations:await techOperationsSummary()};
-    }
+    if(canReadUnit(session,"hospitality","properties:view"))data.hospitality={overview:await getHospitalityDashboard(),operations:await hospitalityOperationsSummary()};
+    if(canReadUnit(session,"tech","projects:view"))data.tech={overview:await getTechDashboard(),operations:await techOperationsSummary()};
     return data;
   }},
+  {key:"group.risk_digest",workspace:"group",label:"Cross-company risk digest",execute:groupRiskDigest},
 ] as const;
 
 export function findVivitoReadTool(key:VivitoReadToolKey){return VIVITO_READ_TOOLS.find(tool=>tool.key===key)}
 
 export function canUseVivitoReadTool(session:VGroupSession,tool:VivitoReadTool){
+  if(hasDeniedRole(session,tool.workspace,tool.denyRoles))return false;
   if(tool.workspace==="group")return true;
   return canReadUnit(session,tool.workspace as BusinessUnitCode,tool.permission);
 }
@@ -128,18 +193,27 @@ export function canUseVivitoReadTool(session:VGroupSession,tool:VivitoReadTool){
 const OPERATIONS_INTENT=/(operation|operations|risk|risks|problem|problems|attention|today|housekeeping|maintenance|complaint|inbox|release|uat|capacity|timesheet|deliverable|تشغيل|عمليات|مشكلة|مشاكل|مخاطر|اليوم|هاوس كيبنج|صيانة|شكوى|شكاوى|اصدار|إصدار)/i;
 const PROPERTY_INTENT=/(property|properties|unit|units|villa|apartment|owner property|عقار|عقارات|وحدة|وحدات|فيلا|شقة|شقق)/i;
 const RESERVATION_INTENT=/(reservation|reservations|booking|bookings|guest|guests|check.?in|check.?out|حجز|حجوزات|ضيف|ضيوف|تشيك.?ان|تشيك.?اوت)/i;
+const OCCUPANCY_INTENT=/(occupancy|occupied|vacancy|vacant|اشغال|إشغال|مشغول|فاضي|متاح)/i;
+const OWNER_INTENT=/(owner|owners|owner performance|مالك|ملاك|مالكين|اداء المالك|أداء المالك)/i;
+const INCIDENT_INTENT=/(incident|incidents|maintenance issue|guest incident|حادث|حوادث|بلاغ|بلاغات|صيانة)/i;
 const PROJECT_INTENT=/(project|projects|portfolio|progress|phase|deadline|delivery|مشروع|مشاريع|بروجكت|بروجكتات|تقدم|مرحلة|تسليم)/i;
 const ISSUE_INTENT=/(issue|issues|bug|bugs|incident|incidents|defect|defects|problem|problems|مشكلة|مشاكل|باج|باجات|عطل|اعطال|أعطال)/i;
+const CHANGE_REQUEST_INTENT=/(change request|change requests|scope change|cr\b|تغيير|تعديلات|طلب تغيير|طلبات تغيير)/i;
+const BILLING_INTENT=/(billing|installment|installments|payment|payments|overdue|invoice|finance|تحصيل|قسط|اقساط|أقساط|دفعة|دفعات|متأخر|مالية)/i;
+const GROUP_RISK_INTENT=/(risk|risks|problem|problems|attention|priority|priorities|decision|decisions|مخاطر|مشاكل|انتباه|اولوية|أولوية|اولويات|أولويات|قرار|قرارات)/i;
 
 function unique(keys:VivitoReadToolKey[]){return [...new Set(keys)]}
 
 export function selectVivitoReadTools(workspace:VivitoWorkspace,question:string):VivitoReadToolKey[]{
-  if(workspace==="group")return ["group.executive_pulse"];
+  if(workspace==="group")return GROUP_RISK_INTENT.test(question)?["group.executive_pulse","group.risk_digest"]:["group.executive_pulse"];
   if(workspace==="hospitality"){
     const keys:VivitoReadToolKey[]=["hospitality.overview"];
     if(OPERATIONS_INTENT.test(question))keys.push("hospitality.operations_summary");
     if(PROPERTY_INTENT.test(question))keys.push("hospitality.properties_list");
     if(RESERVATION_INTENT.test(question))keys.push("hospitality.reservations_list");
+    if(OCCUPANCY_INTENT.test(question))keys.push("hospitality.occupancy");
+    if(INCIDENT_INTENT.test(question))keys.push("hospitality.incidents_list");
+    if(OWNER_INTENT.test(question))keys.push("hospitality.owner_performance");
     return unique(keys);
   }
   if(workspace==="tech"){
@@ -147,6 +221,8 @@ export function selectVivitoReadTools(workspace:VivitoWorkspace,question:string)
     if(OPERATIONS_INTENT.test(question))keys.push("tech.operations_summary");
     if(PROJECT_INTENT.test(question))keys.push("tech.projects_list");
     if(ISSUE_INTENT.test(question))keys.push("tech.issues_list");
+    if(CHANGE_REQUEST_INTENT.test(question))keys.push("tech.change_requests_list");
+    if(BILLING_INTENT.test(question))keys.push("tech.billing_summary");
     return unique(keys);
   }
   return [];

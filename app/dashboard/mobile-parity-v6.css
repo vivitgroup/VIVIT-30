@@ -116,5 +116,17 @@
     z-index: 960 !important;
   }
 
-  .app-main-shell .app-content { padding-bottom: 190px !important; }
+  /* Reserve real scroll space for the fixed mobile navigation. Padding alone is not
+     enough when browsers scroll a focused control to the nearest visible edge. */
+  html,
+  body,
+  #dashboard-content {
+    scroll-padding-bottom: calc(128px + env(safe-area-inset-bottom)) !important;
+  }
+  .app-main-shell .app-content {
+    padding-bottom: 190px !important;
+  }
+  .app-main-shell .app-content :is(button,[role="button"],input,textarea,select,a) {
+    scroll-margin-bottom: calc(112px + env(safe-area-inset-bottom));
+  }
 }

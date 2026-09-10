@@ -1,3 +1,5 @@
+create schema if not exists vgroup;
+
 create table if not exists vgroup.live_revision_scopes (
   scope text primary key check (scope in ('group','hospitality','tech')),
   revision bigint not null default 0,

@@ -29,6 +29,11 @@ function decodeManifest(value:string):Manifest|null{
   return parsed;
  }catch{return null}
 }
+function isOwnedMultipartPath(path:string,workspaceId:string,userId:string){
+ if(path.includes("..")||path.includes("\\"))return false;
+ const segments=path.split("/");
+ return segments.length===4&&segments[0]===workspaceId&&/^\d{4}$/.test(segments[1])&&segments[2]===userId&&Boolean(segments[3]);
+}
 async function sessionScope(){
  const session=await auth();if(!session?.user)return null;
  const u=session.user as unknown as Record<string,unknown>;
@@ -99,7 +104,7 @@ export async function POST(req:NextRequest){
  const declaration=validateVivitoUploadDeclaration({name,mimeType:mime,size},MAX_SIZE);
  if(!declaration.ok)return NextResponse.json({error:declaration.code==="file-too-large"?"Maximum file size is 500 MB.":declaration.code==="invalid-file-size"?"Invalid file size.":"This file type is not allowed or does not match its filename."},{status:declaration.status});
  if(!parts.length||parts.length>16)return NextResponse.json({error:"Invalid multipart upload."},{status:400});
- if(parts.some(p=>!p.path||!Number.isFinite(p.size)||p.size<=0||p.size>PART_MAX||!p.path.startsWith(`${s.workspaceId}/`)||!p.path.includes(`/${s.userId}/`)||p.path.includes("..")))return NextResponse.json({error:"Invalid multipart part."},{status:403});
+ if(parts.some(p=>!p.path||!Number.isFinite(p.size)||p.size<=0||p.size>PART_MAX||!isOwnedMultipartPath(p.path,s.workspaceId,s.userId)))return NextResponse.json({error:"Invalid multipart part."},{status:403});
  if(parts.reduce((n,p)=>n+p.size,0)!==size)return NextResponse.json({error:"Multipart size does not match the original file."},{status:409});
  if(taskId||clientId){
   let allowed=false;
@@ -115,7 +120,7 @@ export async function POST(req:NextRequest){
  for(const part of parts){
   const info=await objectInfo(part.path);if(!info.ok)return NextResponse.json({error:"One uploaded part could not be verified."},{status:409});
   if(!Number.isFinite(info.size)||info.size<=0||info.size!==part.size)return NextResponse.json({error:"Stored multipart part size does not match."},{status:409});
-  if(info.mime&&info.mime!==mime)return NextResponse.json({error:"Stored multipart part type does not match the upload declaration."},{status:409});
+  if(!info.mime||info.mime!==mime)return NextResponse.json({error:"Stored multipart part type does not match the upload declaration."},{status:409});
  }
  const manifest:Manifest={v:1,parts,size,mime};const storagePath=encodeManifest(manifest);
  const existing=await db.select({id:fileDocuments.id,taskId:fileDocuments.taskId}).from(fileDocuments).where(and(eq(fileDocuments.workspaceId,s.workspaceId),eq(fileDocuments.storagePath,storagePath))).limit(1);

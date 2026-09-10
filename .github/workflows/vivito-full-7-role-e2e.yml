@@ -1,0 +1,156 @@
+name: VIVITO Full 7-Role E2E Certification
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vivito-full-7-role-e2e-${{ github.event.pull_request.head.sha || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  seven-role-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: vivit_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d vivit_e2e"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/vivit_e2e
+      DRIZZLE_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/vivit_e2e
+      DATABASE_SSL_DISABLED: "1"
+      NEXTAUTH_SECRET: vivito-task19-e2e-auth-secret-only-not-production
+      AUTH_SECRET: vivito-task19-e2e-auth-secret-only-not-production
+      NEXTAUTH_URL: http://127.0.0.1:3000
+      AUTH_URL: http://127.0.0.1:3000
+      E2E_BASE_URL: http://127.0.0.1:3000
+      E2E_AUTH_RATE_LIMIT_MODE: isolated-ci
+      E2E_USERS_FILE: /tmp/vivit-e2e-users.json
+      E2E_SUPABASE_PORT: "54321"
+      SUPABASE_URL: http://127.0.0.1:54321
+      SUPABASE_SERVICE_KEY: e2e-service-key
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Generate ephemeral E2E credential
+        shell: bash
+        run: |
+          set -euo pipefail
+          E2E_PASSWORD="Vivit-E2E-$(openssl rand -hex 16)"
+          echo "::add-mask::$E2E_PASSWORD"
+          echo "E2E_PASSWORD=$E2E_PASSWORD" >> "$GITHUB_ENV"
+
+      - name: Create isolated database schema
+        run: npx drizzle-kit push --force
+
+      - name: Apply runtime parity migrations
+        run: node scripts/apply-enterprise-runtime-parity.mjs
+
+      - name: Seed seven isolated roles
+        run: npx tsx scripts/seed-enterprise-e2e.ts
+
+      - name: Start isolated Supabase auth REST mock
+        shell: bash
+        run: |
+          node scripts/e2e-supabase-rest-mock.mjs > /tmp/vivit-e2e-supabase.log 2>&1 &
+          echo $! > /tmp/vivit-e2e-supabase.pid
+          for i in {1..20}; do
+            if curl -fsS -H 'apikey: e2e-service-key' -H 'Authorization: Bearer e2e-service-key' 'http://127.0.0.1:54321/rest/v1/users?email=eq.e2e.super%40vivit.local' >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/vivit-e2e-supabase.log
+          exit 1
+
+      - name: TypeScript acceptance
+        run: npm run type-check
+
+      - name: Build exact-head application
+        run: npx next build
+
+      - name: Install Playwright browsers
+        run: |
+          npm install --no-save --package-lock=false @playwright/test@1.55.0
+          npx playwright install --with-deps chromium webkit
+
+      - name: Start built application
+        shell: bash
+        run: |
+          npm start > /tmp/vivit-task19-e2e.log 2>&1 &
+          echo $! > /tmp/vivit-task19-e2e.pid
+          for i in {1..40}; do
+            if curl -fsS http://127.0.0.1:3000/login >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/vivit-task19-e2e.log
+          exit 1
+
+      - name: Run full authenticated seven-role matrix and privilege negatives
+        run: npx playwright test -c playwright.enterprise.config.mjs tests/enterprise-role-e2e.spec.mjs tests/vivito-full-7-role-security.spec.mjs
+
+      - name: Enforce zero database runtime errors
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          CONTAINER_ID="$(docker ps --filter ancestor=postgres:17 --format '{{.ID}}' | head -1)"
+          test -n "$CONTAINER_ID"
+          docker logs "$CONTAINER_ID" > /tmp/vivit-task19-postgres.log 2>&1 || true
+          if grep -E 'ERROR:|FATAL:|PANIC:' /tmp/vivit-task19-postgres.log; then
+            echo 'Database runtime errors detected during full seven-role E2E.'
+            exit 1
+          fi
+
+      - name: Stage failure diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          mkdir -p test-results/vivito-task19/runtime-diagnostics
+          cp /tmp/vivit-task19-e2e.log test-results/vivito-task19/runtime-diagnostics/app.log 2>/dev/null || true
+          cp /tmp/vivit-e2e-supabase.log test-results/vivito-task19/runtime-diagnostics/auth-mock.log 2>/dev/null || true
+          cp /tmp/vivit-task19-postgres.log test-results/vivito-task19/runtime-diagnostics/postgres.log 2>/dev/null || true
+
+      - name: Upload browser evidence on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vivito-task19-browser-evidence-${{ github.event.pull_request.head.sha || github.sha }}
+          path: test-results
+          if-no-files-found: ignore
+          retention-days: 3
+
+      - name: Show runtime logs on failure
+        if: failure()
+        run: |
+          echo '--- app ---'
+          cat /tmp/vivit-task19-e2e.log || true
+          echo '--- auth mock ---'
+          cat /tmp/vivit-e2e-supabase.log || true
+          echo '--- postgres ---'
+          cat /tmp/vivit-task19-postgres.log || true

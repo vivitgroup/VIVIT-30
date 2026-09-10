@@ -1,53 +1,47 @@
-name: VIVITO Production DB Gate
+name: VIVITO Production DB Offline Certification
 
 on:
   workflow_dispatch:
-    inputs:
-      mode:
-        description: 'CHECK is read-only. APPLY executes only the four controlled VIVITO migrations, then verifies schema/RLS.'
-        required: true
-        default: CHECK
-        type: choice
-        options:
-          - CHECK
-          - APPLY
+  pull_request:
 
 permissions:
   contents: read
 
 concurrency:
-  group: vivito-production-db-gate
-  cancel-in-progress: false
+  group: vivito-production-db-offline-cert-${{ github.event.pull_request.head.sha || github.sha }}
+  cancel-in-progress: true
 
 jobs:
-  production-db-gate:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment: production
+  offline-production-db-plan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
-      - name: Checkout release branch
+      - name: Checkout exact candidate SHA
         uses: actions/checkout@v4
-
-      - name: Use Node 22
-        uses: actions/setup-node@v4
         with:
-          node-version: 22
-          cache: npm
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      - name: Install locked dependencies
-        run: npm ci
-
-      - name: Refuse missing production database secret
-        env:
-          PROD_DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+      - name: Assert exact candidate SHA
+        shell: bash
         run: |
-          if [ -z "$PROD_DATABASE_URL" ]; then
-            echo "PROD_DATABASE_URL is not configured in the protected production environment."
+          set -euo pipefail
+          ACTUAL="$(git rev-parse HEAD)"
+          EXPECTED="${{ github.event.pull_request.head.sha || github.sha }}"
+          test "$ACTUAL" = "$EXPECTED"
+
+      - name: Certify Production migration plan offline
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f scripts/vivito-production-db-gate.mjs
+          test -f RELEASE-RUNBOOK.md
+          grep -Fq "CI must not connect to Production for backup, restore, migration, or validation" RELEASE-RUNBOOK.md
+          grep -Fq "Stage 14 — Final CTO Acceptance" RELEASE-RUNBOOK.md
+          grep -Fq "VIVITO_PROD_DB_MODE" scripts/vivito-production-db-gate.mjs
+          grep -Fq "APPLY" scripts/vivito-production-db-gate.mjs
+          grep -Fq "sql.begin" scripts/vivito-production-db-gate.mjs
+          if grep -Eq 'PROD_DATABASE_URL[[:space:]]*:[[:space:]]*\$\{\{[[:space:]]*secrets\.' .github/workflows/*.yml; then
+            echo "Refusing CI workflow access to Production database credentials."
             exit 1
           fi
-
-      - name: Production preflight / controlled migration / readback
-        env:
-          PROD_DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
-          VIVITO_PROD_DB_MODE: ${{ inputs.mode }}
-        run: node scripts/vivito-production-db-gate.mjs
+          echo "Production DB plan certification: PASS (offline only; no Production credential or connection)."

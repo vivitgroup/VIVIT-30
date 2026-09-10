@@ -1,0 +1,26 @@
+name: VIVITO Arabic Natural Command Certification
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vivito-arabic-natural-command-cert-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Certify Arabic and natural-command safety
+        run: npx tsx scripts/certify-vivito-arabic-natural-command.ts

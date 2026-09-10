@@ -12,9 +12,9 @@ const checks = [
   ["response disables caching", /private, no-store/],
   ["response enables nosniff", /X-Content-Type-Options/],
   ["remediation is disabled by default", /remediation: \{ enabled: false, requiresConfirmation: true \}/],
-  ["no environment values are returned", !/value:\s*process\.env|process\.env\[[^\]]+\]\s*[,}]/],
-  ["route performs no mutation verbs", !/export async function (POST|PUT|PATCH|DELETE)/],
-  ["route performs no database mutation", !/\b(insert|update|delete)\s+/i],
+  ["no environment values are returned", !/value:\s*process\.env|process\.env\[[^\]]+\]\s*[,}]/.test(source)],
+  ["route performs no mutation verbs", !/export async function (POST|PUT|PATCH|DELETE)/.test(source)],
+  ["route performs no database mutation", !/\b(insert|update|delete)\s+/i.test(source)],
 ];
 
 let failures = 0;

@@ -1,0 +1,33 @@
+name: VIVITO Memory Knowledge Certification
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vivito-memory-knowledge-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  memory-knowledge-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Verify memory, academy and knowledge safety contracts
+        run: npx tsx scripts/qa-vivito-memory-knowledge-v1.ts
+      - name: Verify implementation wiring
+        run: |
+          grep -F 'forgettableVivitoMemories' lib/vivito/memory.ts
+          grep -F 'isVivitoMemoryVisible' lib/vivito/memory.ts
+          grep -F 'workspace-required-for-live-knowledge' lib/vivito/live-knowledge-fabric.ts
+          grep -F 'MEMORY & LEARNING INTELLIGENCE' lib/vivito/academy.ts

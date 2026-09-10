@@ -35,14 +35,24 @@ check("valid declaration returns canonical MIME and size",()=>{
  const ok=validateVivitoUploadDeclaration({name:"photo.JPEG",mimeType:" IMAGE/JPEG ",size:1024});
  assert.equal(ok.ok,true);if(ok.ok){assert.equal(ok.mime,"image/jpeg");assert.equal(ok.size,1024)}
 });
-check("multipart route is wired to centralized policy and verifies stored MIME",()=>{
+check("multipart route is wired to centralized policy and fails closed on stored MIME",()=>{
  const route=fs.readFileSync("app/api/files/multipart/route.ts","utf8");
  assert.match(route,/validateVivitoUploadDeclaration/);
- assert.match(route,/info\.mime&&info\.mime!==mime/);
+ assert.match(route,/!info\.mime\|\|info\.mime!==mime/);
  assert.match(route,/X-Content-Type-Options/);
  assert.match(route,/workspaceId/);
  assert.match(route,/uploadedBy/);
 });
+check("multipart completion requires the canonical workspace-year-user-object path",()=>{
+ const route=fs.readFileSync("app/api/files/multipart/route.ts","utf8");
+ const signer=fs.readFileSync("app/api/files/upload-sign-v2/route.ts","utf8");
+ assert.match(route,/function isOwnedMultipartPath/);
+ assert.match(route,/segments\.length===4/);
+ assert.match(route,/segments\[0\]===workspaceId/);
+ assert.match(route,/segments\[2\]===userId/);
+ assert.match(route,/\\\^\\d\{4\}\\\$/.source);
+ assert.match(signer,/\$\{workspaceId\}\/\$\{new Date\(\)\.getFullYear\(\)\}\/\$\{userId\}\//);
+});
 
-console.log(`\n${passed}/10 VIVITO file upload policy checks passed.`);
-assert.equal(passed,10);
+console.log(`\n${passed}/11 VIVITO file upload policy checks passed.`);
+assert.equal(passed,11);

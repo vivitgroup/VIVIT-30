@@ -6,10 +6,13 @@ const FRANCO_HINT=/(\b(?:3ayez|3awez|3ayza|3awza|5aly|5alli|2fel|2fl|3del|3addel
 const GENZ_HINT=/\b(?:lol|lmao|fr|ngl|bro|bruh|vibe|vibes|slay|cringe|lowkey|highkey|w|l|goated|mid|sus|cap|no cap|bet|lit|fire|fyp|pov|rn|idk|imo|tbh)\b/i;
 const EGYPTIAN_HINT=/(عايز|عاوزه|عاوز|خلي|خلّي|اقفل|قفل|امسح|حط|يلا|كده|مش|دلوقتي|النهارده|أوي|اوي|جامد|تمام|فلوس|تاسك|عميل)/i;
 
+// Exposed for prompts/UI terminology only. Never use this glossary as a global
+// text replacement map because these words may be part of a real entity name.
+export const VIVITO_BUSINESS_GLOSSARY={"client":"عميل","task":"تاسك","campaign":"كامبين","budget":"بادجت","payment":"دفعة","expense":"مصروف","invoice":"فاتورة"} as const;
+
 // Intent normalization is deliberately limited to colloquial/function words.
-// Business nouns such as client/task/campaign/budget are NOT translated here:
-// they may be part of an unquoted real entity name (for example "QA Client").
-// The action planner receives the original text and resolves business nouns itself.
+// Business nouns are preserved verbatim so unquoted names such as "QA Client"
+// remain byte-for-byte stable before directory binding and authorization.
 const INTENT_MAP:Record<string,string>={
   "3ayez":"عايز","3awez":"عايز","3ayza":"عايزة","3awza":"عايزة","5aly":"خلي","5alli":"خلي","2fel":"اقفل","2fl":"اقفل","3del":"عدل","3addel":"عدل","msh":"مش","mesh":"مش","el":"ال","da":"ده","de":"دي","yalla":"يلا","kda":"كده","keda":"كده","7ot":"حط","7ott":"حط","emsa7":"امسح","ms7":"امسح","edfa3":"ادفع","daf3":"دفع","3amel":"اعمل","3and":"عند","3ala":"على","mn":"من","fe":"في","fi":"في","kol":"كل","koll":"كل"
 };

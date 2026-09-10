@@ -4,8 +4,9 @@ import {canAccessBusinessUnit,hasPermission} from "@/lib/vgroup/contracts";
 
 export type VivitoWorkspace="group"|"marketing"|"hospitality"|"tech";
 export type VivitoRisk="read"|"write"|"sensitive";
+export type VivitoTransport="json"|"form";
 export type VivitoJsonValue=null|boolean|number|string|VivitoJsonValue[]|{[key:string]:VivitoJsonValue};
-export type VivitoCapability={key:string;workspace:VivitoWorkspace;label:string;risk:VivitoRisk;approvalRequired:boolean;enabled:boolean;endpoint:string|null;method:"POST"|"GET";permission?:PermissionKey;staticPayload?:Record<string,unknown>};
+export type VivitoCapability={key:string;workspace:VivitoWorkspace;label:string;risk:VivitoRisk;approvalRequired:boolean;enabled:boolean;endpoint:string|null;method:"POST"|"GET";permission?:PermissionKey;staticPayload?:Record<string,unknown>;transport?:VivitoTransport};
 const marketingEnabled=process.env.VGROUP_MARKETING_INTEGRATION_ENABLED==="true";
 
 export const VIVITO_CAPABILITIES:readonly VivitoCapability[]=[
@@ -14,6 +15,7 @@ export const VIVITO_CAPABILITIES:readonly VivitoCapability[]=[
   {key:"hospitality.owner_create",workspace:"hospitality",label:"Create owner",risk:"write",approvalRequired:false,enabled:true,endpoint:"/api/vgroup/hospitality/owners",method:"POST",permission:"owners:create"},
   {key:"hospitality.property_create",workspace:"hospitality",label:"Create property",risk:"sensitive",approvalRequired:true,enabled:true,endpoint:"/api/vgroup/hospitality/properties",method:"POST",permission:"properties:create"},
   {key:"hospitality.reservation_create",workspace:"hospitality",label:"Create reservation",risk:"sensitive",approvalRequired:true,enabled:true,endpoint:"/api/vgroup/hospitality/reservations",method:"POST",permission:"reservations:create"},
+  {key:"hospitality.expense_create",workspace:"hospitality",label:"Create expense",risk:"sensitive",approvalRequired:true,enabled:true,endpoint:"/api/vgroup/hospitality/expenses",method:"POST",permission:"finance:create",transport:"form"},
   {key:"tech.project_create",workspace:"tech",label:"Create project",risk:"sensitive",approvalRequired:true,enabled:true,endpoint:"/api/vgroup/tech/projects",method:"POST",permission:"projects:create"},
   {key:"tech.issue_create",workspace:"tech",label:"Create issue",risk:"write",approvalRequired:false,enabled:true,endpoint:"/api/vgroup/tech/operations",method:"POST",permission:"projects:update",staticPayload:{operation:"issue"}},
   {key:"tech.deliverable_create",workspace:"tech",label:"Create deliverable",risk:"write",approvalRequired:false,enabled:true,endpoint:"/api/vgroup/tech/operations",method:"POST",permission:"projects:update",staticPayload:{operation:"deliverable"}},

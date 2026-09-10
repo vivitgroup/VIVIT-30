@@ -18,7 +18,11 @@ export async function GET(){
   const events=canApprove
     ?await sql`select e.id::text,e.task_id::text,e.actor_user_id::text,e.event_type,e.metadata_redacted,e.created_at from vgroup.vivito_task_events e join (select id from vgroup.vivito_tasks order by created_at desc limit 100) t on t.id=e.task_id order by e.created_at desc limit 500`
     :await sql`select e.id::text,e.task_id::text,e.actor_user_id::text,e.event_type,e.metadata_redacted,e.created_at from vgroup.vivito_task_events e join vgroup.vivito_tasks t on t.id=e.task_id where t.actor_user_id=${session.userId}::uuid order by e.created_at desc limit 500`;
-  return NextResponse.json({canApprove,capabilities:vivitoPublicCapabilities().filter(c=>c.workspace==='marketing'||canUseVivitoCapability(session,findVivitoCapability(c.key)!)),tasks:Array.from(tasks),events:Array.from(events)},{headers:NO_STORE});
+  const capabilities=vivitoPublicCapabilities().filter(item=>{
+    const cap=findVivitoCapability(item.key);
+    return Boolean(cap&&canUseVivitoCapability(session,cap));
+  });
+  return NextResponse.json({canApprove,capabilities,tasks:Array.from(tasks),events:Array.from(events)},{headers:NO_STORE});
 }
 
 export async function POST(request:Request){

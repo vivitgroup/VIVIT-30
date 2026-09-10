@@ -50,7 +50,7 @@ check("multipart completion requires the canonical workspace-year-user-object pa
  assert.match(route,/segments\.length===4/);
  assert.match(route,/segments\[0\]===workspaceId/);
  assert.match(route,/segments\[2\]===userId/);
- assert.match(route,/\\\^\\d\{4\}\\\$/.source);
+ assert.ok(route.includes('/^\\d{4}$/'));
  assert.match(signer,/\$\{workspaceId\}\/\$\{new Date\(\)\.getFullYear\(\)\}\/\$\{userId\}\//);
 });
 

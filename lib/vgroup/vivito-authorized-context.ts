@@ -1,6 +1,7 @@
-import {canAccessBusinessUnit,hasPermission,isBusinessUnitCode,type BusinessUnitCode} from "@/lib/vgroup/contracts";
+import {canAccessBusinessUnit,isBusinessUnitCode,type BusinessUnitCode} from "@/lib/vgroup/contracts";
 import {getHospitalityDashboard,getTechDashboard} from "@/lib/vgroup/dashboard";
 import type {VGroupSession} from "@/lib/vgroup/session";
+import {authorizedVivitoLiveModules} from "@/lib/vgroup/vivito-cross-module-policy";
 
 export type VivitoSelectedWorkspace="group"|BusinessUnitCode;
 
@@ -25,14 +26,13 @@ export function resolveVivitoWorkspace(value:unknown):VivitoSelectedWorkspace{
 }
 
 export async function buildAuthorizedVivitoContext(session:VGroupSession,workspace:VivitoSelectedWorkspace):Promise<AuthorizedVivitoContext>{
+  if(workspace!=="group"&&!canAccessBusinessUnit(session,workspace))throw new Error("vivito-workspace-forbidden");
   const memberships=scopedMemberships(session,workspace).map(m=>({businessUnit:m.businessUnit,role:m.role,permissionCount:m.permissions.length}));
   const liveData:AuthorizedVivitoContext["liveData"]={};
+  const modules=authorizedVivitoLiveModules(session,workspace);
 
-  const canReadHospitality=(workspace==="group"||workspace==="hospitality")&&canAccessBusinessUnit(session,"hospitality")&&hasPermission(session,"hospitality","properties:view");
-  const canReadTech=(workspace==="group"||workspace==="tech")&&canAccessBusinessUnit(session,"tech");
-
-  if(canReadHospitality)liveData.hospitality=await getHospitalityDashboard();
-  if(canReadTech)liveData.tech=await getTechDashboard();
+  if(modules.includes("hospitality"))liveData.hospitality=await getHospitalityDashboard();
+  if(modules.includes("tech"))liveData.tech=await getTechDashboard();
 
   return {workspace,memberships,liveData};
 }

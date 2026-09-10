@@ -6,8 +6,12 @@ const FRANCO_HINT=/(\b(?:3ayez|3awez|3ayza|3awza|5aly|5alli|2fel|2fl|3del|3addel
 const GENZ_HINT=/\b(?:lol|lmao|fr|ngl|bro|bruh|vibe|vibes|slay|cringe|lowkey|highkey|w|l|goated|mid|sus|cap|no cap|bet|lit|fire|fyp|pov|rn|idk|imo|tbh)\b/i;
 const EGYPTIAN_HINT=/(عايز|عاوزه|عاوز|خلي|خلّي|اقفل|قفل|امسح|حط|يلا|كده|مش|دلوقتي|النهارده|أوي|اوي|جامد|تمام|فلوس|تاسك|عميل)/i;
 
-const MAP:Record<string,string>={
-  "3ayez":"عايز","3awez":"عايز","3ayza":"عايزة","3awza":"عايزة","5aly":"خلي","5alli":"خلي","2fel":"اقفل","2fl":"اقفل","3del":"عدل","3addel":"عدل","msh":"مش","mesh":"مش","el":"ال","da":"ده","de":"دي","yalla":"يلا","kda":"كده","keda":"كده","7ot":"حط","7ott":"حط","emsa7":"امسح","ms7":"امسح","edfa3":"ادفع","daf3":"دفع","3amel":"اعمل","3and":"عند","3ala":"على","mn":"من","fe":"في","fi":"في","kol":"كل","koll":"كل","client":"عميل","task":"تاسك","campaign":"كامبين","budget":"بادجت","payment":"دفعة","expense":"مصروف","invoice":"فاتورة"
+// Intent normalization is deliberately limited to colloquial/function words.
+// Business nouns such as client/task/campaign/budget are NOT translated here:
+// they may be part of an unquoted real entity name (for example "QA Client").
+// The action planner receives the original text and resolves business nouns itself.
+const INTENT_MAP:Record<string,string>={
+  "3ayez":"عايز","3awez":"عايز","3ayza":"عايزة","3awza":"عايزة","5aly":"خلي","5alli":"خلي","2fel":"اقفل","2fl":"اقفل","3del":"عدل","3addel":"عدل","msh":"مش","mesh":"مش","el":"ال","da":"ده","de":"دي","yalla":"يلا","kda":"كده","keda":"كده","7ot":"حط","7ott":"حط","emsa7":"امسح","ms7":"امسح","edfa3":"ادفع","daf3":"دفع","3amel":"اعمل","3and":"عند","3ala":"على","mn":"من","fe":"في","fi":"في","kol":"كل","koll":"كل"
 };
 
 export function detectVivitoLanguageStyle(text:string):VivitoLanguageStyle{
@@ -23,7 +27,7 @@ export function detectVivitoLanguageStyle(text:string):VivitoLanguageStyle{
 export function normalizeVivitoLanguage(text:string){
   const raw=String(text||"");
   const style=detectVivitoLanguageStyle(raw);
-  const normalized=raw.replace(/\b[\w']+\b/g,(token)=>MAP[token.toLowerCase()]||token).replace(/\s+/g," ").trim();
+  const normalized=raw.replace(/\b[\w']+\b/g,(token)=>INTENT_MAP[token.toLowerCase()]||token).replace(/\s+/g," ").trim();
   return {raw,normalized,style};
 }
 

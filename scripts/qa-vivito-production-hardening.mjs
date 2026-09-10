@@ -53,6 +53,9 @@ for (const name of workflowFiles) {
 }
 
 const failed = checks.filter((item) => !item.ok);
-for (const item of checks) console.log(`${item.ok ? "PASS" : "FAIL"}  ${item.name}`);
-console.log(`\n${checks.length - failed.length}/${checks.length} production hardening checks passed.`);
-if (failed.length) process.exit(1);
+if (failed.length) {
+  console.error(`Production hardening failed: ${failed.length}/${checks.length} checks failed.`);
+  for (const item of failed) console.error(`FAIL  ${item.name}`);
+  process.exit(1);
+}
+console.log(`Production hardening: PASS (${checks.length}/${checks.length} checks, ${workflowFiles.length} workflows scanned).`);

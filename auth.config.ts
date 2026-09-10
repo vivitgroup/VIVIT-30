@@ -46,13 +46,13 @@ const authConfig={
   async jwt({token,user}){
    if(user){token.role=user.role;token.roles=user.roles??(user.role?[user.role]:[]);token.permissions=user.permissions??[];token.workspaceId=user.workspaceId;token.authValid=true}
    if(token.sub){
-    const live=await liveUserState(token.sub),issuedAtMs=Number(token.iat||0)*1000,passwordChangedMs=live?.passwordChangedAt?new Date(live.passwordChangedAt).getTime():0;
-    token.authValid=Boolean(live?.is_active)&&String(live?.approval_status||"")==="APPROVED"&&(!passwordChangedMs||passwordChangedMs<=issuedAtMs);
+    const live=await liveUserState(token.sub),issuedAtMs=Number(token.iat||0)*1000,passwordChangedMs=live?.passwordChangedAt?new Date(live.passwordChangedAt).getTime():0,liveRole=isRole(live?.role)?live.role:undefined;
+    token.authValid=Boolean(live?.is_active)&&String(live?.approval_status||"")==="APPROVED"&&Boolean(liveRole)&&(!passwordChangedMs||passwordChangedMs<=issuedAtMs);
     if(typeof live?.name==="string"&&live.name.trim())token.name=live.name.trim();
-    if(isRole(live?.role))token.role=live.role;
-    token.roles=live?.roles??(isRole(live?.role)?[live.role]:[]);
+    token.role=liveRole;
+    token.roles=live?.roles??(liveRole?[liveRole]:[]);
     token.permissions=live?.permissions??[];
-    if(live?.workspace_id)token.workspaceId=live.workspace_id;
+    token.workspaceId=live?.workspace_id||undefined;
    }else token.authValid=false;
    return token;
   },

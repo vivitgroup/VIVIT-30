@@ -1,0 +1,32 @@
+name: VIVITO Cross-Module Intelligence Certification
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vivito-cross-module-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cross-module-cert:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Certify cross-module authorization boundaries
+        run: npx tsx scripts/qa-vivito-cross-module-intelligence.ts
+      - name: Verify centralized policy wiring
+        run: |
+          grep -F 'authorizedVivitoLiveModules' lib/vgroup/vivito-authorized-context.ts
+          grep -F 'vivito-workspace-forbidden' lib/vgroup/vivito-authorized-context.ts
+          grep -F 'properties:view' lib/vgroup/vivito-cross-module-policy.ts

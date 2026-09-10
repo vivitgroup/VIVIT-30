@@ -1,0 +1,57 @@
+name: VIVITO Production Hardening Certification
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vivito-production-hardening-${{ github.event.pull_request.head.sha || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  production-hardening:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact candidate SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+
+      - name: Assert exact candidate SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          ACTUAL="$(git rev-parse HEAD)"
+          EXPECTED="${{ github.event.pull_request.head.sha || github.sha }}"
+          echo "actual=$ACTUAL"
+          echo "expected=$EXPECTED"
+          test "$ACTUAL" = "$EXPECTED"
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies only
+        run: npm ci
+
+      - name: Production hardening certification
+        run: node scripts/qa-vivito-production-hardening.mjs
+
+      - name: Existing production security regression
+        run: node scripts/qa-production-polish.mjs
+
+      - name: Release operations fail-closed regression
+        run: node scripts/qa-release-operations.mjs
+
+      - name: Dependency tree integrity
+        run: npm ls --omit=optional --all
+
+      - name: TypeScript acceptance
+        run: npm run type-check

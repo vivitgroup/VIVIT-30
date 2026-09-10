@@ -30,6 +30,7 @@ jobs:
         run: |
           npx tsx scripts/qa-vivito-model-mesh-v1.ts
           npx tsx scripts/qa-vivito-groq-free.ts
+          npx tsx scripts/qa-vivito-provider-router-v2.ts
       - name: Verify runtime certification wiring
         run: |
           grep -F '/api/vivito/openrouter/certify' app/group/vivito/page.tsx

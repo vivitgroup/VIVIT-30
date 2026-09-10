@@ -4,15 +4,16 @@ import {NextRequest,NextResponse} from "next/server";
 import {auth} from "@/lib/auth";
 import {db,fileDocuments,auditLogs,clients,sql} from "@/lib/db";
 import {and,eq} from "drizzle-orm";
+import {normalizeVivitoFileMime,validateVivitoUploadDeclaration,VIVITO_FILE_MAX_SIZE} from "@/lib/vivito/file-upload-policy-v1";
 
 const BUCKET="vivit-files";
-const MAX_SIZE=500*1024*1024;
+const MAX_SIZE=VIVITO_FILE_MAX_SIZE;
 const PART_MAX=45*1024*1024;
 const PREFIX="multipart:";
 const base=()=>String(process.env.SUPABASE_URL||"").replace(/\/$/,"");
 const headers=()=>({apikey:process.env.SUPABASE_SERVICE_KEY!,Authorization:`Bearer ${process.env.SUPABASE_SERVICE_KEY!}`});
 const clean=(v:unknown,n=700)=>String(v||"").trim().slice(0,n);
-const safeMime=(v:unknown)=>clean(v,160).toLowerCase();
+const safeMime=(v:unknown)=>normalizeVivitoFileMime(v);
 
 type Manifest={v:1;parts:Array<{path:string;size:number}>;size:number;mime:string};
 type FileRow={id:string;workspaceId:string;uploadedBy:string;clientId:string|null;taskId:string|null;name:string;storagePath:string;mimeType:string|null;sizeBytes:number;category:string};
@@ -86,7 +87,7 @@ export async function GET(req:NextRequest){
  const manifest=decodeManifest(row.storagePath);if(!manifest)return NextResponse.json({error:"File is not multipart."},{status:400});
  const urls=await Promise.all(manifest.parts.map(p=>signRead(p.path)));
  if(urls.some(x=>!x))return NextResponse.json({error:"Could not prepare all file parts."},{status:502});
- return NextResponse.json({parts:urls,size:manifest.size,mime:manifest.mime,name:row.name},{headers:{"Cache-Control":"private, no-store"}});
+ return NextResponse.json({parts:urls,size:manifest.size,mime:manifest.mime,name:row.name},{headers:{"Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff"}});
 }
 
 export async function POST(req:NextRequest){
@@ -95,7 +96,9 @@ export async function POST(req:NextRequest){
  const body=await req.json().catch(()=>null) as Record<string,unknown>|null;if(!body)return NextResponse.json({error:"Invalid request."},{status:400});
  const parts=Array.isArray(body.parts)?body.parts.map(x=>({path:clean((x as Record<string,unknown>)?.path,700),size:Number((x as Record<string,unknown>)?.size||0)})):[];
  const size=Number(body.size||0),mime=safeMime(body.mimeType),name=clean(body.name,255)||"File",category=clean(body.category,40)||"GENERAL",clientId=body.clientId?clean(body.clientId,100):null,taskId=body.taskId?clean(body.taskId,100):null;
- if(!Number.isFinite(size)||size<=0||size>MAX_SIZE||!parts.length||parts.length>16)return NextResponse.json({error:"Invalid multipart upload."},{status:400});
+ const declaration=validateVivitoUploadDeclaration({name,mimeType:mime,size},MAX_SIZE);
+ if(!declaration.ok)return NextResponse.json({error:declaration.code==="file-too-large"?"Maximum file size is 500 MB.":declaration.code==="invalid-file-size"?"Invalid file size.":"This file type is not allowed or does not match its filename."},{status:declaration.status});
+ if(!parts.length||parts.length>16)return NextResponse.json({error:"Invalid multipart upload."},{status:400});
  if(parts.some(p=>!p.path||!Number.isFinite(p.size)||p.size<=0||p.size>PART_MAX||!p.path.startsWith(`${s.workspaceId}/`)||!p.path.includes(`/${s.userId}/`)||p.path.includes("..")))return NextResponse.json({error:"Invalid multipart part."},{status:403});
  if(parts.reduce((n,p)=>n+p.size,0)!==size)return NextResponse.json({error:"Multipart size does not match the original file."},{status:409});
  if(taskId||clientId){
@@ -112,6 +115,7 @@ export async function POST(req:NextRequest){
  for(const part of parts){
   const info=await objectInfo(part.path);if(!info.ok)return NextResponse.json({error:"One uploaded part could not be verified."},{status:409});
   if(!Number.isFinite(info.size)||info.size<=0||info.size!==part.size)return NextResponse.json({error:"Stored multipart part size does not match."},{status:409});
+  if(info.mime&&info.mime!==mime)return NextResponse.json({error:"Stored multipart part type does not match the upload declaration."},{status:409});
  }
  const manifest:Manifest={v:1,parts,size,mime};const storagePath=encodeManifest(manifest);
  const existing=await db.select({id:fileDocuments.id,taskId:fileDocuments.taskId}).from(fileDocuments).where(and(eq(fileDocuments.workspaceId,s.workspaceId),eq(fileDocuments.storagePath,storagePath))).limit(1);

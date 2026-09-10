@@ -16,6 +16,11 @@ jobs:
   memory-knowledge-contract:
     runs-on: ubuntu-latest
     timeout-minutes: 12
+    env:
+      # The contract suite never connects to a database. Some imported server modules
+      # validate DATABASE_URL at module load, so provide a deliberately unreachable
+      # local test-only URL rather than exposing or depending on any real environment.
+      DATABASE_URL: postgresql://vivito_contract:vivito_contract@127.0.0.1:1/vivito_contract
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

@@ -1,14 +1,13 @@
 name: VIVITO Production Hardening Certification
 
 on:
-  pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: vivito-production-hardening-${{ github.event.pull_request.head.sha || github.sha }}
+  group: vivito-production-hardening-${{ github.sha }}
   cancel-in-progress: true
 
 jobs:
@@ -19,7 +18,7 @@ jobs:
       - name: Checkout exact candidate SHA
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.sha }}
           fetch-depth: 1
 
       - name: Assert exact candidate SHA
@@ -27,7 +26,7 @@ jobs:
         run: |
           set -euo pipefail
           ACTUAL="$(git rev-parse HEAD)"
-          EXPECTED="${{ github.event.pull_request.head.sha || github.sha }}"
+          EXPECTED="${{ github.sha }}"
           echo "actual=$ACTUAL"
           echo "expected=$EXPECTED"
           test "$ACTUAL" = "$EXPECTED"

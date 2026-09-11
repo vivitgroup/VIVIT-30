@@ -13,7 +13,7 @@ const clearStateCookie=(response:NextResponse,name:string,path:string)=>response
 
 async function discoverSnapAccount(accessToken:string){const headers={Authorization:`Bearer ${accessToken}`};const orgRes=await fetch("https://adsapi.snapchat.com/v1/me/organizations",{headers,signal:AbortSignal.timeout(8000)});const orgJson=await orgRes.json();if(!orgRes.ok)throw new Error(orgJson?.request_status||"Unable to list Snapchat organizations");for(const item of orgJson.organizations||[]){const org=item.organization||item;if(!org?.id)continue;const accountRes=await fetch(`https://adsapi.snapchat.com/v1/organizations/${org.id}/adaccounts`,{headers,signal:AbortSignal.timeout(8000)});const accountJson=await accountRes.json();if(!accountRes.ok)continue;const first=(accountJson.adaccounts||[])[0];const account=first?.adaccount||first;if(account?.id)return{id:String(account.id),name:String(account.name||org.name||"Snapchat Ad Account")};}throw new Error("No Snapchat ad account is available for this user");}
 
-export async function GET(req:NextRequest,{params}:{params:Promise<{platform:string}>}){const home=new URL("/dashboard/media/control-center",req.url);let cookieName="",cookiePath="";try{
+export async function GET(req:NextRequest,{params}:{params:Promise<{platform:string}>}){const home=new URL("/dashboard/media/sync",req.url);let cookieName="",cookiePath="";try{
  const session=await auth();if(!session?.user)throw new Error("Session expired — sign in and try again");
  const role=String(session.user.role||""),userId=String(session.user.id||""),workspaceId=String(session.user.workspaceId||"").trim();
  if(!workspaceId)throw new Error("Workspace context is missing");

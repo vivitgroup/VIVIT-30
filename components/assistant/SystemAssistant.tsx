@@ -16,13 +16,15 @@ type AskResult={ok:boolean;data:AssistantResponse};
 type RunState="ready"|"running"|"done"|"failed";
 type ChatMsg={id:string;who:"you"|"vivito";text:string;sources?:string[];action?:ActionProposal;plan?:ActionPlan;artifact?:ArtifactProposal;artifactState?:RunState;artifactResult?:string;actionRequestId?:string;actionState?:RunState;actionResult?:string;planRequestId?:string;planState?:RunState;planResult?:string};
 type Attachment={fileId:string;name:string;mimeType:string};
+type ConversationTurn={role:"user"|"assistant";content:string};
 const mid=()=>crypto.randomUUID(),errorText=(error:unknown,fallback:string)=>error instanceof Error?error.message:fallback;
+const conversationHistory=(messages:ChatMsg[]):ConversationTurn[]=>messages.slice(-10).flatMap(message=>{const content=String(message.text||"").trim().slice(0,900);return content?[{role:message.who==="you"?"user" as const:"assistant" as const,content}]:[]});
 
 export function SystemAssistant({role}:{role:string}){
  const [open,setOpen]=useState(false),[q,setQ]=useState(""),[busy,setBusy]=useState(false),[uploading,setUploading]=useState(false),[attachments,setAttachments]=useState<Attachment[]>([]),[msgs,setMsgs]=useState<ChatMsg[]>([]);
  const fileRef=useRef<HTMLInputElement>(null),isClient=role==="CLIENT",isAdmin=role==="SUPER_ADMIN",quick=useMemo(()=>isClient?CLIENT_QUICK:isAdmin?ADMIN_QUICK:TEAM_QUICK,[isClient,isAdmin]);
 
- async function ask(v:string,atts:Attachment[],attempt=0):Promise<AskResult>{try{const r=await fetch("/api/assistant",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({question:v,attachments:atts}),cache:"no-store"}),d=await r.json().catch(()=>({})) as AssistantResponse;if(!r.ok&&attempt<1)return ask(v,atts,attempt+1);return{ok:r.ok,data:d}}catch{if(attempt<1)return ask(v,atts,attempt+1);return{ok:false,data:{error:"Connection interrupted. Try again."}}}}
+ async function ask(v:string,atts:Attachment[],history:ConversationTurn[],attempt=0):Promise<AskResult>{try{const r=await fetch("/api/assistant",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({question:v,attachments:atts,history}),cache:"no-store"}),d=await r.json().catch(()=>({})) as AssistantResponse;if(!r.ok&&attempt<1)return ask(v,atts,history,attempt+1);return{ok:r.ok,data:d}}catch{if(attempt<1)return ask(v,atts,history,attempt+1);return{ok:false,data:{error:"Connection interrupted. Try again."}}}}
 
  async function executeAction(messageId:string,action:ActionProposal,requestId?:string){
   const id=requestId||crypto.randomUUID();setMsgs(m=>m.map(x=>x.id===messageId?{...x,actionRequestId:id,actionState:"running"}:x));
@@ -46,8 +48,8 @@ export function SystemAssistant({role}:{role:string}){
  }
 
  async function send(text=q){
-  const v=text.trim();if(!v||busy||uploading)return;const currentAttachments=[...attachments],userId=mid();setQ("");setAttachments([]);setMsgs(m=>[...m,{id:userId,who:"you",text:v+(currentAttachments.length?`\nAttached: ${currentAttachments.map(a=>a.name).join(", ")}`:"")}]);setBusy(true);
-  const out=await ask(v,currentAttachments),d=out.data||{},botId=mid();const msg:ChatMsg={id:botId,who:"vivito",text:d.answer||d.error||"Connection interrupted. Try again.",sources:Array.isArray(d.sources)?d.sources:[],action:d.actionProposal,plan:d.actionPlan,artifact:d.artifactProposal,artifactState:d.artifactProposal?"ready":undefined,actionState:d.actionProposal?"ready":undefined,planState:d.actionPlan?"ready":undefined};setMsgs(m=>[...m,msg]);setBusy(false);
+  const v=text.trim();if(!v||busy||uploading)return;const currentAttachments=[...attachments],history=conversationHistory(msgs),userId=mid();setQ("");setAttachments([]);setMsgs(m=>[...m,{id:userId,who:"you",text:v+(currentAttachments.length?`\nAttached: ${currentAttachments.map(a=>a.name).join(", ")}`:"")}]);setBusy(true);
+  const out=await ask(v,currentAttachments,history),d=out.data||{},botId=mid();const msg:ChatMsg={id:botId,who:"vivito",text:d.answer||d.error||"Connection interrupted. Try again.",sources:Array.isArray(d.sources)?d.sources:[],action:d.actionProposal,plan:d.actionPlan,artifact:d.artifactProposal,artifactState:d.artifactProposal?"ready":undefined,actionState:d.actionProposal?"ready":undefined,planState:d.actionPlan?"ready":undefined};setMsgs(m=>[...m,msg]);setBusy(false);
   if(d.actionPlan&&!d.actionPlan.missingFields?.length&&["low","medium"].includes(d.actionPlan.risk))setTimeout(()=>executePlan(botId,d.actionPlan),0);
   else if(d.actionProposal&&!d.actionProposal.missingFields?.length&&["low","medium"].includes(d.actionProposal.risk))setTimeout(()=>executeAction(botId,d.actionProposal),0);
  }

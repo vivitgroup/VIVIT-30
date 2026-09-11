@@ -52,6 +52,7 @@ function liveContextFromPrompt(prompt:string):JsonRecord{const marker="ERP LIVE 
 function money(value:unknown){return Math.round(Number(value||0)).toLocaleString("en-US")}
 function localAdvisorText(prompt:string){
  const question=requestFromPrompt(prompt),arabic=/[\u0600-\u06ff]/.test(question),q=question.toLowerCase(),ctx=liveContextFromPrompt(prompt);
+ if(/^(?:hi|hello|hey|اهلا|أهلا|هاي|هلا|السلام عليكم|سلام|صباح الخير|مساء الخير)[!؟? .]*$/i.test(question))return arabic?"أهلاً 👋 قولّي عايز نشتغل على إيه؟":"Hi 👋 What do you want to work on?";
  if(isCapabilityQuestion(question)){
   if(/عميل|client/.test(q))return arabic?"أيوه، أقدر أضيف عميل جديد حسب صلاحيتك. ابعت اسم الشركة أولًا، وبعدها أقدر أجهز البيانات المطلوبة وأعرض أمر الإنشاء للمراجعة قبل التنفيذ.":"Yes. I can add a new client within your role. Send the company name first, then I can prepare the required fields and present the create action for review.";
   if(/فاتور|invoice/.test(q))return arabic?"أيوه، أقدر أجهز فاتورة حسب صلاحيتك. ابعت اسم العميل، المبلغ، وتاريخ الاستحقاق أو تفاصيل البند، وبعدها أجهزها للمراجعة قبل التنفيذ.":"Yes. I can prepare an invoice within your role. Send the client, amount, and due date or line-item details, then I can prepare it for review before execution.";
@@ -79,14 +80,17 @@ function localAdvisorText(prompt:string){
   const summary=asRecord(ctx.sales),count=Number(summary.leadCount||sales.length),weighted=Number(summary.weightedPipeline||0),overdue=Number(summary.overdueFollowUps||0);
   return arabic?`المبيعات: ${count} Lead في نطاقك، Weighted Pipeline بقيمة ${money(weighted)} EGP، و${overdue} متابعة متأخرة.`:`Sales: ${count} leads in scope, ${money(weighted)} EGP weighted pipeline, and ${overdue} overdue follow-ups.`;
  }
- const scope=asRecord(ctx.scope),clientCount=Number(scope.clientCount||clients.length),active=Number(operations.activeTasks||0),overdue=Number(operations.overdueTasks||0);
- return arabic?`VIVITO شغال على بيانات الـERP الحية حسب صلاحيتك. عندك ${clientCount} عميل متاح، ${active} مهمة نشطة، و${overdue} مهمة متأخرة. اسألني عن عميل بالاسم، الحملات، المهام، المبيعات أو المالية وهارجع لك بالبيانات الحالية.`:`VIVITO is using your live authorized ERP data. You have ${clientCount} accessible clients, ${active} active tasks, and ${overdue} overdue tasks. Ask about a client by name, campaigns, tasks, sales, or finance for the current data.`;
+ if(namedClient){
+  const name=String(namedClient.company_name||"العميل"),clientTasks=tasks.filter(t=>String(t.company_name||"").toLowerCase()===name.toLowerCase()),clientCampaigns=campaigns.filter(c=>String(c.company_name||"").toLowerCase()===name.toLowerCase());
+  return arabic?`فاهم إن سؤالك عن ${name}. عندي له ${clientTasks.length} مهمة نشطة و${clientCampaigns.length} حملة ضمن صلاحيتك، لكن نماذج الـAI الخارجية غير متاحة في المحاولة دي عشان أجاوب على صياغة السؤال الحر بدون ما أخمّن. جرّب تاني بعد لحظة؛ مش هحوّل سؤالك لملخص ERP عام.`:`I understand your question is about ${name}. I can see ${clientTasks.length} active tasks and ${clientCampaigns.length} campaigns in your authorized scope, but the external AI models were unavailable for this attempt, so I will not guess or replace your question with a generic ERP summary. Please retry in a moment.`;
+ }
+ return arabic?`وصلني طلبك: «${question}». نماذج الـAI الخارجية غير متاحة في المحاولة دي، ومش هبدّل سؤالك بملخص ERP عام أو إجابة جاهزة. جرّب تاني بعد لحظة.`:`I received your request: “${question}”. The external AI models were unavailable for this attempt, so I will not replace your question with a generic ERP summary or canned answer. Please retry in a moment.`;
 }
 function localActionFallback(prompt:string,system:string,attempted:VivitoProviderName[],errors:string[],started:number){if(!/VIVITO Action Planner/i.test(system)||isCapabilityQuestion(requestFromPrompt(prompt)))return null;const local=generateLocalActionPlanV2(prompt,system);if(!local)return null;const next=[...attempted,"local" as const],text=repairOrFallbackVivitoActionPlan(prompt,system,local.text);console.warn("VIVITO structured local action fallback",{attempted:next,errors:errors.slice(-6),localModel:local.modelId});return{text,provider:"local" as const,attempted:next,errors,latencyMs:Date.now()-started,modelId:local.modelId}}
 function transparentAdvisorFailure(prompt:string,attempted:VivitoProviderName[],errors:string[],started:number):VivitoGeneration{
   const text=localAdvisorText(prompt);
   console.warn("VIVITO live ERP deterministic fallback",{attempted,errors:errors.slice(-6),secure:true});
-  return{text,provider:"local",attempted:[...attempted,"local"],errors,latencyMs:Date.now()-started,modelId:"vivito-live-erp-v4"};
+  return{text,provider:"local",attempted:[...attempted,"local"],errors,latencyMs:Date.now()-started,modelId:"vivito-live-erp-v5"};
 }
 function overrideProvider(options:GenerateOptions):ExternalProvider|undefined{if(!options.modelId)return undefined;if(options.modelProvider)return options.modelProvider;if(GROQ_FREE_MODEL_IDS.includes(options.modelId as (typeof GROQ_FREE_MODEL_IDS)[number]))return"groq-free";return options.modelId.endsWith(":free")?"openrouter-free":"gateway"}
 

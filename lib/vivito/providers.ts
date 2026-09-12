@@ -13,7 +13,7 @@ type GenerateOptions={temperature?:number;maxTokens?:number;preferred?:VivitoPro
 type JsonRecord=Record<string,unknown>;
 type ProviderHttpError=Error&{status?:number};
 type GatewayCredential={token:string;source:"api-key"|"oidc"};
-type ConversationTurn={role:"user"|"assistant";content:string};
+type ConversationTurn={role:string;content:string};
 
 const asRecord=(value:unknown):JsonRecord=>value&&typeof value==="object"&&!Array.isArray(value)?value as JsonRecord:{};
 const asArray=(value:unknown):unknown[]=>Array.isArray(value)?value:[];
@@ -64,7 +64,7 @@ function liveContextFromPrompt(prompt:string):JsonRecord{const marker="ERP LIVE 
 function conversationHistoryFromPrompt(prompt:string):ConversationTurn[]{
  const marker="TRUSTED UI CONVERSATION HISTORY";const at=prompt.indexOf(marker);if(at<0)return[];
  const start=prompt.indexOf("[",at),end=prompt.indexOf("\n\nERP LIVE CONTEXT:",start);if(start<0||end<0)return[];
- try{return asArray(JSON.parse(prompt.slice(start,end))).flatMap(value=>{const row=asRecord(value),role=row.role==="user"||row.role==="assistant"?row.role:null,content=String(row.content||"").trim();return role&&content?[{role,content}]:[]}).slice(-10)}catch{return[]}
+ try{return asArray(JSON.parse(prompt.slice(start,end))).flatMap(value=>{const row=asRecord(value),role=row.role==="user"||row.role==="assistant"?String(row.role):null,content=String(row.content||"").trim();return role&&content?[{role,content}]:[]}).slice(-10)}catch{return[]}
 }
 function money(value:unknown){return Math.round(Number(value||0)).toLocaleString("en-US")}
 function percent(value:number){return `${value>=0?"+":""}${Math.round(value)}%`}

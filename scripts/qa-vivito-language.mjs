@@ -25,7 +25,9 @@ assert(/isCapabilityQuestion/.test(providers),"Provider layer detects capability
 assert(/أقدر أضيف عميل جديد حسب صلاحيتك/.test(providers),"Local advisor can answer Arabic capability questions");
 assert(/أقدر أجهز فاتورة حسب صلاحيتك/.test(providers),"Local advisor can answer Arabic invoice capability questions");
 assert(/isGeneralAdvisorSystem/.test(providers)&&/transparentAdvisorFailure/.test(providers),"Provider fallback is restricted to general advisor conversations");
-assert(/vivito-live-erp-v5/.test(providers),"General advisor outage preserves the user request instead of generic ERP boilerplate");
+assert(/vivito-live-erp-v6/.test(providers),"General advisor outage uses the context-aware live ERP fallback");
+assert(/conversationHistoryFromPrompt/.test(providers)&&/activeClientFromContext/.test(providers),"Local fallback resolves active client from bounded conversation history");
+assert(/whyFollowup/.test(providers)&&/nextFollowup/.test(providers)&&/campaignDiagnosis/.test(providers),"Local fallback supports contextual why and what-next campaign follow-ups");
 assert(/mode:\"provider-unavailable\"/.test(assistant)&&/تعذر على VIVITO إكمال الرد على طلبك الحالي/.test(assistant),"Assistant has explicit provider-unavailable response instead of canned business fallback");
 assert(!/configure an external AI provider/i.test(assistant),"User-facing advisor failure does not ask operators to configure infrastructure");
 

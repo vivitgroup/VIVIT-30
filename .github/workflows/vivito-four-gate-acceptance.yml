@@ -1,0 +1,62 @@
+name: VIVITO Four-Gate Acceptance
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vivito-four-gate-${{ github.event.pull_request.head.sha || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Enforce 4-of-4 scenario contract
+        run: node scripts/qa-vivito-four-gate-contract.mjs
+      - name: Enforce real-model advisor and entity precedence
+        run: node scripts/qa-vivito-four-gate-provider-integrity.mjs
+      - name: TypeScript acceptance
+        run: npm run type-check
+
+  provider-readiness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Require at least one CI-callable reasoning provider
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${OPENROUTER_API_KEY:-}" ] && [ -z "${GROQ_API_KEY:-}" ] && [ -z "${GEMINI_API_KEY:-}" ] && [ -z "${AI_GATEWAY_API_KEY:-}" ]; then
+            echo "No CI-callable VIVITO reasoning provider credential is configured. Four-gate acceptance cannot be certified."
+            exit 1
+          fi
+          echo "At least one CI-callable reasoning provider credential is configured."

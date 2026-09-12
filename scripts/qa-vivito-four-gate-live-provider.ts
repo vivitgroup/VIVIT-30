@@ -21,6 +21,13 @@ function assertRealProvider(out:{provider:string;text:string},label:string){asse
 
 async function main(){
  delete process.env.VIVITO_ALLOW_DETERMINISTIC_ADVISOR_FALLBACK;
+ console.log("VIVITO_PROVIDER_ENV",JSON.stringify({
+  aiGatewayKey:Boolean(String(process.env.AI_GATEWAY_API_KEY||"").trim()),
+  vercelOidc:Boolean(String(process.env.VERCEL_OIDC_TOKEN||"").trim()),
+  openRouterKey:Boolean(String(process.env.OPENROUTER_API_KEY||"").trim()),
+  groqKey:Boolean(String(process.env.GROQ_API_KEY||"").trim()),
+  freeOnly:!/^1|true|yes|on$/i.test(String(process.env.VIVITO_ALLOW_PAID_PROVIDERS||""))
+ }));
 
  const knowledge=await generateVivito(prompt("What is the difference between ABO and CBO in Meta ads, and when should I use each?"),advisorSystem,{task:"reasoning",maxTokens:700,timeoutMs:30000});
  assertRealProvider(knowledge,"reasoning");

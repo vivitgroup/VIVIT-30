@@ -24,8 +24,12 @@ export async function PATCH(req:NextRequest,{params}:{params:Promise<{connection
   const [owned]=await db.select({id:clients.id}).from(clients).where(and(eq(clients.id,connection.clientId),eq(clients.workspaceId,workspaceId),eq(clients.isActive,true),ownerFilter)).limit(1);
   if(!owned)return NextResponse.json({error:"Client access denied."},{status:403});
  }
- const [updated]=await db.update(adPlatformConnections).set({accountName,updatedAt:new Date()}).where(and(eq(adPlatformConnections.id,connectionId),eq(adPlatformConnections.workspaceId,workspaceId))).returning({id:adPlatformConnections.id,accountName:adPlatformConnections.accountName});
+ const updated=await db.transaction(async tx=>{
+  const [row]=await tx.update(adPlatformConnections).set({accountName,updatedAt:new Date()}).where(and(eq(adPlatformConnections.id,connectionId),eq(adPlatformConnections.workspaceId,workspaceId))).returning({id:adPlatformConnections.id,accountName:adPlatformConnections.accountName});
+  if(!row)throw new Error("MEDIA_ACCOUNT_UPDATE_CONFLICT");
+  await tx.insert(auditLogs).values({workspaceId,userId,action:"media_account_renamed",entity:"ad_platform_connections",entityId:connectionId,newValues:JSON.stringify({before:connection.accountName||null,after:accountName,platform:connection.platform,adAccountId:connection.adAccountId})});
+  return row;
+ }).catch(error=>{if(error instanceof Error&&error.message==="MEDIA_ACCOUNT_UPDATE_CONFLICT")return null;throw error});
  if(!updated)return NextResponse.json({error:"Media account could not be updated."},{status:409});
- await db.insert(auditLogs).values({workspaceId,userId,action:"media_account_renamed",entity:"ad_platform_connections",entityId:connectionId,newValues:JSON.stringify({before:connection.accountName||null,after:accountName,platform:connection.platform,adAccountId:connection.adAccountId})});
  return NextResponse.json({success:true,account:updated},{headers:{"Cache-Control":"private, no-store"}});
 }

@@ -2,12 +2,19 @@ import {spawnSync} from "node:child_process";
 
 const branch=String(process.env.VERCEL_GIT_COMMIT_REF||"").trim();
 const isHardeningPreview=branch==="audit/vivito-200-operating-agent";
+const isFourGatePreview=branch==="test/vivito-four-gate-acceptance";
 const isProductionMain=process.env.VERCEL_ENV==="production"&&branch==="main";
-const shouldCertify=isHardeningPreview||isProductionMain;
+const shouldCertify=isHardeningPreview||isFourGatePreview||isProductionMain;
 
 if(!shouldCertify){
-  console.log(`VIVITO_LIVE_CERT_SKIPPED: not a production-main or hardening-preview build (${branch||"non-Vercel CI"}).`);
+  console.log(`VIVITO_LIVE_CERT_SKIPPED: not a production-main, hardening-preview, or four-gate preview build (${branch||"non-Vercel CI"}).`);
   process.exit(0);
+}
+
+if(isFourGatePreview){
+  console.log("VIVITO_FOUR_GATE_LIVE_START: requiring one real model to pass reasoning + ERP grounding + context continuity + safe execution.");
+  const run=spawnSync(process.execPath,["node_modules/tsx/dist/cli.mjs","scripts/qa-vivito-four-gate-live-provider.ts"],{stdio:"inherit",env:process.env});
+  process.exit(run.status??1);
 }
 
 if(process.env.OPENROUTER_API_KEY){

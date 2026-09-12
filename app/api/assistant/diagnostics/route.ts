@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db, sql } from "@/lib/db";
+import { configuredVivitoProviders, vivitoFreeOnlyMode } from "@/lib/vivito/providers";
 
 const noStore = { "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" };
 const PROBE_TIMEOUT_MS = 2500;
@@ -38,6 +39,25 @@ function configPresence(name: string, required = false): DiagnosticCheck {
   };
 }
 
+function vivitoProviderCheck(): DiagnosticCheck {
+  const providers = configuredVivitoProviders();
+  const freeOnly = vivitoFreeOnlyMode();
+  if (!providers.length) {
+    return {
+      name: "vivito_ai_providers",
+      status: "UNAVAILABLE",
+      message: freeOnly
+        ? "No free VIVITO AI provider is configured"
+        : "No VIVITO AI provider is configured",
+    };
+  }
+  return {
+    name: "vivito_ai_providers",
+    status: "OK",
+    message: `${providers.length} provider(s) configured: ${providers.join(", ")}${freeOnly ? " · free-only mode" : ""}`,
+  };
+}
+
 export async function GET() {
   const session = await auth();
   if (!session?.user) {
@@ -57,7 +77,7 @@ export async function GET() {
     await probeDatabase(),
     configPresence("DATABASE_URL", true),
     configPresence("AUTH_SECRET", true),
-    configPresence("OPENAI_API_KEY"),
+    vivitoProviderCheck(),
   ];
 
   const unavailable = checks.filter((check) => check.status === "UNAVAILABLE").length;

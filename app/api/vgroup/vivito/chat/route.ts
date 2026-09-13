@@ -13,6 +13,25 @@ const EXPENSE_INTENT=/(?:add|create|record|log|expense|cost|مصروف|مصرو�
 const money=(text:string)=>{const matches=[...text.matchAll(/(?:EGP|جنيه|ج|LE)?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/gi)].map(m=>Number(String(m[1]).replace(/,/g,""))).filter(n=>Number.isFinite(n)&&n>0);return matches[0]??null};
 const normalize=(value:string)=>value.toLowerCase().replace(/[أإآ]/g,"ا").replace(/ة/g,"ه").replace(/ى/g,"ي").replace(/[^\p{L}\p{N}]+/gu," ").trim();
 
+function browserSafe(value:unknown,depth=0):unknown{
+  if(depth>5)return undefined;
+  if(value===null||typeof value==="number"||typeof value==="boolean")return value;
+  if(typeof value==="string")return value.slice(0,500);
+  if(Array.isArray(value))return value.slice(0,40).map(item=>browserSafe(item,depth+1)).filter(item=>item!==undefined);
+  if(value&&typeof value==="object"){
+    const result:Record<string,unknown>={};
+    for(const [key,item] of Object.entries(value as Record<string,unknown>)){
+      if(/(^|_)(id|uuid|token|secret|password|api.?key|email|phone|url)($|_)/i.test(key))continue;
+      const safe=browserSafe(item,depth+1);if(safe!==undefined)result[key]=safe;
+    }
+    return result;
+  }
+  return undefined;
+}
+function browserFallbackContext(workspace:string,memberships:unknown,liveData:unknown){
+  return JSON.stringify({workspace,memberships:browserSafe(memberships),liveData:browserSafe(liveData)}).slice(0,12000);
+}
+
 async function tryHospitalityExpense(question:string,session:NonNullable<Awaited<ReturnType<typeof getVGroupSession>>>,request:NextRequest){
   if(!EXPENSE_INTENT.test(question))return null;
   if(!canAccessBusinessUnit(session,"hospitality")||!hasPermission(session,"hospitality","finance:create"))return NextResponse.json({error:"You do not have permission to create hospitality expenses."},{status:403,headers:{"Cache-Control":"no-store"}});
@@ -55,9 +74,6 @@ export async function POST(req:NextRequest){
 
   const actionResponse=await tryHospitalityExpense(question,session,req);if(actionResponse)return actionResponse;
 
-  // Keep the selected-workspace RBAC scope explicit at the route boundary. The
-  // authorized-context builder independently re-applies the same boundary as
-  // defense in depth before loading any live business data.
   const scopedMemberships=workspace==="group"?session.memberships:session.memberships.filter(m=>m.businessUnit===workspace||m.role==="GROUP_SUPER_ADMIN");
   const authorizedContext=await buildAuthorizedVivitoContext({...session,memberships:scopedMemberships},workspace);
   const roles=[...new Set(scopedMemberships.map(m=>m.role))];
@@ -71,6 +87,7 @@ export async function POST(req:NextRequest){
     return NextResponse.json({traceId,answer:result.text,modelId:result.modelId||null,provider:result.provider,fallbackChain:result.attempted},{headers:{"Cache-Control":"no-store"}});
   }catch(error:unknown){
     console.error("VIVITO group chat failed",{traceId,userId:session.userId,businessUnit:workspace,roles,latencyMs:Date.now()-started,error:error instanceof Error?error.message:"unknown"});
-    const arabic=/[\u0600-\u06ff]/.test(question);return NextResponse.json({traceId,answer:arabic?"مزودات الذكاء الخارجية غير متاحة مؤقتًا. أوامر ERP المدعومة ما زالت تعمل مباشرة مع التحقق من الصلاحيات؛ جرّب أمرًا محددًا مثل إضافة مصروف، أو أعد المحاولة للأسئلة التحليلية.":"External AI providers are temporarily unavailable. Supported ERP commands still run directly with permission checks; try a specific operational command or retry analytical questions later.",modelId:"vivito-governed-continuity-v1",provider:"local"},{status:200,headers:{"Cache-Control":"no-store"}});
+    const arabic=/[\u0600-\u06ff]/.test(question),answer=arabic?"مزودات الذكاء السحابية غير متاحة الآن. سأحاول تشغيل الـAI المحلي المجاني داخل جهازك بدل الرد المحفوظ.":"Cloud AI providers are unavailable. VIVITO will try the free local AI in your browser instead of returning a canned answer.";
+    return NextResponse.json({traceId,answer,modelId:"vivito-browser-local-handoff-v1",provider:"local",localFallback:{question,context:browserFallbackContext(workspace,authorizedContext.memberships,authorizedContext.liveData)}},{status:200,headers:{"Cache-Control":"private, no-store"}});
   }
 }

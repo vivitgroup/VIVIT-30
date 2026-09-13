@@ -8,7 +8,20 @@ type GenerateOptions={task?:VivitoMeshTask;maxTokens?:number;timeoutMs?:number;m
 const AI_GATEWAY_URL="https://ai-gateway.vercel.sh/v1/chat/completions",AI_GATEWAY_MODELS_URL="https://ai-gateway.vercel.sh/v1/models";
 const ROUTE_COOLDOWN_MS=60_000,QUOTA_COOLDOWN_MS=15*60_000,CATALOG_CACHE_MS=15*60_000,MAX_ROUTING_MODELS=24,MAX_REQUEST_ATTEMPTS=12;
 const routeHealth=new Map<string,RouteHealth>();let catalogCache:CatalogCache|null=null;
-const EXPLICIT_FREE_MODEL_FALLBACK=["inclusionai/ling-3.0-tiny-free","inclusionai/ling-3.0-flash-fin-free","poolside/laguna-s-2.1-free"] as const;
+// Keep this list aligned with models that are explicitly zero-cost in the live
+// Vercel AI Gateway catalog. It is only used if catalog discovery itself fails.
+const EXPLICIT_FREE_MODEL_FALLBACK=[
+ "inclusionai/ling-3.0-flash-vl-free",
+ "inclusionai/ling-3.0-flash-fin-free",
+ "inclusionai/ling-3.0-flash-sante-free",
+ "inclusionai/ling-3.0-tiny-free",
+ "poolside/laguna-s-2.1-free",
+] as const;
+const PREFERRED_CURRENT_FREE=[
+ "inclusionai/ling-3.0-flash-vl-free",
+ "inclusionai/ling-3.0-flash-fin-free",
+ "inclusionai/ling-3.0-flash-sante-free",
+] as const;
 const asRecord=(value:unknown):JsonRecord=>value&&typeof value==="object"&&!Array.isArray(value)?value as JsonRecord:{};
 const asArray=(value:unknown):unknown[]=>Array.isArray(value)?value:[];
 const clamp=(value:number,min:number,max:number)=>Math.max(min,Math.min(max,value));
@@ -21,7 +34,7 @@ function isVerifiedZeroCost(item:JsonRecord){const pricing=asRecord(item.pricing
 function catalogModel(item:JsonRecord):FreeCatalogModel|null{const id=String(item.id||"").trim();if(!id||!isTextLanguageModel(item)||!isVerifiedZeroCost(item))return null;return{id,ownedBy:String(item.owned_by||"unknown"),tags:stringArray(item.tags),released:Number(item.released||0),contextWindow:Number(item.context_window||0)}}
 function fallbackCatalog():FreeCatalogModel[]{return EXPLICIT_FREE_MODEL_FALLBACK.map(id=>({id,ownedBy:id.split("/")[0]||"unknown",tags:[],released:0,contextWindow:0}))}
 export async function discoverVerifiedFreeGatewayModels(force=false){const now=Date.now();if(!force&&catalogCache&&catalogCache.expiresAt>now)return catalogCache;try{const response=await fetch(AI_GATEWAY_MODELS_URL,{signal:AbortSignal.timeout(5000),headers:{Accept:"application/json"}});if(!response.ok)throw new Error(`catalog-${response.status}`);const root=asRecord(await response.json()),models=asArray(root.data).map(asRecord).map(catalogModel).filter((model):model is FreeCatalogModel=>model!==null),unique=[...new Map(models.map(model=>[model.id,model])).values()].sort((a,b)=>b.released-a.released||a.id.localeCompare(b.id));if(!unique.length)throw new Error("catalog-no-verified-free-language-models");catalogCache={expiresAt:now+CATALOG_CACHE_MS,models:unique,source:"live"};return catalogCache}catch{const models=fallbackCatalog();catalogCache={expiresAt:now+60_000,models,source:"fallback"};return catalogCache}}
-function taskScore(model:FreeCatalogModel,task:VivitoMeshTask){const tags=new Set(model.tags);let score=0;if(["reasoning","finance","research","coding"].includes(task)&&tags.has("reasoning"))score+=18;if(task==="coding"&&tags.has("tool-use"))score+=12;if(task==="research"&&tags.has("web-search"))score+=10;if(tags.has("tool-use"))score+=5;score+=Math.min(10,model.contextWindow/100000);score+=Math.min(8,Math.max(0,(model.released-1735689600)/31536000));return score}
+function taskScore(model:FreeCatalogModel,task:VivitoMeshTask){const tags=new Set(model.tags);let score=0;if(["reasoning","finance","research","coding"].includes(task)&&tags.has("reasoning"))score+=18;if(task==="coding"&&tags.has("tool-use"))score+=12;if(task==="research"&&tags.has("web-search"))score+=10;if(tags.has("tool-use"))score+=5;score+=Math.min(10,model.contextWindow/100000);score+=Math.min(8,Math.max(0,(model.released-1735689600)/31536000));const preferredIndex=PREFERRED_CURRENT_FREE.indexOf(model.id as (typeof PREFERRED_CURRENT_FREE)[number]);if(preferredIndex>=0)score+=30-preferredIndex*3;if(task==="finance"&&model.id.includes("flash-fin"))score+=16;if(task==="reasoning"&&model.id.includes("flash-vl"))score+=10;return score}
 function healthScore(modelId:string){const h=healthFor(modelId);return Math.min(10,h.successes*1.5)-Math.min(35,h.failures*6)-(h.cooldownRemainingMs>0?120:0)-(h.lastLatencyMs?Math.min(15,h.lastLatencyMs/2500):0)}
 export async function gatewayModelOrder(task:VivitoMeshTask="general",limit=MAX_ROUTING_MODELS,modelId?:string){const catalog=await discoverVerifiedFreeGatewayModels(),ids=new Set(catalog.models.map(model=>model.id));if(modelId){if(!ids.has(modelId))throw new Error("gateway-model-not-verified-free");return[modelId]}return catalog.models.map(model=>({model,score:taskScore(model,task)+healthScore(model.id)})).sort((a,b)=>b.score-a.score).slice(0,clamp(limit,1,MAX_ROUTING_MODELS)).map(item=>item.model.id)}
 function gatewayTimeout(options:GenerateOptions){const requested=Number(options.timeoutMs??process.env.VIVITO_PROVIDER_TIMEOUT_MS??25000);return clamp(Number.isFinite(requested)?Math.round(requested):25000,3000,45000)}
@@ -38,7 +51,7 @@ export async function generateViaGatewayIntelligentMesh(prompt:string,system:str
   const started=Date.now();
   try{
    const body:JsonRecord={model:modelId,messages:[{role:"system",content:system},{role:"user",content:prompt}],stream:false,max_tokens:options.maxTokens||3200};
-   const response=await fetch(AI_GATEWAY_URL,{method:"POST",signal:AbortSignal.timeout(gatewayTimeout(options)),headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json","ai-reporting-tags":"product:vivito,mode:erp-operating-agent,resilience:verified-free-model-retry-v4"},body:JSON.stringify(body)}),data=asRecord(await response.json().catch(()=>({}))),apiError=asRecord(data.error);
+   const response=await fetch(AI_GATEWAY_URL,{method:"POST",signal:AbortSignal.timeout(gatewayTimeout(options)),headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json","ai-reporting-tags":"product:vivito,mode:erp-operating-agent,resilience:verified-free-model-retry-v5"},body:JSON.stringify(body)}),data=asRecord(await response.json().catch(()=>({}))),apiError=asRecord(data.error);
    lastStatus=response.status;
    if(!response.ok){const message=safeMessage(apiError.message||`gateway-${response.status}`);markFailure(modelId,response.status,message);errors.push(`${modelId}:${response.status}:${message}`);if(response.status===401&&!providerAuthFailure(response.status,message)){const error=new Error(`gateway-credential-rejected:${message}`) as Error&{status?:number};error.status=response.status;throw error}continue}
    const text=responseText(data);if(!text){markFailure(modelId,0,"empty-response");errors.push(`${modelId}:empty-response`);continue}

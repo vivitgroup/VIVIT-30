@@ -2,7 +2,7 @@ name: VIVITO Four-Gate Acceptance
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, test/vivito-four-gate-acceptance]
   workflow_dispatch:
 
 permissions:

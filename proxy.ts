@@ -12,7 +12,8 @@ function secHeaders(res:NextResponse):NextResponse{
   res.headers.set("Permissions-Policy","camera=(),microphone=(self),geolocation=()");
   res.headers.set("X-Robots-Tag","noindex,nofollow");
   if(res.status>=400)res.headers.set("Cache-Control","private, no-store");
-  const scriptSrc=process.env.NODE_ENV==="production"?"'self' 'unsafe-inline' https://fonts.googleapis.com https://esm.sh":"'self' 'unsafe-inline' 'unsafe-eval' https://fonts.googleapis.com https://esm.sh";
+  const scriptSrcBase=process.env.NODE_ENV==="production"?"'self' 'unsafe-inline' https://fonts.googleapis.com":"'self' 'unsafe-inline' 'unsafe-eval' https://fonts.googleapis.com";
+  const scriptSrc=`${scriptSrcBase} https://esm.sh`;
   // Browser-local fallback loads WebLLM code from esm.sh and public model
   // artifacts from the upstream MLC/Hugging Face hosts. No ERP data is sent to
   // those hosts: model files are downloaded to the user's browser, inference

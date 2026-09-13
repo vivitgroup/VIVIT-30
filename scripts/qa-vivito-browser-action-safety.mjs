@@ -15,7 +15,7 @@ const checks=[
   ['writes route through governed task queue',/\/api\/vgroup\/vivito\/tasks/.test(bridge)&&/marketing\.task_execute/.test(bridge)],
   ['idempotency key is derived before queueing',/createHash\("sha256"\)/.test(bridge)&&/idempotencyKey:key/.test(bridge)],
   ['browser local prompt forbids claiming writes',/Never claim that an ERP write was executed/.test(local)],
-  ['browser local action planner says proposal only and no execution authority',/Do not claim execution/.test(local)&&/server will validate/.test(local)],
+  ['browser local action planner is proposal-only with server execution authority',/Never claim execution/.test(local)&&/governed server action layer/.test(local)],
   ['UI submits browser proposal only to governed action endpoint',/\/api\/vgroup\/vivito\/action/.test(ui)],
   ['UI does not call Marketing executor directly',!/\/api\/integrations\/vgroup-vivito-marketing/.test(ui)],
   ['proposal size is bounded server side',/raw\.length<2\|\|raw\.length>12000/.test(endpoint)],

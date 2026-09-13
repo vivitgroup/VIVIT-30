@@ -1,14 +1,15 @@
-import {NextResponse} from "next/server";
+import {NextRequest,NextResponse} from "next/server";
 import {generateVivito} from "@/lib/vivito/providers";
 import {generateViaGatewayIntelligentMesh} from "@/lib/vivito/gateway-intelligent-mesh-v3";
 
 export const dynamic="force-dynamic";
 const clean=(value:unknown)=>String(value||"").replace(/[\r\n\t]+/g," ").replace(/[A-Za-z0-9_-]{32,}/g,"[redacted]").slice(0,500);
 
-export async function GET(){
+export async function GET(req:NextRequest){
   if(process.env.VERCEL_ENV!=="preview")return NextResponse.json({error:"Not found"},{status:404});
-  const apiKey=String(process.env.AI_GATEWAY_API_KEY||"").trim(),oidc=String(process.env.VERCEL_OIDC_TOKEN||"").trim();
-  const credentials=[apiKey?{name:"api-key",token:apiKey}:null,oidc?{name:"oidc",token:oidc}:null].filter((x):x is {name:string;token:string}=>Boolean(x));
+  const apiKey=String(process.env.AI_GATEWAY_API_KEY||"").trim(),envOidc=String(process.env.VERCEL_OIDC_TOKEN||"").trim(),headerOidc=String(req.headers.get("x-vercel-oidc-token")||"").trim();
+  const raw=[apiKey?{name:"api-key",token:apiKey}:null,headerOidc?{name:"oidc-header",token:headerOidc}:null,envOidc?{name:"oidc-env",token:envOidc}:null].filter((x):x is {name:string;token:string}=>Boolean(x));
+  const seen=new Set<string>(),credentials=raw.filter(item=>{if(seen.has(item.token))return false;seen.add(item.token);return true});
   const direct:Array<Record<string,unknown>>=[];
   for(const credential of credentials){
     try{

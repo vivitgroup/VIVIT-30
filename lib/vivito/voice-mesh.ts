@@ -5,11 +5,14 @@ export type VoiceSynthesis={audio:Uint8Array;contentType:string;provider:VivitoV
 
 type ProviderConfig={provider:VivitoVoiceProvider;url:string;token?:string};
 const trimUrl=(value:string)=>String(value||"").trim().replace(/\/$/,"");
-const configuredProviders=():ProviderConfig[]=>[
- {provider:"voder",url:trimUrl(process.env.VIVITO_VODER_URL||""),token:String(process.env.VIVITO_VODER_TOKEN||"").trim()||undefined},
- {provider:"vox",url:trimUrl(process.env.VIVITO_VOX_URL||"")},
- {provider:"audio-cpp",url:trimUrl(process.env.VIVITO_AUDIOCPP_URL||"")},
-].filter((x):x is ProviderConfig=>Boolean(x.url));
+const configuredProviders=():ProviderConfig[]=>{
+ const providers:ProviderConfig[]=[
+  {provider:"voder",url:trimUrl(process.env.VIVITO_VODER_URL||""),token:String(process.env.VIVITO_VODER_TOKEN||"").trim()||undefined},
+  {provider:"vox",url:trimUrl(process.env.VIVITO_VOX_URL||"")},
+  {provider:"audio-cpp",url:trimUrl(process.env.VIVITO_AUDIOCPP_URL||"")},
+ ];
+ return providers.filter(x=>Boolean(x.url));
+};
 const headers=(cfg:ProviderConfig,extra:Record<string,string>={})=>({...extra,...(cfg.token?{Authorization:`Bearer ${cfg.token}`}:{})});
 const timeout=(ms:number)=>AbortSignal.timeout(Math.max(1500,Math.min(ms,45000)));
 
@@ -28,9 +31,8 @@ export async function vivitoVoiceStatus():Promise<VoiceProviderStatus[]>{
 }
 
 async function transcribeVoderOrVox(cfg:ProviderConfig,audio:Uint8Array,mimeType:string,language?:string):Promise<VoiceTranscript>{
- const started=Date.now();
- const params=new URLSearchParams();if(language)params.set("language",language);
- const endpoint=cfg.provider==="voder"?`${cfg.url}/v1/transcribe${params.size?`?${params}`:""}`:`${cfg.url}/v1/transcribe${params.size?`?${params}`:""}`;
+ const started=Date.now(),params=new URLSearchParams();if(language)params.set("language",language);
+ const endpoint=`${cfg.url}/v1/transcribe${params.size?`?${params}`:""}`;
  const r=await fetch(endpoint,{method:"POST",headers:headers(cfg,{"Content-Type":mimeType||"application/octet-stream"}),body:Buffer.from(audio),cache:"no-store",signal:timeout(30000)});
  const raw=await r.text();if(!r.ok)throw new Error(`${cfg.provider}-transcribe-${r.status}`);
  let text=raw;let modelId:undefined|string;try{const d=JSON.parse(raw) as {text?:unknown;transcript?:unknown;model?:unknown};text=String(d.text||d.transcript||"").trim();modelId=d.model?String(d.model):undefined}catch{}

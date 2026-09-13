@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
@@ -12,7 +13,7 @@ from fastapi import FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
-app = FastAPI(title="VIVITO VODER Gateway", version="1.0.0")
+app = FastAPI(title="VIVITO VODER Gateway", version="1.1.0")
 VODER_ROOT = Path(os.getenv("VODER_ROOT", "/opt/VODER")).resolve()
 VODER_ENTRY = (VODER_ROOT / "src" / "voder.py").resolve()
 RESULTS = (VODER_ROOT / "results").resolve()
@@ -52,7 +53,7 @@ def run_voder(args: list[str], timeout_s: int = 180) -> subprocess.CompletedProc
 @app.get("/health")
 def health(authorization: Optional[str] = Header(default=None)):
     auth(authorization)
-    return {"ok": VODER_ENTRY.is_file(), "engine": "voder", "root": str(VODER_ROOT), "python": shutil.which(PYTHON) is not None}
+    return {"ok": VODER_ENTRY.is_file(), "engine": "voder", "root": str(VODER_ROOT), "python": shutil.which(PYTHON) is not None, "capabilities": ["stt", "tts", "chat"]}
 
 
 @app.post("/v1/transcribe")
@@ -111,3 +112,55 @@ def synthesize(body: SynthesisRequest, authorization: Optional[str] = Header(def
         raise HTTPException(status_code=502, detail="VODER returned no audio")
     media = {".mp3": "audio/mpeg", ".flac": "audio/flac", ".m4a": "audio/mp4", ".ogg": "audio/ogg"}.get(created.suffix.lower(), "audio/wav")
     return FileResponse(str(created), media_type=media, headers={"X-Model-Id": "voder-tts"})
+
+
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+
+class ChatRequest(BaseModel):
+    model: Optional[str] = None
+    messages: list[ChatMessage]
+    max_tokens: Optional[int] = None
+    temperature: Optional[float] = None
+
+
+@app.post("/v1/chat/completions")
+def chat_completions(body: ChatRequest, authorization: Optional[str] = Header(default=None)):
+    auth(authorization)
+    ensure_ready()
+    user_text = "\n\n".join(m.content.strip() for m in body.messages if m.role in {"system", "user"} and m.content.strip()).strip()
+    if not user_text:
+        raise HTTPException(status_code=400, detail="No prompt supplied")
+    if len(user_text) > 30000:
+        user_text = user_text[-30000:]
+    before = snapshot()
+    started = time.time()
+    proc = run_voder(["eva", "ttt", "gen", user_text], timeout_s=240)
+    if proc.returncode != 0:
+        raise HTTPException(status_code=502, detail="VODER local LLM failed")
+    text = proc.stdout.strip()
+    if not text:
+        created = newest_created(before, (".txt", ".json"))
+        if created:
+            try:
+                raw = created.read_text(encoding="utf-8", errors="ignore").strip()
+                if created.suffix.lower() == ".json":
+                    parsed = json.loads(raw)
+                    text = str(parsed.get("text") or parsed.get("response") or parsed.get("content") or "").strip()
+                else:
+                    text = raw
+            except Exception:
+                text = ""
+    if not text:
+        raise HTTPException(status_code=502, detail="VODER local LLM returned no answer")
+    model = body.model or "voder-vadar-local"
+    return JSONResponse({
+        "id": f"voder-{int(time.time() * 1000)}",
+        "object": "chat.completion",
+        "model": model,
+        "choices": [{"index": 0, "message": {"role": "assistant", "content": text}, "finish_reason": "stop"}],
+        "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+        "latency_ms": int((time.time() - started) * 1000),
+    })

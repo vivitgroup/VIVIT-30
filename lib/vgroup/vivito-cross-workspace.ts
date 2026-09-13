@@ -7,7 +7,7 @@ export type VivitoRisk="read"|"write"|"sensitive";
 export type VivitoTransport="json"|"form";
 export type VivitoJsonValue=null|boolean|number|string|VivitoJsonValue[]|{[key:string]:VivitoJsonValue};
 export type VivitoCapability={key:string;workspace:VivitoWorkspace;label:string;risk:VivitoRisk;approvalRequired:boolean;enabled:boolean;endpoint:string|null;method:"POST"|"GET";permission?:PermissionKey;staticPayload?:Record<string,unknown>;transport?:VivitoTransport};
-const marketingEnabled=process.env.VGROUP_MARKETING_INTEGRATION_ENABLED==="true";
+const marketingEnabled=process.env.VGROUP_MARKETING_INTEGRATION_ENABLED!=="false";
 
 export const VIVITO_CAPABILITIES:readonly VivitoCapability[]=[
   {key:"group.board_action_create",workspace:"group",label:"Create board action",risk:"sensitive",approvalRequired:true,enabled:true,endpoint:"/api/vgroup/board/operations",method:"POST",staticPayload:{action:"action_create"}},

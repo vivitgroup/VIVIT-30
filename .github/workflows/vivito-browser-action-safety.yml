@@ -1,0 +1,28 @@
+name: VIVITO Browser Action Safety Certification
+
+on:
+  pull_request:
+    paths:
+      - 'app/api/vgroup/vivito/action/route.ts'
+      - 'components/vgroup/group-vivito-chat.tsx'
+      - 'lib/vgroup/vivito-marketing-chat-action.ts'
+      - 'lib/vivito/browser-local-llm.ts'
+      - 'scripts/qa-vivito-browser-action-safety.mjs'
+      - '.github/workflows/vivito-browser-action-safety.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  browser-action-safety:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run zero-key browser action safety contract
+        run: node scripts/qa-vivito-browser-action-safety.mjs

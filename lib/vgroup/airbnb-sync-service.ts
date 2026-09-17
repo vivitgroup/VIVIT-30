@@ -39,7 +39,7 @@ export async function syncAirbnbChannel(channelId:string,userId?:string):Promise
       const conflicts=Number(conflictRow?.conflicts??0);
       const warning=conflicts>0?`${conflicts} Airbnb availability conflict${conflicts===1?"":"s"} with active VIVIT reservations`:null;
       await tx`update hospitality.channel_connections set status='connected',last_sync_at=now(),last_error=${warning},updated_at=now() where id=${channel.id}::uuid`;
-      if(userId)await tx`insert into vgroup.audit_logs(business_unit_id,user_id,action,entity_type,entity_id,new_value) values(${channel.business_unit_id}::uuid,${userId}::uuid,'airbnb.calendar.sync','channel_connection',${channel.id}::uuid,jsonb_build_object('property_id',${channel.property_id},'events',${events.length},'conflicts',${conflicts}))`;
+      if(userId)await tx`insert into vgroup.audit_logs(business_unit_id,user_id,action,entity_type,entity_id,new_value) values(${channel.business_unit_id}::uuid,${userId}::uuid,'airbnb.calendar.sync','channel_connection',${channel.id}::uuid,jsonb_build_object('property_id',${channel.property_id}::text,'events',${events.length}::int,'conflicts',${conflicts}::int))`;
       return conflicts;
     });
     return {ok:true,channelId:channel.id,propertyId:channel.property_id,propertyName:channel.property_name,listing:channel.external_listing_id,events:events.length,conflicts:result};

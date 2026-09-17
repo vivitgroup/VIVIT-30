@@ -1,10 +1,12 @@
 import {NextResponse} from "next/server";
 import {getVGroupSql} from "@/lib/vgroup/db";
 import {apiErrorResponse,requireApiPermission} from "@/lib/vgroup/api-access";
+import {syncAirbnbChannel} from "@/lib/vgroup/airbnb-sync-service";
 
 export const dynamic="force-dynamic";
 const uuid=/^[0-9a-f-]{36}$/i;
 const VIVIT_COMMISSION_RATE=0.15;
+const LIVE_REFRESH_MS=2*60*1000;
 const transitions:Record<string,readonly string[]>={pending:["confirmed","cancelled"],confirmed:["checked_in","cancelled","no_show"],checked_in:["checked_out"],checked_out:[],cancelled:[],no_show:[]};
 
 export async function GET(){
@@ -45,6 +47,17 @@ export async function POST(request:Request){
     if(!property)return NextResponse.json({error:"Property unavailable"},{status:404,headers:{"Cache-Control":"no-store"}});
     if(property.status!=="active")return NextResponse.json({error:"Property is not active for reservations"},{status:409,headers:{"Cache-Control":"no-store"}});
     if(guests>Number(property.max_guests))return NextResponse.json({error:"Guest count exceeds property capacity",maxGuests:Number(property.max_guests)},{status:409,headers:{"Cache-Control":"no-store"}});
+    const [channel]=await sql<{id:string;last_sync_at:string|null}[]>`
+      select id::text,last_sync_at::text
+      from hospitality.channel_connections
+      where property_id=${propertyId}::uuid and channel='airbnb' and status<>'disabled'
+        and token_ref is not null and btrim(token_ref)<>''
+      order by created_at limit 1`;
+    const lastSync=channel?.last_sync_at?new Date(channel.last_sync_at).getTime():0;
+    if(channel&&(!lastSync||Date.now()-lastSync>LIVE_REFRESH_MS)){
+      try{await syncAirbnbChannel(channel.id,session.userId)}
+      catch(error){return NextResponse.json({error:"Could not refresh Airbnb availability before booking",detail:error instanceof Error?error.message:"Airbnb sync failed"},{status:503,headers:{"Cache-Control":"no-store"}})}
+    }
     const [blocked]=await sql<{blocked:boolean;source:string|null;summary:string|null}[]>`
       select exists(
         select 1 from hospitality.calendar_blocks b

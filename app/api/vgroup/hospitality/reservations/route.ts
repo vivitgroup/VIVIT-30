@@ -54,18 +54,22 @@ export async function POST(request:Request){
       (select b.source from hospitality.calendar_blocks b where b.property_id=${propertyId}::uuid and b.archived_at is null and b.starts_on<${checkOut}::date and b.ends_on>${checkIn}::date order by b.starts_on limit 1) source,
       (select b.summary from hospitality.calendar_blocks b where b.property_id=${propertyId}::uuid and b.archived_at is null and b.starts_on<${checkOut}::date and b.ends_on>${checkIn}::date order by b.starts_on limit 1) summary`;
     if(blocked?.blocked)return NextResponse.json({error:"Property is blocked by synced channel availability for the selected dates",conflict:{source:blocked.source,summary:blocked.summary}},{status:409,headers:{"Cache-Control":"no-store"}});
-    const [row]=await sql`
-      insert into hospitality.reservations(business_unit_id,property_id,source,guest_name,guest_email,guest_phone,check_in,check_out,guests,currency,gross_amount,platform_fee,company_commission,status)
-      select bu.id,${propertyId}::uuid,${source},${guestName},${body.guestEmail?String(body.guestEmail).trim().slice(0,320):null},${body.guestPhone?String(body.guestPhone).trim().slice(0,80):null},${checkIn}::date,${checkOut}::date,${guests},${String(body.currency??"EGP").trim().toUpperCase().slice(0,3)},${grossAmount},${platformFee},${companyCommission},'confirmed'
-      from vgroup.business_units bu
-      join hospitality.properties p on p.id=${propertyId}::uuid and p.business_unit_id=bu.id and p.archived_at is null and p.status='active'
-      where bu.code='hospitality'
-      returning id::text,gross_amount,company_commission,net_owner_amount
-    `;
+    const row=await sql.begin(async tx=>{
+      const [created]=await tx`
+        insert into hospitality.reservations(business_unit_id,property_id,source,guest_name,guest_email,guest_phone,check_in,check_out,guests,currency,gross_amount,platform_fee,company_commission,status)
+        select bu.id,${propertyId}::uuid,${source},${guestName},${body.guestEmail?String(body.guestEmail).trim().slice(0,320):null},${body.guestPhone?String(body.guestPhone).trim().slice(0,80):null},${checkIn}::date,${checkOut}::date,${guests},${String(body.currency??"EGP").trim().toUpperCase().slice(0,3)},${grossAmount},${platformFee},${companyCommission},'confirmed'
+        from vgroup.business_units bu
+        join hospitality.properties p on p.id=${propertyId}::uuid and p.business_unit_id=bu.id and p.archived_at is null and p.status='active'
+        where bu.code='hospitality'
+        returning id::text,gross_amount,company_commission,net_owner_amount
+      `;
+      if(!created)return null;
+      await tx`insert into vgroup.audit_logs(business_unit_id,user_id,action,entity_type,entity_id,new_value)
+        select id,${session.userId}::uuid,'reservation.create','reservation',${created.id}::uuid,jsonb_build_object('property_id',${propertyId}::text,'guest_name',${guestName}::text,'check_in',${checkIn}::text,'check_out',${checkOut}::text,'vivit_commission_rate',15,'vivit_commission',${companyCommission}::numeric)
+        from vgroup.business_units where code='hospitality'`;
+      return created;
+    });
     if(!row)return NextResponse.json({error:"Property unavailable"},{status:404,headers:{"Cache-Control":"no-store"}});
-    await sql`insert into vgroup.audit_logs(business_unit_id,user_id,action,entity_type,entity_id,new_value)
-      select id,${session.userId}::uuid,'reservation.create','reservation',${row.id}::uuid,jsonb_build_object('property_id',${propertyId},'guest_name',${guestName},'check_in',${checkIn},'check_out',${checkOut},'vivit_commission_rate',15,'vivit_commission',${companyCommission})
-      from vgroup.business_units where code='hospitality'`;
     return NextResponse.json({reservation:row},{status:201,headers:{"Cache-Control":"no-store"}});
   }catch(error){
     const message=error instanceof Error?error.message:"";
@@ -90,8 +94,11 @@ export async function PATCH(request:Request){
       const [block]=await sql<{id:string}[]>`select id::text from hospitality.calendar_blocks where property_id=${reservation.property_id}::uuid and archived_at is null and daterange(starts_on,ends_on,'[)') && daterange(${reservation.check_in}::date,${reservation.check_out}::date,'[)') limit 1`;
       if(block)return NextResponse.json({error:"Reservation cannot become active because synced channel availability blocks these dates"},{status:409,headers:{"Cache-Control":"no-store"}});
     }
-    const [updated]=await sql`update hospitality.reservations set status=${nextStatus},updated_at=now() where id=${reservationId}::uuid returning id::text,status`;
-    await sql`insert into vgroup.audit_logs(business_unit_id,user_id,action,entity_type,entity_id,new_value) values(${reservation.business_unit_id}::uuid,${session.userId}::uuid,'reservation.status.change','reservation',${reservationId}::uuid,jsonb_build_object('from',${reservation.status},'to',${nextStatus}))`;
+    const updated=await sql.begin(async tx=>{
+      const [next]=await tx`update hospitality.reservations set status=${nextStatus},updated_at=now() where id=${reservationId}::uuid returning id::text,status`;
+      await tx`insert into vgroup.audit_logs(business_unit_id,user_id,action,entity_type,entity_id,new_value) values(${reservation.business_unit_id}::uuid,${session.userId}::uuid,'reservation.status.change','reservation',${reservationId}::uuid,jsonb_build_object('from',${reservation.status}::text,'to',${nextStatus}::text))`;
+      return next;
+    });
     return NextResponse.json({reservation:updated},{headers:{"Cache-Control":"no-store"}});
   }catch(error){return apiErrorResponse(error)}
 }
